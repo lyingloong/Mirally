@@ -1,0 +1,21 @@
+# Local environments and generated files
+**/.venv/
+**/node_modules/
+**/.pytest_cache/
+**/__pycache__/
+**/.artifacts/
+**/*.pyc
+
+# Local credentials and environment overrides
+**/.env
+**/.env.local
+**/.env.*.local
+
+# OS and editor files
+**/.DS_Store
+**/Thumbs.db
+**/.idea/
+
+# Local framework evaluations (kept outside the product repository)
+/Windows-Use/
+/openclaw/
