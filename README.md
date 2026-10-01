@@ -23,12 +23,14 @@ OpenAssist 是面向 Windows 的桌面操作智能体。用户通过置顶会话
 需要 Windows 10 或更高版本、可交互的桌面会话，以及 Python 3.10（64 位，包含 Tkinter）。当前依赖沿用 UFO 的版本约束，建议先使用 Python 3.10。
 
 ```powershell
-py -3.10 -m venv .\UFO\.venv
-.\UFO\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\UFO\.venv\Scripts\python.exe -m pip install -r .\UFO\requirements.txt
+py -3.10 -m venv .\.venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r .\UFO\requirements.txt
 ```
 
-启动器固定使用 `UFO/.venv/Scripts/python.exe`，无需激活虚拟环境。已有该环境时可跳过创建步骤。
+启动器固定使用根目录的 `.venv/Scripts/python.exe`，无需激活虚拟环境。产品层与 UFO 内核共用该环境，依赖清单目前沿用 `UFO/requirements.txt`。已有根目录环境时可跳过创建步骤。
+
+如果从旧的内核独立环境迁移，请按上述步骤在根目录重新创建环境。虚拟环境中的启动脚本可能包含绝对路径，应重新安装依赖；确认根目录环境可用后，可清理内核目录中的旧环境。
 
 ### 2. 配置模型
 
@@ -59,7 +61,7 @@ notepad .\UFO\config\ufo\agents.yaml
 如果 PowerShell 的执行策略阻止脚本，可以直接运行同一入口：
 
 ```powershell
-.\UFO\.venv\Scripts\python.exe -m openassist
+.\.venv\Scripts\python.exe -m openassist
 ```
 
 启动后，在窗口中选择运行模式，输入任务并点击「发送」，或按 `Ctrl+Enter`。需要补充信息时，在同一输入框回复；任务结束后窗口恢复交互，可提交下一条任务。
@@ -95,6 +97,7 @@ notepad .\UFO\config\ufo\agents.yaml
 openassist/
 ├── README.md
 ├── run.ps1                         # 根目录启动入口
+├── .venv/                          # 产品与内核共用的本地环境，Git 忽略
 ├── openassist/                     # 产品层
 │   ├── __main__.py                  # 初始化内核路径并启动界面
 │   ├── desktop.py                   # Tkinter 会话窗口与单任务调度
@@ -105,7 +108,6 @@ openassist/
     ├── ufo/skills/single_agent/     # 轻量模式技能提示
     ├── tests/unit/                 # 单元测试
     ├── requirements.txt
-    ├── .venv/                      # 本地虚拟环境，Git 忽略
     └── logs/                       # 运行日志与截图，Git 忽略
 ```
 
@@ -132,7 +134,7 @@ openassist/
 ```powershell
 Push-Location .\UFO
 try {
-    .\.venv\Scripts\python.exe -m unittest tests.unit.test_ufo_single_agent tests.unit.test_ufo_single_agent_extensions tests.unit.test_single_agent_form_entry
+    ..\.venv\Scripts\python.exe -m unittest tests.unit.test_ufo_single_agent tests.unit.test_ufo_single_agent_extensions tests.unit.test_single_agent_form_entry
 } finally {
     Pop-Location
 }
@@ -142,8 +144,8 @@ try {
 
 ### 常见问题
 
-- **提示找不到 UFO Python 环境**：按照环境准备步骤创建 `UFO/.venv/`。
-- **启动时报模块缺失**：使用 `UFO/.venv/Scripts/python.exe` 安装 `UFO/requirements.txt`，确认安装过程完成。
+- **提示找不到 OpenAssist Python 环境**：按照环境准备步骤在仓库根目录创建 `.venv/`。
+- **启动时报模块缺失**：使用 `.venv/Scripts/python.exe` 安装 `UFO/requirements.txt`，确认安装过程完成。
 - **模型鉴权或请求失败**：检查本地 `agents.yaml` 中对应智能体的地址、凭据、模型名称及图像输入支持。
 - **运行时无法点击 OpenAssist 窗口**：执行过程中窗口会穿透点击；空闲、等待回复或确认时恢复交互。
 - **任务反复操作同一控件或提前结束**：查看该任务目录中的动作结果、循环检测反馈和截图，确认实际执行情况。
