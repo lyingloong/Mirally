@@ -396,7 +396,7 @@ class SystemConfig:
 
     # ========== MCP (Model Context Protocol) ==========
     use_mcp: bool = True
-    mcp_servers_config: str = "config/ufo/mcp.yaml"
+    mcp_servers_config: str = "${OPENASSIST_UFO_CONFIG_ROOT}/ufo/mcp.yaml"
     mcp_preferred_apps: List[str] = field(default_factory=list)
     mcp_fallback_to_ui: bool = True
     mcp_instructions_path: str = "ufo/config/mcp_instructions"

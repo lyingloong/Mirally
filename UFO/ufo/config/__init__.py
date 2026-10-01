@@ -2,13 +2,8 @@
 # Licensed under the MIT License.
 
 import json
-import logging
 import os
 from typing import Any, Dict, Optional
-
-import yaml
-
-logger = logging.getLogger(__name__)
 
 
 class Config:
@@ -31,54 +26,19 @@ class Config:
             Config._instance = Config()
         return Config._instance
 
-    def load_config(self, config_path="ufo/config/") -> Dict[str, Any]:
+    def load_config(self, config_path=None) -> Dict[str, Any]:
         """
-        Load the configuration from a YAML file and environment variables.
+        Load configuration from the OpenAssist product layer.
 
-        :param config_path: The path to the YAML config file. Defaults to "./config.yaml".
+        ``config_path`` is retained only for source compatibility. Runtime
+        YAML is owned by ``config/openassist/ufo`` and is resolved by the
+        product-aware ConfigLoader.
         :return: Merged configuration from environment variables and YAML file.
         """
+        from config.config_loader import get_ufo_config
 
-        # Copy environment variables to avoid modifying them directly
-        os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # Suppress TensorFlow warnings
-        configs = dict(os.environ)
-
-        current_path = os.getcwd()
-        path = os.path.join(current_path, config_path)
-
-        try:
-            with open(os.path.join(path, "config.yaml"), "r") as file:
-                yaml_data = yaml.safe_load(file)
-            # Update configs with YAML data
-            if yaml_data:
-                configs.update(yaml_data)
-            if os.path.exists(path + "config_dev.yaml"):
-                with open(path + "config_dev.yaml", "r") as file:
-                    yaml_dev_data = yaml.safe_load(file)
-                configs.update(yaml_dev_data)
-            if os.path.exists(path + "config_prices.yaml"):
-                with open(path + "config_prices.yaml", "r") as file:
-                    yaml_prices_data = yaml.safe_load(file)
-                configs.update(yaml_prices_data)
-
-            # Load MCP config from new location: config/ufo/mcp.yaml (preferred)
-            new_mcp_path = os.path.join(current_path, "config/ufo/mcp.yaml")
-            if os.path.exists(new_mcp_path):
-                with open(new_mcp_path, "r") as file:
-                    yaml_mcp_data = yaml.safe_load(file)
-                configs["mcp"] = yaml_mcp_data
-            # Fallback to legacy location: ufo/config/agent_mcp.yaml
-            elif os.path.exists(path + "agent_mcp.yaml"):
-                with open(path + "agent_mcp.yaml", "r") as file:
-                    yaml_agent_mcp_data = yaml.safe_load(file)
-                configs["mcp"] = yaml_agent_mcp_data
-        except FileNotFoundError as e:
-
-            logger.warning(
-                f"Config file not found at {path}. Using only environment variables. Error: {e}"
-            )
-
-        return self.optimize_configs(configs)
+        config = get_ufo_config(reload=True)
+        return config.to_dict() if hasattr(config, "to_dict") else config._data
 
     @staticmethod
     def update_api_base(configs: dict, agent: str) -> None:

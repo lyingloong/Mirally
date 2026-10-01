@@ -4,6 +4,8 @@ OpenAssist 是面向 Windows 的桌面操作智能体。用户通过置顶会话
 
 产品入口、界面和任务调度由 OpenAssist 维护，桌面智能体内核基于 [Microsoft UFO](https://github.com/microsoft/UFO)。当前处于基础框架阶段，采用**每次提交一个独立任务**的运行方式。
 
+OpenAssist 产品层负责窗口、任务会话和用户交互；UFO 内核负责桌面观察、模型决策和 Windows 操作。用户面向产品层配置，UFO 运行时所需的 YAML 统一维护在 `config/openassist/ufo/`，UFO 源码目录不再保留运行时配置副本。
+
 ## 当前功能
 
 - 置顶桌面会话窗口：任务输入、状态展示、追问回复和敏感操作确认。
@@ -11,8 +13,9 @@ OpenAssist 是面向 Windows 的桌面操作智能体。用户通过置顶会话
 - 两种可切换的执行模式：轻量单任务模式、UFO 原生 HostAgent / AppAgent 多智能体模式。
 - 每个任务独立运行，完成后可提交下一条任务；运行日志和截图保存在本地。
 - 单任务模式增加了字段填写验证、任务内用户答案保留和循环检测。
+- 已提供通用语音识别 Provider 配置和调用接口，可接入 OpenAI-compatible 音频转写服务。
 
-目前仅支持 Windows。持续会话、跨任务长期记忆、语音输入输出及独立前端尚未实现。
+目前仅支持 Windows。语音识别的录音按钮和界面流程尚未接入；持续会话、跨任务长期记忆、语音输出及独立前端也尚未实现。
 
 ## 快速开始
 
@@ -34,11 +37,11 @@ py -3.10 -m venv .\.venv
 
 ### 2. 配置模型
 
-首次运行时，从模板创建本地配置；已有 `agents.yaml` 时直接编辑，避免覆盖现有凭据。
+首次运行时，从产品层模板创建本地配置；已有 `agents.yaml` 时直接编辑，避免覆盖现有凭据。
 
 ```powershell
-Copy-Item .\UFO\config\ufo\agents.yaml.template .\UFO\config\ufo\agents.yaml
-notepad .\UFO\config\ufo\agents.yaml
+Copy-Item .\config\openassist\ufo\agents.yaml.template .\config\openassist\ufo\agents.yaml
+notepad .\config\openassist\ufo\agents.yaml
 ```
 
 在对应智能体配置中填写 `API_TYPE`、`API_BASE`、`API_KEY`、`API_MODEL` 等字段：
@@ -50,7 +53,33 @@ notepad .\UFO\config\ufo\agents.yaml
 
 默认视觉模式会向模型发送桌面截图，需要支持图像输入的模型。API 地址与模型参数应按照所用服务的要求填写，配置模板中的值仅为示例。
 
-`agents.yaml` 包含本地凭据，已被 Git 忽略。可提交的配置模板为 [agents.yaml.template](UFO/config/ufo/agents.yaml.template)。
+`agents.yaml` 包含本地凭据，已被 Git 忽略。可提交的配置模板为 [agents.yaml.template](config/openassist/ufo/agents.yaml.template)。所有 UFO 运行时 YAML 都只在 `config/openassist/ufo/` 维护；UFO 源码目录中不再有同名配置副本。
+
+如果从旧版 UFO 配置迁移，请手动将需要保留的字段合并到产品层模板中；启动器不会读取或复制旧位置的配置。
+
+### 2.1 语音识别配置（可选）
+
+语音识别属于 OpenAssist 产品层，不与 UFO 的 LLM 智能体配置混用。产品层只约定通用的 OpenAI-compatible 音频转写协议，具体服务地址、模型和凭据由部署方配置。Provider 通过 `POST {base_url}/audio/transcriptions` 上传音频文件，默认支持 `wav` 或 `mp3`。
+
+首次配置时复制产品层模板，并填写服务商提供的地址、模型和 API Key：
+
+```powershell
+Copy-Item .\config\openassist\speech.yaml.template .\config\openassist\speech.yaml
+$env:OPENASSIST_SPEECH_API_KEY = "服务商提供的 API Key"
+```
+
+模板默认 `enabled: false`。启用时至少需要调整以下字段：
+
+```yaml
+enabled: true
+provider: openai_compatible
+base_url: "https://your-provider.example/v1"
+model: "your-asr-model"
+api_key: "${OPENASSIST_SPEECH_API_KEY}"
+language: auto
+```
+
+`speech.yaml` 已被 Git 忽略。也可以把 API Key 直接填入该文件的 `api_key`，但推荐使用环境变量。当前代码已完成 Provider 层，录音设备、录音状态和输入框按钮尚未接入；完成后识别结果会进入现有任务输入和安全确认流程。
 
 ### 3. 启动
 
@@ -98,12 +127,23 @@ openassist/
 ├── README.md
 ├── run.ps1                         # 根目录启动入口
 ├── .venv/                          # 产品与内核共用的本地环境，Git 忽略
+├── config/openassist/              # 产品层配置模板与本地配置
+│   ├── speech.yaml.template         # 通用语音识别配置模板
+│   └── ufo/                         # OpenAssist 使用的 UFO 配置
+│       ├── agents.yaml.template     # 智能体模型配置模板
+│       ├── system.yaml              # 执行、安全和运行时配置
+│       ├── mcp.yaml                 # MCP 工具配置
+│       └── rag.yaml                 # RAG 和经验配置
 ├── openassist/                     # 产品层
 │   ├── __main__.py                  # 初始化内核路径并启动界面
+│   ├── config.py                    # 产品层配置加载
 │   ├── desktop.py                   # Tkinter 会话窗口与单任务调度
+│   ├── speech.py                    # 通用语音识别 Provider
 │   └── ufo_full.py                  # UFO 原生 Session 适配
+├── tests/                          # 产品层测试
+│   └── test_openassist_speech.py    # 语音配置与 Provider 测试
 └── UFO/                            # 纳入根仓库的 UFO 内核源码
-    ├── config/ufo/                  # 模型模板、系统与工具配置
+    ├── config/                     # UFO 配置加载器与类型定义（不含运行时 YAML）
     ├── ufo/agents/single_agent/     # 轻量执行循环及可靠性扩展
     ├── ufo/skills/single_agent/     # 轻量模式技能提示
     ├── tests/unit/                 # 单元测试
@@ -113,16 +153,18 @@ openassist/
 
 根目录维护一个 Git 仓库，`UFO/` 以源码形式随仓库维护。OpenAssist 负责产品交互与调度，内核执行能力在 UFO 中维护。
 
-后续独立前端、语音处理和共享接口可分别放入 `apps/`、`services/`、`packages/contracts/`；这些目录目前尚未建立。`Windows-Use/`、`openclaw/` 仅作为本地评估项目，已被忽略，不属于本仓库内容。
+后续独立前端、录音服务和共享接口可分别放入 `apps/`、`services/`、`packages/contracts/`；这些目录目前尚未建立。语音识别 Provider 已位于 OpenAssist 产品层，录音采集和语音输出仍待实现。`Windows-Use/`、`openclaw/` 仅作为本地评估项目，已被忽略，不属于本仓库内容。
 
 ## 配置与运行记录
 
 | 文件或目录 | 用途 |
 | --- | --- |
-| `UFO/config/ufo/agents.yaml` | 本地模型配置与 API 凭据 |
-| [system.yaml](UFO/config/ufo/system.yaml) | 步数上限、安全确认、循环检测、技能提示和原生工作流开关 |
-| [mcp.yaml](UFO/config/ufo/mcp.yaml) | 原生模式 MCP 工具配置 |
-| [rag.yaml](UFO/config/ufo/rag.yaml) | 原生模式检索与经验库配置 |
+| `config/openassist/ufo/agents.yaml` | 本地模型配置与 API 凭据 |
+| `config/openassist/speech.yaml` | 产品层语音 Provider 配置，包含服务地址、模型和 API 凭据 |
+| [speech.yaml.template](config/openassist/speech.yaml.template) | 通用语音 Provider 配置模板 |
+| [system.yaml](config/openassist/ufo/system.yaml) | 步数上限、安全确认、循环检测、技能提示和原生工作流开关 |
+| [mcp.yaml](config/openassist/ufo/mcp.yaml) | 原生模式 MCP 工具配置 |
+| [rag.yaml](config/openassist/ufo/rag.yaml) | 原生模式检索与经验库配置 |
 | `UFO/logs/openassist-<时间戳>/` | 每次任务的日志目录 |
 
 单任务模式记录 `single_agent.jsonl` 和 `single_step_<序号>.png`；原生模式保存 UFO 自身的运行记录。日志可能包含任务内容、用户回复和桌面截图，请按本地调试数据管理。
@@ -140,15 +182,29 @@ try {
 }
 ```
 
+运行产品层语音 Provider 测试：
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest tests.test_openassist_speech
+```
+
 这些测试覆盖动作处理、填写验证、循环检测和任务内答案保留，不代表真实桌面任务的端到端验证。修改界面或内核后需要重启桌面程序。
 
 ### 常见问题
 
 - **提示找不到 OpenAssist Python 环境**：按照环境准备步骤在仓库根目录创建 `.venv/`。
 - **启动时报模块缺失**：使用 `.venv/Scripts/python.exe` 安装 `UFO/requirements.txt`，确认安装过程完成。
-- **模型鉴权或请求失败**：检查本地 `agents.yaml` 中对应智能体的地址、凭据、模型名称及图像输入支持。
+- **模型鉴权或请求失败**：检查 `config/openassist/ufo/agents.yaml` 中对应智能体的地址、凭据、模型名称及图像输入支持。
+- **语音配置无法加载**：确认 `config/openassist/speech.yaml` 已从模板复制，并在启用语音时填写 `base_url`、`model` 和 `OPENASSIST_SPEECH_API_KEY`。
+- **语音服务请求失败**：确认服务实现了 OpenAI-compatible 的 `/audio/transcriptions` 接口，并检查音频格式、模型名称、网络和 API Key。
 - **运行时无法点击 OpenAssist 窗口**：执行过程中窗口会穿透点击；空闲、等待回复或确认时恢复交互。
 - **任务反复操作同一控件或提前结束**：查看该任务目录中的动作结果、循环检测反馈和截图，确认实际执行情况。
+
+## UFO 基线
+
+本项目基于 Microsoft UFO² v2.0.0 的桌面 AgentOS 代码进行二次开发；上游 UFO² 中文说明将该版本标注为 2025 年 4 月发布。当前仓库纳入的是 UFO 源码快照，未保留独立的上游 Git commit/tag 元数据，因此不将本项目宣称为某个具体上游 commit 的直接构建。
+
+本项目在该基线上将产品入口、单任务调度、桌面会话交互、可靠性扩展和产品层配置组织方式进行了较大改动。UFO 的配置加载器代码仍位于内核中，但运行时 YAML 的唯一来源是 `config/openassist/ufo/`。
 
 ## 上游与许可证
 

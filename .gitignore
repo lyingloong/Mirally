@@ -11,6 +11,10 @@
 **/.env.local
 **/.env.*.local
 
+# OpenAssist product-layer credentials
+/config/openassist/speech.yaml
+/config/openassist/ufo/agents.yaml
+
 # OS and editor files
 **/.DS_Store
 **/Thumbs.db

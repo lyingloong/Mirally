@@ -1,0 +1,17 @@
+# OpenAssist product-layer speech-to-text configuration.
+# Copy this file to speech.yaml. Keep API credentials out of source control.
+
+enabled: false
+provider: openai_compatible
+
+# Configure any OpenAI-compatible audio transcription service here.
+# The endpoint must expose POST /audio/transcriptions.
+base_url: "https://api.example.com/v1"
+model: "your-asr-model"
+api_key: "${OPENASSIST_SPEECH_API_KEY}"
+
+# Use auto for Chinese/English mixed input. The service currently supports
+# file upload and does not support stream: true.
+language: auto
+timeout_seconds: 120
+response_format: json

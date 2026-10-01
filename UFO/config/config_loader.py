@@ -2,33 +2,22 @@
 # Licensed under the MIT License.
 
 """
-Modern Configuration Loader for UFO³ and Galaxy
+Configuration Loader for the OpenAssist UFO runtime
 
 Professional Software Engineering Design:
 - ✅ Separation of Concerns: Modular YAML files for different config domains
-- ✅ Backward Compatibility: Automatic fallback to legacy paths (ufo/config/)
-- ✅ Migration Support: Built-in migration warnings and tools
+- ✅ Product-owned configuration: YAML files live under config/openassist/
 - ✅ Type Safety: Pydantic-style typed configs + dynamic YAML fields
 - ✅ Auto-Discovery: Loads all YAML files automatically
 - ✅ Environment Overrides: dev/test/prod environment support
-- ✅ Priority Chain: New path → Legacy path → Environment variables
-- ✅ Zero Breaking Changes: Existing code continues to work
+- ✅ Environment Overrides: Environment variables can override YAML values
 
 Configuration Structure:
-    New (Recommended):
-        config/ufo/          ← UFO² configurations
-        config/galaxy/       ← Galaxy configurations
-
-    Legacy (Auto-detected):
-        ufo/config/          ← Old UFO configs (still supported)
-
-Priority Rules:
-    1. config/{module}/    ← Highest priority (new path)
-    2. {module}/config/    ← Fallback (legacy path)
-    3. Environment vars    ← Override mechanism
+    config/openassist/ufo/  ← OpenAssist UFO runtime configuration
+    config/galaxy/          ← Optional Galaxy configuration
 
 Usage Examples:
-    # Load config (automatic fallback to legacy)
+    # Load product-owned config
     config = get_ufo_config()
 
     # Type-safe access (IDE autocomplete!)
@@ -151,41 +140,35 @@ class DynamicConfig:
 
 class ConfigLoader:
     """
-    Modern configuration loader with backward compatibility.
+    Configuration loader for the product-owned UFO configuration.
 
     Features:
     - Automatic discovery of YAML files in config directories
-    - Fallback to legacy paths for backward compatibility
-    - Clear migration warnings to guide users
     - Deep merging of multiple YAML files
     - Environment-specific overrides (dev/test/prod)
-
-    Priority Chain (High → Low):
-    1. config/{module}/*.yaml         ← New path (highest priority)
-    2. {module}/config/*.yaml          ← Legacy path (fallback)
-    3. Environment-specific overrides  ← dev/test/prod variants
-
-    When both new and legacy paths exist:
-    - New path takes priority
-    - Legacy values fill in missing keys
-    - Clear warning shown to user
     """
 
     _instance: Optional["ConfigLoader"] = None
-
-    # Path mappings: new_path → legacy_path
-    LEGACY_PATH_MAP = {
-        "config/ufo": "ufo/config",
-        "config/galaxy": None,  # Galaxy has no legacy path
-    }
 
     def __init__(self, base_path: str = "config"):
         """
         Initialize ConfigLoader.
 
-        :param base_path: Base path to configuration directory (default: "config")
+        :param base_path: Optional fallback base path for non-OpenAssist callers.
+            OpenAssist normally uses config/openassist via the environment or
+            repository-root auto-discovery.
         """
-        self.base_path = Path(base_path)
+        configured_root = os.getenv("OPENASSIST_UFO_CONFIG_ROOT")
+        if configured_root:
+            self.base_path = Path(configured_root)
+        else:
+            repository_root = Path(__file__).resolve().parents[2]
+            product_root = repository_root / "config" / "openassist"
+            if (product_root / "ufo").is_dir():
+                self.base_path = product_root
+                os.environ["OPENASSIST_UFO_CONFIG_ROOT"] = str(product_root.resolve())
+            else:
+                self.base_path = Path(base_path)
         self._cache: Dict[str, Any] = {}
         self._env = os.getenv("UFO_ENV", "production")
         self._warnings_shown: set = set()  # Track shown warnings
@@ -309,7 +292,7 @@ class ConfigLoader:
         1. Base YAML files (*.yaml)
         2. Environment-specific overrides (*_<env>.yaml)
 
-        :param module_dir: Module directory (e.g., config/ufo or config/galaxy)
+        :param module_dir: Module directory (e.g., config/openassist/ufo)
         :param env: Environment name for overrides (dev/test/prod)
         :return: Merged configuration dictionary
         """
@@ -340,125 +323,26 @@ class ConfigLoader:
         self, module: str, env: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Load configuration with automatic fallback to legacy paths.
-
-        Priority:
-        1. config/{module}/     ← New path (priority)
-        2. {module}/config/     ← Legacy path (fallback)
-
-        Behavior:
-        - If both exist: New overrides legacy, warning shown
-        - If only new: Use new path, no warning
-        - If only legacy: Use legacy, show migration warning
-        - If neither: Raise FileNotFoundError
+        Load configuration from the product-owned module directory.
 
         :param module: Module name ("ufo" or "galaxy")
         :param env: Environment override
         :return: Merged configuration dictionary
         """
-        new_path = self.base_path / module
-        legacy_path_str = self.LEGACY_PATH_MAP.get(f"config/{module}")
-        legacy_path = Path(legacy_path_str) if legacy_path_str else None
-
-        # Load new configuration
-        new_config = self._load_module_configs(new_path, env)
-        new_exists = bool(new_config)
-
-        # Load legacy configuration (if path exists)
-        legacy_config = {}
-        legacy_exists = False
-        if legacy_path and legacy_path.exists():
-            legacy_config = self._load_module_configs(legacy_path, env)
-            legacy_exists = bool(legacy_config)
-
-        # Determine which config to use and show appropriate warnings
-        if new_exists and legacy_exists:
-            # Both exist: Merge with new taking priority
-            self._warn_duplicate_configs(module, str(new_path), str(legacy_path))
-            merged = legacy_config.copy()
-            self._deep_merge(merged, new_config)
-            return merged
-
-        elif new_exists:
-            # Only new exists: Ideal case
-            return new_config
-
-        elif legacy_exists:
-            # Only legacy exists: Show migration warning
-            self._warn_legacy_config(module, str(legacy_path), str(new_path))
-            return legacy_config
-
-        else:
-            # Neither exists: Error
+        module_path = self.base_path / module
+        config = self._load_module_configs(module_path, env)
+        if not config:
             raise FileNotFoundError(
-                f"No configuration found for '{module}'.\n"
-                f"Expected at:\n"
-                f"  - {new_path}/ (recommended)\n"
-                + (f"  - {legacy_path}/ (legacy)\n" if legacy_path else "")
+                f"No configuration found for '{module}' at {module_path}/"
             )
-
-    def _warn_duplicate_configs(
-        self, module: str, new_path: str, legacy_path: str
-    ) -> None:
-        """
-        Warn user when both new and legacy configs exist.
-
-        :param module: Module name
-        :param new_path: New configuration path
-        :param legacy_path: Legacy configuration path
-        """
-        warning_key = f"duplicate_{module}"
-        if warning_key in self._warnings_shown:
-            return
-
-        logger.warning(
-            f"\n{'=' * 70}\n"
-            f"⚠️  CONFIG CONFLICT DETECTED: {module.upper()}\n"
-            f"{'=' * 70}\n"
-            f"Found configurations in BOTH locations:\n"
-            f"  1. {new_path}/     ← ACTIVE (using this)\n"
-            f"  2. {legacy_path}/  ← IGNORED (legacy)\n\n"
-            f"Recommendation:\n"
-            f"  Remove legacy config to avoid confusion:\n"
-            f"  rm -rf {legacy_path}/*.yaml\n"
-            f"{'=' * 70}\n"
-        )
-        self._warnings_shown.add(warning_key)
-
-    def _warn_legacy_config(self, module: str, legacy_path: str, new_path: str) -> None:
-        """
-        Warn user when using legacy configuration path.
-
-        :param module: Module name
-        :param legacy_path: Legacy configuration path
-        :param new_path: New configuration path (recommended)
-        """
-        warning_key = f"legacy_{module}"
-        if warning_key in self._warnings_shown:
-            return
-
-        logger.warning(
-            f"\n{'=' * 70}\n"
-            f"⚠️  LEGACY CONFIG PATH DETECTED: {module.upper()}\n"
-            f"{'=' * 70}\n"
-            f"Using legacy config: {legacy_path}/\n"
-            f"Please migrate to:   {new_path}/\n\n"
-            f"Quick migration:\n"
-            f"  mkdir -p {new_path}\n"
-            f"  cp {legacy_path}/*.yaml {new_path}/\n\n"
-            f"Or use migration tool:\n"
-            f"  python -m ufo.tools.migrate_config\n"
-            f"{'=' * 70}\n"
-        )
-        self._warnings_shown.add(warning_key)
+        return config
 
     def load_ufo_config(self, env: Optional[str] = None) -> UFOConfig:
         """
-        Load UFO configuration with automatic legacy fallback.
+        Load UFO configuration from the OpenAssist product layer.
 
         Automatically discovers and loads all YAML files:
-        - Priority 1: config/ufo/*.yaml (new structure)
-        - Priority 2: ufo/config/*.yaml (legacy fallback)
+        - config/openassist/ufo/*.yaml
 
         Returns UFOConfig with:
         - Typed fields for common configs (config.system.max_step)
@@ -475,7 +359,7 @@ class ConfigLoader:
         # Start with environment variables (for backward compatibility with old Config)
         config_data = dict(os.environ)
 
-        # Load YAML configs with automatic fallback and merge into env vars
+        # Load product YAML configs and merge into env vars
         yaml_config = self._load_with_fallback("ufo", env)
         config_data.update(yaml_config)
 
@@ -487,7 +371,7 @@ class ConfigLoader:
 
     def load_galaxy_config(self, env: Optional[str] = None) -> GalaxyConfig:
         """
-        Load Galaxy configuration with automatic legacy fallback.
+        Load Galaxy configuration from the configured module directory.
 
         Automatically discovers and loads all YAML files from config/galaxy/.
         Returns GalaxyConfig with:
@@ -499,7 +383,7 @@ class ConfigLoader:
         """
         env = env or self._env
 
-        # Load configuration (Galaxy has no legacy fallback)
+        # Load configuration from the configured module directory
         config_data = self._load_with_fallback("galaxy", env)
 
         # Apply legacy API base transformations

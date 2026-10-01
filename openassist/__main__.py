@@ -16,8 +16,11 @@ def main() -> None:
     if not (ufo_root / "ufo" / "agents" / "single_agent" / "runner.py").is_file():
         raise SystemExit(f"UFO agent kernel was not found under {ufo_root}")
 
-    # UFO resolves configuration, prompts, screenshots, and logs relative to its
-    # repository root. Keep the product package importable from the workspace.
+    from openassist.config import configure_ufo_config_root
+
+    # UFO resolves prompts, screenshots, and logs relative to its repository
+    # root, while configuration is owned by the OpenAssist product layer.
+    configure_ufo_config_root(product_root)
     sys.path.insert(0, str(ufo_root))
     os.chdir(ufo_root)
 
