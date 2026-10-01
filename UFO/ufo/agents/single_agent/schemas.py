@@ -12,6 +12,7 @@ ActionType = Literal[
     "click_element",
     "click",
     "type_text",
+    "fill_text",
     "press_keys",
     "scroll",
     "wait",
@@ -42,6 +43,7 @@ class SingleAgentAction(BaseModel):
             "click_element": ("element_id",),
             "click": ("x", "y"),
             "type_text": ("text",),
+            "fill_text": ("element_id", "text"),
             "press_keys": ("keys",),
             "scroll": ("amount",),
             "wait": ("seconds",),
@@ -92,6 +94,10 @@ class DesktopObservation(BaseModel):
     display_size: Dict[str, int] = Field(default_factory=dict)
     screenshot_size: Dict[str, int] = Field(default_factory=dict)
     foreground_handle: int = 0
+    # Runtime-only value fingerprints. Never expose these in prompts or logs.
+    target_states: Dict[str, Dict[str, Any]] = Field(
+        default_factory=dict, exclude=True, repr=False
+    )
 
     def prompt_state(self) -> Dict[str, Any]:
         """Return observation data without the large base64 screenshot."""

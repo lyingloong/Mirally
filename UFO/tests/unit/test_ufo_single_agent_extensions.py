@@ -60,7 +60,7 @@ class LoopGuardTests(unittest.TestCase):
 
         self.assertTrue(decision.blocked)
         self.assertFalse(decision.terminal)
-        self.assertEqual(decision.reason, "repeated_action_without_ui_change")
+        self.assertEqual(decision.reason, "repeated_action_without_target_progress")
         self.assertEqual(decision.repeat_count, 3)
         self.assertIsNotNone(guard.prompt_context())
 

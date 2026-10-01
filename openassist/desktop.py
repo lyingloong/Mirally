@@ -19,10 +19,13 @@ ACTION_NAMES = {
     "click_element": "点击控件",
     "click": "点击屏幕",
     "type_text": "输入文字",
+    "fill_text": "填写输入框",
     "press_keys": "按键",
     "scroll": "滚动",
     "wait": "等待",
 }
+MODE_SINGLE = "单任务模式"
+MODE_UFO_FULL = "UFO 原生多智能体模式"
 
 GWL_EXSTYLE = -20
 WS_EX_TRANSPARENT = 0x00000020
@@ -65,7 +68,8 @@ class OpenAssistWindow:
         self.confirming = False
         self.click_through: Optional[bool] = None
 
-        self.status_var = StringVar(value="就绪 · 单任务模式")
+        self.status_var = StringVar(value=f"就绪 · {MODE_SINGLE}")
+        self.mode_var = StringVar(value=MODE_SINGLE)
         self.keep_on_top_var = BooleanVar(value=True)
         self._build_ui()
         self._set_click_through(False)
@@ -137,6 +141,17 @@ class OpenAssistWindow:
         self.composer = ttk.Frame(self.root, padding=(12, 0, 12, 10))
         self.composer.pack(fill=X)
         ttk.Label(self.composer, text="输入一条任务 · Ctrl+Enter 发送").pack(anchor="w", pady=(0, 5))
+        mode_row = ttk.Frame(self.composer)
+        mode_row.pack(fill=X, pady=(0, 6))
+        ttk.Label(mode_row, text="运行模式").pack(side=LEFT)
+        self.mode_picker = ttk.Combobox(
+            mode_row,
+            textvariable=self.mode_var,
+            values=(MODE_SINGLE, MODE_UFO_FULL),
+            state="readonly",
+            width=25,
+        )
+        self.mode_picker.pack(side=LEFT, padx=(8, 0))
         compose_row = ttk.Frame(self.composer)
         compose_row.pack(fill=X)
         self.request_box = ScrolledText(
@@ -261,10 +276,12 @@ class OpenAssistWindow:
             return
         if self.pending_reply is not None:
             self._append("你", text, "user")
-            self.pending_reply.put(text)
+            reply = self.pending_reply
             self.pending_reply = None
             self.request_box.delete("1.0", END)
             self._set_busy(True, "Agent 正在继续…")
+            # Restore desktop focus before allowing the worker to observe/type.
+            reply.put(text)
             return
         if self.busy:
             return
@@ -272,30 +289,45 @@ class OpenAssistWindow:
         self.request_box.delete("1.0", END)
         self._append("你", text, "user")
         self.cancel_event = threading.Event()
-        self._set_busy(True, "正在启动 UFO…")
+        mode = self.mode_var.get()
+        self._set_busy(True, f"正在启动 {mode}…")
         self.worker = threading.Thread(
             target=self._run_task,
-            args=(text,),
+            args=(text, mode),
             name="openassist-agent",
             daemon=True,
         )
         self.worker.start()
 
-    def _run_task(self, request: str) -> None:
+    def _run_task(self, request: str, mode: str) -> None:
         try:
-            from ufo.agents.single_agent.runner import SingleAgentRunner
-
             task = "openassist-" + datetime.now().strftime("%Y%m%d-%H%M%S")
-            runner = SingleAgentRunner(
-                request=request,
-                task=task,
-                keep_console=True,
-                event_callback=self.events.put,
-                input_callback=self._request_input,
-                confirmation_callback=self._confirm_action,
-                cancel_event=self.cancel_event,
-            )
-            asyncio.run(runner.run())
+            if mode == MODE_UFO_FULL:
+                from openassist.ufo_full import run_native_request
+
+                asyncio.run(
+                    run_native_request(
+                        request=request,
+                        task=task,
+                        event_callback=self.events.put,
+                        input_callback=self._request_input,
+                        confirmation_callback=self._confirm_action,
+                        cancel_event=self.cancel_event,
+                    )
+                )
+            else:
+                from ufo.agents.single_agent.runner import SingleAgentRunner
+
+                runner = SingleAgentRunner(
+                    request=request,
+                    task=task,
+                    keep_console=True,
+                    event_callback=self.events.put,
+                    input_callback=self._request_input,
+                    confirmation_callback=self._confirm_action,
+                    cancel_event=self.cancel_event,
+                )
+                asyncio.run(runner.run())
         except Exception as exc:
             self.events.put({"type": "failed", "message": str(exc)})
 
@@ -346,10 +378,24 @@ class OpenAssistWindow:
             label = ACTION_NAMES.get(event.get("action"), event.get("action", "操作"))
             detail = event.get("detail") or event.get("error") or "完成"
             self.status_var.set(f"{label} · {detail}")
+        elif kind == "progress":
+            self._append("UFO", str(event.get("message", "正在运行。")), "agent")
+            self.status_var.set(f"正在执行 · {MODE_UFO_FULL}")
+        elif kind == "native_finished":
+            result_status = event.get("status", "done")
+            title = "任务已停止" if result_status == "cancelled" else (
+                "任务失败" if result_status == "failed" else "任务完成"
+            )
+            self._append(title, str(event.get("message", "任务结束。")), "agent")
+            status = "已停止" if result_status == "cancelled" else (
+                "执行失败" if result_status == "failed" else "就绪"
+            )
+            self._set_busy(False, f"{status} · {MODE_UFO_FULL}")
         elif kind == "ask_user":
             self._append("UFO 需要补充信息", str(event.get("question", "请提供更多信息。")), "agent")
             self.pending_reply = event["reply"]
             self._set_busy(False, "等待你的回复")
+            self.mode_picker.configure(state="disabled")
             self.send_button.configure(state="normal", text="回复")
             self.request_box.configure(state="normal")
             self.request_box.focus_force()
@@ -364,9 +410,9 @@ class OpenAssistWindow:
                 f"允许 Agent 执行“{action}”吗？\n目标：{event.get('target', '桌面')}",
                 parent=self.root,
             )
-            event["reply"].put(approved)
             self.confirming = False
             self._set_busy(True, "Agent 正在继续…")
+            event["reply"].put(approved)
         elif kind == "finished":
             status = event.get("status", "done")
             message = str(event.get("message", "任务结束。"))
@@ -374,7 +420,7 @@ class OpenAssistWindow:
             if event.get("log"):
                 self._append("运行记录", str(event["log"]), "system")
             self.pending_reply = None
-            self._set_busy(False, "就绪 · 单任务模式")
+            self._set_busy(False, f"就绪 · {self.mode_var.get()}")
         elif kind == "failed":
             self._append("启动失败", str(event.get("message", "未知错误")), "system")
             self.pending_reply = None
@@ -385,6 +431,7 @@ class OpenAssistWindow:
         self.status_var.set(status)
         self.send_button.configure(state="disabled" if busy else "normal", text="发送")
         self.request_box.configure(state="disabled" if busy else "normal")
+        self.mode_picker.configure(state="disabled" if busy else "readonly")
         if busy:
             self._set_click_through(True)
             self._restore_external_window()

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import platform
+import secrets
 import time
 from pathlib import Path
 from typing import Any, Dict
@@ -27,7 +29,7 @@ from ufo.automator.ui_control.screenshot import PhotographerFacade
 class WindowsComputer:
     """Capture desktop state and execute a deliberately small UI action set."""
 
-    BARRIER_ACTIONS = {"focus_window", "click_element", "click", "scroll"}
+    BARRIER_ACTIONS = {"focus_window", "click_element", "click", "scroll", "fill_text"}
     _MODIFIER_KEYS = {
         "CTRL": "VK_CONTROL",
         "CONTROL": "VK_CONTROL",
@@ -68,12 +70,16 @@ class WindowsComputer:
         self._max_controls = max_controls
         self._window_map: Dict[str, Any] = {}
         self._control_map: Dict[str, Any] = {}
+        self._target_states: Dict[str, Dict[str, Any]] = {}
+        self._value_key = secrets.token_bytes(32)
+        self._observed_foreground = 0
         pyautogui.FAILSAFE = True
 
     def observe(self, screenshot_path: Path) -> DesktopObservation:
         """Capture top-level windows, foreground controls and one screenshot."""
         window_dict = self._inspector.get_desktop_app_dict(remove_empty=True)
         foreground_handle = int(win32gui.GetForegroundWindow() or 0)
+        self._observed_foreground = foreground_handle
         self._window_map = {}
         windows = []
         active_wrapper = None
@@ -110,6 +116,7 @@ class WindowsComputer:
 
         active_window = next((item for item in windows if item["active"]), None)
         self._control_map = {}
+        self._target_states = {}
         display_width, display_height = pyautogui.size()
         controls = (
             self._collect_controls(active_wrapper, display_width, display_height)
@@ -133,6 +140,7 @@ class WindowsComputer:
             display_size={"width": display_width, "height": display_height},
             screenshot_size={"width": screenshot.width, "height": screenshot.height},
             foreground_handle=foreground_handle,
+            target_states=self._target_states,
         )
 
     def _collect_controls(
@@ -166,6 +174,17 @@ class WindowsComputer:
                 element_id = f"c:{len(controls) + 1}"
                 name = info.get("control_text", "")
                 self._control_map[element_id] = wrapper
+                control_type = info.get("control_type", "")
+                metadata = self._control_metadata(wrapper, control_type)
+                if control_type == "Edit":
+                    value = self._read_value(wrapper)
+                    if value is not None:
+                        self._target_states[element_id] = {
+                            "empty": value == "",
+                            "value_token": hashlib.blake2b(
+                                value.encode("utf-8"), key=self._value_key
+                            ).hexdigest()
+                        }
                 controls.append(
                     {
                         "id": element_id,
@@ -173,6 +192,7 @@ class WindowsComputer:
                         "type": info.get("control_type", ""),
                         "rect": info.get("control_rect"),
                         "selected": info.get("selected"),
+                        **metadata,
                     }
                 )
                 if len(controls) >= self._max_controls:
@@ -180,6 +200,57 @@ class WindowsComputer:
             except Exception:
                 continue
         return controls
+
+    @staticmethod
+    def _optional_call(control: Any, method: str) -> Any:
+        try:
+            return getattr(control, method)()
+        except Exception:
+            return None
+
+    @classmethod
+    def _is_password(cls, control: Any) -> Any:
+        try:
+            return bool(control.element_info.element.CurrentIsPassword)
+        except Exception:
+            # Win32 Edit controls expose the ES_PASSWORD window style.
+            style = cls._optional_call(control, "style")
+            return bool(style & 0x20) if isinstance(style, int) else None
+
+    @classmethod
+    def _read_value(cls, control: Any) -> Any:
+        if cls._is_password(control) is not False:
+            return None
+        value = cls._optional_call(control, "get_value")
+        if value is None and hasattr(control, "style"):
+            value = cls._optional_call(control, "window_text")
+        return value if isinstance(value, str) else None
+
+    @classmethod
+    def _control_metadata(cls, control: Any, control_type: str) -> Dict[str, Any]:
+        stable_id = None
+        try:
+            runtime_id = control.element_info.runtime_id
+            if runtime_id:
+                stable_id = "uia:" + str(tuple(runtime_id))
+        except Exception:
+            pass
+        if stable_id is None:
+            try:
+                automation_id = control.element_info.automation_id
+                if automation_id:
+                    stable_id = "auto:" + str(automation_id)
+            except Exception:
+                pass
+        result = {
+            "stable_id": stable_id,
+            "focused": cls._optional_call(control, "has_keyboard_focus"),
+            "enabled": cls._optional_call(control, "is_enabled"),
+        }
+        if control_type == "Edit":
+            result["editable"] = cls._optional_call(control, "is_editable")
+            result["protected"] = cls._is_password(control)
+        return result
 
     @staticmethod
     def _is_relevant_control(
@@ -213,19 +284,30 @@ class WindowsComputer:
     def execute(self, action: SingleAgentAction) -> Dict[str, Any]:
         """Execute one validated action without invoking a process or shell."""
         started = time.perf_counter()
+        missing_target = None
+        if action.type in {"click_element", "fill_text"} and action.element_id not in self._control_map:
+            missing_target = f"Unknown element id: {action.element_id}"
+        elif action.type == "focus_window" and action.window_id not in self._window_map:
+            missing_target = f"Unknown window id: {action.window_id}"
+        if missing_target:
+            return {"ok": False, "action": action.type, "executed": False,
+                    "error": missing_target, "duration_seconds": 0.0}
         try:
             handler = getattr(self, f"_do_{action.type}")
             detail = handler(action)
             return {
                 "ok": True,
                 "action": action.type,
-                "detail": detail,
+                "executed": True,
+                **(detail if isinstance(detail, dict) else {"detail": detail}),
                 "duration_seconds": round(time.perf_counter() - started, 3),
             }
         except Exception as exc:
             return {
                 "ok": False,
                 "action": action.type,
+                # An OS input error may have happened after partial dispatch.
+                "executed": None,
                 "error": str(exc),
                 "duration_seconds": round(time.perf_counter() - started, 3),
             }
@@ -262,6 +344,81 @@ class WindowsComputer:
             with_spaces=True,
         )
         return f"Typed {len(action.text or '')} characters"
+
+    def _text_target_has_focus(self, control: Any) -> bool:
+        return (
+            int(win32gui.GetForegroundWindow() or 0) == self._observed_foreground
+            and self._optional_call(control, "has_keyboard_focus") is True
+        )
+
+    def _do_fill_text(self, action: SingleAgentAction) -> Dict[str, Any]:
+        """Replace a known Edit field through keyboard input after focus checks."""
+
+        def reject(reason: str) -> Dict[str, Any]:
+            return {
+                "ok": False,
+                "executed": False,
+                "typed": False,
+                "verified": False,
+                "error": reason,
+            }
+
+        control = self._control_map.get(action.element_id)
+        if control is None:
+            return reject(f"Unknown element id: {action.element_id}")
+        if control.element_info.control_type != "Edit":
+            return reject("fill_text requires an Edit control from the current observation")
+        if int(win32gui.GetForegroundWindow() or 0) != self._observed_foreground:
+            return reject("Foreground window changed; re-observe before filling")
+        if self._optional_call(control, "is_enabled") is not True:
+            return reject("Input field is not enabled")
+        if self._optional_call(control, "is_visible") is not True:
+            return reject("Input field is not visible")
+        if self._optional_call(control, "is_editable") is False:
+            return reject("Input field is read-only")
+        text = action.text or ""
+        if self._read_value(control) == text:
+            return {
+                "detail": "Field already matches; no input sent",
+                "verified": True, "typed": False, "executed": False,
+            }
+
+        control.click_input()
+        deadline = time.monotonic() + 0.5
+        while not self._text_target_has_focus(control):
+            if time.monotonic() >= deadline:
+                return {
+                    "ok": False, "error": "Target focus not verified; no text sent",
+                    "verified": False, "typed": False,
+                }
+            time.sleep(0.02)
+        keyboard.send_keys(self._key_stroke("CTRL+A"), pause=0.03)
+        if not self._text_target_has_focus(control):
+            return {
+                "ok": False, "error": "Target lost focus; no text sent",
+                "verified": False, "typed": False,
+            }
+        detail = self._do_type_text(action)
+        deadline = time.monotonic() + 0.5
+        while True:
+            value = self._read_value(control)
+            if value is None:
+                return {
+                    "detail": detail + "; value unavailable, verify the visible UI",
+                    "verified": None, "typed": True,
+                }
+            if value == text:
+                return {
+                    "detail": detail + "; field content verified",
+                    "verified": True, "typed": True,
+                }
+            if time.monotonic() >= deadline:
+                return {
+                    "ok": False,
+                    "error": "Field content does not match the requested text",
+                    "verified": False, "typed": True,
+                }
+            time.sleep(0.02)
 
     @staticmethod
     def _literal_text(text: str) -> str:

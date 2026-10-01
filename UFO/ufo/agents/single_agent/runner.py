@@ -62,6 +62,7 @@ class SingleAgentRunner:
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.event_log = self.log_dir / "single_agent.jsonl"
         self.history: List[Dict[str, Any]] = []
+        self.user_answers: List[Dict[str, str]] = []
         self.total_cost = 0.0
         self._system_prompt = self._load_system_prompt()
         self.skill_router = self._create_skill_router()
@@ -122,13 +123,18 @@ class SingleAgentRunner:
                     selected_skills=selected_skills,
                 )
                 self.total_cost += cost
+                prepared_actions = self._prepare_actions(response.actions, observation)
+                execution_response = response.model_copy(
+                    update={"actions": prepared_actions}
+                )
+                effective_actions = self._effective_actions(execution_response)
 
                 self._emit(
                     {
                         "type": "step",
                         "step": step,
                         "observation": response.observation,
-                        "actions": [action.model_dump() for action in response.actions],
+                        "actions": [action.model_dump() for action in effective_actions],
                         "status": response.status,
                     }
                 )
@@ -143,6 +149,9 @@ class SingleAgentRunner:
                     "request": self.request,
                     "observation": observation.prompt_state(),
                     "response": response.model_dump(),
+                    "execution_plan": [
+                        action.model_dump() for action in prepared_actions
+                    ],
                     "metrics": metrics,
                     "cost": cost,
                     "action_results": [],
@@ -174,12 +183,14 @@ class SingleAgentRunner:
                             "answer": answer,
                         }
                     )
+                    self.user_answers.append(
+                        {"question": response.question or "", "answer": answer}
+                    )
                     event["user_answer"] = answer
                     self._write_event(event)
                     self.console_window.hide()
                     continue
 
-                effective_actions = self._effective_actions(response)
                 if self.loop_guard:
                     guard_decision = self.loop_guard.assess(effective_actions)
                     event["loop_guard"]["decision"] = guard_decision.to_dict()
@@ -217,21 +228,26 @@ class SingleAgentRunner:
 
                 if self.cancel_event.is_set():
                     return self._result("cancelled", "Task cancelled.", step, started)
-                action_results = await self._execute_actions(response)
+                action_results = await self._execute_actions(execution_response)
                 event["action_results"] = action_results
+                feedback = self._execution_feedback(prepared_actions, action_results)
+                event.update(feedback)
                 for action_result in action_results:
                     self._emit({"type": "action_result", **action_result})
                 self._write_event(event)
                 if self.loop_guard:
                     self.loop_guard.record(
-                        effective_actions[: len(action_results)]
+                        effective_actions[: len(action_results)], results=action_results
                     )
                 self.history.append(
                     {
                         "step": step,
                         "observation": response.observation,
                         "thought": response.thought,
-                        "actions": [action.model_dump() for action in response.actions],
+                        "requested_actions": [
+                            action.model_dump() for action in response.actions
+                        ],
+                        **feedback,
                         "results": action_results,
                     }
                 )
@@ -264,6 +280,7 @@ class SingleAgentRunner:
             "step": step,
             "desktop": observation.prompt_state(),
             "recent_history": self.history[-6:],
+            "user_answers": self.user_answers,
         }
         if selected_skills:
             user_state["selected_skills"] = [
@@ -336,6 +353,12 @@ class SingleAgentRunner:
     ) -> List[Dict[str, Any]]:
         results = []
         for action in response.actions:
+            if self.cancel_event.is_set():
+                results.append(
+                    {"ok": False, "action": action.type, "executed": False,
+                     "error": "Task cancelled before action"}
+                )
+                break
             if action.sensitive and self.config.system.safe_guard:
                 approved = self._confirm_action(action)
                 self.console_window.hide()
@@ -345,14 +368,93 @@ class SingleAgentRunner:
                             "ok": False,
                             "action": action.type,
                             "error": "User rejected sensitive action",
+                            "executed": False,
                         }
                     )
                     break
+            if self.cancel_event.is_set():
+                results.append(
+                    {"ok": False, "action": action.type, "executed": False,
+                     "error": "Task cancelled before action"}
+                )
+                break
             result = await asyncio.to_thread(self.computer.execute, action)
+            result.setdefault("executed", True)
             results.append(result)
             if not result.get("ok") or action.type in self.computer.BARRIER_ACTIONS:
                 break
         return results
+
+    @staticmethod
+    def _prepare_actions(
+        actions: List[SingleAgentAction], observation: DesktopObservation
+    ) -> List[SingleAgentAction]:
+        """Combine entry into a known empty Edit without overwriting existing text."""
+        controls = {control["id"]: control for control in observation.controls}
+        prepared = []
+        index = 0
+        while index < len(actions):
+            click = actions[index]
+            text = actions[index + 1] if index + 1 < len(actions) else None
+            target = controls.get(click.element_id, {})
+            target_state = observation.target_states.get(click.element_id, {})
+            if (
+                click.type == "click_element"
+                and click.button == "left" and not click.double
+                and text is not None and text.type == "type_text"
+                and text.element_id in (None, click.element_id)
+                and target.get("type") == "Edit"
+                and target_state.get("empty") is True
+                and target.get("editable") is not False
+                and target.get("enabled") is not False
+            ):
+                prepared.append(
+                    SingleAgentAction(
+                        type="fill_text", element_id=click.element_id, text=text.text,
+                        sensitive=click.sensitive or text.sensitive,
+                        description=text.description or click.description,
+                    )
+                )
+                index += 2
+            else:
+                prepared.append(click)
+                index += 1
+        return prepared
+
+    @staticmethod
+    def _execution_feedback(
+        actions: List[SingleAgentAction], results: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Report dispatched actions separately from a model's unexecuted plan."""
+        executed = []
+        not_executed = []
+        unverified = []
+        for index, action in enumerate(actions):
+            result = results[index] if index < len(results) else None
+            if result is not None and result.get("executed", True) is None:
+                unverified.append({
+                    "action": action.model_dump(),
+                    "reason": "Execution failed; partial effects are unknown. "
+                    "Inspect the UI before retrying.",
+                })
+            elif result is not None and result.get("executed", True):
+                executed.append(action.model_dump())
+            else:
+                if result is not None:
+                    reason = result.get("error") or result.get("detail")
+                elif results and not results[-1].get("ok"):
+                    reason = "Previous action failed; re-observe before retrying"
+                else:
+                    reason = (
+                        "Observation barrier: this action was not executed. "
+                        "Resume from a fresh observation."
+                    )
+                not_executed.append({"action": action.model_dump(), "reason": reason})
+        return {
+            "executed_actions": executed,
+            "not_executed_actions": not_executed,
+            "unverified_actions": unverified,
+        }
 
     def _effective_actions(
         self, response: SingleAgentResponse

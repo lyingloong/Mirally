@@ -78,10 +78,17 @@ class LoopGuard:
         self._consecutive_blocks = 0
         self._stagnation_alerted = False
         self._last_feedback: Optional[str] = None
+        self._observation: Optional[DesktopObservation] = None
+        self._pending_targets: List[Dict[str, Any]] = []
+        self._target_failures: Dict[str, int] = {}
+        self._target_baselines: Dict[str, Dict[str, Any]] = {}
+        self._target_feedback: List[Dict[str, Any]] = []
 
     def observe(self, observation: DesktopObservation) -> Dict[str, Any]:
         """Update the UI state before the next decision."""
         fingerprint = self.fingerprint(observation)
+        self._evaluate_targets(observation)
+        self._observation = observation
         changed = self._previous is not None and not self._same_state(
             self._previous, fingerprint
         )
@@ -96,6 +103,7 @@ class LoopGuard:
             "state_id": fingerprint.state_id,
             "changed": changed,
             "unchanged_observations": self._unchanged_observations,
+            "target_progress": self._target_feedback,
         }
 
     def assess(self, actions: Iterable[SingleAgentAction]) -> GuardDecision:
@@ -105,6 +113,52 @@ class LoopGuard:
             return GuardDecision(
                 unchanged_observations=self._unchanged_observations
             )
+
+        has_target = False
+        target_repeat_count = 0
+        for action in action_list:
+            target = self._target_snapshot(action, self._observation)
+            if target is None:
+                continue
+            has_target = True
+            if target["state"].get("enabled") is False:
+                return self._blocked(
+                    reason="target_disabled",
+                    instruction=(
+                        "The target is disabled, possibly while a submission is loading. "
+                        "Wait and re-observe the result; do not click or submit again."
+                    ),
+                    repeat_count=self._target_failures.get(
+                        self._target_action_key(action, target), 0
+                    ),
+                )
+            key = self._target_action_key(action, target)
+            baseline = self._target_baselines.get(key)
+            if baseline is not None and baseline != target["state"]:
+                self._target_failures[key] = 0
+            failures = self._target_failures.get(key, 0)
+            target_repeat_count = max(target_repeat_count, failures + 1)
+            if failures + 1 >= self.repeat_limit:
+                if (
+                    action.type == "click_element" and target["kind"] == "Edit"
+                    and target["state"].get("focused") is True
+                ):
+                    instruction = (
+                        "The input field is already focused. Clicking again does not fill it. "
+                        "Use fill_text with its current element ID and the supplied text, "
+                        "then re-observe before submitting."
+                    )
+                else:
+                    instruction = (
+                        "This same action repeatedly failed to verify its expected target effect. "
+                        "Unrelated countdowns are not progress. Check the target and result; "
+                        "choose a different strategy or ask the user. Do not blindly resubmit."
+                    )
+                return self._blocked(
+                    reason="repeated_action_without_target_progress",
+                    instruction=instruction,
+                    repeat_count=failures + 1,
+                )
 
         action_hash = self._action_hash(action_list)
         matching_records = sum(
@@ -120,7 +174,7 @@ class LoopGuard:
             else self.repeat_limit
         )
 
-        if repeat_count >= repeat_limit:
+        if not has_target and repeat_count >= repeat_limit:
             return self._blocked(
                 reason="repeated_action_without_ui_change",
                 instruction=(
@@ -133,7 +187,8 @@ class LoopGuard:
             )
 
         if (
-            self._unchanged_observations >= self.stagnant_limit
+            not has_target
+            and self._unchanged_observations >= self.stagnant_limit
             and not self._stagnation_alerted
         ):
             self._stagnation_alerted = True
@@ -150,33 +205,208 @@ class LoopGuard:
         self._consecutive_blocks = 0
         self._last_feedback = None
         return GuardDecision(
-            repeat_count=repeat_count,
+            repeat_count=target_repeat_count if has_target else repeat_count,
             unchanged_observations=self._unchanged_observations,
         )
 
     def record(
         self,
         actions: Iterable[SingleAgentAction],
+        *,
+        results: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         """Remember actions that were actually attempted from the current UI."""
         action_list = list(actions)
         if self._current is None or not action_list:
             return
-        self._records.append(
-            _ActionRecord(self._current, self._action_hash(action_list))
-        )
+        attempted = []
+        for index, action in enumerate(action_list):
+            if results is not None and index >= len(results):
+                break
+            result = results[index] if results is not None else {}
+            # OS failures with unknown partial effects are still real attempts.
+            dispatched = result.get("executed", True) is not False
+            if dispatched:
+                attempted.append(action)
+            if not dispatched and result.get("verified") is not True:
+                continue
+            target = self._target_snapshot(action, self._observation)
+            if target is not None:
+                self._pending_targets.append(
+                    {
+                        "target": target,
+                        "key": self._target_action_key(action, target),
+                        "action_type": action.type,
+                        "verified": result.get("verified"),
+                    }
+                )
+        if attempted:
+            self._records.append(
+                _ActionRecord(self._current, self._action_hash(attempted))
+            )
         self._records = self._records[-self.history_limit :]
 
     def prompt_context(self) -> Optional[Dict[str, Any]]:
         """Return only actionable guard feedback for the next model call."""
-        if not self._last_feedback:
+        if not self._last_feedback and not self._target_feedback:
             return None
         return {
             "warning": self._last_feedback,
+            "target_progress": self._target_feedback,
             "required_response": (
                 "Choose a materially different action or ask the user."
+                if self._last_feedback
+                else "Continue from the observed target state; verify unknown outcomes."
             ),
         }
+
+    def _evaluate_targets(self, observation: DesktopObservation) -> None:
+        self._target_feedback = []
+        for pending in self._pending_targets:
+            before = pending["target"]
+            key = pending["key"]
+            after = self._resolve_target(before, observation)
+            if after is None:
+                # A missing target or changed page requires fresh evidence; it is
+                # not proof that the original action succeeded.
+                self._target_failures.pop(key, None)
+                self._target_baselines.pop(key, None)
+                outcome = "unknown_target_changed"
+            else:
+                self._target_baselines[key] = after["state"]
+                if pending["action_type"] == "fill_text":
+                    progressed = pending["verified"]
+                elif pending["action_type"] == "focus_window":
+                    progressed = (
+                        before["state"].get("active") is not True
+                        and after["state"].get("active") is True
+                    )
+                elif before["kind"] == "Edit":
+                    progressed = (
+                        before["state"].get("focused") is not True
+                        and after["state"].get("focused") is True
+                    ) or (
+                        before["state"].get("value_token")
+                        != after["state"].get("value_token")
+                    )
+                else:
+                    progressed = before["state"] != after["state"]
+                if progressed is True:
+                    self._target_failures[key] = 0
+                    outcome = (
+                        "verified" if pending["action_type"] == "fill_text"
+                        else "target_changed"
+                    )
+                else:
+                    self._target_failures[key] = self._target_failures.get(key, 0) + 1
+                    outcome = "unverified" if progressed is None else "no_target_progress"
+            next_step = "Re-observe and verify the result before further actions or submission."
+            if (
+                after is not None and before["kind"] == "Edit"
+                and pending["action_type"] == "click_element"
+                and after["state"].get("focused") is True
+            ):
+                next_step = "Use fill_text instead of clicking the focused field again."
+            self._target_feedback.append(
+                {
+                    "action": pending["action_type"],
+                    "target_type": before["kind"],
+                    "outcome": outcome,
+                    "no_progress_attempts": self._target_failures.get(key, 0),
+                    "next_step": next_step,
+                }
+            )
+        self._pending_targets.clear()
+
+    @classmethod
+    def _control_snapshot(
+        cls, control: Dict[str, Any], observation: DesktopObservation
+    ) -> Dict[str, Any]:
+        active = observation.active_window or {}
+        stable_id = control.get("stable_id")
+        identity = [stable_id, control.get("type")]
+        if not stable_id or str(stable_id).startswith("auto:"):
+            identity += [control.get("name"), cls._normal_rect(control.get("rect"))]
+        window = [active.get("id"), active.get("process"), active.get("name")]
+        state = {
+            "enabled": control.get("enabled"), "selected": control.get("selected")
+        }
+        if control.get("type") == "Edit":
+            state["focused"] = control.get("focused")
+            state.update(observation.target_states.get(control.get("id"), {}))
+        if control.get("type") in {"Button", "Hyperlink"}:
+            # Editing the form permits a fresh submission attempt. A resend
+            # countdown and other Text/Button labels never enter this state.
+            state["form_state"] = sorted(
+                (
+                    str(item.get("stable_id") or (
+                        item.get("type"), item.get("name"), item.get("rect")
+                    )),
+                    str(observation.target_states.get(item.get("id"), {}).get("value_token")),
+                    str(item.get("selected")),
+                )
+                for item in observation.controls
+                if item.get("type") in {"Edit", "CheckBox", "RadioButton"}
+            )
+        return {
+            "key": json.dumps([window, identity], sort_keys=True),
+            "kind": control.get("type"), "state": state,
+        }
+
+    @classmethod
+    def _target_snapshot(
+        cls, action: SingleAgentAction, observation: Optional[DesktopObservation]
+    ) -> Optional[Dict[str, Any]]:
+        if observation is None:
+            return None
+        if action.type == "focus_window":
+            window = next(
+                (item for item in observation.windows if item.get("id") == action.window_id),
+                None,
+            )
+            if window is not None:
+                return {
+                    "key": json.dumps([
+                        "Window", window.get("id"), window.get("process"), window.get("name")
+                    ]),
+                    "kind": "Window", "state": {"active": window.get("active")},
+                }
+        if action.type in {"click_element", "fill_text"}:
+            control = next(
+                (item for item in observation.controls if item.get("id") == action.element_id),
+                None,
+            )
+            if control is not None:
+                return cls._control_snapshot(control, observation)
+        return None
+
+    @classmethod
+    def _resolve_target(
+        cls, target: Dict[str, Any], observation: DesktopObservation
+    ) -> Optional[Dict[str, Any]]:
+        if target["kind"] == "Window":
+            for window in observation.windows:
+                candidate = cls._target_snapshot(
+                    SingleAgentAction(type="focus_window", window_id=window["id"]),
+                    observation,
+                )
+                if candidate is not None and candidate["key"] == target["key"]:
+                    return candidate
+        else:
+            for control in observation.controls:
+                candidate = cls._control_snapshot(control, observation)
+                if candidate["key"] == target["key"]:
+                    return candidate
+        return None
+
+    @staticmethod
+    def _target_action_key(action: SingleAgentAction, target: Dict[str, Any]) -> str:
+        intent = action.model_dump(
+            exclude={"element_id", "window_id", "description", "sensitive"},
+            exclude_none=True,
+        )
+        encoded = json.dumps([target["key"], intent], sort_keys=True).encode()
+        return hashlib.sha256(encoded).hexdigest()
 
     def _blocked(
         self,
