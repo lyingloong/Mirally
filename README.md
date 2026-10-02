@@ -134,6 +134,8 @@ openassist/
 │       ├── system.yaml              # 执行、安全和运行时配置
 │       ├── mcp.yaml                 # MCP 工具配置
 │       └── rag.yaml                 # RAG 和经验配置
+├── docs/                           # OpenAssist 产品与开发文档
+│   └── frontend-experience-goals.md # 前端体验目标与规划建议
 ├── openassist/                     # 产品层
 │   ├── __main__.py                  # 初始化内核路径并启动界面
 │   ├── config.py                    # 产品层配置加载
@@ -170,6 +172,8 @@ openassist/
 单任务模式记录 `single_agent.jsonl` 和 `single_step_<序号>.png`；原生模式保存 UFO 自身的运行记录。日志可能包含任务内容、用户回复和桌面截图，请按本地调试数据管理。
 
 ## 开发与验证
+
+计划完善前端体验时，请先阅读 [前端体验目标与规划建议](docs/frontend-experience-goals.md)。该文档说明截图与输入隔离、Agent 状态反馈、用户控制、接管视觉效果和验收方向，但不限定具体界面形态或技术栈。
 
 从根目录运行轻量内核的回归测试：
 
