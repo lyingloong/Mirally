@@ -6,7 +6,7 @@ Mirally 是面向 Windows 的对话与桌面助手。可以直接问问题、讨
 
 产品入口、界面和调度由 Mirally 维护，桌面智能体内核基于 [Microsoft UFO](https://github.com/microsoft/UFO)。当前采用**同一会话内串行处理**的方式，对话和桌面工作共用本地保存的消息、补充与结果上下文。
 
-Mirally 产品层负责窗口、任务会话和用户交互；UFO 内核负责桌面观察、模型决策和 Windows 操作。为兼容现有环境，Python 包名、配置目录和环境变量继续使用 `openassist`。UFO 运行时所需的 YAML 统一维护在 `config/openassist/ufo/`，UFO 源码目录不再保留运行时配置副本。
+Mirally 产品层负责窗口、任务会话和用户交互；UFO 原生 Session 负责 HostAgent/AppAgent 编排、桌面观察、模型决策和 Windows 操作。为兼容现有环境，Python 包名、配置目录和环境变量继续使用 `openassist`。UFO 运行时所需的 YAML 统一维护在 `config/openassist/ufo/`，通过运行时适配器传给 UFO，不修改内核工作区。
 
 ## 当前功能
 
@@ -17,15 +17,15 @@ Mirally 产品层负责窗口、任务会话和用户交互；UFO 内核负责�
 - 桌面工作开始后收至屏幕右侧，保持不透明；靠近展开查看时继续工作并刷新活动指示，移入输入区、悬停最小化按钮或使用输入快捷键时申请输入控制权。
 - 浮窗伸展与收起锁定右边缘；从浮窗发送新执行请求时，在理解要求和执行期间保持浮窗，普通聊天回复完成后再打开会话阅读。
 - 追问与操作确认临时打开完整工作台，回答后恢复工作并自动返回浮窗；从最大化或全屏收起时保留原窗口状态，重新打开后恢复。
-- 支持运行中补充、暂停、继续、停止与人工接管。输入时自动协调桌面控制，发送后使旧计划失效并重新观察。原生多智能体模式保留在 `--legacy` 入口。
+- 支持运行中补充、暂停、继续、停止与人工接管。输入时自动协调桌面控制，发送后使旧计划失效并重新观察。默认桌面任务使用 UFO 原生多智能体 Session。
 - 优先使用 Windows 原生捕获排除，使浮窗可见而不进入截图；不可用时回退为截图期间隐藏。自身进程窗口同时从控件观察中排除。
 - 会话记忆在本地保存，重启后恢复；可查看、新建、切换和清空会话。运行日志与截图单独保存，不自动作为长期记忆读取。
-- 单任务模式增加了字段填写验证、任务内用户答案保留和循环检测。
+- UFO 原生 Session 提供 HostAgent/AppAgent 分工、应用级工具路由和 MCP 执行能力。
 - 已提供通用语音识别 Provider 配置和调用接口，可接入 OpenAI-compatible 音频转写服务。
 
 目前仅支持 Windows。跨任务会话记忆已经接入；跨会话个人偏好记忆、语音录音界面、语音输出及独立前端尚未实现。文字回复在模型完整返回后展示，尚未逐字流式输出；桌面工作中的新消息作为当前任务的补充处理。
 
-阅读入口：[快速开始](#快速开始) · [会话与浮窗操作](#会话与浮窗操作) · [记忆范围](#记忆范围) · [开发与验证](#开发与验证) · [文档导航](docs/README.md)
+阅读入口：[快速开始](#快速开始) · [会话与浮窗操作](#会话与浮窗操作) · [记忆范围](#记忆范围) · [开发与验证](#开发与验证) · [产品代码结构](openassist/ARCHITECTURE.md) · [文档导航](docs/README.md)
 
 ## 快速开始
 
@@ -58,8 +58,7 @@ notepad .\config\openassist\ufo\agents.yaml
 
 | 执行模式 | 使用的模型配置 |
 | --- | --- |
-| 单任务模式 | `APP_AGENT` |
-| UFO 原生多智能体模式 | `HOST_AGENT` 和 `APP_AGENT`；启用评估或备用模型后还需配置对应智能体 |
+| 默认桌面任务 | `HOST_AGENT` 和 `APP_AGENT`；启用评估或备用模型后还需配置对应智能体 |
 
 默认视觉模式会向模型发送桌面截图，需要支持图像输入的模型。API 地址与模型参数应按照所用服务的要求填写，配置模板中的值仅为示例。
 
@@ -131,7 +130,7 @@ language: auto
 
 ```powershell
 .\run.ps1 --demo      # 无模型、无桌面操作的完整交互演示
-.\run.ps1 --legacy    # 原界面，保留原生 UFO 多智能体入口
+.\run.ps1 --legacy    # 原界面，仍使用 UFO 原生多智能体入口
 ```
 
 两种入口沿用现有 Python 3.10 和根目录 `.venv`。新界面的运行时没有增加依赖。默认界面与原生模式的接入范围、隔离策略及验证方法见 [桌面体验实现说明](docs/desktop-experience-implementation.md)。
@@ -152,24 +151,9 @@ language: auto
 
 ## 执行模式
 
-### 单任务模式（默认）
+### UFO 原生多智能体模式（默认）
 
-由一个智能体执行「观察 → 决策 → 操作 → 再观察」循环。每条请求创建新的执行器，并注入当前会话的有限历史摘要；实时截图和控件状态重新获取。实现位于 [UFO/ufo/agents/single_agent/](UFO/ufo/agents/single_agent/)。
-
-当前提供窗口切换、控件与坐标点击、文本输入、按键、滚动和等待等动作，并包含以下扩展：
-
-- **字段填写**：`fill_text` 检查目标与焦点、替换字段内容，并在字段值可读取时验证结果；内容已匹配时跳过输入。对于受保护或不可读取的字段，结果仍需通过后续观察确认。
-- **操作后观察**：填写等改变界面的动作会结束当前执行批次，后续提交动作需要重新观察和决策。旧的「点击输入框 + 输入文字」计划仅在确认字段为空时合并为填写动作。
-- **执行反馈**：区分已执行、未执行及执行结果不确定的动作，避免把模型计划当成实际执行结果。
-- **答案与会话保留**：当前任务的用户补充持续可用；已生效的输入及任务结果也进入会话摘要，供后续任务参考。
-- **循环检测**：结合目标控件的焦点、字段值等状态判断进展，减少无关倒计时变化掩盖重复操作的问题。
-- **技能提示**：按配置从 [UFO/ufo/skills/single_agent/](UFO/ufo/skills/single_agent/) 选择相关提示。
-
-这些扩展属于轻量模式，原生多智能体模式使用 UFO 自身的执行路径。
-
-### UFO 原生多智能体模式
-
-通过 [openassist/ufo_full.py](openassist/ufo_full.py) 接入 UFO 原生 `normal` Session：HostAgent 规划并选择应用，AppAgent 执行应用内任务。Mirally 将追问、敏感操作确认和 Python 日志接到会话窗口，每次提交仍只执行一个请求。
+通过 [openassist/runtime/ufo_full.py](openassist/runtime/ufo_full.py) 接入 UFO 原生 `normal` Session：HostAgent 观察桌面、规划并选择应用，AppAgent 执行应用内任务。Mirally 将追问、敏感操作确认和 Python 日志接到会话窗口，每次提交仍只执行一个请求。
 
 该模式保留 UFO 原生工作流，可根据配置使用控件识别、GUI / API 操作、MCP 工具、RAG 和经验学习。相关能力需要对应服务、应用或数据支持，接入原生模式并不代表所有功能已启用。
 
@@ -195,38 +179,22 @@ openassist/
 │   └── desktop-experience-implementation.md # 当前实现与验证方法
 ├── openassist/                     # 产品层
 │   ├── __main__.py                  # 初始化内核路径并启动界面
-│   ├── config.py                    # 产品层配置加载
-│   ├── shell.py                     # 默认桌面界面、内嵌交互与设置
-│   ├── branding.py                  # Mirally 品牌、原生图标与图片缓存
-│   ├── startup.py                   # 可跳过、遵循减少动态效果的开屏
+│   ├── core/                        # 对话、会话和任务编排
+│   ├── runtime/                     # 配置、语音和 UFO Session 适配
+│   ├── platform/                    # Windows 截图隔离、输入和任务栏
+│   ├── ui/                          # Mirally 界面、浮窗和展示组件
 │   ├── assets/                      # 相伴 M 矢量母版及 PNG/ICO 导出
-│   ├── lyric_view.py                # 自适应歌词区域与转场
-│   ├── widgets.py                   # 保留键盘操作的圆角 ttk 按钮
-│   ├── settings_view.py             # 主题预览卡片、开关与滚动设置
-│   ├── session_list.py              # 宽窄窗口共用的会话列表
-│   ├── presentation.py              # 主题、公共状态与文案
-│   ├── task_controller.py           # 任务控制、桌面输入协调与补充回执
-│   ├── assistant.py                 # 连续对话、语义理解与桌面工作交接
-│   ├── conversation.py              # 可恢复、可清空的本地会话摘要
-│   ├── edge_companion.py            # 侧边浮窗、展开输入与形态过渡
-│   ├── window_session.py            # Windows 隔离、焦点与全局快捷键
-│   ├── native_taskbar.py            # 浮窗的原生任务栏登记与恢复
-│   ├── raw_pointer.py               # 异步设备输入观察，不拦截系统鼠标
-│   ├── desktop.py                   # --legacy 兼容入口
-│   ├── speech.py                    # 通用语音识别 Provider
-│   └── ufo_full.py                  # UFO 原生 Session 适配
+│   └── 兼容导入模块                 # 旧路径保留为过渡期导入别名
 ├── tests/                          # 产品层测试
 │   └── test_openassist_speech.py    # 语音配置与 Provider 测试
-└── UFO/                            # 纳入根仓库的 UFO 内核源码
-    ├── config/                     # UFO 配置加载器与类型定义（不含运行时 YAML）
-    ├── ufo/agents/single_agent/     # 轻量执行循环及可靠性扩展
-    ├── ufo/skills/single_agent/     # 轻量模式技能提示
-    ├── tests/unit/                 # 单元测试
-    ├── requirements.txt
-    └── logs/                       # 运行日志与截图，Git 忽略
+└── UFO/                             # lyingloong/UFO Git submodule
+    ├── config/                      # UFO 配置加载器和默认模板
+    ├── ufo/                         # UFO Host/App Agent、MCP 和 Session
+    ├── tests/                       # UFO 自身测试
+    └── requirements.txt
 ```
 
-根目录维护一个 Git 仓库，`UFO/` 以源码形式随仓库维护。Mirally 负责产品交互与调度，内核执行能力在 UFO 中维护。
+根目录维护产品仓库，`UFO/` 固定到我们 fork 的一个 commit。fork 保留官方 UFO 的 upstream，产品层通过适配器提供配置和交互回调，不直接修改 submodule 工作区。
 
 后续独立前端、录音服务和共享接口可分别放入 `apps/`、`services/`、`packages/contracts/`；这些目录目前尚未建立。语音识别 Provider 已位于 Mirally 产品层，录音采集和语音输出仍待实现。`Windows-Use/`、`openclaw/` 仅作为本地评估项目，已被忽略，不属于本仓库内容。
 
@@ -244,18 +212,18 @@ openassist/
 | `config/openassist/conversations/` | 本地会话摘要和当前会话指针（Git 忽略，可在界面清空） |
 | `UFO/logs/openassist-<任务标识>/` | 每次任务的日志目录 |
 
-单任务模式记录 `single_agent.jsonl` 和 `single_step_<序号>.png`；原生模式保存 UFO 自身的运行记录。日志可能包含任务内容、用户回复和桌面截图，请按本地调试数据管理。
+原生 Session 保存 UFO 自身的运行记录。日志可能包含任务内容、用户回复和桌面截图，请按本地调试数据管理。
 
 ## 开发与验证
 
 计划完善前端体验时，请先阅读 [前端体验目标与规划建议](docs/frontend-experience-goals.md)。该文档说明截图与输入隔离、Agent 状态反馈、用户控制、接管视觉效果和验收方向，但不限定具体界面形态或技术栈。
 
-从根目录运行轻量内核的回归测试：
+运行 UFO submodule 的回归测试：
 
 ```powershell
 Push-Location .\UFO
 try {
-    ..\.venv\Scripts\python.exe -m unittest tests.unit.test_ufo_single_agent tests.unit.test_ufo_single_agent_extensions tests.unit.test_single_agent_form_entry tests.unit.test_single_agent_frontend_control
+    ..\.venv\Scripts\python.exe -m unittest discover -s tests -v
 } finally {
     Pop-Location
 }
@@ -297,12 +265,12 @@ try {
 
 ## UFO 基线
 
-本项目基于 Microsoft UFO 2026 年 9 月版本的桌面 AgentOS 代码进行二次开发。当前仓库纳入的是 UFO 源码快照，未保留独立的上游 Git commit/tag 元数据，因此不将本项目宣称为某个具体上游 commit 的直接构建。
+本项目基于 Microsoft UFO 2026 年 9 月版本的桌面 AgentOS 代码进行二次开发。当前 `UFO/` 使用我们维护的 [lyingloong/UFO](https://github.com/lyingloong/UFO) submodule，并固定到经过验证的 commit。
 
-本项目在该基线上将产品入口、单任务调度、桌面会话交互、可靠性扩展和产品层配置组织方式进行了较大改动。UFO 的配置加载器代码仍位于内核中，但运行时 YAML 的唯一来源是 `config/openassist/ufo/`。
+产品层通过运行时适配器提供配置、日志、确认和取消回调；运行时 YAML 的唯一来源是 `config/openassist/ufo/`。UFO submodule 工作区保持为上游内核代码，必要的通用修复在我们的 UFO fork 中单独维护。
 
 ## 上游与许可证
 
-UFO 内核来自 Microsoft UFO，包含本项目维护的修改。其 MIT 许可证及版权声明保留在 [UFO/LICENSE](UFO/LICENSE)。
+UFO 内核来自 Microsoft UFO，并通过我们的 fork 固定版本。其 MIT 许可证及版权声明保留在 [UFO/LICENSE](UFO/LICENSE)。
 
 进一步了解内核可参考 [UFO² 中文说明](UFO/ufo/README_ZH.md) 和 [UFO 本地文档](UFO/documents/docs/)。
