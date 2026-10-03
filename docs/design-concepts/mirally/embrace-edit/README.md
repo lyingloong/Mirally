@@ -1,6 +1,8 @@
 # Mirally：基于现用图标的环抱感编辑
 
-本轮直接把 `openassist/assets/mirally.png` 作为每次 API 编辑请求的输入图，而不是用文字重新生成蓝色 A。原图已打开核对，与应用 `branding.py` 实际加载路径一致。应用图标未替换。
+> 历史设计记录。当前正式图标为 [相伴 M](../companion-m/README.md)；下文中的选择与验证描述当时状态。本地 output/ 预览不随 Git 上传。
+
+该轮直接把 `openassist/assets/mirally.png`（当时为合翼 A）作为每次 API 编辑请求的输入图，而不是用文字重新生成蓝色 A。当时已核对原图与应用加载路径一致，此轮没有替换图标。当前生产文件已经更新为相伴 M；复现此轮编辑应改用本地 `output/imagegen/mirally-embrace-edit/original.png`。
 
 使用 imagegen 技能原版 `scripts/image_gen.py edit --image openassist/assets/mirally.png`，通过当前配置的 provider 请求 `gpt-image-2.5-sunburst`。参数：`--quality high --size auto --background transparent --prompt-file ... --no-augment`。六个候选分别请求，每次都从原图开始；没有串行修改上一个候选。
 

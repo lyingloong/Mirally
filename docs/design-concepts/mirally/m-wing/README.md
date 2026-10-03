@@ -1,8 +1,10 @@
 # Mirally：保留合翼 A，探索 M 的暗示
 
+> 历史设计记录。当前正式图标为 [相伴 M](../companion-m/README.md)；下文中的选择与验证描述当时状态。本地 output/ 预览不随 Git 上传。
+
 用户要求使用 sunburst 在现用图标基础上生成几版 M 变体，保留 A、拥抱和飘逸感。
 
-选择结果：三版均不采用。正式图标继续使用 `01-ally-wing-v2`；本目录仅保留探索记录，输出对比页是本地生成产物，不随源码上传。
+选择结果：三版均不采用。该轮结束时图标继续使用 `01-ally-wing-v2`；本目录仅保留探索记录，输出对比页是本地生成产物，不随源码上传。
 
 [打开原稿与三版对比页](../../../../output/imagegen/mirally-m-wing/index.html)
 
@@ -16,6 +18,6 @@
 
 使用已有 `.artifacts/imagegen-venv`，确认 openai、Pillow、socksio 可用。从当前 provider 读取 base_url 与 experimental_bearer_token，仅放入 CLI 子进程的 OPENAI_BASE_URL、OPENAI_API_KEY。没有打印凭据；生成前后原配置字节一致。
 
-三张均已打开检视；对比页提供原图与 24 / 48 / 80 px 预览。现用应用图标仍为已选定的合翼 A，本轮只提供备选。
+三张均已打开检视；对比页提供原图与 24 / 48 / 80 px 预览。当时的应用图标为合翼 A，此轮只提供备选；后续正式方案已更新为相伴 M。
 
 [生成记录](../../../../output/imagegen/mirally-m-wing/generation.json)
