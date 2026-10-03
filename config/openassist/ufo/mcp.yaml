@@ -111,14 +111,6 @@ AppAgent:
         start_args: []
         reset: true
 
-ConstellationAgent:
-  default:
-    action:
-      - namespace: ConstellationEditor
-        type: local
-        start_args: []
-        reset: false
-
 HardwareAgent:
   default:
     data_collection:

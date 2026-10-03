@@ -217,6 +217,8 @@ openassist/
 
 ## 开发与验证
 
+开发者及 coding agent 请先阅读 [AGENTS.md](AGENTS.md)，其中明确了 UFO 子模块只读边界、产品适配位置、配置归属与验证要求。
+
 计划完善前端体验时，请先阅读 [前端体验目标与规划建议](docs/frontend-experience-goals.md)。该文档说明截图与输入隔离、Agent 状态反馈、用户控制、接管视觉效果和验收方向，但不限定具体界面形态或技术栈。
 
 运行 UFO submodule 的回归测试：
@@ -268,7 +270,7 @@ try {
 
 本项目的桌面智能体内核来自 [Microsoft UFO](https://github.com/microsoft/UFO)，通过我们维护的 [lyingloong/UFO fork](https://github.com/lyingloong/UFO) 集成。fork 的 `main` 用于跟进上游及必要的通用修复，因此当前代码不对应某个单一发布日期、tag 或固定版本号。每次 Mirally 更新仍会由主仓库的 submodule gitlink 固定到一个经过验证的具体 commit；该 commit 才是当前检出的确切内核版本。
 
-产品层通过运行时适配器提供配置、日志、确认和取消回调；运行时 YAML 的唯一来源是 `config/openassist/ufo/`。UFO submodule 工作区尽量保持为内核代码，产品适配放在 Mirally 层；确需修改内核时，在 fork 中维护并随上游同步。
+产品层通过运行时适配器提供配置、日志、确认和取消回调；运行时 YAML 的唯一来源是 `config/openassist/ufo/`。UFO submodule 默认只读，产品适配与兼容修复放在 Mirally 层，不直接修改 `UFO/`；确需修改内核或更新子模块指向时，须取得明确授权，再通过 fork 工作流维护和验证。
 
 ## 上游与许可证
 

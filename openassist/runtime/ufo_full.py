@@ -5,7 +5,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+from contextlib import ExitStack
 from typing import Any, Callable, Dict
+
+from openassist.runtime.native_compat import native_compatibility
 
 
 _RUN_LOCK = threading.Lock()
@@ -33,7 +36,9 @@ async def run_native_request(
     previous_experience_asker = None
     previous_handlers = None
     previous_level = None
+    compatibility = ExitStack()
     try:
+        compatibility.enter_context(native_compatibility())
         from config.config_loader import get_ufo_config
         from ufo.agents.agent import basic as basic_agent_module
         from ufo.module import interactor as interactor_module
@@ -143,4 +148,7 @@ async def run_native_request(
             root_logger.handlers.extend(previous_handlers)
         if root_logger is not None and previous_level is not None:
             root_logger.setLevel(previous_level)
-        _RUN_LOCK.release()
+        try:
+            compatibility.close()
+        finally:
+            _RUN_LOCK.release()
