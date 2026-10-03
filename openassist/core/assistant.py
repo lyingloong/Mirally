@@ -50,7 +50,10 @@ class Assistant:
         # Same configured provider/model as desktop tasks, with no desktop imports
         # and no action-response schema. Credentials remain in the existing layer.
         from ufo.llm import AgentType, llm_call
-        text, _, _ = llm_call.get_completion_with_metrics(messages, AgentType.CONVERSATION, False)
+        # The current UFO fork exposes get_completion(messages, agent,
+        # use_backup_engine), and only defines HOST/APP/etc. Conversation
+        # routing reuses APP_AGENT's provider/model without desktop actions.
+        text, _ = llm_call.get_completion(messages, AgentType.APP, False)
         return text
 
     @staticmethod
