@@ -5,6 +5,8 @@
 **/__pycache__/
 **/.artifacts/
 **/*.pyc
+/tmp/
+/output/
 
 # Local credentials and environment overrides
 **/.env
@@ -14,6 +16,9 @@
 # OpenAssist product-layer credentials
 /config/openassist/speech.yaml
 /config/openassist/ufo/agents.yaml
+/config/openassist/interface.json
+/config/openassist/interface.json.tmp
+/config/openassist/conversations/
 
 # OS and editor files
 **/.DS_Store

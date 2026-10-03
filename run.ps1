@@ -3,7 +3,7 @@ $productRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $python = Join-Path $productRoot ".venv\Scripts\python.exe"
 
 if (-not (Test-Path -LiteralPath $python)) {
-    throw "OpenAssist Python environment not found at $python. Create .venv in the repository root first (see README.md)."
+    throw "Mirally Python environment not found at $python. Create .venv in the repository root first (see README.md)."
 }
 
 Push-Location $productRoot

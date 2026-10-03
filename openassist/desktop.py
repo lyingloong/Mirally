@@ -9,9 +9,11 @@ import queue
 import threading
 from datetime import datetime
 from pathlib import Path
-from tkinter import BOTH, END, LEFT, RIGHT, X, BooleanVar, StringVar, Tk, messagebox, ttk
+from tkinter import BOTH, END, LEFT, RIGHT, X, BooleanVar, Canvas, StringVar, Tk, messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 from typing import Any, Dict, Optional
+
+from openassist.branding import APP_NAME, apply_window_icon, prepare_process_identity
 
 
 ACTION_NAMES = {
@@ -26,6 +28,19 @@ ACTION_NAMES = {
 }
 MODE_SINGLE = "单任务模式"
 MODE_UFO_FULL = "UFO 原生多智能体模式"
+
+# Keep the palette restrained so status color carries meaning instead of
+# turning the window into a collection of unrelated accents.
+INK = "#0b1020"
+INK_RAISED = "#121a2b"
+INK_PANEL = "#172238"
+INK_LINE = "#263550"
+TEXT = "#eef4ff"
+TEXT_MUTED = "#91a0b8"
+CYAN = "#63e6ff"
+MINT = "#73e0b2"
+AMBER = "#f6c177"
+RED = "#ff7c8a"
 
 GWL_EXSTYLE = -20
 WS_EX_TRANSPARENT = 0x00000020
@@ -47,16 +62,18 @@ class OpenAssistWindow:
         self.user32 = ctypes.windll.user32
         self._bind_user32()
         self.last_external_window = int(self.user32.GetForegroundWindow() or 0)
+        prepare_process_identity()
         self.root = Tk()
-        self.root.title("OpenAssist")
+        self.root.title(APP_NAME)
+        apply_window_icon(self.root)
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
-        width = min(440, max(340, screen_width - 40))
-        height = min(620, max(360, screen_height - 60))
+        width = min(520, max(380, screen_width - 40))
+        height = min(740, max(500, screen_height - 60))
         x = max(0, (screen_width - width) // 2)
         y = max(0, (screen_height - height) // 2)
         self.root.geometry(f"{width}x{height}+{x}+{y}")
-        self.root.minsize(min(340, width), min(320, height))
+        self.root.minsize(min(380, width), min(500, height))
         self.root.attributes("-topmost", True)
         self.root.protocol("WM_DELETE_WINDOW", self._close)
 
@@ -69,6 +86,10 @@ class OpenAssistWindow:
         self.click_through: Optional[bool] = None
 
         self.status_var = StringVar(value=f"就绪 · {MODE_SINGLE}")
+        self.phase_var = StringVar(value="待命")
+        self.previous_var = StringVar(value="")
+        self.current_var = StringVar(value="准备好开始下一项任务")
+        self.step_var = StringVar(value="--")
         self.mode_var = StringVar(value=MODE_SINGLE)
         self.keep_on_top_var = BooleanVar(value=True)
         self._build_ui()
@@ -108,19 +129,34 @@ class OpenAssistWindow:
         self.user32.SetWindowPos.restype = ctypes.wintypes.BOOL
 
     def _build_ui(self) -> None:
-        self.root.configure(bg="#f4f6f8")
+        self.root.configure(bg=INK)
         style = ttk.Style(self.root)
         try:
-            style.theme_use("vista")
+            style.theme_use("clam")
         except Exception:
             pass
-        style.configure("Header.TLabel", font=("Segoe UI", 14, "bold"))
-        style.configure("Status.TLabel", foreground="#526174")
-        style.configure("Send.TButton", font=("Segoe UI", 10, "bold"), padding=(14, 8))
+        style.configure("App.TFrame", background=INK)
+        style.configure("Panel.TFrame", background=INK_RAISED)
+        style.configure("Header.TLabel", background=INK, foreground=TEXT, font=("Segoe UI", 17, "bold"))
+        style.configure("Eyebrow.TLabel", background=INK, foreground=CYAN, font=("Segoe UI", 8, "bold"))
+        style.configure("Status.TLabel", background=INK, foreground=TEXT_MUTED, font=("Segoe UI", 9))
+        style.configure("PanelLabel.TLabel", background=INK_RAISED, foreground=TEXT_MUTED, font=("Segoe UI", 9))
+        style.configure("Previous.TLabel", background=INK_RAISED, foreground="#52627d", font=("Segoe UI", 9))
+        style.configure("Current.TLabel", background=INK_RAISED, foreground=TEXT, font=("Segoe UI", 19, "bold"))
+        style.configure("Step.TLabel", background=INK_RAISED, foreground=CYAN, font=("Segoe UI", 26, "bold"))
+        style.configure("Send.TButton", font=("Segoe UI", 10, "bold"), padding=(16, 10), foreground=INK)
+        style.map("Send.TButton", background=[("active", MINT), ("!disabled", CYAN)])
+        style.configure("Mode.TLabel", background=INK, foreground=TEXT_MUTED, font=("Segoe UI", 9))
+        style.configure("TCheckbutton", background=INK, foreground=TEXT_MUTED)
+        style.map("TCheckbutton", background=[("active", INK)], foreground=[("active", TEXT)])
+        style.configure("TCombobox", fieldbackground=INK_PANEL, background=INK_PANEL, foreground=TEXT)
 
-        self.header = ttk.Frame(self.root, padding=(16, 14, 16, 10))
+        self.header = ttk.Frame(self.root, style="App.TFrame", padding=(20, 18, 20, 10))
         self.header.pack(fill=X)
-        ttk.Label(self.header, text="OpenAssist", style="Header.TLabel").pack(side=LEFT)
+        brand = ttk.Frame(self.header, style="App.TFrame")
+        brand.pack(side=LEFT)
+        ttk.Label(brand, text="OPENASSIST / DESKTOP AGENT", style="Eyebrow.TLabel").pack(anchor="w")
+        ttk.Label(brand, text=APP_NAME, style="Header.TLabel").pack(anchor="w", pady=(2, 0))
         ttk.Checkbutton(
             self.header,
             text="始终置顶",
@@ -131,19 +167,42 @@ class OpenAssistWindow:
             side=RIGHT, padx=(0, 8)
         )
 
-        ttk.Label(
-            self.root,
-            textvariable=self.status_var,
-            style="Status.TLabel",
-            padding=(16, 0, 16, 10),
-        ).pack(fill=X)
+        ttk.Label(self.root, textvariable=self.status_var, style="Status.TLabel", padding=(20, 0, 20, 12)).pack(fill=X)
 
-        self.composer = ttk.Frame(self.root, padding=(12, 0, 12, 10))
+        # The live panel is intentionally concise: it behaves like a lyric
+        # line, replacing the current action as the agent advances.
+        self.live_panel = ttk.Frame(self.root, style="Panel.TFrame", padding=(18, 16, 18, 16))
+        self.live_panel.pack(fill=X, padx=16, pady=(0, 12))
+        live_top = ttk.Frame(self.live_panel, style="Panel.TFrame")
+        live_top.pack(fill=X)
+        ttk.Label(live_top, textvariable=self.phase_var, style="PanelLabel.TLabel").pack(side=LEFT)
+        ttk.Label(live_top, textvariable=self.step_var, style="Step.TLabel").pack(side=RIGHT)
+        ttk.Label(
+            self.live_panel,
+            textvariable=self.previous_var,
+            style="Previous.TLabel",
+            wraplength=440,
+            justify=LEFT,
+        ).pack(fill=X, pady=(10, 0))
+        ttk.Label(
+            self.live_panel,
+            textvariable=self.current_var,
+            style="Current.TLabel",
+            wraplength=440,
+            justify=LEFT,
+        ).pack(fill=X, pady=(9, 13))
+        self.stage_canvas = Canvas(self.live_panel, height=31, bg=INK_RAISED, highlightthickness=0)
+        self.stage_canvas.pack(fill=X)
+        self.active_stage = "idle"
+        self.stage_canvas.bind("<Configure>", lambda _event: self._draw_stages(self.active_stage))
+        self._draw_stages("idle")
+
+        self.composer = ttk.Frame(self.root, style="App.TFrame", padding=(16, 0, 16, 10))
         self.composer.pack(fill=X)
-        ttk.Label(self.composer, text="输入一条任务 · Ctrl+Enter 发送").pack(anchor="w", pady=(0, 5))
-        mode_row = ttk.Frame(self.composer)
+        ttk.Label(self.composer, text="下一项任务", style="Mode.TLabel").pack(anchor="w", pady=(0, 6))
+        mode_row = ttk.Frame(self.composer, style="App.TFrame")
         mode_row.pack(fill=X, pady=(0, 6))
-        ttk.Label(mode_row, text="运行模式").pack(side=LEFT)
+        ttk.Label(mode_row, text="运行模式", style="Mode.TLabel").pack(side=LEFT)
         self.mode_picker = ttk.Combobox(
             mode_row,
             textvariable=self.mode_var,
@@ -152,7 +211,7 @@ class OpenAssistWindow:
             width=25,
         )
         self.mode_picker.pack(side=LEFT, padx=(8, 0))
-        compose_row = ttk.Frame(self.composer)
+        compose_row = ttk.Frame(self.composer, style="App.TFrame")
         compose_row.pack(fill=X)
         self.request_box = ScrolledText(
             compose_row,
@@ -163,8 +222,9 @@ class OpenAssistWindow:
             pady=8,
             relief="solid",
             borderwidth=2,
-            bg="#ffffff",
-            fg="#182230",
+            bg=INK_PANEL,
+            fg=TEXT,
+            insertbackground=CYAN,
         )
         self.request_box.pack(side=LEFT, fill=X, expand=True)
         self.request_box.bind("<Control-Return>", self._submit_event)
@@ -179,20 +239,55 @@ class OpenAssistWindow:
             padx=14,
             pady=12,
             relief="flat",
-            bg="#ffffff",
-            fg="#182230",
+            bg=INK_RAISED,
+            fg=TEXT,
+            insertbackground=CYAN,
             spacing3=7,
         )
-        self.transcript.pack(fill=BOTH, expand=True, padx=12, pady=(0, 10))
-        self.transcript.tag_configure("user", foreground="#155eef", lmargin1=34)
-        self.transcript.tag_configure("agent", foreground="#182230", rmargin=30)
-        self.transcript.tag_configure("system", foreground="#667085", font=("Segoe UI", 9, "italic"))
-        self.transcript.tag_configure("title", font=("Segoe UI", 9, "bold"))
+        self.transcript.pack(fill=BOTH, expand=True, padx=16, pady=(0, 14))
+        self.transcript.tag_configure("user", foreground=CYAN, lmargin1=34)
+        self.transcript.tag_configure("agent", foreground=TEXT, rmargin=30)
+        self.transcript.tag_configure("system", foreground=TEXT_MUTED, font=("Segoe UI", 9, "italic"))
+        self.transcript.tag_configure("title", foreground=TEXT_MUTED, font=("Segoe UI", 9, "bold"))
         self._append(
-            "OpenAssist",
+            APP_NAME,
             "发一条任务给 UFO。当前每次任务独立运行，结束后可以再开始下一条。",
             "system",
         )
+
+    def _draw_stages(self, active: str) -> None:
+        """Render a quiet progress rail without implying unverified progress."""
+        if not hasattr(self, "stage_canvas"):
+            return
+        self.active_stage = active
+        self.stage_canvas.delete("all")
+        self.stage_canvas.update_idletasks()
+        width = max(260, self.stage_canvas.winfo_width())
+        stages = [("observe", "观察"), ("plan", "规划"), ("act", "执行"), ("verify", "验证"), ("done", "完成")]
+        active_index = next((index for index, (key, _) in enumerate(stages) if key == active), -1)
+        for index, (_, label) in enumerate(stages):
+            x = 18 + index * (width - 36) / (len(stages) - 1)
+            if index < len(stages) - 1:
+                line_color = CYAN if index < active_index else INK_LINE
+                next_x = 18 + (index + 1) * (width - 36) / (len(stages) - 1)
+                self.stage_canvas.create_line(x, 9, next_x, 9, fill=line_color, width=2)
+            color = CYAN if index == active_index else (MINT if index < active_index else TEXT_MUTED)
+            radius = 5 if index == active_index else 3
+            self.stage_canvas.create_oval(x - radius, 9 - radius, x + radius, 9 + radius, fill=color, outline="")
+            self.stage_canvas.create_text(x, 17, text=label, fill=color, anchor="n", font=("Segoe UI", 8))
+
+    def _set_live(self, phase: str, current: str, stage: str = "idle", step: Optional[Any] = None) -> None:
+        old_current = self.current_var.get()
+        if old_current and old_current != current and old_current != "准备好开始下一项任务":
+            self.previous_var.set(f"刚刚 · {old_current.splitlines()[0]}")
+        self.phase_var.set(phase)
+        self.current_var.set(current)
+        if step is not None:
+            try:
+                self.step_var.set(f"{int(step):02d}")
+            except (TypeError, ValueError):
+                self.step_var.set(str(step))
+        self._draw_stages(stage)
 
     def run(self) -> None:
         self.root.mainloop()
@@ -253,7 +348,10 @@ class OpenAssistWindow:
             0,
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED,
         )
-        self.root.attributes("-alpha", 0.78 if enabled else 1.0)
+        # Input pass-through is an interaction boundary, not a visual state.
+        # Keep the window opaque and geometrically stable while the agent runs;
+        # lowering alpha made the product feel like a temporary overlay.
+        self.root.attributes("-alpha", 1.0)
         self.click_through = enabled
 
     def _toggle_topmost(self) -> None:
@@ -374,13 +472,16 @@ class OpenAssistWindow:
                 detail += f"\n准备执行：{action_text}"
             self._append("UFO", detail, "agent")
             self.status_var.set(f"正在执行 · 第 {step} 步")
+            self._set_live("执行中", summary, "act", step)
         elif kind == "action_result":
             label = ACTION_NAMES.get(event.get("action"), event.get("action", "操作"))
             detail = event.get("detail") or event.get("error") or "完成"
             self.status_var.set(f"{label} · {detail}")
+            self._set_live("动作反馈", f"{label} · {detail}", "verify")
         elif kind == "progress":
             self._append("UFO", str(event.get("message", "正在运行。")), "agent")
             self.status_var.set(f"正在执行 · {MODE_UFO_FULL}")
+            self._set_live("同步中", str(event.get("message", "正在运行。")), "act")
         elif kind == "native_finished":
             result_status = event.get("status", "done")
             title = "任务已停止" if result_status == "cancelled" else (
@@ -389,6 +490,11 @@ class OpenAssistWindow:
             self._append(title, str(event.get("message", "任务结束。")), "agent")
             status = "已停止" if result_status == "cancelled" else (
                 "执行失败" if result_status == "failed" else "就绪"
+            )
+            self._set_live(
+                "已停止" if result_status == "cancelled" else ("需要处理" if result_status == "failed" else "已完成"),
+                str(event.get("message", "任务结束。")),
+                "done" if result_status == "done" else "idle",
             )
             self._set_busy(False, f"{status} · {MODE_UFO_FULL}")
         elif kind == "ask_user":
@@ -399,12 +505,14 @@ class OpenAssistWindow:
             self.send_button.configure(state="normal", text="回复")
             self.request_box.configure(state="normal")
             self.request_box.focus_force()
+            self._set_live("需要你", str(event.get("question", "请提供更多信息。")), "idle")
         elif kind == "confirm_action":
             action = ACTION_NAMES.get(event.get("action"), event.get("action", "操作"))
             self._append("安全确认", f"Agent 请求执行：{action}\n目标：{event.get('target', '桌面')}", "system")
             self.confirming = True
             self._set_busy(False, "等待敏感操作确认")
             self._set_click_through(False)
+            self._set_live("等待确认", f"{action} · {event.get('target', '桌面')}", "idle")
             approved = messagebox.askyesno(
                 "确认敏感操作",
                 f"允许 Agent 执行“{action}”吗？\n目标：{event.get('target', '桌面')}",
@@ -420,10 +528,12 @@ class OpenAssistWindow:
             if event.get("log"):
                 self._append("运行记录", str(event["log"]), "system")
             self.pending_reply = None
+            self._set_live("已完成", message, "done")
             self._set_busy(False, f"就绪 · {self.mode_var.get()}")
         elif kind == "failed":
             self._append("启动失败", str(event.get("message", "未知错误")), "system")
             self.pending_reply = None
+            self._set_live("发生错误", str(event.get("message", "未知错误")), "idle")
             self._set_busy(False, "启动失败")
 
     def _set_busy(self, busy: bool, status: str) -> None:

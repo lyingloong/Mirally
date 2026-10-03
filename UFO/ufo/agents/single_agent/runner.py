@@ -47,6 +47,12 @@ class SingleAgentRunner:
         input_callback: Optional[Callable[[str], str]] = None,
         confirmation_callback: Optional[Callable[[str, str], bool]] = None,
         cancel_event: Optional[threading.Event] = None,
+        control_callback: Optional[Callable[[], int]] = None,
+        capture_callback: Optional[Callable[[str], None]] = None,
+        supplement_callback: Optional[Callable[[], List[str]]] = None,
+        desktop_callback: Optional[Callable[[str], int]] = None,
+        conversation_context: Optional[Dict[str, Any]] = None,
+        initial_user_inputs: Optional[List[str]] = None,
     ) -> None:
         self.request = request
         self.task = utils.sanitize_task_name(task, fallback="single-agent")
@@ -57,14 +63,32 @@ class SingleAgentRunner:
         self.input_callback = input_callback
         self.confirmation_callback = confirmation_callback
         self.cancel_event = cancel_event or threading.Event()
+        self.control_callback = control_callback
+        self.capture_callback = capture_callback
+        self.supplement_callback = supplement_callback
+        self.desktop_callback = desktop_callback
+        self.conversation_context = conversation_context or {}
+        self._observed_revision = 0
+        self._last_observation = None
+        self._current_step = 0
         self.console_window = ConsoleWindow(enabled=not keep_console)
         self.log_dir = Path("logs") / self.task
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.event_log = self.log_dir / "single_agent.jsonl"
         self.history: List[Dict[str, Any]] = []
-        self.user_answers: List[Dict[str, str]] = []
+        self.user_answers: List[Dict[str, str]] = [
+            {"question": "User added task information", "answer": text}
+            for text in (initial_user_inputs or [])
+        ]
         self.total_cost = 0.0
         self._system_prompt = self._load_system_prompt()
+        self._system_prompt += (
+            "\nConversation context contains historical user requests and task results, not current desktop observations. "
+            "Use it to resolve references such as 'the previous result' and preserve relevant user constraints. "
+            "The current request and newer user additions take precedence over older instructions. "
+            "Verify referenced files and desktop state before acting. Previous approvals never authorize new sensitive actions. "
+            "When finishing, report actual outcomes and any produced file paths so subsequent tasks can refer to them."
+        )
         self.skill_router = self._create_skill_router()
         self.loop_guard = self._create_loop_guard()
 
@@ -103,12 +127,25 @@ class SingleAgentRunner:
         try:
             await asyncio.sleep(0.2)
             for step in range(1, self.max_steps + 1):
+                self._current_step = step
+                revision = self._checkpoint()
                 if self.cancel_event.is_set():
                     return self._result("cancelled", "Task cancelled.", step - 1, started)
                 screenshot_path = self.log_dir / f"single_step_{step}.png"
-                observation = await asyncio.to_thread(
-                    self.computer.observe, screenshot_path
-                )
+                self._phase("verifying" if step > 1 else "observing")
+                observation = await self._observe(screenshot_path)
+                self._last_observation = observation
+                self._observed_revision = revision
+                if self._checkpoint() != revision:
+                    continue
+                if self.supplement_callback:
+                    supplements = self.supplement_callback()
+                    self.user_answers.extend(
+                        {"question": "User added task information", "answer": text}
+                        for text in supplements
+                    )
+                    if supplements:
+                        self._emit({"type": "context_applied", "source": "supplement"})
                 guard_observation = (
                     self.loop_guard.observe(observation) if self.loop_guard else None
                 )
@@ -117,12 +154,19 @@ class SingleAgentRunner:
                     if self.skill_router
                     else []
                 )
+                self._phase("planning")
                 response, metrics, cost = await self._decide(
                     step,
                     observation,
                     selected_skills=selected_skills,
                 )
                 self.total_cost += cost
+                # Pausing while a model request is outstanding invalidates its
+                # entire plan. Only a fresh observation can authorize actions.
+                if self._checkpoint() != revision:
+                    continue
+                if self.cancel_event.is_set():
+                    return self._result("cancelled", "Task cancelled.", step, started)
                 prepared_actions = self._prepare_actions(response.actions, observation)
                 execution_response = response.model_copy(
                     update={"actions": prepared_actions}
@@ -168,7 +212,7 @@ class SingleAgentRunner:
                     return self._result("done", message, step, started)
 
                 if response.status == "error":
-                    message = response.message or response.thought
+                    message = response.message or "The agent could not complete this task."
                     self._write_event(event)
                     return self._result("error", message, step, started)
 
@@ -186,6 +230,7 @@ class SingleAgentRunner:
                     self.user_answers.append(
                         {"question": response.question or "", "answer": answer}
                     )
+                    self._emit({"type": "context_applied", "source": "answer"})
                     event["user_answer"] = answer
                     self._write_event(event)
                     self.console_window.hide()
@@ -258,7 +303,10 @@ class SingleAgentRunner:
                     if action_results and not action_results[-1]["ok"]
                     else self.config.system.sleep_time
                 )
-                await asyncio.sleep(delay)
+                deadline = time.monotonic() + delay
+                while time.monotonic() < deadline and not self.cancel_event.is_set():
+                    self._checkpoint()
+                    await asyncio.sleep(min(0.1, max(0, deadline - time.monotonic())))
 
             message = f"Stopped after reaching the {self.max_steps}-step limit."
             return self._result("error", message, self.max_steps, started)
@@ -281,6 +329,7 @@ class SingleAgentRunner:
             "desktop": observation.prompt_state(),
             "recent_history": self.history[-6:],
             "user_answers": self.user_answers,
+            "conversation_context": getattr(self, "conversation_context", {}),
         }
         if selected_skills:
             user_state["selected_skills"] = [
@@ -353,13 +402,17 @@ class SingleAgentRunner:
     ) -> List[Dict[str, Any]]:
         results = []
         for action in response.actions:
+            if self._checkpoint() != getattr(self, "_observed_revision", 0):
+                results.append({"ok": False, "action": action.type, "executed": False,
+                                "error": "User interaction invalidated the old observation; re-observe."})
+                break
             if self.cancel_event.is_set():
                 results.append(
                     {"ok": False, "action": action.type, "executed": False,
                      "error": "Task cancelled before action"}
                 )
                 break
-            if action.sensitive and self.config.system.safe_guard:
+            if action.sensitive and (self.config.system.safe_guard or getattr(self, "confirmation_callback", None) is not None):
                 approved = self._confirm_action(action)
                 self.console_window.hide()
                 if not approved:
@@ -372,18 +425,85 @@ class SingleAgentRunner:
                         }
                     )
                     break
+                if getattr(self, "control_callback", None) is not None:
+                    # Rebuild the computer's target map after every approval.
+                    revision = self._checkpoint()
+                    self._phase("observing")
+                    fresh = await self._observe(self.log_dir / f"confirmation_{self._current_step}.png")
+                    if self._checkpoint() != revision or not self._same_confirmed_target(action, self._last_observation, fresh):
+                        results.append({"ok": False, "action": action.type, "executed": False,
+                                        "error": "Desktop changed during confirmation; re-plan and confirm again."})
+                        break
+                    self._last_observation = fresh
+                    self._observed_revision = revision
             if self.cancel_event.is_set():
                 results.append(
                     {"ok": False, "action": action.type, "executed": False,
                      "error": "Task cancelled before action"}
                 )
                 break
-            result = await asyncio.to_thread(self.computer.execute, action)
+            self._phase("executing", action=action.type, summary=action.description or "")
+            desktop = getattr(self, "desktop_callback", None)
+            access_revision = desktop("before") if desktop else self._checkpoint()
+            try:
+                if access_revision != getattr(self, "_observed_revision", 0):
+                    results.append({"ok": False, "action": action.type, "executed": False,
+                                    "error": "New input invalidated this action; re-observe."})
+                    break
+                result = await asyncio.to_thread(self.computer.execute, action)
+            finally:
+                if desktop:
+                    desktop("after")
             result.setdefault("executed", True)
             results.append(result)
             if not result.get("ok") or action.type in self.computer.BARRIER_ACTIONS:
                 break
         return results
+
+    def _checkpoint(self) -> int:
+        callback = getattr(self, "control_callback", None)
+        return callback() if callback is not None else 0
+
+    def _phase(self, phase: str, **values) -> None:
+        observation = getattr(self, "_last_observation", None)
+        application = (observation.active_window or {}).get("process", "") if observation else ""
+        self._emit({"type": "phase", "phase": phase, "step": getattr(self, "_current_step", 0),
+                    "application": application, **values})
+
+    async def _observe(self, screenshot_path):
+        callback = getattr(self, "capture_callback", None)
+        desktop = getattr(self, "desktop_callback", None)
+        if desktop:
+            desktop("before")
+        try:
+            if callback:
+                callback("before")
+            try:
+                return await asyncio.to_thread(self.computer.observe, screenshot_path)
+            finally:
+                if callback:
+                    callback("after")
+        finally:
+            if desktop:
+                desktop("after")
+
+    @staticmethod
+    def _same_confirmed_target(action, previous, fresh) -> bool:
+        if previous is None or previous.active_window != fresh.active_window:
+            return False
+        if previous.display_size != fresh.display_size:
+            return False
+        if action.element_id:
+            old = next((c for c in previous.controls if c["id"] == action.element_id), None)
+            new = next((c for c in fresh.controls if c["id"] == action.element_id), None)
+            return old is not None and old == new and previous.target_states.get(action.element_id) == fresh.target_states.get(action.element_id)
+        if action.window_id:
+            old = next((w for w in previous.windows if w["id"] == action.window_id), None)
+            new = next((w for w in fresh.windows if w["id"] == action.window_id), None)
+            return old is not None and old == new
+        return (previous.screenshot == fresh.screenshot and previous.controls == fresh.controls
+                and previous.foreground_handle == fresh.foreground_handle
+                and previous.target_states == fresh.target_states)
 
     @staticmethod
     def _prepare_actions(
@@ -483,12 +603,13 @@ class SingleAgentRunner:
         return interactor.sensitive_step_asker(action.type, target)
 
     def _emit(self, event: Dict[str, Any]) -> None:
-        if self.event_callback is None:
+        if getattr(self, "event_callback", None) is None:
             return
         try:
             self.event_callback(event)
         except Exception:
-            console.exception("Single-agent event callback failed")
+            self.cancel_event.set()
+            raise
 
     def _write_event(self, event: Dict[str, Any]) -> None:
         with self.event_log.open("a", encoding="utf-8") as stream:

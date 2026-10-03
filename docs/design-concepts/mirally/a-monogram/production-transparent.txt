@@ -1,0 +1,5 @@
+Use case: background-extraction
+Asset type: production application icon, not a new concept
+Input images: Image 1 is the exact selected Mirally logo and sole edit target.
+Primary request: Remove ONLY the nearly white background and make it genuinely transparent. Preserve the selected blue logo exactly.
+Constraints: Keep the entire blue symbol's exact outer silhouette, inner negative spaces, shape, position, proportions, sky-blue colors, subtle shading, highlights, fold, and texture unchanged. No redesign, no new geometry, no new strokes, no text, no shadow, no white backing, no border, no checkerboard baked into the image. Do not simplify or redraw the mark. The transparent canvas must retain the original square framing. Only the surrounding and inner background may become transparent. Return a true RGBA PNG with transparent alpha outside the existing logo.

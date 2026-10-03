@@ -1,0 +1,8 @@
+Use case: logo-brand
+Asset type: premium desktop application icon for OpenAssist.
+Image 1 is the edit target: the green Open Portal logo.
+Primary request: change the brand palette and surface finish to a luminous SKY-BLUE technology identity. Preserve the exact rounded arch silhouette, the deliberate opening on its lower right, broad baseline, inner negative space, proportions, position, scale and canvas framing. Do not redesign the mark.
+Replace all forest green and sage green with clear azure and sky blue. The main arch is vivid sky blue (#159FE8), the upper highlight is #38B8F5, its outward terminal has a small pale ice-blue transition (#96DCFA), and only the restrained shaded edge reaches deeper blue (#1668C8). Background is clean uniform near-white (#F7F9FC).
+Surface finish: smooth satin anodized material, precise broad highlights, restrained tactile depth, no granular texture. Premium contemporary software identity with convincing technological clarity. It should remain just as legible in monochrome.
+Keep unchanged: one emblem, exact original shape, original frontal viewpoint, spacious interior, equal margins, clean edges and opaque background.
+Avoid: green, turquoise-green cast, purple, glowing halo, chrome, overexposed reflections, circuit patterns, door handle, shield, UI screenshots, extra badges or tiles, text, captions, watermark. Do not add any new object.

@@ -29,6 +29,7 @@ def get_agent_config(agent_type: str) -> Dict[str, Any]:
         AgentType.HOST,
         AgentType.APP,
         AgentType.SINGLE,
+        AgentType.CONVERSATION,
         AgentType.BACKUP,
         AgentType.EVALUATION,
         AgentType.OPERATOR,
@@ -44,6 +45,7 @@ def get_agent_config(agent_type: str) -> Dict[str, Any]:
             # The single-agent runtime intentionally reuses APP_AGENT credentials
             # and model tuning so existing installations need no duplicate config.
             AgentType.SINGLE: ufo_config.app_agent,
+            AgentType.CONVERSATION: ufo_config.app_agent,
             AgentType.BACKUP: ufo_config.backup_agent,
             AgentType.EVALUATION: ufo_config.evaluation_agent,
             AgentType.OPERATOR: ufo_config.operator,

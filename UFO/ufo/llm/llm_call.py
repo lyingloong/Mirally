@@ -87,6 +87,7 @@ def get_completions_with_metrics(
         AgentType.HOST,
         AgentType.APP,
         AgentType.SINGLE,
+        AgentType.CONVERSATION,
         AgentType.OPERATOR,
         AgentType.BACKUP,
         AgentType.CONSTELLATION,

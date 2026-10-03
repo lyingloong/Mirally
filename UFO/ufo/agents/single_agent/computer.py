@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import platform
 import secrets
 import time
@@ -86,6 +87,10 @@ class WindowsComputer:
 
         for wrapper in window_dict.values():
             try:
+                # Capture exclusion removes pixels, not UIA nodes. The desktop
+                # companion and Agent share this process and are never targets.
+                if wrapper.process_id() == os.getpid():
+                    continue
                 handle = int(wrapper.handle)
                 window_id = f"w:{handle}"
                 self._window_map[window_id] = wrapper

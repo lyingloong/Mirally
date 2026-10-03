@@ -1,0 +1,8 @@
+Use case: logo-brand
+Asset type: premium desktop application icon for OpenAssist.
+Image 1 is the edit target: the green Foldwing logo.
+Primary request: change the brand palette and surface finish to a luminous SKY-BLUE technology identity. Preserve the exact ribbon silhouette, the folded construction, generous triangular-curved negative space, all broad tips, proportions, position, scale and canvas framing. Do not redesign the mark.
+Replace all forest green and sage green with clear azure and sky blue. The broad primary wing is vivid sky blue (#159FE8), its lit edge reaches #38B8F5, the folded inner surface is a paler ice blue (#96DCFA), and only the restrained shaded edge reaches a deeper blue (#1668C8). The background is clean uniform near-white (#F7F9FC).
+Surface finish: smooth satin anodized material, precise broad highlights, restrained tactile depth, no granular texture. Premium contemporary software identity with convincing technological clarity. It should remain just as legible in monochrome.
+Keep unchanged: one emblem, exact original shape, original frontal viewpoint, negative space, equal margins, clean edges and opaque background.
+Avoid: green, turquoise-green cast, purple, glowing halo, chrome, overexposed reflections, circuit patterns, literal paper airplane, UI screenshots, extra badges or tiles, text, captions, watermark. Do not add any new object.
