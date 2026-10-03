@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1254" height="1254" viewBox="0 0 1254 1254" role="img" aria-labelledby="title description">
+  <title id="title">Mirally — 相伴 M，矢量重绘</title>
+  <desc id="description">两个圆形头部与相连的柔和流线构成 M，使用蓝青渐变表达伙伴关系。全部由圆、贝塞尔路径与渐变组成，无嵌入位图。</desc>
+  <defs>
+    <linearGradient id="left-head" x1="275" y1="446" x2="463" y2="337" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#008BFF"/>
+      <stop offset=".54" stop-color="#22C5EF"/>
+      <stop offset="1" stop-color="#59F2EF"/>
+    </linearGradient>
+    <linearGradient id="right-head" x1="773" y1="332" x2="968" y2="458" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#28DFED"/>
+      <stop offset=".48" stop-color="#159EFA"/>
+      <stop offset="1" stop-color="#0959F8"/>
+    </linearGradient>
+    <linearGradient id="body" x1="295" y1="530" x2="1082" y2="1000" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3EE9F3"/>
+      <stop offset=".46" stop-color="#16B7F4"/>
+      <stop offset="1" stop-color="#1253F8"/>
+    </linearGradient>
+    <linearGradient id="left-leg" x1="176" y1="837" x2="467" y2="906" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#078DFF"/>
+      <stop offset=".55" stop-color="#23BCEA"/>
+      <stop offset="1" stop-color="#55E9F0"/>
+    </linearGradient>
+    <linearGradient id="front-arm" x1="406" y1="544" x2="682" y2="850" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#48F2EE"/>
+      <stop offset=".46" stop-color="#2DD3F0"/>
+      <stop offset="1" stop-color="#078DF9"/>
+    </linearGradient>
+    <linearGradient id="right-light" x1="892" y1="863" x2="1028" y2="830" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#45DAF1" stop-opacity=".65"/>
+      <stop offset="1" stop-color="#1688FC" stop-opacity="0"/>
+    </linearGradient>
+    <path id="silhouette" d="M125 897 C141 817 194 660 225 606 C256 551 305 523 371 523 C439 523 483 573 532 624 L609 688 C645 704 698 626 763 571 C810 532 851 514 898 527 C954 540 986 578 1010 628 C1049 712 1093 841 1120 901 C1158 985 1070 1054 992 1025 C923 1000 909 950 888 889 L850 786 C844 772 835 765 823 768 L748 825 C710 853 675 862 641 853 C586 841 541 786 490 741 L445 890 C426 958 402 1007 341 1025 C245 1057 108 1006 125 897 Z"/>
+    <clipPath id="body-clip"><use href="#silhouette"/></clipPath>
+  </defs>
+  <g transform="translate(0 -28)">
+    <circle cx="374" cy="392" r="114" fill="url(#left-head)"/>
+    <circle cx="878" cy="392" r="114" fill="url(#right-head)"/>
+    <use href="#silhouette" fill="url(#body)"/>
+    <g clip-path="url(#body-clip)">
+      <path d="M60 1100 L60 570 C250 570 326 635 382 675 C422 705 456 736 490 764 L445 925 L370 1064 Z" fill="url(#left-leg)"/>
+      <path d="M814 768 C861 720 897 682 944 659 C979 672 1012 725 1048 802 L1160 1071 L924 1080 Z" fill="url(#right-light)"/>
+      <path d="M207 632 C249 545 301 514 371 523 C439 523 483 573 532 624 L609 688 C671 742 713 771 765 748 C803 728 841 689 890 661 C862 701 839 744 814 775 L748 825 C710 853 675 862 641 853 C586 841 541 786 490 741 C450 709 412 668 367 652 C310 626 258 610 207 632 Z" fill="url(#front-arm)"/>
+    </g>
+  </g>
+</svg>

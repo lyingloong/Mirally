@@ -199,7 +199,7 @@ openassist/
 │   ├── shell.py                     # 默认桌面界面、内嵌交互与设置
 │   ├── branding.py                  # Mirally 品牌、原生图标与图片缓存
 │   ├── startup.py                   # 可跳过、遵循减少动态效果的开屏
-│   ├── assets/                      # 相伴 M 透明 PNG 与多尺寸 ICO
+│   ├── assets/                      # 相伴 M 矢量母版及 PNG/ICO 导出
 │   ├── lyric_view.py                # 自适应歌词区域与转场
 │   ├── widgets.py                   # 保留键盘操作的圆角 ttk 按钮
 │   ├── settings_view.py             # 主题预览卡片、开关与滚动设置

@@ -13,7 +13,7 @@
 | [合翼中融入 M](m-wing/README.md) | 三版变体均未采用 |
 | [简短提示词的蓝色 A](soft-a/README.md) | 九张探索稿，未采用 |
 | [合翼的环抱感编辑](embrace-edit/README.md) | 六张参考图编辑稿，未采用 |
-| [相伴 M](companion-m/README.md) | 当前正式方案，已制作透明 PNG 与多尺寸 ICO |
+| [相伴 M](companion-m/README.md) | 当前正式方案，精修 SVG 母版及统一导出的 PNG/ICO |
 
 历史文档中的「本轮」「现用」描述当时的状态。`output/` 中的对比页、生成原图和校验记录是本地设计产物，未随 Git 上传；正式图标与提示词已入库。
 
