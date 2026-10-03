@@ -46,18 +46,18 @@ def main():
 
         def snapshot(name):
             pump(0.35)
-            x, y = app.root.winfo_rootx(), app.root.winfo_rooty()
-            ImageGrab.grab(bbox=(x, y, x + app.root.winfo_width(), y + app.root.winfo_height())).save(output / name)
+            width, height, x, y = app.edge.visible_rect()
+            ImageGrab.grab(bbox=(x, y, x + width, y + height)).save(output / name)
 
         try:
             app.composer.insert("1.0", "整理本周资料，生成一份可继续使用的归档结果")
             app._submit()
             until(lambda: app.edge.mode == "compact" and app._phase == "observing")
             pump(0.9)
-            assert app.root.winfo_width() <= round(275 * app.scale)
+            assert app.edge.visible_rect()[0] <= round(275 * app.scale)
             assert app.root.attributes("-alpha") == 1.0
             snapshot("13-edge-working.png")
-            pointer[:] = [app.root.winfo_x() + 15, app.root.winfo_y() + 30]
+            pointer[:] = [app.edge.visible_rect()[2] + 15, app.edge.visible_rect()[3] + 30]
             until(lambda: app.edge.mode == "expanded")
             pump(0.4)
             assert not app.controller._editing, "Looking at progress acquired input ownership"

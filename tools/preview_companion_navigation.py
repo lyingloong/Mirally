@@ -54,30 +54,62 @@ def main():
             pump()
             app.root.geometry(f"{app.root.minsize()[0]}x{app.root.minsize()[1]}")
             pump()
-            visible(app.session_picker)
-            visible(app.compact_new)
+            visible(app.history_button)
+            app.history_button.invoke()
+            pump()
+            visible(app.history_list)
+            visible(app.history_new)
             app.conversation.begin("old", "继续上周的项目计划", kind="conversation")
             app.conversation.finish("old", "completed", "先整理目标，再安排工作。")
             first_id = app.conversation.snapshot()["id"]
             app._refresh_conversation()
-            app.compact_new.invoke()
+            app.history_new.invoke()
             second_id = app.conversation.snapshot()["id"]
             assert first_id != second_id
             index = next(i for i, (key, _) in enumerate(app._saved_sessions) if key == first_id)
-            app.session_picker.current(index)
-            app.session_picker.event_generate("<<ComboboxSelected>>")
+            app.history_button.invoke()
+            pump()
+            capture_window(app.root, output / "02-small-history.png")
+            app.history_list.canvas.event_generate("<Button-1>", x=40, y=index*app.history_list.row_height+20)
             pump()
             assert app.conversation.snapshot()["id"] == first_id
             assert "继续上周" in app.chat_text.get("1.0", "end")
             assert not app._memory_open
+            assert not app._history_open
             capture_window(app.root, output / "02-small-sessions.png")
             app.root.state("zoomed")
             pump(.3)
-            visible(app.sidebar_picker)
-            assert not app.session_nav.winfo_ismapped()
+            visible(app.sidebar_list)
+            index = next(i for i, (key, _) in enumerate(app._saved_sessions) if key == second_id)
+            app.sidebar_list.canvas.event_generate("<Button-1>", x=40, y=index*app.sidebar_list.row_height+20)
+            pump()
+            assert app.conversation.snapshot()["id"] == second_id
+            assert app.sidebar_list.current == second_id
+            capture_window(app.root, output / "04-wide-history.png")
             app.root.state("normal")
             pump(.3)
-            visible(app.session_picker)
+            visible(app.history_button)
+            # A long history must scroll, and keyboard navigation must select
+            # a row only after confirmation rather than changing on focus.
+            for number in range(16):
+                app.conversation.new()
+                app.conversation.begin(f"archive-{number}", f"项目讨论 {number + 1}", kind="conversation")
+                app.conversation.finish(f"archive-{number}", "completed", "保留这段交流。")
+            app._refresh_conversation()
+            app.history_button.invoke()
+            pump()
+            assert app.history_list.scrollbar.winfo_ismapped()
+            assert app.history_list.scrollbar.winfo_height() > app.history_list.row_height
+            last_id = app.conversation.snapshot()["id"]
+            app.history_list.canvas.focus_force()
+            app.history_list.canvas.event_generate("<Down>")
+            pump()
+            assert app.conversation.snapshot()["id"] == last_id
+            app.history_list.canvas.event_generate("<Return>")
+            pump()
+            assert app.conversation.snapshot()["id"] != last_id
+            assert not app._history_open
+            app._select_conversation(second_id)
 
             class DelayedDesktop:
                 def respond(self, *args):
@@ -102,7 +134,9 @@ def main():
             pump(.4)
             assert app.edge.mode == "compact" and app._phase == "thinking"
             assert not opened, opened
-            assert "disabled" in app.compact_new.state()
+            assert "disabled" in app.history_new.state()
+            app._select_conversation(first_id)
+            assert app.conversation.snapshot()["id"] == second_id
             gate.set()
             until(lambda: app._phase == "observing")
             assert app.edge.mode == "compact" and not opened, opened
@@ -125,7 +159,7 @@ def main():
             assert app.edge.mode == "workspace"
             assert opened == ["completed"], opened
             assert "你好，我们接着聊。" in app.chat_text.get("1.0", "end")
-            visible(app.session_picker)
+            visible(app.history_button)
             print("PASS: idle docking; direct small-window session creation/restoration; wide navigation; no workspace detour while routing/executing; chat reply remains readable.")
         finally:
             gate.set()

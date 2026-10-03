@@ -51,6 +51,8 @@ class EdgeTransitionTests(unittest.TestCase):
         edge.root = root
         edge.mode = mode
         edge._animation = None
+        edge._surface_bounds = None
+        edge._visible_rect = None
         edge._activity_timer = None
         edge._activity_bars = []
         edge._activity_frame = 0
@@ -203,6 +205,7 @@ class EdgeTransitionTests(unittest.TestCase):
         edge = self.edge(mode="expanded")
         edge.app.session.window_rect.return_value = (408, 180, 1510, 220)
         edge._set_rect = Mock()
+        edge._prepare_surface = Mock()
         callbacks = []
         edge.root.after.side_effect = lambda delay, callback: callbacks.append(callback) or "timer"
         clock = [10.0]
@@ -215,6 +218,37 @@ class EdgeTransitionTests(unittest.TestCase):
         self.assertGreater(len({frame[0] for frame in frames}), 5)
         self.assertTrue(all(frame[0] + frame[2] == 1920 for frame in frames))
         self.assertEqual(tuple(frames[-1]), (555, 510, 1365, 220))
+
+    def test_reveal_changes_only_clip_region_not_native_size_or_child_layout(self):
+        edge = self.edge(mode="expanded")
+        edge._surface_bounds = (370, 340, -378, 150)
+        edge._set_rect((310, 220, -318, 150))
+        edge.app.session.resize_surface.assert_not_called()
+        edge.root.geometry.assert_not_called()
+        edge.root.update_idletasks.assert_not_called()
+        edge.app.session.round_corners.assert_called_once_with(16, size=(310, 220), offset=(60, 0), redraw=False)
+        edge.app.session.repaint_surface.assert_called_once_with(exposed=True)
+        self.assertEqual(edge.visible_rect(), (310, 220, -318, 150))
+
+    def test_short_display_shares_top_and_right_between_visible_states(self):
+        edge = self.edge(mode="compact")
+        edge.app.session.work_area.return_value = (-640, 0, 0, 420)
+        compact, expanded = edge._rect(False), edge._rect(True)
+        self.assertEqual(compact[3], expanded[3])
+        self.assertEqual(compact[2] + compact[0], expanded[2] + expanded[0])
+        self.assertGreaterEqual(compact[3], 0)
+        self.assertLessEqual(expanded[3] + expanded[1], 420)
+
+    def test_interrupted_reveal_starts_from_visible_region_not_full_surface(self):
+        edge = self.edge(mode="compact")
+        edge._surface_bounds = (370, 340, 1542, 150)
+        edge._visible_rect = (320, 230, 1592, 150)
+        edge._set_rect = Mock()
+        edge._prepare_surface = Mock()
+        with patch("openassist.edge_companion.time.monotonic", return_value=10):
+            EdgeCompanion._animate_to(edge, (272, 120, 1640, 150), anchor_right=True)
+        self.assertEqual(tuple(edge._set_rect.call_args.args[0]), (320, 230, 1592, 150))
+        edge.app.session.window_rect.assert_not_called()
 
     def test_activity_moves_between_sub_200ms_frames_without_rebuilding_canvas(self):
         edge = self.edge(mode="expanded")

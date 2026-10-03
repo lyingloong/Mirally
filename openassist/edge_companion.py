@@ -16,6 +16,8 @@ class EdgeCompanion:
         self.mode = "workspace"
         self._animation = None
         self._target = None
+        self._surface_bounds = None
+        self._visible_rect = None
         self._workspace = None
         self._workspace_state = "normal"
         self._workspace_fullscreen = False
@@ -86,20 +88,50 @@ class EdgeCompanion:
         left, top, right, bottom = self.app.session.work_area()
         width, height = (self.s(370), self.s(340)) if expanded else (self.s(272), self.s(120))
         width, height = min(width, right - left), min(height, bottom - top)
-        y = min(top + self.s(150), bottom - height - self.s(16))
+        # Both states share the same top even on a short display, so the fixed
+        # header is always inside the visible compact region.
+        full_height = min(self.s(340), bottom - top)
+        y = min(top + self.s(150), bottom - full_height - self.s(16))
         return width, height, right - width - self.s(8), max(top, y)
 
     def _set_rect(self, rect):
+        if self._surface_bounds is not None:
+            self._visible_rect = tuple(rect)
+            width, height, x, y = rect
+            _, _, sx, sy = self._surface_bounds
+            # The HWND and child controls stay still. Only the native clipping
+            # region grows; the clipped-out area neither paints nor takes input.
+            self.app.session.round_corners(self.s(16), size=(width, height), offset=(x-sx, y-sy), redraw=False)
+            self.draw()
+            self.app.session.repaint_surface(exposed=True)
+            return
         # Win32 positions are absolute virtual-desktop coordinates, including
         # negative monitor origins; Tk's negative offsets mean right/bottom.
         self.app.session.resize_surface(rect, self.s(16))
+
+    def _prepare_surface(self, visible):
+        bounds = self._rect(True)
+        if self._surface_bounds == bounds:
+            return
+        self._surface_bounds = bounds
+        self._visible_rect = tuple(visible)
+        self.canvas.configure(height=self.s(120))
+        self.panel.pack(fill="both", expand=True)
+        self.app.session.resize_surface(bounds, self.s(16), clip=visible)
+        self.root.geometry(f"{bounds[0]}x{bounds[1]}")
+        self.draw()
+
+    def visible_rect(self):
+        return self._visible_rect or self.app.session.window_rect()
 
     def _animate_to(self, rect, *, anchor_right=False):
         if self._animation:
             self.root.after_cancel(self._animation)
             self._animation = None
         self._target = rect
-        start = self.app.session.window_rect()
+        start = self.visible_rect()
+        if anchor_right:
+            self._prepare_surface(start)
         began = time.monotonic()
 
         def tick():
@@ -116,13 +148,15 @@ class EdgeCompanion:
                 frame[2] = rect[2] + rect[0] - frame[0]
             self._set_rect(frame)
             if p < 1:
-                elapsed = time.monotonic() - began
-                next_frame = (math.floor(elapsed * 60) + 1) / 60
-                self._animation = self.root.after(max(1, round((next_frame - elapsed) * 1000)), tick)
+                # Subtract this paint's cost. Rounding up to the next global
+                # frame boundary wastes another frame when paint exceeds 16ms.
+                remaining = 1 / 60 - (time.monotonic() - now)
+                self._animation = self.root.after(max(1, round(remaining * 1000)), tick)
             else:
                 # Keep Tk's requested size in sync once, after the tween.
                 # Position stays native to support negative monitor origins.
-                self.root.geometry(f"{rect[0]}x{rect[1]}")
+                if self._surface_bounds is None:
+                    self._prepare_surface(rect)
         tick()
 
     def settle(self):
@@ -130,7 +164,8 @@ class EdgeCompanion:
             self.root.after_cancel(self._animation)
             self._animation = None
             self._set_rect(self._target)
-            self.root.geometry(f"{self._target[0]}x{self._target[1]}")
+            if self._surface_bounds is None:
+                self._prepare_surface(self._target)
 
     def dock(self, *, resumed=False):
         # Only a worker's acknowledged resume may bypass an unanswered prompt.
@@ -183,8 +218,6 @@ class EdgeCompanion:
         if self.mode == "workspace":
             return
         self.mode = "expanded"
-        self.canvas.configure(height=self.s(98))
-        self.panel.pack(fill="both", expand=True)
         self._outside_since = None
         self._animate_to(self._rect(True), anchor_right=True)
         # Merely looking at progress must not acquire desktop input ownership.
@@ -200,8 +233,6 @@ class EdgeCompanion:
         self.mode = "compact"
         if release_input:
             self.app._end_composing()
-        self.panel.pack_forget()
-        self.canvas.configure(height=self.s(120))
         self._cooldown = time.monotonic() + 1.0
         self._animate_to(self._rect(False), anchor_right=True)
         self.draw()
@@ -215,6 +246,8 @@ class EdgeCompanion:
         self.settle()
         self._copy_draft_to_workspace()
         self.mode = "workspace"
+        self._surface_bounds = None
+        self._visible_rect = None
         self.frame.grid_remove()
         self.root.overrideredirect(False)
         self.app.session.round_corners(0)
@@ -307,8 +340,8 @@ class EdgeCompanion:
         if self.mode == "workspace" or self._animation or time.monotonic() < self._cooldown:
             return
         x, y = self.root.winfo_pointerxy()
-        rx, ry = self.root.winfo_x(), self.root.winfo_y()
-        inside = rx - self.s(12) <= x <= rx + self.root.winfo_width() and ry - self.s(8) <= y <= ry + self.root.winfo_height() + self.s(8)
+        width, height, rx, ry = self.visible_rect()
+        inside = rx - self.s(12) <= x <= rx + width and ry - self.s(8) <= y <= ry + height + self.s(8)
         now = time.monotonic()
         if self.mode == "compact":
             human = self.app.demo or now - self.app.session.last_human_pointer < 1.2
@@ -319,7 +352,7 @@ class EdgeCompanion:
         else:
             human = self.app.demo or now - self.app.session.last_human_pointer < 1.2
             cx, cy = self.compose_frame.winfo_rootx(), self.compose_frame.winfo_rooty()
-            editing_zone = cx <= x <= cx + self.compose_frame.winfo_width() and cy <= y <= ry + self.root.winfo_height()
+            editing_zone = cx <= x <= cx + self.compose_frame.winfo_width() and cy <= y <= ry + height
             self._compose_since = (self._compose_since or now) if human and editing_zone and not self._ready else None
             if self._compose_since and now - self._compose_since > 0.15:
                 self.set_ready(self.app._begin_composing(), waiting=True)
@@ -333,7 +366,7 @@ class EdgeCompanion:
         if not hasattr(self, "canvas"):
             return
         phase, title, step = self._status
-        key = (self.mode, phase, title, step, self._receipt, self.canvas.winfo_width(),
+        key = (self.mode, phase, title, step, self._receipt, self.canvas.winfo_width(), self._visible_rect,
                self.app.theme_key, self._ready, self.app.controller.editing_ready, self.app._reduced.get())
         if key == self._draw_key:
             self._sync_activity()
@@ -351,7 +384,8 @@ class EdgeCompanion:
             }
         items = self._canvas_items
         width = max(c.winfo_width(), self.s(272))
-        x = self.s(20)
+        visible_width = self._visible_rect[0] if self._surface_bounds is not None else width
+        x = width - visible_width + self.s(20)
         c.coords(items["mark"], x + self.s(12), self.s(27))
         c.itemconfigure(items["mark"], image=self._brand_image)
         c.coords(items["name"], x + self.s(32), self.s(27))
@@ -359,7 +393,7 @@ class EdgeCompanion:
         c.coords(items["toggle"], width - self.s(22), self.s(27))
         c.itemconfigure(items["toggle"], text="‹" if self.mode == "compact" else "−", fill=t.muted)
         display = public_text(title.replace("\n", ""), 15 if self.mode == "compact" else 21)
-        while len(display) > 1 and self._title_font.measure(display) > width - self.s(40):
+        while len(display) > 1 and self._title_font.measure(display) > visible_width - self.s(40):
             display = display[:-2] + "…"
         c.coords(items["title"], x, self.s(58))
         c.itemconfigure(items["title"], text=display, fill=t.text)

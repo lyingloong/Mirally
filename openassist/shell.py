@@ -19,6 +19,7 @@ from openassist.conversation import ConversationStore
 from openassist.edge_companion import EdgeCompanion
 from openassist.branding import APP_NAME, apply_window_icon, brand_photo, prepare_process_identity
 from openassist.startup import StartupReveal
+from openassist.session_list import SessionList
 
 
 class OpenAssistShell:
@@ -52,6 +53,7 @@ class OpenAssistShell:
         self._records_open = False
         self._settings_open = False
         self._memory_open = False
+        self._history_open = False
         self._phase = "idle"
         self._request_id = ""
         self._started = None
@@ -78,7 +80,6 @@ class OpenAssistShell:
         self.hint_var = tk.StringVar()
         self.receipt_var = tk.StringVar()
         self.memory_var = tk.StringVar()
-        self.memory_selection = tk.StringVar()
         self.session_title = tk.StringVar(value="新的会话")
         self._build()
         self.edge = EdgeCompanion(self)
@@ -166,19 +167,11 @@ class OpenAssistShell:
         self.settings_button.pack(side="right")
         self.memory_button = self._button(header, "记忆", self._toggle_memory, width=-1)
         self.memory_button.pack(side="right", padx=(0, 6))
+        self.history_button = self._button(header, "历史", self._toggle_history, width=-1)
+        self.history_button.pack(side="right", padx=(0, 6))
         self.return_button = self._button(header, "收回", self._return_to_edge, width=-1)
         self.return_button.pack(side="right", padx=(0, 6))
         self._rule(main)
-
-        self.session_nav = self._frame(main)
-        self.session_nav.pack(fill="x", pady=(12, 0))
-        self._label(self.session_nav, text="会话", muted=True).pack(side="left", padx=(0, 8))
-        self.session_picker = ttk.Combobox(self.session_nav, textvariable=self.memory_selection, state="readonly", width=1,
-                                          font=(self.body_font, 10))
-        self.session_picker.pack(side="left", fill="x", expand=True, ipady=4)
-        self.session_picker.bind("<<ComboboxSelected>>", self._select_conversation)
-        self.compact_new = self._button(self.session_nav, "＋ 新建", self._new_conversation, role="outline")
-        self.compact_new.pack(side="right", padx=(8, 0))
 
         task = self.task_row = self._frame(main, pady=17)
         task.pack(fill="x")
@@ -228,9 +221,7 @@ class OpenAssistShell:
         self.memory = self._frame(self.stack)
         self._label(self.memory, text="会话记忆", font=(self.body_font, 16, "bold")).pack(anchor="w", pady=(8, 6))
         self._label(self.memory, text="本地保存对话与工作结果，可恢复、可清空。", muted=True, font=(self.body_font, 9)).pack(anchor="w", pady=(0, 8))
-        self.memory_picker = ttk.Combobox(self.memory, textvariable=self.memory_selection, state="readonly")
-        self.memory_picker.pack(fill="x", pady=(0, 8))
-        self.memory_picker.bind("<<ComboboxSelected>>", self._select_conversation)
+        self._label(self.memory, textvariable=self.session_title, muted=True).pack(fill="x", pady=(0, 8))
         memory_controls = self._frame(self.memory)
         memory_controls.pack(fill="x", side="bottom", pady=(6, 0))
         self.new_conversation = self._button(memory_controls, "新建会话", self._new_conversation, role="outline")
@@ -240,6 +231,17 @@ class OpenAssistShell:
         self.memory_text = ScrolledText(self.memory, height=4, wrap="word", state="disabled", borderwidth=0,
                                         highlightthickness=0, font=(self.body_font, 10), spacing3=8)
         self.memory_text.pack(fill="both", expand=True)
+
+        self.history = self._frame(self.stack, surface=True, padx=12, pady=12)
+        history_header = self._frame(self.history, surface=True)
+        history_header.pack(fill="x", pady=(0, 12))
+        self._label(history_header, text="历史会话", surface=True, font=(self.body_font, 15, "bold")).pack(side="left")
+        self.history_new = self._button(history_header, "＋ 新建会话", self._new_conversation, role="outline")
+        self.history_new.pack(side="right")
+        self.history_note = self._label(self.history, text="选一段对话，接着聊。", surface=True, muted=True, font=(self.body_font, 9))
+        self.history_note.pack(fill="x", pady=(0, 8))
+        self.history_list = SessionList(self.history, self)
+        self.history_list.pack(fill="both", expand=True)
 
         self.feedback = self._frame(main, surface=True, padx=14, pady=10)
         self._label(self.feedback, textvariable=self.receipt_var, surface=True, muted=True,
@@ -302,23 +304,18 @@ class OpenAssistShell:
         self.session_title_label = self._label(self.sidebar, textvariable=self.session_title,
                                                 surface=True, muted=True, justify="left", wraplength=240)
         self.session_title_label.pack(fill="x", pady=(0, 24))
-        self.sidebar_picker = ttk.Combobox(self.sidebar, textvariable=self.memory_selection, state="readonly", width=1,
-                                          font=(self.body_font, 10))
-        self.sidebar_picker.pack(fill="x", pady=(0, 12), ipady=4)
-        self.sidebar_picker.bind("<<ComboboxSelected>>", self._select_conversation)
         self.sidebar_new = self._button(self.sidebar, "＋  新建会话", self._new_conversation, role="outline")
         self.sidebar_new.pack(fill="x", pady=(0, 26))
         self._label(self.sidebar, text="最近交流", surface=True, muted=True,
                     font=(self.body_font, 9)).pack(anchor="w", pady=(0, 12))
-        self.session_overview = ScrolledText(self.sidebar, width=1, height=5, state="disabled", wrap="word",
-                                              borderwidth=0, highlightthickness=0, padx=0, pady=0,
-                                              font=(self.body_font, 10), spacing3=12)
-        self.session_overview.pack(fill="both", expand=True)
-        self._label(self.sidebar, textvariable=self.status_var, surface=True,
-                    font=(self.body_font, 10, "bold")).pack(fill="x", pady=(24, 9))
         self.sidebar_note = self._label(self.sidebar, text="消息、补充与工作结果，\n都接在这段对话里。", muted=True,
                                         surface=True, justify="left", font=(self.body_font, 9))
-        self.sidebar_note.pack(fill="x")
+        self.sidebar_note.pack(fill="x", side="bottom", pady=(16, 0))
+        self._label(self.sidebar, textvariable=self.status_var, surface=True,
+                    font=(self.body_font, 10, "bold")).pack(fill="x", side="bottom", pady=(16, 0))
+        # Pack footer first so long histories scroll instead of hiding it.
+        self.sidebar_list = SessionList(self.sidebar, self)
+        self.sidebar_list.pack(fill="both", expand=True)
 
     def _queue_layout(self, _event=None):
         if self._closing or (hasattr(self, "edge") and self.edge.mode != "workspace"):
@@ -338,15 +335,14 @@ class OpenAssistShell:
         self._wide = wide
         side_width = min(round(300 * self.scale), round(width * .25)) if wide else 0
         if wide:
-            self.session_nav.pack_forget()
+            if self._history_open:
+                self._dismiss_drawers()
             self.sidebar.configure(width=side_width)
             self.sidebar.grid(row=0, column=0, sticky="nsew")
             self.session_title_label.configure(wraplength=max(100, side_width - 48))
             self.sidebar_note.configure(wraplength=max(100, side_width - 48))
         else:
             self.sidebar.grid_remove()
-            if not self.session_nav.winfo_manager():
-                self.session_nav.pack(fill="x", pady=(12, 0), before=self.task_row)
         padding = round((32 if wide else 18) * self.scale)
         self.content.configure(padx=padding, pady=round((22 if wide else 12) * self.scale))
         available = max(100, width - side_width - padding * 2)
@@ -374,6 +370,7 @@ class OpenAssistShell:
     def _sync_drawer_buttons(self):
         for button, selected in ((self.settings_button, self._settings_open),
                                  (self.memory_button, self._memory_open),
+                                 (self.history_button, self._history_open),
                                  (self.record_button, self._records_open)):
             button.state(["selected" if selected else "!selected"])
 
@@ -400,8 +397,8 @@ class OpenAssistShell:
         self.chat_text.tag_configure("user", foreground=t.text, background=t.tint, lmargin1=12, lmargin2=12, rmargin=12, spacing1=8, spacing3=8)
         self.chat_text.tag_configure("muted", foreground=t.muted, font=(self.body_font, 10))
         self.memory_text.configure(bg=t.background, fg=t.text, selectbackground=t.tint, selectforeground=t.text)
-        self.session_overview.configure(bg=t.surface, fg=t.text, selectbackground=t.tint, selectforeground=t.text)
-        self.session_overview.tag_configure("status", foreground=t.muted, font=(self.body_font, 9), spacing1=12)
+        self.sidebar_list.draw()
+        self.history_list.draw()
         self.transcript.tag_configure("caption", foreground=t.muted, font=(self.body_font, 9))
         for widget in (self.motion_check, self.pin_check):
             widget.configure(bg=t.background, fg=t.text, activebackground=t.background, activeforeground=t.text,
@@ -437,10 +434,11 @@ class OpenAssistShell:
         self._save_preferences()
 
     def _dismiss_drawers(self):
-        self._records_open = self._settings_open = self._memory_open = False
+        self._records_open = self._settings_open = self._memory_open = self._history_open = False
         self.records.grid_remove()
         self.settings.grid_remove()
         self.memory.grid_remove()
+        self.history.grid_remove()
         self._show_main_content()
         if self._receipts and not self.feedback.winfo_manager():
             self.feedback.pack(fill="x", side="bottom", after=self.bottom, pady=(4, 8))
@@ -465,7 +463,7 @@ class OpenAssistShell:
         if self.startup and self.startup.active:
             self.startup.finish()
             return "break"
-        if self._records_open or self._settings_open or self._memory_open:
+        if self._records_open or self._settings_open or self._memory_open or self._history_open:
             self._dismiss_drawers()
         elif self.edge.mode == "workspace":
             self._return_to_edge()
@@ -484,6 +482,22 @@ class OpenAssistShell:
             self._settings_open = True
         self._sync_drawer_buttons()
 
+    def _toggle_history(self):
+        was_open = self._history_open
+        self._dismiss_drawers()
+        if self._wide:
+            self.sidebar_list.canvas.focus_set()
+            return
+        if not was_open:
+            self.feedback.pack_forget()
+            self._refresh_conversation()
+            self.lyrics.grid_remove()
+            self.chat.grid_remove()
+            self.history.grid(row=0, column=0, sticky="nsew")
+            self._history_open = True
+            self.history_list.canvas.focus_set()
+        self._sync_drawer_buttons()
+
     def _toggle_records(self):
         was_open = self._records_open
         self._dismiss_drawers()
@@ -499,32 +513,16 @@ class OpenAssistShell:
     def _refresh_conversation(self):
         data = self.conversation.snapshot()
         self.session_title.set(data["title"])
-        self.session_overview.configure(state="normal")
-        self.session_overview.delete("1.0", "end")
-        if not data["tasks"]:
-            self.session_overview.insert("end", "从一个问题或想法开始。\n\n也可以交给我一件电脑上的事。")
-        for turn in data["tasks"][-6:]:
-            state = PHASES.get(turn["status"], ("进行中", ""))[0]
-            if turn["status"] == "completed" and turn.get("kind") == "conversation":
-                state = "已回复"
-            self.session_overview.insert("end", state + "\n", "status")
-            self.session_overview.insert("end", public_text(turn["request"], 110) + "\n")
-        self.session_overview.configure(state="disabled")
         completed = [task for task in data["tasks"] if task["status"] != "running"]
         self.memory_var.set(("演示会话" if self.demo else "同一会话") + f" · 已保留 {len(completed)} 轮交流")
         self._render_chat(data)
         self._saved_sessions = self.conversation.sessions()
-        labels = [f"{index:02d} · {title}" for index, (_, title) in enumerate(self._saved_sessions, 1)]
-        for picker in (self.memory_picker, self.session_picker, self.sidebar_picker):
-            picker.configure(values=labels)
-        for index, (identifier, _) in enumerate(self._saved_sessions):
-            if identifier == data["id"]:
-                self.memory_selection.set(labels[index])
-                break
+        for view in (self.sidebar_list, self.history_list):
+            view.set_sessions(self._saved_sessions, data["id"])
         self.memory_text.configure(state="normal")
         self.memory_text.delete("1.0", "end")
         if not data["tasks"]:
-            self.memory_text.insert("end", "后续对话和工作会参考本会话的消息、补充与结果。\n\n新建会话会开始独立上下文；旧会话可以从上方恢复。\n\n长期个人偏好记忆尚未启用。")
+            self.memory_text.insert("end", "后续对话和工作会参考本会话的消息、补充与结果。\n\n新建会话会开始独立上下文；旧会话可以从「历史」恢复。\n\n长期个人偏好记忆尚未启用。")
         for index, task in enumerate(data["tasks"], 1):
             status = PHASES.get(task["status"], ("上次运行中断" if task["status"] == "interrupted" else "进行中", ""))[0]
             if task.get("kind") == "conversation" and task["status"] == "completed":
@@ -594,7 +592,9 @@ class OpenAssistShell:
         if self.controller.active:
             return
         self.conversation.new()
+        self._dismiss_drawers()
         self._reset_conversation_view()
+        self.composer.focus_set()
 
     def _clear_conversation(self):
         if self.controller.active:
@@ -603,17 +603,17 @@ class OpenAssistShell:
             self.conversation.clear()
             self._reset_conversation_view()
 
-    def _select_conversation(self, _event=None):
+    def _select_conversation(self, identifier):
         if self.controller.active:
             return
-        index = (_event.widget if _event is not None else self.memory_picker).current()
-        if index < 0 or index >= len(self._saved_sessions):
+        if identifier not in {key for key, _ in self._saved_sessions}:
             return
         try:
-            self.conversation.select(self._saved_sessions[index][0])
+            self.conversation.select(identifier)
         except (OSError, ValueError, KeyError, TypeError):
             self.hint_var.set("这个会话暂时无法读取，当前会话已保留。")
             return
+        self._dismiss_drawers()
         self._reset_conversation_view()
 
     def _record(self, title, detail=""):
@@ -718,7 +718,7 @@ class OpenAssistShell:
         self.receipt_text.configure(state="disabled")
         # Keep the latest status visible even when its text spans many lines.
         self.receipt_text.yview(latest_start)
-        if not self.feedback.winfo_manager() and not (self._memory_open or self._settings_open or self._records_open):
+        if not self.feedback.winfo_manager() and not (self._memory_open or self._settings_open or self._records_open or self._history_open):
             self.feedback.pack(fill="x", side="bottom", after=self.bottom, pady=(4, 8))
         # Every entry remains scrollable here and searchable by eye in records.
         self._record(self._receipt_caption(event), event["detail"] if previous is None else f"第 {list(self._receipts).index(receipt_id) + 1} 条补充 / 回复")
@@ -779,10 +779,12 @@ class OpenAssistShell:
         self.send_button.configure(state="normal" if editable else "disabled")
         self.settings_button.configure(state="normal" if not active or waiting or paused else "disabled")
         self.memory_button.configure(state="normal" if not active or waiting or paused or self.controller.editing_ready else "disabled")
-        for button in (self.new_conversation, self.clear_conversation, self.sidebar_new, self.compact_new):
+        self.history_button.configure(state="normal" if not active or waiting or paused or self.controller.editing_ready else "disabled")
+        for button in (self.new_conversation, self.clear_conversation, self.sidebar_new, self.history_new):
             button.configure(state="disabled" if self.controller.active else "normal")
-        for picker in (self.memory_picker, self.session_picker, self.sidebar_picker):
-            picker.configure(state="disabled" if self.controller.active else "readonly")
+        for view in (self.sidebar_list, self.history_list):
+            view.set_enabled(not self.controller.active)
+        self.history_note.configure(text="当前任务结束后即可切换会话。" if self.controller.active else "选一段对话，接着聊。")
         self.composer_var.set("回复这条追问" if phase == "waiting_user" else (
             "补充信息，继续任务后生效" if paused else ("可以继续补充，我会一起考虑" if active and not desktop else (
                 "随时补充 · 发送后调整下一步" if active else "问一个问题，或交给我一件事"))))
@@ -833,7 +835,7 @@ class OpenAssistShell:
         elif urgent and phase != previous:
             self._record(PHASES[phase][0], detail)
         self._update_controls()
-        if not (self._records_open or self._settings_open or self._memory_open):
+        if not (self._records_open or self._settings_open or self._memory_open or self._history_open):
             self._show_main_content()
 
     def _poll(self):
@@ -866,9 +868,6 @@ class OpenAssistShell:
                     if not call.expired:
                         if call.operation in {"working", "capture_begin"}:
                             self.root.tk.call("ttk::combobox::Unpost", self.theme_picker)
-                            self.root.tk.call("ttk::combobox::Unpost", self.memory_picker)
-                            self.root.tk.call("ttk::combobox::Unpost", self.session_picker)
-                            self.root.tk.call("ttk::combobox::Unpost", self.sidebar_picker)
                             self._dismiss_drawers()
                         if call.operation == "working":
                             self.edge.resume_working(dock=self.dock_on_run)

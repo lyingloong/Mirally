@@ -112,9 +112,15 @@ def main():
             native_edges = []
             original_set_rect = app.edge._set_rect
             canvas_items = tuple(app.edge.canvas.find_all())
+            native_bounds = app.session.window_rect()
+            child_bounds = tuple((widget.winfo_width(), widget.winfo_height(), widget.winfo_x(), widget.winfo_y())
+                                 for widget in (app.edge.canvas, app.edge.panel, app.edge.composer))
 
             def record_rect(rect):
                 original_set_rect(rect)
+                assert app.session.window_rect() == native_bounds, "Reveal resized or moved the native surface"
+                assert tuple((widget.winfo_width(), widget.winfo_height(), widget.winfo_x(), widget.winfo_y())
+                             for widget in (app.edge.canvas, app.edge.panel, app.edge.composer)) == child_bounds, "Reveal relaid out controls"
                 w, _, left_edge, _ = app.session.window_rect()
                 native_edges.append(left_edge + w)
 
@@ -152,6 +158,12 @@ def main():
             assert tuple(app.edge.canvas.find_all()) == canvas_items, "Animation rebuilt the header instead of moving existing items"
             assert max(native_edges) - min(native_edges) == 0, f"Native right edge drifted: {native_edges}"
             assert not errors, errors
+            # Invisible parts of the fixed surface must not block the desktop.
+            app.session.apply("interactive")
+            native_x, native_y = native_bounds[2:]
+            clipped_point = (native_x + 10, native_y + native_bounds[1] - 30)
+            hit = win32gui.WindowFromPoint(clipped_point)
+            assert win32gui.GetAncestor(hit, 2) != app.session.hwnd, "Clipped-out surface intercepted input"
         finally:
             app.session.apply("interactive")
             fixture.destroy()

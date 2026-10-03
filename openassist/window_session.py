@@ -110,10 +110,11 @@ class WindowSession:
             raise RuntimeError("无法关闭本窗口的系统过渡")
         self._transitions_disabled_for = hwnd
 
-    def round_corners(self, radius=0, *, size=None, redraw=True):
+    def round_corners(self, radius=0, *, size=None, redraw=True, offset=(0, 0)):
         hwnd = self.hwnd
         width, height = size or (self.root.winfo_width(), self.root.winfo_height())
-        key = (hwnd, radius, width, height) if radius else (hwnd, 0)
+        left, top = offset
+        key = (hwnd, radius, width, height, left, top) if radius else (hwnd, 0)
         if self._corner_key == key:
             return
         if not radius:
@@ -128,14 +129,14 @@ class WindowSession:
         gdi = self._corner_gdi
         # Size comes from the native animation frame, not a stale Tk configure
         # event. Reusing the GDI bindings also avoids loading a DLL per frame.
-        region = gdi.CreateRoundRectRgn(0, 0, width + 1, height + 1, radius * 2, radius * 2)
+        region = gdi.CreateRoundRectRgn(left, top, left + width + 1, top + height + 1, radius * 2, radius * 2)
         if region:
             if self.user32.SetWindowRgn(hwnd, region, redraw):
                 self._corner_key = key
             else:
                 gdi.DeleteObject(region)  # On success ownership passes to Windows.
 
-    def resize_surface(self, rect, radius):
+    def resize_surface(self, rect, radius, *, clip=None):
         """Commit one complete edge frame without exposing erased child surfaces.
 
         Native resize and region changes normally repaint independently, before
@@ -149,11 +150,24 @@ class WindowSession:
         # SWP_SHOWWINDOW: fallback capture must remain hidden during animation.
         if not self.user32.SetWindowPos(hwnd, None, x, y, width, height, 0x001C):
             raise ctypes.WinError(ctypes.get_last_error())
-        self.round_corners(radius, size=(width, height), redraw=False)
+        if clip is None:
+            self.round_corners(radius, size=(width, height), redraw=False)
+        else:
+            self.round_corners(radius, size=clip[:2], offset=(clip[2] - x, clip[3] - y), redraw=False)
+        self.repaint_surface()
+
+    def repaint_surface(self, *, exposed=False):
+        """Paint newly exposed pixels before the compositor presents the region."""
+        hwnd = self.hwnd
         self.root.update_idletasks()
         # INVALIDATE | NOERASE | ALLCHILDREN | UPDATENOW. Each Tk widget paints
         # its complete surface; don't expose an erased parent between them.
-        if not self.user32.RedrawWindow(hwnd, None, None, 0x01A1):
+        # A growing clip exposes parent-frame background as well as controls.
+        # Tk paints that background on WM_ERASEBKGND. With a fixed surface it
+        # is safe to include it in this synchronous paint; skipping it leaves
+        # stale transparent notches at the boundary between child windows.
+        flags = 0x0185 if exposed else 0x01A1
+        if not self.user32.RedrawWindow(hwnd, None, None, flags):
             raise ctypes.WinError(ctypes.get_last_error())
 
     def exclude_from_capture(self):

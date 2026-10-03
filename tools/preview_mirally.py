@@ -164,7 +164,7 @@ def main():
             app.edge.expand()
             pump(.4)
             app.edge._set_rect = original
-            assert len(frames) >= 8, f"Too few native geometry frames: {len(frames)}"
+            assert len(frames) >= 8, f"Too few reveal frames: {len(frames)}"
             intervals = [b - a for a, b in zip(frames, frames[1:])]
             results["animation"] = {"frames": len(frames), "max_gap_ms": round(max(intervals) * 1000, 1)}
             before = app.edge._activity_frame
