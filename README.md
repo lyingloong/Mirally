@@ -1,6 +1,6 @@
 # Mirally
 
-Mirally 是面向 Windows 的对话与桌面助手。可以直接问问题、讨论想法、起草文字，也可以让它处理电脑上的事情；需要实际操作时再进入桌面观察与执行流程。名字结合 MIRA 与 ally，图标采用「合翼 A」：含蓄的字母轮廓与环抱形态表达伙伴关系。
+Mirally 是面向 Windows 的对话与桌面助手。可以直接问问题、讨论想法、起草文字，也可以让它处理电脑上的事情；需要实际操作时再进入桌面观察与执行流程。名字结合 MIRA 与 ally，图标采用「相伴 M」：蓝青渐变的双人流线构成 M，呼应 Mirally 与 MIRA，并以彼此连接的姿态表达伙伴关系。
 
 产品入口、界面和调度由 Mirally 维护，桌面智能体内核基于 [Microsoft UFO](https://github.com/microsoft/UFO)。当前采用**同一会话内串行处理**的方式，对话和桌面工作共用本地保存的消息、补充与结果上下文。
 
@@ -174,7 +174,7 @@ openassist/
 │   ├── shell.py                     # 默认桌面界面、内嵌交互与设置
 │   ├── branding.py                  # Mirally 品牌、原生图标与图片缓存
 │   ├── startup.py                   # 可跳过、遵循减少动态效果的开屏
-│   ├── assets/                      # 合翼 A 透明 PNG 与多尺寸 ICO
+│   ├── assets/                      # 相伴 M 透明 PNG 与多尺寸 ICO
 │   ├── lyric_view.py                # 自适应歌词区域与转场
 │   ├── widgets.py                   # 保留键盘操作的圆角 ttk 按钮
 │   ├── presentation.py              # 主题、公共状态与文案

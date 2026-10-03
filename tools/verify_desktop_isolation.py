@@ -31,12 +31,19 @@ def main():
         home = Path(directory)
         (home / "config" / "openassist").mkdir(parents=True)
         app = OpenAssistShell(home, demo=False, startup=False)
+        app.root.winfo_pointerxy = lambda: (-10000, -10000)
         # Independent toplevel: hiding the app must not hide the fixture as an
         # owned child window. It represents a separate target application.
         fixture = tk.Tk()
         fixture.title("OpenAssist generated capture fixture")
         fixture.configure(bg="#DAE6DF")
-        fixture.geometry(f"{round(560 * app.scale)}x{round(830 * app.scale)}+20+20")
+        fixture.overrideredirect(True)
+        fixture.attributes("-topmost", True)
+        left, top, right, bottom = app.session.work_area()
+        # Keep one stationary background under every form. Moving a separate
+        # Tk interpreter's window between captures can leave its old position
+        # pending and accidentally compare unrelated desktop content.
+        fixture.geometry(f"{right-left}x{bottom-top}+{left}+{top}")
         tk.Label(fixture, text="OpenAssist capture verification\nGenerated test content only", bg="#DAE6DF", fg="#243B2E", font=("Segoe UI", 18)).pack(pady=60)
         app.root.geometry(f"{round(500 * app.scale)}x{round(740 * app.scale)}+40+60")
         app.root.update()
@@ -55,6 +62,7 @@ def main():
         try:
             app.session.capture_begin(force_hide=True)
             baseline = grab()
+            assert baseline.getpixel((10, 10)) == (218, 230, 223), "Generated fixture is not visible behind the app"
             app.session.capture_end()
             app.root.update()
             ctypes.windll.dwmapi.DwmFlush()
@@ -98,19 +106,22 @@ def main():
                 assert flags == (0 if form == "typing" else 0x08000020), f"{form} input ownership lost"
                 x, y = app.root.winfo_rootx(), app.root.winfo_rooty()
                 width, height = app.root.winfo_width(), app.root.winfo_height()
-                fixture.geometry(f"{width + 100}x{height + 100}+{x - 40}+{y - 50}")
                 fixture.lift()
                 app.root.lift()
+                fixture.update()
                 app.root.update()
                 crop = (x, y, x + width, y + height)
                 app.session.capture_begin(force_hide=True)
                 expected = grab()
+                assert expected.getpixel((10, 10)) == (218, 230, 223), f"{form} fixture not visible"
                 app.session.capture_end()
                 app.root.update()
                 app.session.capture_begin()
                 assert not app.session.capture_hidden, "Native capture exclusion unavailable for edge window"
                 assert app.session.user32.IsWindowVisible(app.session.hwnd)
                 observed = grab()
+                expected.save(output / f"isolation-{form}-expected.png")
+                observed.save(output / f"isolation-{form}-observed.png")
                 assert ImageChops.difference(expected, observed).getbbox() is None, f"{form} appeared in native capture"
                 observed.save(output / f"isolation-edge-{form}.png")
                 app.session.capture_end()

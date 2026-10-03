@@ -20,6 +20,7 @@ from openassist.edge_companion import EdgeCompanion
 from openassist.branding import APP_NAME, apply_window_icon, brand_photo, prepare_process_identity
 from openassist.startup import StartupReveal
 from openassist.session_list import SessionList
+from openassist.settings_view import SettingsView
 
 
 class OpenAssistShell:
@@ -92,6 +93,7 @@ class OpenAssistShell:
         self.root.bind("<Escape>", self._escape)
         self._apply_theme()
         self._pin()
+        self.root.bind("<Map>", self._native_mapped, add="+")
         self.root.deiconify()
         self._hotkeys_ready = self.session.register_hotkeys()
         self.controller.desktop_available = self._hotkeys_ready
@@ -169,7 +171,7 @@ class OpenAssistShell:
         self.memory_button.pack(side="right", padx=(0, 6))
         self.history_button = self._button(header, "历史", self._toggle_history, width=-1)
         self.history_button.pack(side="right", padx=(0, 6))
-        self.return_button = self._button(header, "收回", self._return_to_edge, width=-1)
+        self.return_button = self._button(header, "浮窗", self._return_to_edge, width=-1)
         self.return_button.pack(side="right", padx=(0, 6))
         self._rule(main)
 
@@ -204,23 +206,13 @@ class OpenAssistShell:
                                       highlightthickness=0, padx=5, pady=6, font=(self.body_font, 10), spacing3=10)
         self.transcript.pack(fill="both", expand=True)
 
-        self.settings = self._frame(self.stack)
-        self._label(self.settings, text="按你的方式", font=(self.body_font, 22, "bold")).pack(anchor="w", pady=(16, 6))
-        self._label(self.settings, text="统一的界面，适合你的配色。", muted=True).pack(anchor="w", pady=(0, 25))
-        self._label(self.settings, text="外观主题").pack(anchor="w", pady=(0, 8))
-        self.theme_picker = ttk.Combobox(self.settings, textvariable=self._theme_name, state="readonly", values=[t.name for t in THEMES.values()], width=25)
-        self.theme_picker.pack(fill="x", pady=(0, 20), ipady=5)
-        self.theme_picker.bind("<<ComboboxSelected>>", self._choose_theme)
-        self.motion_check = tk.Checkbutton(self.settings, text="减少动态效果", variable=self._reduced, command=self._motion, font=(self.body_font, 10), relief="flat")
-        self.motion_check.pack(anchor="w", pady=6)
-        self.pin_check = tk.Checkbutton(self.settings, text="窗口保持置顶", variable=self._topmost, command=self._pin, font=(self.body_font, 10), relief="flat")
-        self.pin_check.pack(anchor="w", pady=6)
-        self.settings_note = self._label(self.settings, text="执行时收至屏幕侧边，靠近即可补充。\n发送后会按新信息重新安排下一步。", muted=True, justify="left")
-        self.settings_note.pack(anchor="w", pady=20)
+        self.settings = SettingsView(self.stack, self)
 
         self.memory = self._frame(self.stack)
         self._label(self.memory, text="会话记忆", font=(self.body_font, 16, "bold")).pack(anchor="w", pady=(8, 6))
-        self._label(self.memory, text="本地保存对话与工作结果，可恢复、可清空。", muted=True, font=(self.body_font, 9)).pack(anchor="w", pady=(0, 8))
+        memory_note = self._label(self.memory, text="本地保留最近 40 项交流，更早内容转为摘要。\n每次参考最近最多 8 项，受上下文长度限制。", muted=True, justify="left", font=(self.body_font, 9))
+        memory_note.pack(fill="x", pady=(0, 8))
+        memory_note.bind("<Configure>", lambda e: memory_note.configure(wraplength=max(100, e.width)))
         self._label(self.memory, textvariable=self.session_title, muted=True).pack(fill="x", pady=(0, 8))
         memory_controls = self._frame(self.memory)
         memory_controls.pack(fill="x", side="bottom", pady=(6, 0))
@@ -320,8 +312,10 @@ class OpenAssistShell:
     def _queue_layout(self, _event=None):
         if self._closing or (hasattr(self, "edge") and self.edge.mode != "workspace"):
             return
-        if self._layout_job is None:
-            self._layout_job = self.root.after_idle(self._layout_workspace)
+        # Resolve responsive geometry during Configure, before idle painting.
+        # Deferring this let the maximized window paint the narrow layout and
+        # then expose an unpainted sidebar while the second layout caught up.
+        self._layout_workspace()
 
     def _layout_workspace(self):
         self._layout_job = None
@@ -347,7 +341,6 @@ class OpenAssistShell:
         self.content.configure(padx=padding, pady=round((22 if wide else 12) * self.scale))
         available = max(100, width - side_width - padding * 2)
         self.hint_label.configure(wraplength=available)
-        self.settings_note.configure(wraplength=available)
         self.chat_text.configure(font=(self.body_font, 12 if wide else 11),
                                  padx=round((24 if wide else 8) * self.scale))
         self.composer.configure(height=3 if wide and height > 700 * self.scale else 2)
@@ -379,6 +372,7 @@ class OpenAssistShell:
         self._theme_name.set(t.name)
         self.button_styles.apply(self.theme_key, t)
         self.root.configure(bg=t.background)
+        self.session.set_native_background(t.background)
         for widget, surface in self._frames:
             widget.configure(bg=t.surface if surface else t.background)
         for widget, muted, surface in self._labels:
@@ -400,12 +394,7 @@ class OpenAssistShell:
         self.sidebar_list.draw()
         self.history_list.draw()
         self.transcript.tag_configure("caption", foreground=t.muted, font=(self.body_font, 9))
-        for widget in (self.motion_check, self.pin_check):
-            widget.configure(bg=t.background, fg=t.text, activebackground=t.background, activeforeground=t.text,
-                             selectcolor=t.surface, highlightthickness=0)
-        style = ttk.Style(self.root)
-        style.configure("TCombobox", fieldbackground=t.surface, background=t.surface, foreground=t.text, arrowcolor=t.muted)
-        style.map("TCombobox", fieldbackground=[("readonly", t.surface)], foreground=[("readonly", t.text)])
+        self.settings.apply_theme()
         self.mark.configure(bg=t.background)
         self.mark.delete("all")
         mark_size = round(34 * self.scale)
@@ -422,10 +411,18 @@ class OpenAssistShell:
         self._apply_theme()
         self._save_preferences()
 
+    def _native_mapped(self, event):
+        if event.widget is self.root and not self._closing:
+            # Tk can replace its outer HWND when switching decorated/floating
+            # modes. Initialize the real wrapper, including the first map.
+            self.session.set_native_background(self.theme.background)
+
     def _motion(self):
         self.lyrics.reduced_motion = self._reduced.get()
         if self._reduced.get() and self.startup:
             self.startup.finish()
+        if self._reduced.get():
+            self.edge.settle()
         self._save_preferences()
 
     def _pin(self):
@@ -514,7 +511,7 @@ class OpenAssistShell:
         data = self.conversation.snapshot()
         self.session_title.set(data["title"])
         completed = [task for task in data["tasks"] if task["status"] != "running"]
-        self.memory_var.set(("演示会话" if self.demo else "同一会话") + f" · 已保留 {len(completed)} 轮交流")
+        self.memory_var.set(("演示会话" if self.demo else "当前会话") + f" · 现有 {len(completed)} 项交流记录")
         self._render_chat(data)
         self._saved_sessions = self.conversation.sessions()
         for view in (self.sidebar_list, self.history_list):
@@ -850,7 +847,7 @@ class OpenAssistShell:
                 if self.edge.mode == "workspace":
                     self._begin_composing()
                 else:
-                    self.edge.expand()
+                    self.edge.expand(keyboard=True)
                     self.edge.set_ready(self._begin_composing(), waiting=True)
                 self._focus_editor()
             else:
@@ -867,7 +864,6 @@ class OpenAssistShell:
                 try:
                     if not call.expired:
                         if call.operation in {"working", "capture_begin"}:
-                            self.root.tk.call("ttk::combobox::Unpost", self.theme_picker)
                             self._dismiss_drawers()
                         if call.operation == "working":
                             self.edge.resume_working(dock=self.dock_on_run)

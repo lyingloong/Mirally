@@ -7,6 +7,7 @@ import time
 from ctypes import wintypes
 
 from openassist.raw_pointer import RawPointerMonitor, WM_INPUT
+from openassist.native_taskbar import add_taskbar_tab
 
 
 def enable_dpi_awareness():
@@ -32,6 +33,7 @@ class WindowSession:
             ("GetForegroundWindow", [], wintypes.HWND),
             ("IsWindow", [wintypes.HWND], wintypes.BOOL),
             ("IsWindowVisible", [wintypes.HWND], wintypes.BOOL),
+            ("IsIconic", [wintypes.HWND], wintypes.BOOL),
             ("SetForegroundWindow", [wintypes.HWND], wintypes.BOOL),
             ("SetWindowDisplayAffinity", [wintypes.HWND, wintypes.DWORD], wintypes.BOOL),
             ("GetWindowDisplayAffinity", [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)], wintypes.BOOL),
@@ -41,6 +43,8 @@ class WindowSession:
             ("ShowWindow", [wintypes.HWND, ctypes.c_int], wintypes.BOOL),
             ("GetWindowLongPtrW", [wintypes.HWND, ctypes.c_int], ctypes.c_ssize_t),
             ("SetWindowLongPtrW", [wintypes.HWND, ctypes.c_int, ctypes.c_ssize_t], ctypes.c_ssize_t),
+            ("GetClassLongPtrW", [wintypes.HWND, ctypes.c_int], ctypes.c_size_t),
+            ("SetClassLongPtrW", [wintypes.HWND, ctypes.c_int, ctypes.c_ssize_t], ctypes.c_size_t),
             ("SetWindowPos", [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.UINT], wintypes.BOOL),
             ("RedrawWindow", [wintypes.HWND, ctypes.c_void_p, wintypes.HANDLE, wintypes.UINT], wintypes.BOOL),
             ("SetLayeredWindowAttributes", [wintypes.HWND, wintypes.DWORD, ctypes.c_ubyte, wintypes.DWORD], wintypes.BOOL),
@@ -68,6 +72,10 @@ class WindowSession:
         self._corner_key = None
         self._corner_gdi = None
         self._transitions_disabled_for = None
+        self._taskbar_hwnd = None
+        self._background_brush = None
+        self._original_background = None
+        self._background_color = None
 
     @property
     def hwnd(self):
@@ -78,6 +86,72 @@ class WindowSession:
         current = int(self.user32.GetForegroundWindow() or 0)
         if current and current != self.hwnd:
             self.external_window = current
+
+    def is_minimized(self):
+        return bool(self.user32.IsIconic(self.hwnd))
+
+    def ensure_taskbar(self, *, force=False):
+        self.root.update_idletasks()
+        hwnd = self.hwnd
+        style = self.user32.GetWindowLongPtrW(hwnd, -20)
+        desired = (style | 0x00040000) & ~0x00000080  # APPWINDOW, not TOOLWINDOW
+        changed = style != desired
+        if changed:
+            ctypes.set_last_error(0)
+            result = self.user32.SetWindowLongPtrW(hwnd, -20, desired)
+            if not result and ctypes.get_last_error():
+                raise ctypes.WinError(ctypes.get_last_error())
+            # Refresh cached frame styles, without showing a capture-hidden window.
+            if not self.user32.SetWindowPos(hwnd, None, 0, 0, 0, 0, 0x0037):
+                raise ctypes.WinError(ctypes.get_last_error())
+        if force or changed or self._taskbar_hwnd != hwnd:
+            add_taskbar_tab(hwnd)
+            self._taskbar_hwnd = hwnd
+
+    def minimize(self):
+        # Tk refuses iconify() on override-redirect windows. Minimize the
+        # native window and keep a taskbar entry so it can always be restored.
+        self.ensure_taskbar(force=True)
+        self.user32.ShowWindow(self.hwnd, 6)  # SW_MINIMIZE
+        if not self.is_minimized():
+            raise RuntimeError("浮窗未能最小化")
+
+    def restore_minimized(self):
+        if self.is_minimized():
+            self.user32.ShowWindow(self.hwnd, 9)  # SW_RESTORE
+
+    def set_native_background(self, color):
+        # A withdrawn Tk root initially exposes only a TkChild HWND. Flush
+        # geometry first to materialize TkTopLevel; otherwise the class brush
+        # and DWM settings are applied to the wrong window on cold startup.
+        self.root.update_idletasks()
+        if self._background_color == color:
+            self.suppress_system_transitions()
+            return
+        # Tk's outer HWND erases newly exposed maximize pixels before its
+        # themed child frames paint. Match that native brush to the workspace.
+        gdi = ctypes.WinDLL("gdi32", use_last_error=True)
+        gdi.CreateSolidBrush.argtypes = [wintypes.DWORD]
+        gdi.CreateSolidBrush.restype = wintypes.HANDLE
+        gdi.DeleteObject.argtypes = [wintypes.HANDLE]
+        red, green, blue = (int(color[i:i+2], 16) for i in (1, 3, 5))
+        brush = gdi.CreateSolidBrush(red | green << 8 | blue << 16)
+        if not brush:
+            raise ctypes.WinError(ctypes.get_last_error())
+        hwnd = self.hwnd
+        ctypes.set_last_error(0)
+        previous = self.user32.SetClassLongPtrW(hwnd, -10, brush)
+        if not previous and ctypes.get_last_error():
+            gdi.DeleteObject(brush)
+            raise ctypes.WinError(ctypes.get_last_error())
+        if self._original_background is None:
+            self._original_background = previous
+        if self._background_brush:
+            gdi.DeleteObject(self._background_brush)
+        self._background_brush = brush
+        self._background_color = color
+        self._background_gdi = gdi
+        self.suppress_system_transitions()
 
     def work_area(self):
         class MonitorInfo(ctypes.Structure):
@@ -210,6 +284,7 @@ class WindowSession:
             raise ctypes.WinError(ctypes.get_last_error())
         if (self.user32.GetWindowLongPtrW(self.hwnd, -20) & mask) != (mask if enabled else 0):
             raise RuntimeError("输入隔离在窗口更新后失效")
+        self.ensure_taskbar()
 
     def apply(self, operation):
         if operation == "working":
@@ -233,6 +308,10 @@ class WindowSession:
         if self.capture_active:
             raise RuntimeError("不允许重叠的截图请求")
         self.capture_active = True
+        if self.is_minimized():
+            # Already absent from desktop capture; hide/show would accidentally
+            # restore a window the user explicitly minimized.
+            return
         if not force_hide and self.exclude_from_capture():
             if ctypes.windll.dwmapi.DwmFlush() != 0:
                 raise RuntimeError("无法确认桌面合成已完成")
@@ -323,5 +402,9 @@ class WindowSession:
 
     def close(self):
         self.capture_end()
+        if self._background_brush:
+            self.user32.SetClassLongPtrW(self.hwnd, -10, self._original_background)
+            self._background_gdi.DeleteObject(self._background_brush)
+            self._background_brush = None
         self._key_stop.set()
         self._key_thread.join(timeout=0.3)

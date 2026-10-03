@@ -26,9 +26,9 @@ class EdgeCompanion:
         self._activity_timer = None
         self._activity_bars = []
         self._activity_frame = 0
-        self._hover_since = self._outside_since = None
+        self._hover_blocked = False
+        self._keep_for_keyboard = False
         self._compose_since = None
-        self._cooldown = 0.0
         self._status = ("idle", "随时为你待命", 0)
         self._receipt = "靠近即可补充，随时调整方向"
         self._ready = False
@@ -41,6 +41,8 @@ class EdgeCompanion:
         self.canvas.pack(fill="x")
         self.canvas.bind("<Configure>", lambda _: self.draw())
         self.canvas.bind("<Button-1>", self._header_click)
+        self.minimize_button = ttk.Button(self.canvas, text="−", width=1, padding=0, command=self.minimize,
+                                           cursor="hand2", takefocus=True)
         self.panel = tk.Frame(self.frame, padx=self.s(18), pady=self.s(6))
         self.receipt = tk.Label(self.panel, text=self._receipt, anchor="w", justify="left", wraplength=self.s(320),
                                 font=(app.body_font, 9), padx=self.s(10), pady=self.s(8))
@@ -81,6 +83,7 @@ class EdgeCompanion:
         self.send.configure(style=f"{key}.surface.primary.TButton")
         for button in (self.pause, self.stop, self.open):
             button.configure(style=f"{key}.quiet.TButton")
+        self.minimize_button.configure(style=f"{key}.quiet.TButton")
         self._brand_image = brand_photo(self.root, self.s(26), background=t.background)
         self.draw()
 
@@ -123,6 +126,11 @@ class EdgeCompanion:
 
     def visible_rect(self):
         return self._visible_rect or self.app.session.window_rect()
+
+    def _pointer_inside(self, rect):
+        x, y = self.root.winfo_pointerxy()
+        width, height, rx, ry = rect
+        return rx - self.s(12) <= x <= rx + width and ry - self.s(8) <= y <= ry + height + self.s(8)
 
     def _animate_to(self, rect, *, anchor_right=False):
         if self._animation:
@@ -195,8 +203,9 @@ class EdgeCompanion:
         self.mode = "compact"
         self.panel.pack_forget()
         self.canvas.configure(height=self.s(120))
-        self._cooldown = time.monotonic() + 0.8
+        self._hover_blocked = self._pointer_inside(self._rect(False))
         self._animate_to(self._rect(False))
+        self.app.session.ensure_taskbar()
         self.draw()
 
     def resume_working(self, *, dock=True):
@@ -214,11 +223,12 @@ class EdgeCompanion:
                 self.collapse(release_input=False)
         self.set_ready(False)
 
-    def expand(self):
+    def expand(self, *, keyboard=False):
         if self.mode == "workspace":
             return
+        self.app.session.restore_minimized()
+        self._keep_for_keyboard = keyboard
         self.mode = "expanded"
-        self._outside_since = None
         self._animate_to(self._rect(True), anchor_right=True)
         # Merely looking at progress must not acquire desktop input ownership.
         # The pointer entering the input area (or the explicit keyboard shortcut)
@@ -231,13 +241,17 @@ class EdgeCompanion:
         if self.mode != "expanded":
             return
         self.mode = "compact"
+        self._keep_for_keyboard = False
         if release_input:
             self.app._end_composing()
-        self._cooldown = time.monotonic() + 1.0
+        # A click/send that closes the card must not immediately reopen it
+        # under the same stationary pointer. Re-arm on pointer exit, not time.
+        self._hover_blocked = self._pointer_inside(self._rect(False))
         self._animate_to(self._rect(False), anchor_right=True)
         self.draw()
 
     def open_workspace(self, *, interaction=False):
+        self.app.session.restore_minimized()
         if self.mode == "workspace":
             if interaction:
                 self.app.session.passthrough(False)
@@ -246,6 +260,7 @@ class EdgeCompanion:
         self.settle()
         self._copy_draft_to_workspace()
         self.mode = "workspace"
+        self._keep_for_keyboard = False
         self._surface_bounds = None
         self._visible_rect = None
         self.frame.grid_remove()
@@ -333,33 +348,47 @@ class EdgeCompanion:
     def _header_click(self, event):
         if self.mode == "compact":
             self.expand()
-        elif event.x > self.canvas.winfo_width() - self.s(50):
-            self.collapse()
+        elif event.x > self.canvas.winfo_width() - self.s(50) and self.s(8) <= event.y <= self.s(46):
+            self.minimize()
+
+    def minimize(self):
+        # Release a desktop edit lease before hiding, so an invisible editor
+        # cannot keep the running task waiting. Drafts remain in the composer.
+        self.app._end_composing()
+        self.settle()
+        self.app.session.minimize()
 
     def poll(self):
-        if self.mode == "workspace" or self._animation or time.monotonic() < self._cooldown:
+        if self.mode == "workspace" or self.app.session.is_minimized() or self._animation:
             return
         x, y = self.root.winfo_pointerxy()
         width, height, rx, ry = self.visible_rect()
         inside = rx - self.s(12) <= x <= rx + width and ry - self.s(8) <= y <= ry + height + self.s(8)
         now = time.monotonic()
         if self.mode == "compact":
+            if not inside:
+                self._hover_blocked = False
             human = self.app.demo or now - self.app.session.last_human_pointer < 1.2
-            self._hover_since = (self._hover_since or now) if inside and human else None
-            if self._hover_since and now - self._hover_since > 0.25:
+            if inside and human and not self._hover_blocked:
                 self.expand()
-                self._hover_since = None
         else:
+            if inside:
+                self._keep_for_keyboard = False
             human = self.app.demo or now - self.app.session.last_human_pointer < 1.2
+            # While desktop input passes through the window, Tk cannot receive
+            # Enter events. Show hover from the same physical-pointer poll and
+            # request an edit lease only over the actionable minimize control.
+            over_minimize = (rx + width - self.s(43) <= x <= rx + width - self.s(7)
+                             and ry + self.s(9) <= y <= ry + self.s(45))
+            self.minimize_button.state(["active" if over_minimize else "!active"])
             cx, cy = self.compose_frame.winfo_rootx(), self.compose_frame.winfo_rooty()
-            editing_zone = cx <= x <= cx + self.compose_frame.winfo_width() and cy <= y <= ry + height
+            editing_zone = over_minimize or (cx <= x <= cx + self.compose_frame.winfo_width() and cy <= y <= ry + height)
             self._compose_since = (self._compose_since or now) if human and editing_zone and not self._ready else None
             if self._compose_since and now - self._compose_since > 0.15:
                 self.set_ready(self.app._begin_composing(), waiting=True)
                 self._compose_since = None
-            self._outside_since = (self._outside_since or now) if not inside else None
             draft = self.composer.get("1.0", "end-1c").strip()
-            if self._outside_since and now - self._outside_since > 1.4 and not draft:
+            if not inside and not draft and not self._keep_for_keyboard:
                 self.collapse()
 
     def draw(self):
@@ -392,6 +421,11 @@ class EdgeCompanion:
         c.itemconfigure(items["name"], text=APP_NAME, fill=t.text)
         c.coords(items["toggle"], width - self.s(22), self.s(27))
         c.itemconfigure(items["toggle"], text="‹" if self.mode == "compact" else "−", fill=t.muted)
+        c.itemconfigure(items["toggle"], state="normal" if self.mode == "compact" else "hidden")
+        if self.mode == "expanded":
+            self.minimize_button.place(relx=1, x=-self.s(43), y=self.s(9), width=self.s(36), height=self.s(36))
+        else:
+            self.minimize_button.place_forget()
         display = public_text(title.replace("\n", ""), 15 if self.mode == "compact" else 21)
         while len(display) > 1 and self._title_font.measure(display) > visible_width - self.s(40):
             display = display[:-2] + "…"

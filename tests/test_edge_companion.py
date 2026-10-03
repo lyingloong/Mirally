@@ -40,8 +40,10 @@ class EdgeTransitionTests(unittest.TestCase):
         root.winfo_height.return_value = 180
         root.winfo_x.return_value = 1500
         root.winfo_y.return_value = 220
+        root.winfo_pointerxy.return_value = (-10000, -10000)
         session = Mock()
         session.work_area.return_value = (0, 0, 1920, 1080)
+        session.is_minimized.return_value = False
         composer = Mock()
         composer.get.return_value = ""
         edge.app = SimpleNamespace(root=root, session=session, scale=1.0, _phase=phase,
@@ -51,6 +53,7 @@ class EdgeTransitionTests(unittest.TestCase):
         edge.root = root
         edge.mode = mode
         edge._animation = None
+        edge._keep_for_keyboard = False
         edge._surface_bounds = None
         edge._visible_rect = None
         edge._activity_timer = None
@@ -62,13 +65,88 @@ class EdgeTransitionTests(unittest.TestCase):
         edge._workspace_minsize = (450, 650)
         edge._interaction_return = False
         edge._started = 0
-        for name in ("frame", "panel", "canvas", "composer"):
+        for name in ("frame", "panel", "canvas", "composer", "minimize_button"):
             setattr(edge, name, Mock())
         edge.composer.get.return_value = ""
         edge._animate_to = Mock()
         edge.draw = Mock()
         edge.set_ready = Mock()
         return edge
+
+    def test_expanded_minus_minimizes_instead_of_collapsing(self):
+        edge = self.edge(mode="expanded")
+        edge.canvas.winfo_width.return_value = 370
+        edge.collapse = Mock()
+        edge._header_click(SimpleNamespace(x=348, y=27))
+        edge.app._end_composing.assert_called_once()
+        edge.app.session.minimize.assert_called_once()
+        edge.collapse.assert_not_called()
+
+    def test_minimized_companion_does_not_react_to_pointer(self):
+        edge = self.edge(mode="expanded")
+        edge.app.session.is_minimized.return_value = True
+        edge.poll()
+        edge.root.winfo_pointerxy.assert_not_called()
+
+    def test_working_minimize_hover_yields_input_only_over_button(self):
+        edge = self.edge(mode="expanded")
+        edge.app.demo = False
+        edge.app.session.last_human_pointer = 100
+        edge._ready = False
+        edge._compose_since = None
+        edge._visible_rect = (370, 340, 1500, 150)
+        edge.compose_frame = Mock()
+        edge.compose_frame.winfo_rootx.return_value = 1518
+        edge.compose_frame.winfo_rooty.return_value = 330
+        edge.compose_frame.winfo_width.return_value = 330
+        edge.root.winfo_pointerxy.return_value = (1525, 177)
+        with patch("openassist.edge_companion.time.monotonic", return_value=100):
+            edge.poll()
+        edge.app._begin_composing.assert_not_called()
+        edge.root.winfo_pointerxy.return_value = (1848, 177)
+        with patch("openassist.edge_companion.time.monotonic", return_value=100):
+            edge.poll()
+        edge.minimize_button.state.assert_called_with(["active"])
+        edge.app._begin_composing.assert_not_called()
+        with patch("openassist.edge_companion.time.monotonic", return_value=100.2):
+            edge.poll()
+        edge.app._begin_composing.assert_called_once()
+
+    def test_hover_responds_on_first_poll_and_manual_close_requires_reentry(self):
+        edge = self.edge(mode="compact")
+        edge.app.demo = True
+        edge._hover_blocked = False
+        edge._visible_rect = (272, 120, 1640, 150)
+        edge.root.winfo_pointerxy.return_value = (1700, 180)
+        edge.expand = Mock()
+        edge.poll()
+        edge.expand.assert_called_once()
+        edge.expand.reset_mock()
+        edge.mode = "expanded"
+        edge.collapse()
+        edge.poll()
+        edge.expand.assert_not_called()
+        edge.root.winfo_pointerxy.return_value = (100, 100)
+        edge.poll()
+        edge.root.winfo_pointerxy.return_value = (1700, 180)
+        edge.poll()
+        edge.expand.assert_called_once()
+
+    def test_leave_collapses_on_first_poll_but_preserves_unsent_draft(self):
+        for draft in ("", "Keep these files"):
+            edge = self.edge(mode="expanded")
+            edge.app.demo = True
+            edge._visible_rect = (370, 340, 1542, 150)
+            edge._compose_since = None
+            edge._ready = True
+            edge.compose_frame = Mock()
+            edge.compose_frame.winfo_rootx.return_value = 1560
+            edge.compose_frame.winfo_rooty.return_value = 300
+            edge.compose_frame.winfo_width.return_value = 330
+            edge.composer.get.return_value = draft
+            edge.collapse = Mock()
+            edge.poll()
+            self.assertEqual(edge.collapse.call_count, 0 if draft else 1)
 
     def test_sent_supplement_is_cleared_before_the_composer_is_disabled(self):
         edge = self.edge(mode="expanded")
