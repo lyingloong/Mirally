@@ -58,6 +58,7 @@ notepad .\config\openassist\ufo\agents.yaml
 
 | 执行模式 | 使用的模型配置 |
 | --- | --- |
+| 普通对话 | 复用 `APP_AGENT` 的服务与模型配置；不会启动桌面执行或访问屏幕 |
 | 默认桌面任务 | `HOST_AGENT` 和 `APP_AGENT`；启用评估或备用模型后还需配置对应智能体 |
 
 默认视觉模式会向模型发送桌面截图，需要支持图像输入的模型。API 地址与模型参数应按照所用服务的要求填写，配置模板中的值仅为示例。
@@ -263,14 +264,14 @@ try {
 - **GitHub 上打不开设计预览**：`output/` 与 `.artifacts/` 是本地生成产物，不上传；当前生产图标可在 [assets](openassist/assets/README.md) 查看。
 - **任务反复操作同一控件或提前结束**：查看该任务目录中的动作结果、循环检测反馈和截图，确认实际执行情况。
 
-## UFO 基线
+## UFO 内核来源与版本管理
 
-本项目基于 Microsoft UFO 2026 年 9 月版本的桌面 AgentOS 代码进行二次开发。当前 `UFO/` 使用我们维护的 [lyingloong/UFO](https://github.com/lyingloong/UFO) submodule，并固定到经过验证的 commit。
+本项目的桌面智能体内核来自 [Microsoft UFO](https://github.com/microsoft/UFO)，通过我们维护的 [lyingloong/UFO fork](https://github.com/lyingloong/UFO) 集成。fork 的 `main` 用于跟进上游及必要的通用修复，因此当前代码不对应某个单一发布日期、tag 或固定版本号。每次 Mirally 更新仍会由主仓库的 submodule gitlink 固定到一个经过验证的具体 commit；该 commit 才是当前检出的确切内核版本。
 
-产品层通过运行时适配器提供配置、日志、确认和取消回调；运行时 YAML 的唯一来源是 `config/openassist/ufo/`。UFO submodule 工作区保持为上游内核代码，必要的通用修复在我们的 UFO fork 中单独维护。
+产品层通过运行时适配器提供配置、日志、确认和取消回调；运行时 YAML 的唯一来源是 `config/openassist/ufo/`。UFO submodule 工作区尽量保持为内核代码，产品适配放在 Mirally 层；确需修改内核时，在 fork 中维护并随上游同步。
 
 ## 上游与许可证
 
-UFO 内核来自 Microsoft UFO，并通过我们的 fork 固定版本。其 MIT 许可证及版权声明保留在 [UFO/LICENSE](UFO/LICENSE)。
+UFO 内核来自 Microsoft UFO。其 MIT 许可证及版权声明随 submodule 保留在 [UFO/LICENSE](UFO/LICENSE)。
 
 进一步了解内核可参考 [UFO² 中文说明](UFO/ufo/README_ZH.md) 和 [UFO 本地文档](UFO/documents/docs/)。
