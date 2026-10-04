@@ -1,0 +1,16 @@
+{
+  "name": "mirally-openclaw-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Unmodified OpenClaw runtime and official client for Mirally",
+  "dependencies": {
+    "openclaw": "2026.9.6",
+    "@openclaw/gateway-client": "2026.9.6"
+  },
+  "allowScripts": {
+    "openclaw@2026.9.6": true,
+    "koffi@3.2.1": true,
+    "protobufjs@7.6.6": true,
+    "@google/genai@2.22.0": true
+  }
+}

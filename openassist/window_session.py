@@ -406,5 +406,6 @@ class WindowSession:
             self.user32.SetClassLongPtrW(self.hwnd, -10, self._original_background)
             self._background_gdi.DeleteObject(self._background_brush)
             self._background_brush = None
-        self._key_stop.set()
-        self._key_thread.join(timeout=0.3)
+        if hasattr(self, "_key_stop"):
+            self._key_stop.set()
+            self._key_thread.join(timeout=0.3)

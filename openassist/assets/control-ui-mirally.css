@@ -1,0 +1,59 @@
+/* Mirally presentation only. Native layout, state and semantics remain intact.
+   Default light/dark families become sky blue; other native themes stay selectable. */
+:root[data-mirally][data-theme="light"] {
+  --bg:#f7f9fc; --bg-content:#f7f9fc; --bg-accent:#edf5fb; --bg-elevated:#fff;
+  --bg-hover:#edf3f9; --bg-muted:#edf3f9; --card:#fff; --card-foreground:#192b3a;
+  --popover:#fff; --popover-foreground:#192b3a; --panel:#fff; --panel-strong:#f2f6fb;
+  --panel-hover:#edf5fb; --chrome:#fffffff5; --chrome-strong:#fffffffa;
+  --text:#192b3a; --text-strong:#14293c; --chat-text:#192b3a;
+  --muted:#627387; --muted-strong:#4f6579; --muted-foreground:#627387;
+  --border:#e1e8ef; --border-strong:#cddae5; --border-hover:#a6c3d8; --input:#e1e8ef;
+  --accent:#0878b2; --accent-hover:#086b9d; --accent-muted:#199fe6;
+  --accent-subtle:#edf5fb; --accent-foreground:#fff; --accent-glow:#199fe629;
+  --primary:#0878b2; --primary-hover:#086b9d; --primary-foreground:#fff;
+  --secondary:#edf5fb; --secondary-foreground:#192b3a;
+  --ring:#199fe6; --focus:#199fe629; --grid-line:#91b8d514;
+  --brand-logo-chip-bg:#fff; --shadow-sm:0 1px 3px #1539540a;
+  --shadow-md:0 6px 22px #1539540b; --shadow-lg:0 14px 40px #15395412;
+  --shadow-xl:0 24px 60px #1539541a; --overlay-shadow:0 8px 30px #15395414;
+  --selection-bg:#0878b2; --selection-fg:#fff;
+}
+:root[data-mirally][data-theme="dark"] {
+  --bg:#111923; --bg-content:#111923; --bg-accent:#172332; --bg-elevated:#1b2938;
+  --bg-hover:#203044; --bg-muted:#1b2938; --card:#172331; --card-foreground:#e5f0f9;
+  --popover:#1b2938; --popover-foreground:#e5f0f9; --panel:#141f2c; --panel-strong:#1b2938;
+  --panel-hover:#203044; --chrome:#141f2cf5; --chrome-strong:#141f2cfa;
+  --text:#d5e3ef; --text-strong:#f0f7fd; --chat-text:#d5e3ef;
+  --muted:#8fa6bc; --muted-strong:#aac0d3; --muted-foreground:#8fa6bc;
+  --border:#293b4e; --border-strong:#37516a; --border-hover:#517694; --input:#293b4e;
+  --accent:#62c5fa; --accent-hover:#91d6fc; --accent-muted:#62c5fa;
+  --accent-subtle:#62c5fa16; --accent-foreground:#102132; --accent-glow:#39b8ff24;
+  --primary:#62c5fa; --primary-hover:#91d6fc; --primary-foreground:#102132;
+  --secondary:#203044; --secondary-foreground:#d5e3ef; --ring:#62c5fa; --focus:#62c5fa24;
+  --grid-line:#8cb5d70a; --brand-logo-chip-bg:#172331;
+}
+/* Promotion occupies the history rail; remove its slot rather than leave a gap.
+   Discord as an actual configured channel remains fully available. */
+[data-mirally] .sidebar-shell__invite,
+[data-mirally] .community-invite-card { display:none!important; }
+[data-mirally] .topbar-brand__logo,
+[data-mirally] .login-gate__logo { object-fit:contain; }
+[data-mirally] .topbar-brand__title { font-weight:650; letter-spacing:-.025em; }
+[data-mirally] .sidebar-brand { --brand-logo-chip-bg:transparent; }
+:root[data-mirally][data-theme-mode] .settings-theme-card--claw,
+:root[data-mirally][data-theme-mode] .settings-accent-theme--claw {
+  --theme-chip-bg:#f7f9fc; --theme-chip-accent:#0878b2; --theme-chip-accent-2:#199fe6;
+}
+:root[data-mirally][data-theme-mode="dark"] .settings-theme-card--claw,
+:root[data-mirally][data-theme-mode="dark"] .settings-accent-theme--claw {
+  --theme-chip-bg:#111923; --theme-chip-accent:#62c5fa; --theme-chip-accent-2:#199fe6;
+}
+/* Keep the native mascot's target, motion and interactions; reskin its image. */
+[data-mirally] svg:has(#lob-g),
+[data-mirally] .lobster-pet__svg,
+[data-mirally] .lobster-bottle__svg {
+  background:var(--mirally-mark) center / contain no-repeat;
+}
+[data-mirally] svg:has(#lob-g) > *,
+[data-mirally] .lobster-pet__svg > *,
+[data-mirally] .lobster-bottle__svg > * { visibility:hidden; }

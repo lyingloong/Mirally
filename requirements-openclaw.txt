@@ -1,0 +1,5 @@
+# Official Control UI desktop host and the one-time provider migration helper.
+# OpenClaw itself is installed separately through its native npm lockfile.
+pywebview==6.1
+Pillow>=11.3,<13
+PyYAML>=6.0.2,<7

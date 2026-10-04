@@ -11,8 +11,11 @@ from openassist.presentation import PHASES, public_text
 
 
 class EdgeCompanion:
-    def __init__(self, app):
+    background = False
+
+    def __init__(self, app, *, background=False):
         self.app, self.root = app, app.root
+        self.background = background
         self.mode = "workspace"
         self._animation = None
         self._target = None
@@ -60,9 +63,11 @@ class EdgeCompanion:
         self.send.pack(side="right", padx=(self.s(8), 0))
         self.controls = tk.Frame(self.panel)
         self.controls.pack(fill="x", pady=(self.s(12), 0))
-        self.pause = ttk.Button(self.controls, text="Ⅱ 暂停", width=-1, command=app._pause_resume)
+        self.pause = ttk.Button(self.controls, text="历史" if background else "Ⅱ 暂停", width=-1,
+                                command=app._edge_history if background else app._pause_resume)
         self.pause.pack(side="left")
-        self.stop = ttk.Button(self.controls, text="■ 停止", width=-1, command=app.controller.stop)
+        self.stop = ttk.Button(self.controls, text="■ 停止", width=-1,
+                               command=app._stop if background else app.controller.stop)
         self.stop.pack(side="left", padx=self.s(6))
         self.open = ttk.Button(self.controls, text="打开会话 ↗", width=-1, command=self.open_workspace)
         self.open.pack(side="right")
@@ -233,7 +238,7 @@ class EdgeCompanion:
         # Merely looking at progress must not acquire desktop input ownership.
         # The pointer entering the input area (or the explicit keyboard shortcut)
         # requests an edit lease separately.
-        ready = not self.app.controller.active or self.app.controller.editing_ready or self.app._phase in {"paused", "takeover", "waiting_user", "waiting_confirmation"}
+        ready = self.app.connected if self.background else (not self.app.controller.active or self.app.controller.editing_ready or self.app._phase in {"paused", "takeover", "waiting_user", "waiting_confirmation"})
         self.set_ready(ready)
         self.draw()
 
@@ -253,7 +258,7 @@ class EdgeCompanion:
     def open_workspace(self, *, interaction=False):
         self.app.session.restore_minimized()
         if self.mode == "workspace":
-            if interaction:
+            if interaction and not self.background:
                 self.app.session.passthrough(False)
             return
         self._interaction_return = interaction
@@ -277,7 +282,7 @@ class EdgeCompanion:
         self._stop_activity()
         if not interaction:
             self.app._begin_composing()
-        else:
+        elif not self.background:
             self.app.session.passthrough(False)
         self.app._update_controls()
 
@@ -295,7 +300,10 @@ class EdgeCompanion:
         state = "normal" if ready else "disabled"
         self.composer.configure(state=state)
         self.send.configure(state=state)
-        self.compose_label.configure(text=("正在接收补充 · 发送后调整下一步" if ready else (
+        if self.background:
+            self.compose_label.configure(text="随时发送信息 · 后台工作继续进行" if ready else "等待连接 · 草稿保留在这里")
+        else:
+            self.compose_label.configure(text=("正在接收补充 · 发送后调整下一步" if ready else (
             "正在让出桌面操作，请稍候…" if waiting else "助手继续工作 · 移入输入区即可补充")))
         self.draw()
 
@@ -305,8 +313,12 @@ class EdgeCompanion:
         active = phase not in {"idle", "completed", "cancelled", "failed"}
         if not active:
             self._interaction_return = False
-        self.pause.configure(text="▶ 继续" if paused else "Ⅱ 暂停", state="normal" if active else "disabled")
-        self.stop.configure(state="normal" if active and phase != "stopping" else "disabled")
+        if self.background:
+            self.pause.configure(text="历史", state="normal")
+            self.stop.configure(state="normal" if self.app.can_stop else "disabled")
+        else:
+            self.pause.configure(text="▶ 继续" if paused else "Ⅱ 暂停", state="normal" if active else "disabled")
+            self.stop.configure(state="normal" if active and phase != "stopping" else "disabled")
         self.draw()
 
     def set_receipt(self, caption, detail):
@@ -368,13 +380,13 @@ class EdgeCompanion:
         if self.mode == "compact":
             if not inside:
                 self._hover_blocked = False
-            human = self.app.demo or now - self.app.session.last_human_pointer < 1.2
+            human = self.background or self.app.demo or now - self.app.session.last_human_pointer < 1.2
             if inside and human and not self._hover_blocked:
                 self.expand()
         else:
             if inside:
                 self._keep_for_keyboard = False
-            human = self.app.demo or now - self.app.session.last_human_pointer < 1.2
+            human = self.background or self.app.demo or now - self.app.session.last_human_pointer < 1.2
             # While desktop input passes through the window, Tk cannot receive
             # Enter events. Show hover from the same physical-pointer poll and
             # request an edit lease only over the actionable minimize control.
@@ -396,7 +408,7 @@ class EdgeCompanion:
             return
         phase, title, step = self._status
         key = (self.mode, phase, title, step, self._receipt, self.canvas.winfo_width(), self._visible_rect,
-               self.app.theme_key, self._ready, self.app.controller.editing_ready, self.app._reduced.get())
+               self.app.theme_key, self._ready, False if self.background else self.app.controller.editing_ready, self.app._reduced.get())
         if key == self._draw_key:
             self._sync_activity()
             return
@@ -432,7 +444,7 @@ class EdgeCompanion:
         c.coords(items["title"], x, self.s(58))
         c.itemconfigure(items["title"], text=display, fill=t.text)
         caption = (f"第 {step} 步 · " if step else "") + PHASES.get(phase, ("", ""))[0]
-        if self._ready and self.app.controller.editing_ready and phase not in {"paused", "takeover", "waiting_user", "waiting_confirmation", "completed", "cancelled", "failed"}:
+        if not self.background and self._ready and self.app.controller.editing_ready and phase not in {"paused", "takeover", "waiting_user", "waiting_confirmation", "completed", "cancelled", "failed"}:
             caption = "正在接收补充 · 工作进度已保留"
         if self.mode == "compact" and self._receipt != "靠近即可补充，随时调整方向":
             caption = public_text(self._receipt, 25)

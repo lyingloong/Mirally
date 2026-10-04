@@ -19,6 +19,7 @@
 /config/openassist/interface.json
 /config/openassist/interface.json.tmp
 /config/openassist/conversations/
+/config/openassist/openclaw/
 
 # OS and editor files
 **/.DS_Store

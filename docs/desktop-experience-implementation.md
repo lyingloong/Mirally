@@ -1,6 +1,6 @@
 # 桌面体验实现与验证
 
-本文描述当前默认入口的实现与验证边界。安装与日常操作见 [项目 README](../README.md)，规划中的能力见 [体验目标](frontend-experience-goals.md)，全部文档见 [文档导航](README.md)。
+本文描述迁移前 UFO 入口的实现与验证边界，使用 `.\run.ps1 --ufo`。当前默认入口已改为[完整 OpenClaw 官方界面的桌面套壳](openclaw-desktop-shell.md)，以下浮窗、主题、输入协调及截图机制不套用到新核心。安装与日常操作见 [项目 README](../README.md)，规划中的能力见 [体验目标](frontend-experience-goals.md)，全部文档见 [文档导航](README.md)。
 
 Mirally 当前默认采用「晴空蓝」：银白背景、深灰文字、少量天蓝强调。正式图标采用 [相伴 M](design-concepts/mirally/companion-m/README.md)：由用户提供的蓝青双人流线图精修为透明底生产资源，替代此前合翼 A，原始 [天蓝界面探索](design-concepts/2026-10-03/sky-blue/README.md) 保留作为设计记录。明亮天蓝用于状态指示，按钮与小字号强调使用更深的蓝以保证可读性；原有主题仍可选。现有 Python 3.10、根目录 `.venv`、`run.ps1` 和模型配置均沿用，Python 包和配置目录保持 `openassist`。
 

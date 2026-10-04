@@ -2,6 +2,8 @@
 
 当前使用方式见 [项目 README](../README.md)，已实现的行为和验证边界见 [桌面体验实现说明](desktop-experience-implementation.md)。本文件保留产品目标与设计建议，不能将所有选项视为现有功能。
 
+> 当前入口是[完整 OpenClaw 官方界面的桌面套壳](openclaw-desktop-shell.md)，后续路线见 [原生能力优先接入路线](openclaw-integration-roadmap.md)。新系统以 OpenClaw 的原生功能、会话、记忆、任务调度和权限机制为准；本文围绕旧 UFO 桌面执行器制定的状态、暂停、输入协调和前端心跳规则，不作为新引擎的约束。下面的现状描述迁移前 UFO 版本。
+
 ## 当前状态
 
 | 方向 | 当前范围 |

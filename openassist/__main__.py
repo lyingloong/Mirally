@@ -13,12 +13,27 @@ def main() -> None:
         raise SystemExit("Mirally currently runs on Windows only.")
 
     product_root = Path(__file__).resolve().parents[1]
-    parser = argparse.ArgumentParser(description="Mirally desktop companion")
+    parser = argparse.ArgumentParser(description="Mirally desktop host for the official OpenClaw Control UI")
     parser.add_argument("--demo", action="store_true", help="Preview the interface without a model or desktop actions")
     parser.add_argument("--legacy", action="store_true", help="Use the original interface, including native UFO mode")
+    parser.add_argument("--openclaw", action="store_true", help="Open the complete official OpenClaw UI in the Mirally desktop host")
+    parser.add_argument("--companion", action="store_true", help="Use the experimental Tk OpenClaw companion")
+    parser.add_argument("--ufo", action="store_true", help="Use the archived Mirally UFO interface")
     args = parser.parse_args()
-    if args.demo and args.legacy:
-        parser.error("--demo and --legacy cannot be combined")
+    if args.companion:
+        if args.demo or args.legacy or args.openclaw or args.ufo:
+            parser.error("--companion cannot be combined with other modes")
+        from openassist.native_shell import NativeShell
+        NativeShell(product_root).run()
+        return
+    if args.openclaw or not (args.demo or args.legacy or args.ufo):
+        if args.demo or args.legacy or args.ufo:
+            parser.error("--openclaw cannot be combined with other modes")
+        from openassist.control_ui_shell import ControlUIShell
+        ControlUIShell(product_root).run()
+        return
+    if sum((args.demo, args.legacy, args.ufo)) > 1:
+        parser.error("Choose one of --demo, --legacy, or --ufo")
     if args.demo:
         from openassist.shell import OpenAssistShell
         OpenAssistShell(product_root, demo=True).run()

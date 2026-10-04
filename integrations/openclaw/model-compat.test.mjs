@@ -1,0 +1,50 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync, readdirSync } from "node:fs";
+
+const template = JSON.parse(readFileSync(new URL("../../config/openassist/openclaw.template.json", import.meta.url), "utf8"));
+const provider = template.models.providers.mirally;
+const configuredModel = provider.models.find(model => model.id === "qwen/qwen3.8-flash");
+assert.ok(configuredModel, "The public template must configure Qwen");
+const model = {
+  input: ["text"], contextWindow: 200000, maxTokens: 32768,
+  ...configuredModel, provider: "mirally", api: provider.api, baseUrl: provider.baseUrl,
+};
+const context = { messages: [{ role: "user", content: "Hello", timestamp: 0 }] };
+const dist = new URL("node_modules/@openclaw/ai/dist/", import.meta.url);
+function nativeChunk(prefix) {
+  const matches = readdirSync(dist).filter(name => name.startsWith(prefix) && name.endsWith(".mjs"));
+  assert.equal(matches.length, 1, `Expected one pinned native ${prefix} chunk`);
+  return new URL(matches[0], dist);
+}
+// Internal export aliases belong to the pinned OpenClaw 2026.9.6 build.
+const { i: buildRequest } = await import(nativeChunk("openai-completions-stream-"));
+const { s: getCompat } = await import(nativeChunk("openai-transport-params-"));
+
+for (const mode of ["direct", "managed"]) {
+  test(`Qwen ${mode} payload respects off, low and high without reducing output budget`, () => {
+    for (const [level, expected] of [["off", "none"], ["low", "low"], ["high", "xhigh"]]) {
+      const options = { maxTokens: 16384, [mode === "direct" ? "reasoningEffort" : "reasoning"]: level };
+      const policy = mode === "direct" ? { mode, compat: getCompat(model) } : { mode };
+      const payload = buildRequest(model, context, options, policy);
+      assert.equal(payload.reasoning_effort, expected, `${mode} ${level}`);
+      assert.equal(payload.max_completion_tokens ?? payload.max_tokens, 16384);
+      assert.equal(payload.model, configuredModel.id);
+    }
+  });
+}
+
+test("configured Qwen keeps an image in the native provider request", () => {
+  assert.ok(configuredModel.input.includes("image"));
+  const imageContext = { messages: [{ role: "user", timestamp: 0, content: [
+    { type: "text", text: "Describe this image." },
+    { type: "image", mimeType: "image/png", data: "c3ludGhldGlj" },
+  ] }] };
+  for (const mode of ["direct", "managed"]) {
+    const policy = mode === "direct" ? { mode, compat: getCompat(model) } : { mode };
+    const payload = buildRequest(model, imageContext, {}, policy);
+    assert.ok(payload.messages.some(message => Array.isArray(message.content) &&
+      message.content.some(part => part.type === "image_url" &&
+        part.image_url.url === "data:image/png;base64,c3ludGhldGlj")));
+  }
+});

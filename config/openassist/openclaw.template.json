@@ -1,0 +1,43 @@
+{
+  "gateway": {
+    "mode": "local",
+    "bind": "loopback",
+    "port": 18789,
+    "auth": { "mode": "token", "token": "GENERATED_LOCALLY" }
+  },
+  "agents": {
+    "list": [{ "id": "main", "identity": { "name": "Mirally", "avatar": "avatars/mirally.png" } }],
+    "defaults": {
+      "workspace": "LOCAL_WORKSPACE",
+      "thinkingDefault": "off",
+      "model": { "primary": "mirally/qwen/qwen3.8-flash" }
+    }
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "mirally": {
+        "baseUrl": "https://your-provider.example/v1",
+        "apiKey": "${MIRALLY_PROVIDER_API_KEY}",
+        "api": "openai-completions",
+        "models": [{
+          "id": "qwen/qwen3.8-flash",
+          "name": "Qwen via configured provider",
+          "input": ["text", "image"],
+          "reasoning": true,
+          "compat": {
+            "thinkingFormat": "openai",
+            "supportsReasoningEffort": true,
+            "supportedReasoningEfforts": ["none", "low", "medium", "xhigh"],
+            "reasoningEffortMap": { "minimal": "low", "high": "xhigh" }
+          }
+        }]
+      }
+    }
+  },
+  "browser": {
+    "enabled": true,
+    "headless": true,
+    "defaultProfile": "openclaw"
+  }
+}
