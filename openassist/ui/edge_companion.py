@@ -8,6 +8,7 @@ from tkinter import ttk, font
 
 from openassist.ui.branding import APP_NAME, brand_photo
 from openassist.ui.presentation import PHASES, public_text
+from openassist.core.execution import TERMINAL_STATUSES
 
 
 class EdgeCompanion:
@@ -302,7 +303,7 @@ class EdgeCompanion:
     def set_status(self, phase, title, step):
         self._status = (phase, title, step)
         paused = phase in {"paused", "takeover"}
-        active = phase not in {"idle", "completed", "cancelled", "failed"}
+        active = phase not in TERMINAL_STATUSES | {"idle"}
         if not active:
             self._interaction_return = False
         self.pause.configure(text="▶ 继续" if paused else "Ⅱ 暂停", state="normal" if active else "disabled")
@@ -432,7 +433,7 @@ class EdgeCompanion:
         c.coords(items["title"], x, self.s(58))
         c.itemconfigure(items["title"], text=display, fill=t.text)
         caption = (f"第 {step} 步 · " if step else "") + PHASES.get(phase, ("", ""))[0]
-        if self._ready and self.app.controller.editing_ready and phase not in {"paused", "takeover", "waiting_user", "waiting_confirmation", "completed", "cancelled", "failed"}:
+        if self._ready and self.app.controller.editing_ready and phase not in TERMINAL_STATUSES | {"paused", "takeover", "waiting_user", "waiting_confirmation"}:
             caption = "正在接收补充 · 工作进度已保留"
         if self.mode == "compact" and self._receipt != "靠近即可补充，随时调整方向":
             caption = public_text(self._receipt, 25)
@@ -441,7 +442,7 @@ class EdgeCompanion:
         self._activity_bars = []
         for item in items["bars"]:
             c.itemconfigure(item, state="hidden")
-        if phase not in {"completed", "cancelled", "failed", "idle", "paused", "takeover", "waiting_user", "waiting_confirmation"}:
+        if phase not in TERMINAL_STATUSES | {"idle", "paused", "takeover", "waiting_user", "waiting_confirmation"}:
             for index, item in enumerate(items["bars"]):
                 bx, by = width - self.s(50 - index * 7), self.s(84)
                 c.itemconfigure(item, state="normal", fill=t.signal or t.accent)

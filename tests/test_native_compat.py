@@ -149,7 +149,7 @@ class NativeCompatibilityTests(unittest.TestCase):
         self.assertIs(self.local_servers.load_all_servers, self.original_loader)
 
     def test_mcp_loader_registers_windows_tools_without_galaxy(self):
-        with patch("openassist.runtime.native_compat.import_module") as load:
+        with patch("openassist.runtime.ufo.compat.import_module") as load:
             _load_windows_mcp_servers()
         names = [call.args[0].rsplit(".", 1)[-1] for call in load.call_args_list]
         self.assertEqual(names, [
@@ -158,7 +158,7 @@ class NativeCompatibilityTests(unittest.TestCase):
         ])
 
     def test_required_mcp_import_failure_is_not_hidden(self):
-        with patch("openassist.runtime.native_compat.import_module",
+        with patch("openassist.runtime.ufo.compat.import_module",
                    side_effect=ImportError("missing dependency")):
             with self.assertRaisesRegex(ImportError, "missing dependency"):
                 _load_windows_mcp_servers()

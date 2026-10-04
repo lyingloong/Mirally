@@ -43,18 +43,11 @@ class AssistantDecision:
 
 class Assistant:
     def __init__(self, completion=None):
-        self.completion = completion or self._completion
+        self.completion = completion or self._unconfigured_completion
 
     @staticmethod
-    def _completion(messages):
-        # Same configured provider/model as desktop tasks, with no desktop imports
-        # and no action-response schema. Credentials remain in the existing layer.
-        from ufo.llm import AgentType, llm_call
-        # The current UFO fork exposes get_completion(messages, agent,
-        # use_backup_engine), and only defines HOST/APP/etc. Conversation
-        # routing reuses APP_AGENT's provider/model without desktop actions.
-        text, _ = llm_call.get_completion(messages, AgentType.APP, False)
-        return text
+    def _unconfigured_completion(messages):
+        raise RuntimeError("A conversation completion provider must be configured.")
 
     @staticmethod
     def messages(request, context, additions):

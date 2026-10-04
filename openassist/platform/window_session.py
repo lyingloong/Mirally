@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ctypes
+import os
 import time
 from ctypes import wintypes
 
@@ -34,6 +35,7 @@ class WindowSession:
             ("IsWindow", [wintypes.HWND], wintypes.BOOL),
             ("IsWindowVisible", [wintypes.HWND], wintypes.BOOL),
             ("IsIconic", [wintypes.HWND], wintypes.BOOL),
+            ("GetWindowThreadProcessId", [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)], wintypes.DWORD),
             ("SetForegroundWindow", [wintypes.HWND], wintypes.BOOL),
             ("SetWindowDisplayAffinity", [wintypes.HWND, wintypes.DWORD], wintypes.BOOL),
             ("GetWindowDisplayAffinity", [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)], wintypes.BOOL),
@@ -64,6 +66,8 @@ class WindowSession:
         self.capture_active = False
         self.prefer_native_capture = True
         self.was_visible = False
+        self._capture_windows = {}
+        self._capture_force_hide = False
         self.topmost = True
         self.hotkeys = {}
         self.last_human_pointer = 0.0
@@ -107,16 +111,24 @@ class WindowSession:
         if force or changed or self._taskbar_hwnd != hwnd:
             add_taskbar_tab(hwnd)
             self._taskbar_hwnd = hwnd
+        if self.capture_active:
+            # override-redirect changes can replace Tk's outer HWND. Apply
+            # isolation to that new window before the next UI acknowledgement.
+            self._isolate_capture_windows()
 
     def minimize(self):
         # Tk refuses iconify() on override-redirect windows. Minimize the
         # native window and keep a taskbar entry so it can always be restored.
         self.ensure_taskbar(force=True)
+        if self.capture_active and self.hwnd in self._capture_windows:
+            self._capture_windows[self.hwnd]["minimized_by_user"] = True
         self.user32.ShowWindow(self.hwnd, 6)  # SW_MINIMIZE
         if not self.is_minimized():
             raise RuntimeError("浮窗未能最小化")
 
     def restore_minimized(self):
+        if self.capture_active:
+            return
         if self.is_minimized():
             self.user32.ShowWindow(self.hwnd, 9)  # SW_RESTORE
 
@@ -171,9 +183,9 @@ class WindowSession:
             raise ctypes.WinError(ctypes.get_last_error())
         return rect.right - rect.left, rect.bottom - rect.top, rect.left, rect.top
 
-    def suppress_system_transitions(self):
+    def suppress_system_transitions(self, hwnd=None):
         """Use our tween alone; prevent DWM from animating its intermediate sizes."""
-        hwnd = self.hwnd
+        hwnd = self.hwnd if hwnd is None else hwnd
         if self._transitions_disabled_for == hwnd:
             return
         disabled = wintypes.BOOL(True)
@@ -244,14 +256,15 @@ class WindowSession:
         if not self.user32.RedrawWindow(hwnd, None, None, flags):
             raise ctypes.WinError(ctypes.get_last_error())
 
-    def exclude_from_capture(self):
+    def exclude_from_capture(self, hwnd=None):
         """Windows 10 2004+ exclusion; unsupported systems use hidden capture."""
         if not self.prefer_native_capture:
             return False
-        if not self.user32.SetWindowDisplayAffinity(self.hwnd, 0x11):
+        hwnd = self.hwnd if hwnd is None else hwnd
+        if not self.user32.SetWindowDisplayAffinity(hwnd, 0x11):
             return False
         affinity = wintypes.DWORD()
-        return bool(self.user32.GetWindowDisplayAffinity(self.hwnd, ctypes.byref(affinity)) and affinity.value == 0x11)
+        return bool(self.user32.GetWindowDisplayAffinity(hwnd, ctypes.byref(affinity)) and affinity.value == 0x11)
 
     def restore_focus(self):
         if self.external_window and self.user32.IsWindow(self.external_window):
@@ -294,7 +307,6 @@ class WindowSession:
                 self.restore_focus()
         elif operation == "interactive":
             self.remember_external()
-            self.capture_end()
             self.working = False
             self.passthrough(False)
         elif operation == "capture_begin":
@@ -307,36 +319,102 @@ class WindowSession:
     def capture_begin(self, *, force_hide=False):
         if self.capture_active:
             raise RuntimeError("不允许重叠的截图请求")
+        if self._capture_windows:
+            raise RuntimeError("上次截图的窗口状态尚未恢复")
         self.capture_active = True
-        if self.is_minimized():
-            # Already absent from desktop capture; hide/show would accidentally
-            # restore a window the user explicitly minimized.
-            return
-        if not force_hide and self.exclude_from_capture():
-            if ctypes.windll.dwmapi.DwmFlush() != 0:
-                raise RuntimeError("无法确认桌面合成已完成")
-            return
-        self.was_visible = bool(self.user32.IsWindowVisible(self.hwnd))
-        # ShowWindow(SW_HIDE) clears visibility immediately, but DWM can still
-        # render a fading ghost for several frames. Disable transitions for
-        # THIS window before acknowledging isolation; never change OS settings.
-        self.suppress_system_transitions()
-        self.user32.ShowWindow(self.hwnd, 0)
-        self.capture_hidden = True
-        # An acknowledged invisible window plus a compositor flush, rather than
-        # a guessed delay. This covers pixels AND UIA window enumeration.
-        if self.user32.IsWindowVisible(self.hwnd):
-            raise RuntimeError("前端窗口未能隐藏")
-        result = ctypes.windll.dwmapi.DwmFlush()
-        if result != 0:
+        self.capture_hidden = False
+        self._capture_force_hide = force_hide
+        self._capture_windows = {}
+        try:
+            self._isolate_capture_windows()
+        except BaseException:
+            # A failed before-handshake cannot leave earlier windows hidden.
+            self.capture_end()
+            raise
+
+    def _window_process_id(self, hwnd):
+        process_id = wintypes.DWORD()
+        if not self.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(process_id)):
+            return None
+        return process_id.value
+
+    def _process_windows(self):
+        """Include every product top-level: workbench, panels, and dialogs."""
+        windows = []
+        callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+        @callback_type
+        def collect(hwnd, _):
+            if self._window_process_id(hwnd) == os.getpid():
+                windows.append(int(hwnd))
+            return True
+
+        enum = self.user32.EnumWindows
+        enum.argtypes = [callback_type, wintypes.LPARAM]
+        enum.restype = wintypes.BOOL
+        if not enum(collect, 0):
+            raise RuntimeError("无法枚举前端窗口以隔离截图")
+        return windows
+
+    def _flush_capture(self):
+        if ctypes.windll.dwmapi.DwmFlush() != 0:
             raise RuntimeError("无法确认桌面合成已完成")
 
+    def _isolate_capture_windows(self):
+        for hwnd in self._process_windows():
+            if hwnd not in self._capture_windows:
+                affinity = wintypes.DWORD()
+                known_affinity = self.user32.GetWindowDisplayAffinity(hwnd, ctypes.byref(affinity))
+                self._capture_windows[hwnd] = {
+                    "visible": bool(self.user32.IsWindowVisible(hwnd)),
+                    "minimized": bool(self.user32.IsIconic(hwnd)),
+                    "minimized_by_user": False,
+                    "hidden": False,
+                    "affinity": affinity.value if known_affinity else None,
+                }
+            record = self._capture_windows[hwnd]
+            if self.user32.IsIconic(hwnd) or not self.user32.IsWindowVisible(hwnd):
+                continue
+            if not self._capture_force_hide and record["affinity"] is not None and self.exclude_from_capture(hwnd):
+                continue
+            self.suppress_system_transitions(hwnd)
+            # Mark first so even partial ShowWindow failure gets cleanup.
+            record["hidden"] = True
+            self.capture_hidden = True
+            self.user32.ShowWindow(hwnd, 0)
+            if self.user32.IsWindowVisible(hwnd):
+                raise RuntimeError("前端窗口未能隐藏")
+        self._flush_capture()
+
     def capture_end(self):
-        if self.capture_hidden:
-            if self.was_visible:
-                self.user32.ShowWindow(self.hwnd, 4)  # SW_SHOWNOACTIVATE
-            self.capture_hidden = False
+        windows = self._capture_windows
+        self._capture_windows = {}
+        self.capture_hidden = False
         self.capture_active = False
+        failed = {}
+        for hwnd, record in windows.items():
+            try:
+                if not self.user32.IsWindow(hwnd) or self._window_process_id(hwnd) != os.getpid():
+                    continue
+                affinity_restored = (record["affinity"] is None or
+                    self.user32.SetWindowDisplayAffinity(hwnd, record["affinity"]))
+                if (record["hidden"] and record["visible"] and not record["minimized"]
+                        and not record["minimized_by_user"] and not self.user32.IsIconic(hwnd)):
+                    # Never activate or restore a newly minimized window, and
+                    # never transfer focus back to an earlier target.
+                    self.user32.ShowWindow(hwnd, 4)  # SW_SHOWNOACTIVATE
+                    if not self.user32.IsWindowVisible(hwnd):
+                        raise RuntimeError("前端窗口未能恢复")
+                if not affinity_restored:
+                    raise RuntimeError("前端窗口截图属性未能恢复")
+            except Exception:
+                # Try every window even if one fails; retain failed records so
+                # a later cleanup/close can retry instead of losing ownership.
+                failed[hwnd] = record
+        if failed:
+            self._capture_windows = failed
+            self.capture_hidden = any(record["hidden"] for record in failed.values())
+            raise RuntimeError("部分前端窗口在截图后未能恢复")
 
     def register_hotkeys(self):
         # A dedicated thread owns the hotkeys and the Raw Input message window;
@@ -401,10 +479,14 @@ class WindowSession:
                 return keys
 
     def close(self):
-        self.capture_end()
-        if self._background_brush:
-            self.user32.SetClassLongPtrW(self.hwnd, -10, self._original_background)
-            self._background_gdi.DeleteObject(self._background_brush)
-            self._background_brush = None
-        self._key_stop.set()
-        self._key_thread.join(timeout=0.3)
+        try:
+            self.capture_end()
+        finally:
+            try:
+                if self._background_brush:
+                    self.user32.SetClassLongPtrW(self.hwnd, -10, self._original_background)
+                    self._background_gdi.DeleteObject(self._background_brush)
+                    self._background_brush = None
+            finally:
+                self._key_stop.set()
+                self._key_thread.join(timeout=0.3)

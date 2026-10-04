@@ -11,12 +11,17 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from openassist.ui.presentation import PHASES, action_title, public_text
+from openassist.core.state import PHASE_NAMES
+from openassist.core.text import message_text, public_text
 from openassist.core.conversation import ConversationStore
 from openassist.core.assistant import Assistant, DemoAssistant
+from openassist.core.execution import (
+    ExecutionCancelled, ExecutionCapabilities, ExecutionRequest, ExecutionServices,
+    Reobserve, Supplement, TaskResult, TERMINAL_STATUSES,
+)
 
 
-class TaskStopped(Exception):
+class TaskStopped(ExecutionCancelled):
     pass
 
 
@@ -35,12 +40,20 @@ class TaskController:
     A timed-out GUI can never authorize another desktop action.
     """
 
-    def __init__(self, *, demo: bool = False, runner_factory=None, assistant=None, ui_timeout=4.0, input_timeout=300.0, conversation=None):
+    def __init__(self, *, demo: bool = False, executor=None, runner_factory=None, assistant=None, ui_timeout=4.0, input_timeout=300.0, conversation=None):
         self.events: queue.Queue = queue.Queue()
         self.cancel_event = threading.Event()
         self.worker: Optional[threading.Thread] = None
         self.demo = demo
-        self.runner_factory = runner_factory
+        if executor is not None and runner_factory is not None:
+            raise ValueError("Pass executor or legacy runner_factory, not both")
+        if executor is None and runner_factory is not None:
+            from openassist.core.legacy_execution import LegacyRunnerExecutor
+            executor = LegacyRunnerExecutor(runner_factory, lambda: self.cancel_event)
+        if executor is None and demo:
+            from openassist.core.demo_execution import DemoExecutor
+            executor = DemoExecutor()
+        self.executor = executor
         self.assistant = assistant or (DemoAssistant() if demo else Assistant())
         self.mode = "conversation"
         self.desktop_available = True
@@ -68,6 +81,32 @@ class TaskController:
         self._awaiting_context: dict[str, list[str]] = {"supplement": [], "answer": []}
 
     @property
+    def capabilities(self):
+        return self.executor.capabilities if self.executor is not None else ExecutionCapabilities()
+
+    def revision(self) -> int:
+        with self._condition:
+            return self._revision
+
+    def answer_receipt_ids(self) -> tuple[str, ...]:
+        with self._condition:
+            return tuple(self._awaiting_context["answer"])
+
+    def execution_services(self) -> ExecutionServices:
+        task_id = self.task_id
+
+        def publish(event):
+            self.on_agent_event({"task_id": task_id, **event})
+
+        return ExecutionServices(
+            event=publish, ask=self.ask_user, confirm=self.confirm,
+            checkpoint=self.checkpoint, capture=self.capture,
+            take_supplements=self.take_supplements, desktop_access=self.desktop_access,
+            cancelled=self.cancel_event.is_set, revision=self.revision,
+            answer_receipt_ids=self.answer_receipt_ids,
+        )
+
+    @property
     def active(self):
         return self.worker is not None and self.worker.is_alive()
 
@@ -88,10 +127,12 @@ class TaskController:
 
     def _state(self, phase, title=None, detail="", **values):
         with self._condition:
+            if phase not in PHASE_NAMES:
+                raise ValueError(f"Unknown task phase: {phase}")
             if self.cancel_event.is_set() and phase not in {"stopping", "cancelled", "failed"}:
                 return
             self.phase = phase
-            self._emit("state", phase=phase, title=title or PHASES[phase][1], detail=public_text(detail), **values)
+            self._emit("state", phase=phase, title=message_text(title, 120) or None, detail=public_text(detail), **values)
 
     def start(self, request: str):
         with self._condition:
@@ -136,7 +177,7 @@ class TaskController:
             if not cleanup:
                 try:
                     self._alive()
-                except Exception:
+                except BaseException:
                     call.expired = True
                     raise
         if call.error:
@@ -177,6 +218,8 @@ class TaskController:
                 return False
             if self.mode != "desktop":
                 return True
+            if not self.capabilities.supplement:
+                return False
             if self.phase in {"paused", "takeover", "waiting_user", "waiting_confirmation"}:
                 return True
             if not self._editing:
@@ -191,7 +234,7 @@ class TaskController:
             self._editing = False
             self._condition.notify_all()
 
-    def desktop_access(self, stage):
+    def desktop_access(self, stage, expected_revision=None):
         if stage == "after":
             with self._condition:
                 self._desktop_busy = False
@@ -205,6 +248,11 @@ class TaskController:
                 self._alive()
                 if self._editing or self._pause:
                     continue
+                if expected_revision is not None and expected_revision != self._revision:
+                    raise Reobserve()
+                if self._desktop_busy:
+                    self._condition.wait(0.05)
+                    continue
                 self._desktop_busy = True
                 return self._revision
 
@@ -212,6 +260,8 @@ class TaskController:
         with self._condition:
             if not self.active or self.cancel_event.is_set() or self.mode != "desktop":
                 return
+            if not self.capabilities.pause:
+                return False
             already_paused = self.phase in {"paused", "takeover"}
             self._takeover = takeover
             self._editing = False
@@ -242,7 +292,7 @@ class TaskController:
 
     def stop(self):
         with self._condition:
-            if not self.active or self.phase in {"completed", "cancelled", "failed"}:
+            if not self.active or self.phase in TERMINAL_STATUSES:
                 return
             self.cancel_event.set()
             self._pause = False
@@ -270,7 +320,9 @@ class TaskController:
 
     def supplement(self, text: str):
         with self._condition:
-            if self.cancel_event.is_set() or self.phase in {"idle", "completed", "failed", "cancelled", "stopping"} or not text.strip():
+            if self.cancel_event.is_set() or self.phase in TERMINAL_STATUSES | {"idle", "stopping"} or not text.strip():
+                return False
+            if self.mode == "desktop" and not self.capabilities.supplement:
                 return False
             receipt_id = self._receive("supplement", text)
             self._supplements.append((receipt_id, text.strip()))
@@ -297,15 +349,17 @@ class TaskController:
         with self._condition:
             result, self._supplements = self._supplements, []
             self._awaiting_context["supplement"].extend(receipt_id for receipt_id, _ in result)
-            return [text for _, text in result]
+            return [Supplement(receipt_id, text) for receipt_id, text in result]
 
-    def _context_applied(self, source):
+    def _context_applied(self, source, receipt_ids=None):
         # This acknowledgment comes from the runner AFTER user_answers changes,
         # not when the UI accepts input or when the worker drains its queue.
         with self._condition:
             if source not in self._awaiting_context:
                 return
-            pending, self._awaiting_context[source] = self._awaiting_context[source], []
+            available = self._awaiting_context[source]
+            pending = list(available) if receipt_ids is None else [item for item in receipt_ids if item in available]
+            self._awaiting_context[source] = [item for item in available if item not in pending]
             for receipt_id in pending:
                 receipt = self._receipts[receipt_id]
                 if receipt["status"] == "queued":
@@ -367,7 +421,8 @@ class TaskController:
         with self._condition:
             if kind == "confirmation" and self._revision != request_revision:
                 value = False
-            self._revision += 1
+            if kind == "question":
+                self._revision += 1
             response_revision = self._revision
         resumed_revision = self.checkpoint()
         if kind == "confirmation" and resumed_revision != response_revision:
@@ -387,27 +442,48 @@ class TaskController:
         self.ui("capture_begin" if stage == "before" else "capture_end", cleanup=stage == "after")
 
     def on_agent_event(self, event):
+        with self._condition:
+            if event.get("task_id", self.task_id) != self.task_id:
+                return
+            if self.phase in TERMINAL_STATUSES | {"idle"}:
+                return
+            self._accept_agent_event(event)
+
+    def _accept_agent_event(self, event):
         kind = event.get("type")
         if kind == "context_applied":
-            self._context_applied(event.get("source"))
+            self._context_applied(event.get("source"), event.get("receipt_ids"))
         elif kind == "phase":
             phase = event.get("phase")
-            if phase in {"observing", "planning", "executing", "verifying"}:
-                title = public_text(event.get("summary"), 28) or (action_title(event["action"]) if event.get("action") else None)
-                self._state(phase, title=title,
+            if phase in {"preparing", "observing", "planning", "waiting_model", "executing", "verifying"}:
+                title = public_text(event.get("summary"), 28) or None
+                self._state(phase, title=title, action=public_text(event.get("action"), 80),
                             detail=event.get("application", ""), step=event.get("step"))
+        elif kind == "waiting":
+            stage = event.get("stage")
+            with self._condition:
+                if self.phase in TERMINAL_STATUSES | {"idle"}:
+                    return
+                if stage == "cleanup" or event.get("timed_out"):
+                    phase, detail = "stopping", "正在等待已发出的调用结束并恢复运行状态，暂不能开始新任务。"
+                else:
+                    phase = {"model": "waiting_model", "tool": "executing", "initialization": "preparing"}.get(stage, self.phase)
+                    detail = "当前调用尚未返回，收到停止请求后将不再启动后续操作。"
+                if self.phase in {"pausing", "paused", "takeover", "waiting_user", "waiting_confirmation", "stopping"}:
+                    phase = self.phase
+                self._state(phase, detail=detail)
+        elif kind == "retry":
+            self._emit("record", title="正在重试模型请求", detail="上次调用未取得有效结果。")
         elif kind == "action_result":
             # No field contents, raw model observation/thought or exception text.
-            title = action_title(event.get("action", ""))[2:]
-            suffix = "完成" if event.get("ok") else "需要重新检查"
-            self._emit("record", title=f"{title} · {suffix}", detail="")
+            self._emit("action_result", action=public_text(event.get("action"), 80), ok=bool(event.get("ok")))
         elif kind == "finished":
             # Worker shutdown, not a callback, authoritatively finishes the task.
             return
 
     def _run(self, request):
         phase, detail = "failed", "暂时没有收到有效回复，请检查模型连接后重试。"
-        result = {}
+        result = None
         desktop_started = False
         try:
             additions = []
@@ -415,8 +491,9 @@ class TaskController:
                 self._alive()
                 with self._condition:
                     revision = self._revision
-                    additions.extend(self.take_supplements())
+                    additions.extend(item.text for item in self.take_supplements())
                     self._context_applied("supplement")
+                self._state("thinking", detail="正在等待模型回复。停止请求会阻止后续执行，当前请求需先返回。")
                 decision = self.assistant.respond(request, self._task_context, additions)
                 with self._condition:
                     self._alive()
@@ -428,45 +505,31 @@ class TaskController:
                         self._emit("mode", mode="desktop", message=public_text(decision.message, 300))
                     break
             if decision.mode == "reply":
-                result = {"status": "done", "message": decision.message}
+                result = TaskResult("completed", decision.message)
             elif not self.desktop_available and not self.demo:
-                result = {"status": "error", "message": "桌面操作暂时无法启动：全局暂停/停止快捷键被占用。请关闭冲突程序后重启；仍然可以在这里正常对话。"}
+                result = TaskResult("failed", "桌面操作暂时无法启动：全局暂停/停止快捷键被占用。请关闭冲突程序后重启；仍然可以在这里正常对话。", reason="desktop_unavailable")
             else:
                 desktop_started = True
                 self._state("preparing")
                 self.ui("working")
-            if desktop_started and self.demo:
-                result = self._demo(request)
-            elif desktop_started:
-                if self.runner_factory is None:
-                    from openassist.runtime.ufo_full import run_native_request
-
-                    result = asyncio.run(
-                        run_native_request(
-                            request=request,
-                            task=self.task_id,
-                            event_callback=self.on_agent_event,
-                            input_callback=self.ask_user,
-                            confirmation_callback=self.confirm,
-                            cancel_event=self.cancel_event,
-                        )
-                    )
-                else:
-                    factory = self.runner_factory
-                    runner = factory(request=request, task=self.task_id, keep_console=True,
-                                     event_callback=self.on_agent_event, input_callback=self.ask_user,
-                                     confirmation_callback=self.confirm, cancel_event=self.cancel_event,
-                                     control_callback=self.checkpoint, capture_callback=self.capture,
-                                     supplement_callback=self.take_supplements, desktop_callback=self.desktop_access,
-                                     conversation_context=self._task_context, initial_user_inputs=additions)
-                    result = asyncio.run(runner.run())
-            if self.cancel_event.is_set() or result.get("status") == "cancelled":
+            if desktop_started:
+                if self.executor is None:
+                    raise RuntimeError("No task executor was configured by the application")
+                execution_request = ExecutionRequest(
+                    task_id=self.task_id, text=request,
+                    conversation_context=self._task_context, initial_inputs=tuple(additions),
+                )
+                result = asyncio.run(self.executor.run(execution_request, self.execution_services()))
+                if not isinstance(result, TaskResult):
+                    raise TypeError("Executor must return TaskResult")
+            if self.cancel_event.is_set() or result.status == "cancelled":
                 phase, detail = "cancelled", "已停止发出新的桌面操作。"
-            elif result.get("status") == "done":
-                phase, detail = "completed", public_text(result.get("message"), 600)
             else:
-                phase, detail = "failed", public_text(result.get("message"), 600) or "执行未完成。可以调整要求后重试。"
-        except TaskStopped:
+                phase = result.status
+                detail = public_text(result.message, 600) or "执行未完成。可以调整要求后重试。"
+        except asyncio.CancelledError:
+            # asyncio task/future boundaries may normalize our subclass to the
+            # base CancelledError. It remains outside ordinary Exception handlers.
             phase, detail = "cancelled", "已停止发出新的桌面操作。"
         except Exception:
             # Keep the public logger name stable for integrations and tests.
@@ -481,33 +544,14 @@ class TaskController:
                 if self.cancel_event.is_set() and phase != "failed":
                     phase, detail = "cancelled", "已停止本次回复。" if self.mode != "desktop" else "已停止发出新的桌面操作。"
                 self._finish_receipts()
-                self.conversation.finish(self.task_id, phase, (result.get("message") if phase == "completed" else detail) or detail)
+                message = result.message if isinstance(result, TaskResult) and result.status == phase else detail
+                execution_result = result if isinstance(result, TaskResult) and result.status == phase else None
+                self.conversation.finish(self.task_id, phase, message or detail, execution_result=execution_result)
+                if execution_result:
+                    for artifact in execution_result.artifacts:
+                        if isinstance(artifact, dict) and artifact.get("path"):
+                            self._emit("record", title="产物位置（仅验证文件存在）",
+                                       detail=public_text(artifact["path"], 4000))
                 self._emit("conversation")
                 self._state(phase, title="我们继续聊。" if phase == "completed" and self.mode != "desktop" else None, detail=detail)
                 self._emit("settled")
-
-    def _demo_wait(self, seconds):
-        deadline = time.monotonic() + seconds
-        while time.monotonic() < deadline:
-            self.checkpoint()
-            if self.take_supplements():
-                # Demo only simulates consumption; the UI labels all receipts.
-                self._context_applied("supplement")
-            time.sleep(0.04)
-
-    def _demo(self, request):
-        self._state("observing", detail="体验演示 · 不会操作你的电脑", step=1)
-        self._demo_wait(1.8)
-        self._state("planning", detail="体验演示 · 正在安排任务", step=1)
-        self._demo_wait(2)
-        self._state("executing", "正在整理\n本周资料", detail="体验演示 · 文件资源管理器", step=2)
-        self._demo_wait(3)
-        answer = self.ask_user("演示：你想把资料归档到哪个文件夹？")
-        self._context_applied("answer")
-        self._demo_wait(1.5)
-        allowed = self.confirm("移动 12 份演示文件", answer or "项目资料 / 归档")
-        if not allowed:
-            return {"status": "done", "message": "演示已结束。你拒绝了移动操作，没有修改任何文件。"}
-        self._state("verifying", "正在检查\n整理结果", detail="体验演示 · 不会修改文件", step=3)
-        self._demo_wait(2)
-        return {"status": "done", "message": "演示完成。你已经体验了进度、追问和确认流程；没有操作电脑或修改文件。"}

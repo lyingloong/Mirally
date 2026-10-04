@@ -108,8 +108,9 @@ class NativeInitializationTests(unittest.TestCase):
                             confirmation_callback=lambda action, target: False,
                             cancel_event=threading.Event()))
                         run.assert_awaited_once()
-                    assert result['status'] == 'done'
-                    assert events[-1]['type'] == 'native_finished'
+                    # A mocked Session.run has no business completion evidence.
+                    assert result['status'] == 'incomplete'
+                    assert events[-1]['type'] == 'finished'
                     assert BasicAgent.handle is previous_handle
                     assert logging.getLogger().handlers == previous_handlers
                     assert ContextNames.default_value is previous_default

@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
-import asyncio
 import ctypes
 import ctypes.wintypes
 import queue
-import threading
-from datetime import datetime
 from pathlib import Path
 from tkinter import BOTH, END, LEFT, RIGHT, X, BooleanVar, Canvas, StringVar, Tk, messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 from typing import Any, Dict, Optional
 
 from openassist.ui.branding import APP_NAME, apply_window_icon, prepare_process_identity
+from openassist.application import create_controller
+from openassist.core.execution import TERMINAL_STATUSES
+from openassist.ui.presentation import PHASES, phase_title, action_title
+from openassist.platform.window_session import WindowSession
 
 
 ACTION_NAMES = {
@@ -77,10 +78,12 @@ class OpenAssistWindow:
         self.root.attributes("-topmost", True)
         self.root.protocol("WM_DELETE_WINDOW", self._close)
 
-        self.events: queue.Queue[Dict[str, Any]] = queue.Queue()
-        self.worker: Optional[threading.Thread] = None
-        self.cancel_event = threading.Event()
-        self.pending_reply: Optional[queue.Queue[Any]] = None
+        self.controller = create_controller(product_root)
+        self.events = self.controller.events
+        self.session = WindowSession(self.root)
+        self.controller.desktop_available = self.session.register_hotkeys()
+        self.pending_reply: Optional[str] = None
+        self._closing = False
         self.busy = False
         self.confirming = False
         self.click_through: Optional[bool] = None
@@ -379,162 +382,94 @@ class OpenAssistWindow:
             self.request_box.delete("1.0", END)
             self._set_busy(True, "Agent 正在继续…")
             # Restore desktop focus before allowing the worker to observe/type.
-            reply.put(text)
+            self.controller.reply(reply, text)
             return
-        if self.busy:
+        if self.busy or self.controller.active:
             return
 
         self.request_box.delete("1.0", END)
         self._append("你", text, "user")
-        self.cancel_event = threading.Event()
         mode = self.mode_var.get()
         self._set_busy(True, f"正在启动 {mode}…")
-        self.worker = threading.Thread(
-            target=self._run_task,
-            args=(text, mode),
-            name="openassist-agent",
-            daemon=True,
-        )
-        self.worker.start()
-
-    def _run_task(self, request: str, mode: str) -> None:
-        try:
-            task = "openassist-" + datetime.now().strftime("%Y%m%d-%H%M%S")
-            if mode == MODE_UFO_FULL:
-                from openassist.runtime.ufo_full import run_native_request
-
-                asyncio.run(
-                    run_native_request(
-                        request=request,
-                        task=task,
-                        event_callback=self.events.put,
-                        input_callback=self._request_input,
-                        confirmation_callback=self._confirm_action,
-                        cancel_event=self.cancel_event,
-                    )
-                )
-            else:
-                from openassist.runtime.ufo_full import run_native_request
-
-                asyncio.run(
-                    run_native_request(
-                        request=request,
-                        task=task,
-                        event_callback=self.events.put,
-                        input_callback=self._request_input,
-                        confirmation_callback=self._confirm_action,
-                        cancel_event=self.cancel_event,
-                    )
-                )
-        except Exception as exc:
-            self.events.put({"type": "failed", "message": str(exc)})
-
-    def _request_input(self, question: str) -> str:
-        reply: queue.Queue[Any] = queue.Queue(maxsize=1)
-        self.events.put({"type": "ask_user", "question": question, "reply": reply})
-        while not self.cancel_event.is_set():
-            try:
-                return str(reply.get(timeout=0.2))
-            except queue.Empty:
-                continue
-        return ""
-
-    def _confirm_action(self, action: str, target: str) -> bool:
-        reply: queue.Queue[Any] = queue.Queue(maxsize=1)
-        self.events.put(
-            {"type": "confirm_action", "action": action, "target": target, "reply": reply}
-        )
-        while not self.cancel_event.is_set():
-            try:
-                return bool(reply.get(timeout=0.2))
-            except queue.Empty:
-                continue
-        return False
+        self.controller.start(text)
 
     def _drain_events(self) -> None:
+        self.controller.pulse()
+        if self._closing and not self.controller.active:
+            self.session.close()
+            self.root.destroy()
+            return
+        # Schedule before handling a modal confirmation: Tk's nested event loop
+        # must keep acknowledging heartbeats and cancellation while it is open.
+        self.root.after(100, self._drain_events)
+        for key in self.session.poll_hotkeys():
+            if key == 2:
+                self.controller.stop()
+            elif key == 1:
+                if self.controller.phase in {"paused", "takeover"}:
+                    self.controller.resume()
+                else:
+                    self.controller.pause()
         try:
             while True:
                 event = self.events.get_nowait()
-                self._handle_event(event)
+                if event["task_id"] == self.controller.task_id:
+                    self._handle_event(event)
         except queue.Empty:
             pass
-        self.root.after(100, self._drain_events)
 
     def _handle_event(self, event: Dict[str, Any]) -> None:
         kind = event.get("type")
-        if kind == "step":
-            step = event.get("step", "?")
-            summary = str(event.get("observation") or "正在处理当前界面。")
-            actions = event.get("actions") or []
-            action_text = "、".join(ACTION_NAMES.get(item.get("type"), item.get("type", "操作")) for item in actions)
-            detail = f"第 {step} 步：{summary}"
-            if action_text:
-                detail += f"\n准备执行：{action_text}"
-            self._append("UFO", detail, "agent")
-            self.status_var.set(f"正在执行 · 第 {step} 步")
-            self._set_live("执行中", summary, "act", step)
+        if kind == "ui":
+            call = event["call"]
+            try:
+                if not call.expired:
+                    if call.operation == "working":
+                        self._set_click_through(True)
+                        self._restore_external_window()
+                    elif call.operation == "interactive":
+                        self._set_click_through(False)
+                    elif call.operation == "capture_begin":
+                        self.session.capture_begin()
+                    elif call.operation == "capture_end":
+                        self.session.capture_end()
+            except Exception as exc:
+                call.error = exc
+            finally:
+                call.done.set()
+        elif kind == "record":
+            self._append(event["title"], event.get("detail", ""), "system")
         elif kind == "action_result":
-            label = ACTION_NAMES.get(event.get("action"), event.get("action", "操作"))
-            detail = event.get("detail") or event.get("error") or "完成"
-            self.status_var.set(f"{label} · {detail}")
-            self._set_live("动作反馈", f"{label} · {detail}", "verify")
-        elif kind == "progress":
-            self._append("UFO", str(event.get("message", "正在运行。")), "agent")
-            self.status_var.set(f"正在执行 · {MODE_UFO_FULL}")
-            self._set_live("同步中", str(event.get("message", "正在运行。")), "act")
-        elif kind == "native_finished":
-            result_status = event.get("status", "done")
-            title = "任务已停止" if result_status == "cancelled" else (
-                "任务失败" if result_status == "failed" else "任务完成"
-            )
-            self._append(title, str(event.get("message", "任务结束。")), "agent")
-            status = "已停止" if result_status == "cancelled" else (
-                "执行失败" if result_status == "failed" else "就绪"
-            )
-            self._set_live(
-                "已停止" if result_status == "cancelled" else ("需要处理" if result_status == "failed" else "已完成"),
-                str(event.get("message", "任务结束。")),
-                "done" if result_status == "done" else "idle",
-            )
-            self._set_busy(False, f"{status} · {MODE_UFO_FULL}")
-        elif kind == "ask_user":
-            self._append("UFO 需要补充信息", str(event.get("question", "请提供更多信息。")), "agent")
-            self.pending_reply = event["reply"]
-            self._set_busy(False, "等待你的回复")
-            self.mode_picker.configure(state="disabled")
-            self.send_button.configure(state="normal", text="回复")
-            self.request_box.configure(state="normal")
-            self.request_box.focus_force()
-            self._set_live("需要你", str(event.get("question", "请提供更多信息。")), "idle")
-        elif kind == "confirm_action":
-            action = ACTION_NAMES.get(event.get("action"), event.get("action", "操作"))
-            self._append("安全确认", f"Agent 请求执行：{action}\n目标：{event.get('target', '桌面')}", "system")
-            self.confirming = True
-            self._set_busy(False, "等待敏感操作确认")
-            self._set_click_through(False)
-            self._set_live("等待确认", f"{action} · {event.get('target', '桌面')}", "idle")
-            approved = messagebox.askyesno(
-                "确认敏感操作",
-                f"允许 Agent 执行“{action}”吗？\n目标：{event.get('target', '桌面')}",
-                parent=self.root,
-            )
-            self.confirming = False
-            self._set_busy(True, "Agent 正在继续…")
-            event["reply"].put(approved)
-        elif kind == "finished":
-            status = event.get("status", "done")
-            message = str(event.get("message", "任务结束。"))
-            self._append("任务完成" if status == "done" else "任务结束", message, "agent")
-            if event.get("log"):
-                self._append("运行记录", str(event["log"]), "system")
-            self.pending_reply = None
-            self._set_live("已完成", message, "done")
-            self._set_busy(False, f"就绪 · {self.mode_var.get()}")
-        elif kind == "failed":
-            self._append("启动失败", str(event.get("message", "未知错误")), "system")
-            self.pending_reply = None
-            self._set_live("发生错误", str(event.get("message", "未知错误")), "idle")
-            self._set_busy(False, "启动失败")
+            suffix = "完成" if event["ok"] else "需要重新检查"
+            self._append(action_title(event["action"])[2:], suffix, "system")
+        elif kind == "state":
+            phase = event["phase"]
+            label = PHASES[phase][0]
+            detail = event.get("detail") or phase_title(event)
+            stage = {"observing": "observe", "planning": "plan", "executing": "act", "verifying": "verify", "completed": "done"}.get(phase, "idle")
+            self.status_var.set(label)
+            self._set_live(label, detail, stage, event.get("step"))
+            if phase == "waiting_user":
+                self.pending_reply = event["request_id"]
+                self._append("需要补充信息", detail, "agent")
+                self._set_busy(False, label)
+                self.mode_picker.configure(state="disabled")
+                self.send_button.configure(text="回复")
+                self.request_box.focus_force()
+            elif phase == "waiting_confirmation":
+                self.confirming = True
+                self._set_click_through(False)
+                try:
+                    approved = messagebox.askyesno("确认敏感操作", f"操作：{event.get('action', '')}\n对象：{event.get('target', '')}", parent=self.root)
+                    self.controller.reply(event["request_id"], approved)
+                finally:
+                    self.confirming = False
+            elif phase in TERMINAL_STATUSES:
+                tasks = self.controller.conversation.snapshot()["tasks"]
+                answer = tasks[-1]["result"] if tasks else detail
+                self._append(label, answer, "agent")
+                self.pending_reply = None
+                self._set_busy(False, label)
 
     def _set_busy(self, busy: bool, status: str) -> None:
         self.busy = busy
@@ -549,16 +484,14 @@ class OpenAssistWindow:
             self._set_click_through(False)
 
     def _close(self) -> None:
-        if self.busy and not messagebox.askyesno(
+        if self.controller.active and not messagebox.askyesno(
             "正在运行",
             "任务仍在运行。停止等待中的任务并关闭窗口？",
             parent=self.root,
         ):
             return
-        self.cancel_event.set()
-        if self.pending_reply is not None:
-            try:
-                self.pending_reply.put_nowait("")
-            except queue.Full:
-                pass
-        self.root.destroy()
+        self._closing = True
+        self.controller.stop()
+        if not self.controller.active:
+            self.session.close()
+            self.root.destroy()

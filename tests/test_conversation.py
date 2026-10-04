@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from openassist.conversation import ConversationStore
+from openassist.core.execution import TaskResult
 
 
 class ConversationTests(unittest.TestCase):
@@ -65,6 +66,37 @@ class ConversationTests(unittest.TestCase):
             self.assertTrue(restored.error)
             restored.begin("new", "new work")
             self.assertEqual(session.read_text(encoding="utf-8"), "broken")
+
+    def test_latest_answer_is_kept_verbatim_for_a_followup_operation(self):
+        memory = ConversationStore()
+        answer = "邮件正文：\n\n" + "需要粘贴的内容。" * 2200 + "\n结尾不能被截断。"
+        memory.begin("draft", "写一封邮件")
+        memory.finish("draft", "completed", answer)
+        context = memory.context()
+        self.assertEqual(context["previous_tasks"][-1]["result"], answer)
+        self.assertTrue(context["latest_result_over_budget"])
+
+    def test_partial_result_is_not_relabelled_as_completed(self):
+        memory = ConversationStore()
+        memory.begin("task", "处理两份文件")
+        memory.finish("task", "partial", "仅保存了第一份文件。")
+        self.assertEqual(memory.context()["previous_tasks"][-1]["status"], "partial")
+
+    def test_result_references_survive_restart_without_internal_diagnostics(self):
+        with tempfile.TemporaryDirectory() as directory:
+            memory = ConversationStore(Path(directory))
+            memory.begin("task", "生成文件")
+            result = TaskResult("partial", "第一份已保存。", (
+                {"path": "D:/reports/one.txt", "source": "native_report", "verified": "exists"},
+            ), "native_error", {"event_log": "D:/logs/openassist-events.jsonl",
+                                "prompt": "PRIVATE_DIAGNOSTIC"})
+            memory.finish("task", result.status, result.message, execution_result=result)
+            restored = ConversationStore(Path(directory))
+            record = restored.snapshot()["tasks"][-1]
+            self.assertEqual(record["reason"], "native_error")
+            self.assertEqual(record["event_log"], "D:/logs/openassist-events.jsonl")
+            self.assertEqual(restored.context()["previous_tasks"][-1]["artifacts"], list(result.artifacts))
+            self.assertNotIn("PRIVATE_DIAGNOSTIC", json.dumps(restored.snapshot()))
 
 
 if __name__ == "__main__":

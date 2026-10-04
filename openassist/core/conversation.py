@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from openassist.ui.presentation import public_text, message_text
+from openassist.core.text import public_text, message_text
 
 
 def timestamp():
@@ -142,11 +142,21 @@ class ConversationStore:
                 task["inputs"] = (task["inputs"] + [message_text(text, 4000)])[-20:]
                 self._save()
 
-    def finish(self, task_id, status, result):
+    def finish(self, task_id, status, result, *, execution_result=None):
         with self._lock:
             task = next((t for t in self.data["tasks"] if t["id"] == task_id), None)
             if task:
-                task.update(status=status, result=message_text(result))
+                task.update(status=status, result=message_text(result, None))
+                if execution_result is not None:
+                    # Keep public result references, never prompts, screenshots,
+                    # tool arguments or the full diagnostic payload.
+                    task["reason"] = public_text(execution_result.reason, 200)
+                    task["artifacts"] = [
+                        {key: message_text(item[key], 4000)
+                         for key in ("path", "source", "verified") if key in item}
+                        for item in execution_result.artifacts if isinstance(item, dict) and item.get("path")
+                    ]
+                    task["event_log"] = message_text(execution_result.diagnostics.get("event_log", ""), 4000)
                 self.data["updated"] = timestamp()
                 self._save()
 
@@ -155,19 +165,26 @@ class ConversationStore:
         with self._lock:
             recent, remaining = [], budget
             older = self.data.get("older_summary", "")[-2500:]
-            remaining -= len(older)
             tasks = [t for t in self.data["tasks"] if t["status"] != "running"]
-            for task in reversed(tasks[-8:]):
+            for index, task in enumerate(reversed(tasks[-8:])):
                 entry = {k: copy.deepcopy(task[k]) for k in ("request", "status", "inputs", "result")}
                 entry["kind"] = task.get("kind", "desktop")
+                if task.get("artifacts"):
+                    entry["artifacts"] = copy.deepcopy(task["artifacts"])
+                if task.get("reason"):
+                    entry["reason"] = task["reason"]
                 # Bound each task so a long exchange cannot crowd out all others.
                 entry["inputs"] = [message_text(text, 800) for text in entry["inputs"][-5:]]
                 entry["request"] = message_text(entry["request"], 1500)
-                entry["result"] = message_text(entry["result"], 2000)
+                # The most recent answer may be the text the user asks us to
+                # paste elsewhere. Never substitute a truncated summary for it.
+                entry["result"] = message_text(entry["result"], None if index == 0 else 2000)
                 size = len(json.dumps(entry, ensure_ascii=False))
-                if size > remaining:
+                if size > remaining and index > 0:
                     break
                 recent.append(entry)
                 remaining -= size
+            older = older[-max(0, remaining):] if remaining > 0 else ""
             return {"conversation_id": self.data["id"], "older_summary": older,
-                    "previous_tasks": list(reversed(recent)), "omitted_tasks": max(0, len(tasks) - len(recent))}
+                    "previous_tasks": list(reversed(recent)), "omitted_tasks": max(0, len(tasks) - len(recent)),
+                    "latest_result_over_budget": remaining < 0}

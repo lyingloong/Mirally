@@ -8,6 +8,8 @@ Mirally 是面向 Windows 的对话与桌面助手。可以直接问问题、讨
 
 Mirally 产品层负责窗口、任务会话和用户交互；UFO 原生 Session 负责 HostAgent/AppAgent 编排、桌面观察、模型决策和 Windows 操作。为兼容现有环境，Python 包名、配置目录和环境变量继续使用 `openassist`。UFO 运行时所需的 YAML 统一维护在 `config/openassist/ufo/`，通过运行时适配器传给 UFO，不修改内核工作区。
 
+当前默认原生路径已经使用统一执行器协议：会话上下文和补充会进入实际模型请求，停止/暂停/接管在动作准入处生效，截图和控件观察会排除 Mirally，进度与业务结果会通过结构化事件回到界面。暂停和停止仍是协作式语义：已经发出的系统调用要等实际返回后清理，无法承诺强制终止任意第三方阻塞调用。详见 [接入范围与已知限制](docs/ufo-integration.md#当前接入范围与限制)。
+
 ## 当前功能
 
 - 普通问答直接在主窗口回复；根据消息语义决定是否调用桌面执行器，问候和一般问题不会先截图或操作电脑。
@@ -25,7 +27,7 @@ Mirally 产品层负责窗口、任务会话和用户交互；UFO 原生 Session
 
 目前仅支持 Windows。跨任务会话记忆已经接入；跨会话个人偏好记忆、语音录音界面、语音输出及独立前端尚未实现。文字回复在模型完整返回后展示，尚未逐字流式输出；桌面工作中的新消息作为当前任务的补充处理。
 
-阅读入口：[快速开始](#快速开始) · [会话与浮窗操作](#会话与浮窗操作) · [记忆范围](#记忆范围) · [开发与验证](#开发与验证) · [产品代码结构](openassist/ARCHITECTURE.md) · [文档导航](docs/README.md)
+阅读入口：[快速开始](#快速开始) · [会话与浮窗操作](#会话与浮窗操作) · [记忆范围](#记忆范围) · [开发与验证](#开发与验证) · [UFO 架构](docs/ufo-architecture.md) · [UFO 接入详解](docs/ufo-integration.md) · [产品代码结构](openassist/ARCHITECTURE.md) · [文档导航](docs/README.md)
 
 ## 快速开始
 
@@ -154,7 +156,7 @@ language: auto
 
 ### UFO 原生多智能体模式（默认）
 
-通过 [openassist/runtime/ufo_full.py](openassist/runtime/ufo_full.py) 接入 UFO 原生 `normal` Session：HostAgent 观察桌面、规划并选择应用，AppAgent 执行应用内任务。Mirally 将追问、敏感操作确认和 Python 日志接到会话窗口，每次提交仍只执行一个请求。
+通过 [openassist/runtime/ufo/adapter.py](openassist/runtime/ufo/adapter.py) 接入 UFO 原生 `normal` Session：HostAgent 观察桌面、规划并选择应用，AppAgent 执行应用内任务。`ufo_full.py` 仅保留旧调用方的兼容入口。Mirally 将追问、敏感操作确认、结构化进度和业务结果接到会话窗口，每次提交仍只执行一个请求。
 
 该模式保留 UFO 原生工作流，可根据配置使用控件识别、GUI / API 操作、MCP 工具、RAG 和经验学习。相关能力需要对应服务、应用或数据支持，接入原生模式并不代表所有功能已启用。
 
@@ -197,7 +199,7 @@ openassist/
 
 根目录维护产品仓库，`UFO/` 固定到我们 fork 的一个 commit。fork 保留官方 UFO 的 upstream，产品层通过适配器提供配置和交互回调，不直接修改 submodule 工作区。
 
-后续独立前端、录音服务和共享接口可分别放入 `apps/`、`services/`、`packages/contracts/`；这些目录目前尚未建立。语音识别 Provider 已位于 Mirally 产品层，录音采集和语音输出仍待实现。`Windows-Use/`、`openclaw/` 仅作为本地评估项目，已被忽略，不属于本仓库内容。
+执行协议位于 `openassist/core/execution.py`，原生适配和运行时兼容位于 `openassist/runtime/ufo/`；普通对话的模型调用位于 `runtime/completion.py`。后续如果接入其他执行内核，先实现同一协议，不需要现在建立 OpenClaw 专用框架。语音识别 Provider 已位于 Mirally 产品层，录音采集和语音输出仍待实现。`Windows-Use/`、`openclaw/` 仅作为本地评估项目，已被忽略，不属于本仓库内容。
 
 ## 配置与运行记录
 
@@ -211,7 +213,7 @@ openassist/
 | [rag.yaml](config/openassist/ufo/rag.yaml) | 原生模式检索与经验库配置 |
 | `config/openassist/interface.json` | 本地界面偏好（自动保存，Git 忽略） |
 | `config/openassist/conversations/` | 本地会话摘要和当前会话指针（Git 忽略，可在界面清空） |
-| `UFO/logs/openassist-<任务标识>/` | 每次任务的日志目录 |
+| `UFO/logs/openassist-<任务标识>/` | UFO 原生日志、截图和结构化 `openassist-events.jsonl` |
 
 原生 Session 保存 UFO 自身的运行记录。日志可能包含任务内容、用户回复和桌面截图，请按本地调试数据管理。
 
@@ -238,7 +240,7 @@ try {
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-内核测试覆盖动作处理、填写验证、循环检测与任务内答案保留；产品测试覆盖对话调度、输入协调、会话存储、开屏及浮窗状态。这些测试不代表真实模型控制桌面的端到端验证。修改界面、图标或内核后需要重启桌面程序。
+产品测试还覆盖统一执行器协议、真实 UFO 导入/初始化、停止竞态、补充和接管后的重新观察、结果分类、截图隔离适配器及会话结果持久化。最近一次完整回归为 141 项通过。Windows 原生链路场景使用隔离进程和离线模型替身，不连接真实模型或用户应用；这仍不代替本机真实桌面验证。修改界面、图标或内核后需要重启桌面程序。
 
 在可交互的 Windows 桌面会话中验证真实窗口（不调用模型）：
 

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
+
+from openassist.core.text import message_text, public_text
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,7 @@ PHASES = {
     "thinking": ("思考中", "正在想一想，\n如何帮到你。"),
     "observing": ("观察中", "正在查看\n当前桌面"),
     "planning": ("规划中", "正在安排\n下一步操作"),
+    "waiting_model": ("等待模型回复", "正在等待\n模型回复"),
     "executing": ("执行中", "正在执行\n当前操作"),
     "verifying": ("检查中", "正在检查\n操作结果"),
     "pausing": ("正在暂停", "等待当前步骤\n安全结束"),
@@ -44,34 +46,30 @@ PHASES = {
     "waiting_confirmation": ("等待确认", "这一步，\n由你决定。"),
     "stopping": ("正在停止", "等待当前步骤\n安全结束"),
     "completed": ("已完成", "这件事，\n做好了。"),
+    "partial": ("部分完成", "已完成一部分，\n还有内容待处理"),
+    "incomplete": ("尚未完成", "这件事\n还没有完成"),
     "cancelled": ("已停止", "任务已停止"),
     "failed": ("需要处理", "任务暂时\n无法继续"),
 }
 
 ACTION_NAMES = {
-    "focus_window": "切换工作窗口", "click_element": "选择目标控件",
-    "click": "点击目标位置", "type_text": "输入文字", "fill_text": "填写输入框",
-    "press_keys": "执行按键操作", "scroll": "浏览页面内容", "wait": "等待应用响应",
+    "focus_window": "切换工作窗口", "select_application_window": "切换工作窗口",
+    "click_element": "选择目标控件", "click_input": "选择目标控件",
+    "click": "点击目标位置", "click_on_coordinates": "点击目标位置",
+    "type_text": "输入文字", "fill_text": "填写输入框", "set_edit_text": "填写输入框",
+    "press_keys": "执行按键操作", "keyboard_input": "执行按键操作",
+    "scroll": "浏览页面内容", "wheel_mouse_input": "浏览页面内容", "wait": "等待应用响应",
 }
-
-
-def public_text(value: object, limit: int = 240) -> str:
-    """Bound public copy and redact recognizable credentials (not a DLP system)."""
-    text = " ".join(str(value or "").split())
-    return message_text(text, limit)
-
-
-def message_text(value: object, limit: int = 12000) -> str:
-    """Keep paragraphs/code indentation in conversation, with the same redaction."""
-    text = str(value or "").strip()
-    text = re.sub(r"(?i)\b(?:sk-|Bearer\s+)[\w.\-]{8,}", "[已隐藏凭据]", text)
-    text = re.sub(r"(?i)(api[_ -]?key|password|token|secret)\s*[:=]\s*[^\s,;]+", r"\1=[已隐藏]", text)
-    return text if len(text) <= limit else text[:limit - 1] + "…"
 
 
 def action_title(action: str) -> str:
     return "正在" + ACTION_NAMES.get(action, "处理当前操作")
 
+
+def phase_title(event) -> str:
+    return event.get("title") or (
+        action_title(event["action"]) if event.get("action") else PHASES[event["phase"]][1]
+    )
 
 def blend(start: str, end: str, progress: float) -> str:
     a = tuple(int(start[i:i + 2], 16) for i in (1, 3, 5))

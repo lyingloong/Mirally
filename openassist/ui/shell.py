@@ -11,8 +11,9 @@ from tkinter import ttk, messagebox
 from tkinter.scrolledtext import ScrolledText
 
 from openassist.ui.lyric_view import LyricView
-from openassist.ui.presentation import ACTION_NAMES, PHASES, THEMES, DEFAULT_THEME, public_text, message_text, choose_ui_font
-from openassist.core.task_controller import TaskController
+from openassist.ui.presentation import ACTION_NAMES, PHASES, THEMES, DEFAULT_THEME, public_text, message_text, choose_ui_font, phase_title, action_title
+from openassist.application import create_controller
+from openassist.core.execution import TERMINAL_STATUSES
 from openassist.platform.window_session import WindowSession, enable_dpi_awareness
 from openassist.ui.widgets import ButtonStyles
 from openassist.core.conversation import ConversationStore
@@ -37,7 +38,7 @@ class OpenAssistShell:
         apply_window_icon(self.root)
         self.session = WindowSession(self.root, demo=demo)
         self.conversation = ConversationStore(None if demo else product_root / "config" / "openassist" / "conversations")
-        self.controller = TaskController(demo=demo, conversation=self.conversation)
+        self.controller = create_controller(product_root, demo=demo, conversation=self.conversation)
         self.dock_on_run = True
         self.preference_path = product_root / "config" / "openassist" / "interface.json"
         self.preferences = self._load_preferences()
@@ -445,7 +446,7 @@ class OpenAssistShell:
     def _show_main_content(self):
         self.lyrics.grid_remove()
         self.chat.grid_remove()
-        conversation = self.controller.mode != "desktop" or self._phase in {"idle", "completed", "failed", "cancelled"}
+        conversation = self.controller.mode != "desktop" or self._phase in TERMINAL_STATUSES | {"idle"}
         (self.chat if conversation else self.lyrics).grid(row=0, column=0, sticky="nsew")
 
     def _return_to_edge(self):
@@ -752,11 +753,12 @@ class OpenAssistShell:
     def _update_controls(self):
         self._layout_heading()
         phase = self._phase
-        active = phase not in {"idle", "completed", "cancelled", "failed"}
+        active = phase not in TERMINAL_STATUSES | {"idle"}
         waiting = phase in {"waiting_user", "waiting_confirmation"}
         paused = phase in {"paused", "takeover"}
         ending = phase in {"pausing", "stopping"}
         desktop = self.controller.mode == "desktop"
+        capabilities = self.controller.capabilities
         self.return_button.configure(state="disabled" if waiting or ending else "normal")
         if desktop and active:
             if not self.controls.winfo_manager():
@@ -768,10 +770,11 @@ class OpenAssistShell:
         else:
             self.stop_reply_button.pack_forget()
         for button in (self.pause_button, self.takeover_button):
-            button.configure(state="normal" if active and desktop and not ending else "disabled")
+            button.configure(state="normal" if active and desktop and capabilities.pause and not ending else "disabled")
         self.pause_button.configure(text="▶  继续" if paused else "Ⅱ  暂停")
-        self.stop_button.configure(state="normal" if active and phase != "stopping" else "disabled")
-        editable = not ending and ((not active and not self.controller.active) or not desktop or waiting or paused or self.controller.editing_ready)
+        self.stop_button.configure(state="normal" if active and capabilities.cancel and phase != "stopping" else "disabled")
+        editable = not ending and ((not active and not self.controller.active) or not desktop or waiting or
+                                   (capabilities.supplement and (paused or self.controller.editing_ready)))
         self.composer.configure(state="normal" if editable else "disabled")
         self.send_button.configure(state="normal" if editable else "disabled")
         self.settings_button.configure(state="normal" if not active or waiting or paused else "disabled")
@@ -798,11 +801,12 @@ class OpenAssistShell:
         self.chat_status.set("正在思考，你可以继续补充…" if phase == "thinking" else "")
         urgent = phase not in {"observing", "planning", "executing", "verifying"}
         detail = event.get("detail", "")
-        self.lyrics.show(phase, event["title"], detail if phase not in {"waiting_user", "waiting_confirmation"} else "任务已暂停，等待你的回应。", urgent=urgent)
+        title = phase_title(event)
+        self.lyrics.show(phase, title, detail if phase not in {"waiting_user", "waiting_confirmation"} else "任务已暂停，等待你的回应。", urgent=urgent)
         self.interaction.pack_forget()
         self.confirm_buttons.pack_forget()
         self._request_id = event.get("request_id", "")
-        self.edge.set_status(phase, event["title"], self._step)
+        self.edge.set_status(phase, title, self._step)
         if phase in {"waiting_user", "waiting_confirmation"}:
             self.edge.open_workspace(interaction=True)
             self._dismiss_drawers()
@@ -820,7 +824,7 @@ class OpenAssistShell:
             self.interaction_text.configure(state="disabled")
         elif phase in {"paused", "takeover"} and self.edge.mode != "workspace":
             self.edge.expand()
-        if phase in {"completed", "cancelled", "failed"}:
+        if phase in TERMINAL_STATUSES:
             if self._edge_request == self.controller.task_id:
                 if self.controller.mode != "desktop" and self.edge.mode != "workspace":
                     self.edge.open_workspace(interaction=True)
@@ -880,6 +884,9 @@ class OpenAssistShell:
                 self._update_controls()
             elif event["type"] == "record":
                 self._record(event["title"], event.get("detail", ""))
+            elif event["type"] == "action_result":
+                suffix = "完成" if event["ok"] else "需要重新检查"
+                self._record(f"{action_title(event['action'])[2:]} · {suffix}", "")
             elif event["type"] == "receipt":
                 self._on_receipt(event)
             elif event["type"] == "conversation":

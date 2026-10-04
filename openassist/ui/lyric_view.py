@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import font
 
 from openassist.ui.presentation import blend, choose_ui_font
+from openassist.core.execution import TERMINAL_STATUSES
 
 
 class LyricView(tk.Canvas):
@@ -116,7 +117,7 @@ class LyricView(tk.Canvas):
                                 anchor="nw", fill=color, font=(self.body_font, size, "bold"))
         bounds = self.bbox(item)
         bottom = bounds[3] if bounds else y + 80
-        if self.phase not in {"idle", "completed", "cancelled", "failed"}:
+        if self.phase not in TERMINAL_STATUSES | {"idle"}:
             marker = x - 24 * self.scale
             self.create_line(marker, y + 6 + offset, marker, bottom - 6, fill=t.signal or t.accent, width=max(3, round(2 * self.scale)))
             self.create_oval(marker - 4 * self.scale, y - 12 + offset, marker + 4 * self.scale, y - 4 + offset, fill=t.signal or t.accent, outline="")

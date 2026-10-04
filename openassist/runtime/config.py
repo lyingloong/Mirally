@@ -28,33 +28,7 @@ class SpeechConfig:
     response_format: str
 
 
-def configure_ufo_config_root(product_root: Path, *, ufo_root: Optional[Path] = None) -> Path:
-    """Select the product-owned UFO configuration directory.
-
-    The upstream UFO loader accepts a configurable base directory.  Configure
-    that loader before importing UFO modules so the submodule stays untouched
-    while OpenAssist owns its runtime YAML files.
-    """
-    config_root = product_root / "config" / "openassist"
-    if not (config_root / "ufo").is_dir():
-        raise FileNotFoundError(
-            f"OpenAssist UFO configuration directory not found at {config_root / 'ufo'}"
-        )
-
-    os.environ["OPENASSIST_UFO_CONFIG_ROOT"] = str(config_root.resolve())
-    if ufo_root is not None:
-        import sys
-
-        resolved_ufo_root = str(ufo_root.resolve())
-        if resolved_ufo_root not in sys.path:
-            sys.path.insert(0, resolved_ufo_root)
-        from config import config_loader
-
-        config_loader.ConfigLoader.reset()
-        config_loader.ConfigLoader.get_instance(str(config_root.resolve()))
-        config_loader._global_ufo_config = None
-        config_loader._global_galaxy_config = None
-    return config_root
+from openassist.runtime.ufo.config import configure_ufo_config_root
 
 
 def _env_or_value(value: Any, *, field_name: str, required: bool = True) -> str:
