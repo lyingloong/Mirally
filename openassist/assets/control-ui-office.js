@@ -87,10 +87,50 @@
         if (signature.v === 1 && signature.phase === 'commentary') return false;
       } catch { /* Ordinary text signatures are not phase metadata. */ }
     }
-    if ((!reason || reason === 'tooluse') && message.__openclaw?.runTerminal !== true) return false;
+    if (reason === 'error' || ((!reason || reason === 'tooluse') && message.__openclaw?.runTerminal !== true)) return false;
     const text = typeof message.content === 'string' ? message.content : (message.content || [])
       .filter(part => part.type === 'text').map(part => part.text).join('\n');
     return !!text.trim() && text.trim() !== 'NO_REPLY';
   }
-  return Object.freeze({workflows, outputs, compose, plain, handoff, isFinal});
+  function createReplyTracker() {
+    const sessions = new Map();
+    return ({scope, turn, reply, completion, working, waiting, error, loading}) => {
+      const terminal = completion?.phase === 'done' && completion.sessionKey && completion.runId ?
+        `${completion.sessionKey}:${completion.runId}` : null;
+      let seen = sessions.get(scope);
+      if (!seen) {
+        seen = {turn, baseline:reply?.key, terminal, delivered:null, text:null, pending:null, active:!!working};
+        sessions.set(scope, seen);
+        return null;
+      }
+      if (loading && !seen.active && !working) {
+        // Hydration can start after the empty pane was already presented.
+        seen.turn = turn; seen.baseline = reply?.key; seen.terminal = terminal;
+        return null;
+      }
+      if (working || turn !== seen.turn) seen.active = true;
+      if (turn !== seen.turn) {
+        seen.turn = turn;
+        if (!reply) seen.baseline = undefined;
+        seen.delivered = null; seen.text = null; seen.pending = null;
+      }
+      if (error || completion?.phase === 'interrupted') {
+        seen.baseline = reply?.key; seen.terminal = terminal; seen.pending = null; seen.active = false;
+        return null;
+      }
+      if (terminal && terminal !== seen.terminal) seen.pending = terminal;
+      const fresh = reply && reply.key !== seen.baseline;
+      if (loading || working || waiting) return null;
+      if (!fresh && !seen.pending && !seen.delivered) return null;
+      const key = seen.delivered || seen.pending || `${scope}:${turn}:${reply.key}`;
+      const text = fresh ? reply.text : seen.text ?? '';
+      if (seen.delivered === key && seen.text === text) return null;
+      seen.delivered = key; seen.text = text;
+      seen.active = !text;
+      if (reply) seen.baseline = reply.key;
+      seen.terminal = terminal; seen.pending = null;
+      return {key, text};
+    };
+  }
+  return Object.freeze({workflows, outputs, compose, plain, handoff, isFinal, createReplyTracker});
 });

@@ -2,9 +2,17 @@
 (() => {
   if (window.top !== window || location.origin !== __MIRALLY_ORIGIN__ || !window.chrome?.webview) return;
   const MARK = __MIRALLY_MARK__;
+  const PETS = __MIRALLY_PETS__;
+  const PET_KEY = 'mirally.companion.pet';
+  const FORM_KEY = 'mirally.companion.form';
+  let petType = 'otter';
+  try { const saved = localStorage.getItem(PET_KEY); if (Object.hasOwn(PETS, saved)) petType = saved; } catch {}
   const office = window.__mirallyOffice;
+  const trackReply = office.createReplyTracker();
   let app, pane, surface, entry, connectedContext, mode = 'workspace', frame, returnAfterAttention, presentationScope, preparing;
+  let replyNotice, dismissedReply;
   let surfaceMode = 'rail';
+  try { const saved=localStorage.getItem(FORM_KEY); if (['rail','badge','pet'].includes(saved)) surfaceMode=saved; } catch {}
   const disposers = [];
   const $ = selector => surface.querySelector(selector);
   const text = (selector, value) => {
@@ -26,6 +34,7 @@
   const active = () => [...document.querySelectorAll('openclaw-chat-pane.chat-pane-cache__pane--active')]
     .find(candidate => candidate.presented !== false && candidate.state?.handleSendChat);
   const rows = state => state.sessionsResult?.sessions ?? app?.context?.sessions?.state?.result?.sessions ?? [];
+  const attachmentsLabel = state => state.chatAttachments?.length ? `${state.chatAttachments.length} 份材料已带上` : 'Mirally · 随时在这里';
   async function ensureReady() {
     if (active()) return active();
     if (preparing) return preparing;
@@ -74,16 +83,45 @@
   function openOffice() {
     workspace(() => window.__mirallyWork?.open());
   }
+  function setView(value) {
+    if (!['compact','quick','menu','detail','reply'].includes(value)) return;
+    if (value === 'compact' && replyNotice) value = 'reply';
+    surface.dataset.fromView = surface.dataset.view;
+    surface.dataset.view = value;
+    surface.dataset.expanded = String(value !== 'compact');
+    $('.mirally-companion__rail').tabIndex = value === 'detail' ? -1 : 0;
+    $('.mirally-companion__panel').inert = value === 'compact';
+    syncShape();
+    schedule();
+  }
   function expand(value) {
-    surface.dataset.expanded = String(value);
-    $('.mirally-companion__rail').tabIndex = value ? -1 : 0;
-    $('.mirally-companion__panel').inert = !value;
+    setView(value ? surfaceMode === 'rail' ? 'detail' : 'quick' : 'compact');
+  }
+  function dismissReply() {
+    if (replyNotice) dismissedReply = replyNotice.key;
+    replyNotice = null;
+  }
+  function showReply() {
+    if (!replyNotice || mode !== 'companion') return;
+    const report = office.handoff(replyNotice.text);
+    const body = report ? [report.completed, report.attention && '待你确认：\n'+report.attention,
+      report.next && '下一步：'+report.next].filter(Boolean).join('\n\n') : office.plain(replyNotice.text);
+    text('[data-slot="notice-title"]', report ? '这一轮有结果了' : replyNotice.text ? 'Mirally 回复你' : '本轮已结束');
+    text('[data-slot="notice-text"]', body || '这一轮已结束。打开会话查看结果。');
+    const state = pane?.state;
+    // Keep the user's current interaction; the receipt appears on returning
+    // to compact. An empty composer after sending may show the answer directly.
+    if (surface.dataset.view === 'reply') syncShape();
+    else if (['compact','quick'].includes(surface.dataset.view) &&
+        !state?.chatMessage?.trim() && !state?.chatAttachments?.length && surface.dataset.dragover !== 'true') {
+      setView('reply');
+    }
   }
   function setMode(value) {
     mode = value;
     document.documentElement.dataset.mirallyMode = value;
     surface.hidden = value !== 'companion';
-    if (value === 'companion') expand(!!pane?.state?.chatMessage);
+    if (value === 'companion') expand(false);
     schedule();
   }
   async function dock() {
@@ -91,21 +129,39 @@
     if (!pane) return;
     window.__mirallyWork?.close();
     setMode('companion');
-    post('dock', {surfaceMode,expanded:surface.dataset.expanded === 'true'});
+    post('dock', {surfaceMode,view:surface.dataset.view,expanded:surface.dataset.expanded === 'true'});
   }
-  function setForm(value) {
+  function setForm(value, remember = true) {
     if (!['rail','badge','pet'].includes(value)) return;
     surfaceMode = value;
     surface.dataset.form = value;
     surface.querySelectorAll('[data-form]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.form===value)));
-    if (mode === 'companion') post('surface',{surfaceMode,expanded:surface.dataset.expanded === 'true'});
+    if (remember) { try { localStorage.setItem(FORM_KEY,value); } catch {} }
+    if (mode === 'companion') post('surface',{surfaceMode,view:surface.dataset.view,expanded:surface.dataset.expanded === 'true'});
+  }
+  function setPet(value, remember = true) {
+    if (!Object.hasOwn(PETS, value)) return;
+    petType = value;
+    surface.dataset.pet = value;
+    surface.querySelector('.mirally-companion__rail .mirally-companion__pet').innerHTML = PETS[value];
+    $('.mirally-companion__pet--header').innerHTML = PETS[value].replaceAll('pet-g-', 'pet-header-g-');
+    surface.querySelectorAll('button[data-pet]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.pet === value)));
+    if (remember) { try { localStorage.setItem(PET_KEY, value); } catch {} }
   }
   function syncShape() {
     if (mode !== 'companion' || !surface) return;
     const rect = surface.getBoundingClientRect();
-    if (rect.width && rect.height) post('shape', {rect:[rect.x, rect.y, rect.width, rect.height], viewport:[innerWidth, innerHeight]});
+    if (!rect.width || !rect.height) return;
+    const nodes = ['quick','menu','reply'].includes(surface.dataset.view) ?
+      [$('.mirally-companion__rail'),$('.mirally-companion__panel')] : [surface];
+    const parts = nodes.map(node => {
+      const r = node.getBoundingClientRect();
+      return [r.x,r.y,r.width,r.height,parseFloat(getComputedStyle(node).borderTopLeftRadius) || 0];
+    });
+    post('shape', {rect:[rect.x, rect.y, rect.width, rect.height], viewport:[innerWidth, innerHeight],parts,view:surface.dataset.view});
   }
   function workspace(callback) {
+    dismissReply();
     post('workspace');
     setMode('workspace');
     requestAnimationFrame(() => callback?.());
@@ -149,6 +205,7 @@
   async function send() {
     const target = pane, state = target?.state, key = state?.sessionKey;
     if (!state?.handleSendChat || state.chatSending || (!state.chatMessage?.trim() && !state.chatAttachments?.length)) return;
+    dismissReply();
     const current = () => active()?.state === state && state.sessionKey === key;
     text('[data-slot="receipt"]', '正在发送…');
     try {
@@ -277,44 +334,92 @@
       if (mode === 'companion') text('[data-slot="status"]', '连接恢复后即可继续；完整工作台仍可打开');
       return;
     }
-    if (mode !== 'companion' && !returnAfterAttention) return;
     const state = pane.state;
     const scope = `${pane.paneId}:${state.sessionKey}`;
-    if (scope !== presentationScope) { presentationScope = scope; text('[data-slot="receipt"]', ''); }
-    const row = rows(state).find(row => row.key === state.sessionKey);
-    const digest = state.observerDigest || row?.observerDigest;
+    if (scope !== presentationScope) {
+      presentationScope = scope; replyNotice = null; dismissedReply = null;
+      if (surface.dataset.view === 'reply') setView('compact');
+      text('[data-slot="receipt"]', '');
+    }
     const history = state.chatMessages ?? [];
+    const userRows = history.filter(row => message(row).role === 'user');
+    const task = userRows.at(-1);
     const reply = [...history].reverse().find(row => office.isFinal(message(row)) && content(row));
-    const task = [...history].reverse().find(row => message(row).role === 'user' && content(row));
+    const finalReply = reply && history.indexOf(reply) > history.indexOf(task);
+    const identity = row => {
+      const m = message(row);
+      return [m.id, m.__openclaw?.runId, m.sequence, m.timestamp ?? m.ts, content(row)];
+    };
     const busy = pane.runActivity?.working === true || !!state.chatSending;
     const waiting = (pane.questionProjection?.prompts?.length ?? 0) + (state.chatSessionApprovalQueue?.length ?? 0);
     const error = state.chatError || state.chatRunError;
+    const delivered = trackReply({scope, turn:JSON.stringify([userRows.length, task && identity(task)]),
+      reply:finalReply ? {key:JSON.stringify(identity(reply)), text:content(reply)} : null,
+      completion:pane.runActivity?.completion, working:busy, waiting, error, loading:state.chatLoading});
+    if (busy || waiting || error) {
+      replyNotice = null;
+      if (surface.dataset.view === 'reply') setView('compact');
+    } else if (delivered && delivered.key !== dismissedReply &&
+        (mode === 'companion' || returnAfterAttention === state.sessionKey)) {
+      replyNotice = delivered;
+    }
+    // Observe replies in the full workspace too, so docking or reloading
+    // history never announces an answer that was already shown there.
+    if (mode !== 'companion' && !returnAfterAttention) return;
+    showReply();
+    const row = rows(state).find(row => row.key === state.sessionKey);
+    const digest = [state.observerDigest,row?.observerDigest].filter(Boolean).sort((a,b) =>
+      (b.revision || 0)-(a.revision || 0) || (Number(b.updatedAt) || Date.parse(b.updatedAt) || 0)-(Number(a.updatedAt) || Date.parse(a.updatedAt) || 0))[0];
+    const runId = state.chatRunId || (row?.hasActiveRun && row.activeRunIds?.includes(digest?.runId) ? digest.runId : null);
+    const currentDigest = runId && digest?.runId === runId ? digest : null;
     if (returnAfterAttention && state.sessionKey !== returnAfterAttention) returnAfterAttention = null;
     if (returnAfterAttention && mode === 'workspace' && !waiting) {
       returnAfterAttention = null;
       dock();
     }
-    const finalReply = reply && history.indexOf(reply) > history.indexOf(task);
     const nativeTitle = pane.paneTitle || row?.displayName;
     const generatedTitle = !nativeTitle || nativeTitle === state.sessionKey || nativeTitle === state.sessionKey.split(':').at(-1) || /^(新会话|New session)$/i.test(nativeTitle);
     const title = generatedTitle ? excerpt(task ? content(task).split(/[。？！\n]/)[0] : '', 48) || '我们从这里开始' : nativeTitle;
     const status = waiting ? '需要你决定，工作进展会继续保留' : error ? excerpt(error, 100) : busy ?
-      excerpt(digest?.headline || state.chatRunStartup?.message, 120) || '正在推进这件事，你可以继续自己的工作' :
+      excerpt(currentDigest?.headline || state.chatRunStartup?.message, 120) || '正在推进这件事，你可以继续自己的工作' :
       finalReply ? '回复已经留下，随时可以接着聊' : '把手头的一小部分交给我，我们一起推进';
     surface.dataset.state = waiting ? 'waiting' : error ? 'error' : busy ? 'working' : finalReply ? 'done' : 'idle';
     text('[data-slot="title"]', title);
     text('[data-slot="rail-title"]', excerpt(title, 28));
     const otherAttention = background(state);
     text('[data-slot="state"]', waiting ? '需要你' : busy ? '正在推进' : error ? '需要查看' : finalReply ? '本轮已结束' : '随时在这里');
+    text('[data-slot="rail-state"]', waiting ? '待确认' : busy ? '工作中' : error ? '需查看' : finalReply ? '已完成' : '待命');
     text('.mirally-companion__rail-hint', waiting || otherAttention ? '需要你' : busy ? '与你并肩' : error ? '需要查看' : finalReply ? '回复已留下' : '随时在这里');
-    text('[data-slot="status"]', status);
     $('[data-action="attention"]').hidden = !waiting;
     $('[data-action="stop"]').hidden = !busy;
     text('[data-action="send"]', busy ? '补充 ↗' : '发送 ↗');
-    const activities = (state.toolStreamOrder ?? []).slice(-3).map(id => state.toolStreamById?.get?.(id) ?? state.toolStreamById?.[id])
-      .filter(tool => tool && (!tool.sessionKey || tool.sessionKey === state.sessionKey))
-      .map(tool => `${tool.isError ? '需要查看' : tool.resultReceived ? '已处理' : '正在处理'} · ${tool.activity?.description ||
-        ({read:'读取资料',write:'整理文件',edit:'修改内容',exec:'执行后台操作',browser:'处理网页',web_search:'查找资料',web_fetch:'阅读网页',process:'等待后台操作'}[tool.name]) || '工作步骤'}`);
+    const tools = (state.toolStreamOrder ?? []).map(id => state.toolStreamById?.get?.(id) ?? state.toolStreamById?.[id])
+      .filter(tool => tool && (!tool.sessionKey || tool.sessionKey === state.sessionKey));
+    const currentTools = runId ? tools.filter(tool => tool.runId === runId) : [];
+    const step = tool => {
+      const items = (Array.isArray(tool.activity) ? tool.activity : []).filter(item => !item.hideFromChannelProgress);
+      const item = items.filter(item => item.phase !== 'end' && !['completed','failed'].includes(item.status)).at(-1) || items.at(-1);
+      return {label:excerpt(item?.progressText || item?.title || tool.activity?.description ||
+        ({read:'读取资料',write:'整理文件',edit:'修改内容',exec:'执行后台操作',browser:'处理网页',web_search:'查找资料',web_fetch:'阅读网页',process:'等待后台操作'}[tool.name]) || '处理工作材料',60),
+        error:tool.isError || item?.status === 'failed', ended:tool.resultReceived || item?.phase === 'end' || item?.status === 'completed'};
+    };
+    const liveStep = currentTools.map(step).filter(item => !item.ended && !item.error).at(-1);
+    const recentStep = tools.map(step).filter(item => item.ended || item.error).at(-1) || (!busy && tools.length ? step(tools.at(-1)) : null);
+    const startup = state.chatRunStartup?.state !== 'activity' ? ({preparing_workspace:'准备工作空间',
+      naming_worktree:'准备工作目录',creating_worktree:'准备工作目录',running_setup:'准备工作环境',
+      provisioning_environment:'准备工作环境',preparing_context:'整理上下文',memory_flushing:'整理会话记忆',
+      starting_model:'思考下一步'})[state.chatRunStartup?.phase] : null;
+    const currentStep = waiting ? '等待你的确认' : error ? '工作需要查看' : busy ?
+      liveStep?.label || startup || excerpt(currentDigest?.headline || state.chatRunStartup?.message,60) || '正在思考下一步' :
+      finalReply ? '这一轮已结束' : '随时与你并肩';
+    text('[data-slot="rail-current"]', currentStep);
+    text('[data-slot="status"]', busy && !waiting && !error ? currentStep : status);
+    text('[data-slot="rail-previous"]', recentStep && recentStep.label !== currentStep ? (recentStep.ended ? '最近处理 · ' : '最近活动 · ')+recentStep.label : '');
+    text('[data-slot="mini-status"]', busy || waiting || error ? currentStep : replyNotice ? '新回复到了' : attachmentsLabel(state));
+    const activities = (currentTools.length ? currentTools : tools).slice(-3).map(tool => {
+      const item = step(tool);
+      return `${item.error ? '需要查看' : !currentTools.length ? '最近处理' : item.ended ? '已处理' : '正在处理'} · ${item.label}`;
+    });
     const activity = $('[data-slot="activity"]');
     const activityKey = activities.join('\n');
     if (activity.dataset.key !== activityKey) {
@@ -366,29 +471,57 @@
     surface = document.createElement('aside');
     surface.className = 'mirally-companion';
     surface.hidden = true;
-    surface.dataset.expanded = 'true';
+    surface.dataset.expanded = 'false';
+    surface.dataset.view = 'compact';
     surface.dataset.form = surfaceMode;
     surface.dataset.state = 'idle';
     surface.setAttribute('aria-label', 'Mirally 侧边伙伴');
     surface.innerHTML = `
       <div class="mirally-companion__rail" role="button" tabindex="0" aria-label="展开侧边伙伴">
         <span class="mirally-companion__mark"><img alt="Mirally"></span>
-        <span class="mirally-companion__pet-face" aria-hidden="true"><i></i><i></i></span>
-        <span class="mirally-companion__pulse"></span><span class="mirally-companion__rail-title" data-slot="rail-title"></span>
+        <span class="mirally-companion__pet" aria-hidden="true"></span>
+        <span class="mirally-companion__rail-state"><span class="mirally-companion__pulse"></span><span data-slot="rail-state"></span></span>
+        <span class="mirally-companion__rail-title" data-slot="rail-title"></span>
+        <span class="mirally-companion__rail-progress"><strong data-slot="rail-current" aria-live="polite"></strong><span data-slot="rail-previous"></span></span>
         <span class="mirally-companion__rail-hint">与你并肩</span>
         <span class="mirally-companion__drop-hint">带上材料</span>
       </div>
       <div class="mirally-companion__panel">
+        <section class="mirally-companion__notice" aria-label="新回复">
+          <div class="mirally-companion__notice-header"><span data-slot="notice-title" role="status" aria-live="polite"></span>
+            <button class="mirally-companion__icon-button" data-action="notice-close" title="关闭回复气泡" aria-label="关闭回复气泡">×</button>
+          </div>
+          <p data-slot="notice-text"></p>
+          <div class="mirally-companion__notice-actions"><button data-action="reply">查看完整回复 ↗</button><button data-action="reply-compose">接着聊</button></div>
+        </section>
         <header class="mirally-companion__header">
           <span class="mirally-companion__mark"><img alt=""></span><span class="mirally-companion__brand">Mirally</span>
+          <button type="button" class="mirally-companion__pet mirally-companion__pet--header" data-action="pet" aria-label="和伙伴打个招呼"></button>
           <button class="mirally-companion__drag-hint" data-action="drag" title="拖动伙伴的位置" aria-label="拖动伙伴的位置">⠿</button>
           <button class="mirally-companion__target-handle" title="拖向页面，带回工作材料" aria-label="拖向页面，带回工作材料">◎</button>
           <div class="mirally-companion__actions">
             <button class="mirally-companion__icon-button" data-action="workspace" title="打开完整工作台" aria-label="打开完整工作台">↗</button>
+            <button class="mirally-companion__icon-button" data-action="collapse" title="收起浮窗" aria-label="收起浮窗">⌃</button>
             <button class="mirally-companion__icon-button" data-action="minimize" title="最小化到任务栏" aria-label="最小化到任务栏">−</button>
           </div>
         </header>
-        <nav class="mirally-companion__form-switch" aria-label="伙伴形态"><button data-form="rail" aria-pressed="true">侧栏</button><button data-form="badge" aria-pressed="false">图标</button><button data-form="pet" aria-pressed="false">伙伴</button></nav>
+        <div class="mirally-companion__quick-header"><span data-slot="mini-status"></span><div class="mirally-companion__actions">
+          <button class="mirally-companion__icon-button" data-action="attach" title="添加材料" aria-label="添加材料">＋</button>
+          <button class="mirally-companion__icon-button" data-action="detail" title="查看工作进展与选项" aria-label="查看工作进展与选项">↗</button>
+          <button class="mirally-companion__icon-button" data-action="collapse" title="收起" aria-label="收起">×</button>
+        </div></div>
+        <div class="mirally-companion__menu-actions" role="menu" aria-label="伙伴选项">
+          <button data-action="quick" role="menuitem">说一句或补充要求 <span>↗</span></button>
+          <button data-action="detail" role="menuitem">查看工作进展 <span>↗</span></button>
+          <button data-action="workspace" role="menuitem">打开完整工作台 <span>↗</span></button>
+        </div>
+        <div class="mirally-companion__appearance">
+          <nav class="mirally-companion__form-switch" aria-label="伙伴形态"><button data-form="rail" aria-pressed="true">侧栏</button><button data-form="badge" aria-pressed="false">图标</button><button data-form="pet" aria-pressed="false">伙伴</button></nav>
+          <div class="mirally-companion__pet-switch" role="group" aria-label="伙伴造型">
+            <button type="button" data-pet="otter" aria-pressed="false"><span aria-hidden="true">${PETS.otter.replaceAll('pet-g-', 'pet-choice-otter-g-')}</span>小海獭<i aria-hidden="true"></i></button>
+            <button type="button" data-pet="fox" aria-pressed="false"><span aria-hidden="true">${PETS.fox.replaceAll('pet-g-', 'pet-choice-fox-g-')}</span>小飞狐<i aria-hidden="true"></i></button>
+          </div>
+        </div>
         <section class="mirally-companion__work"><div class="mirally-companion__eyebrow"><span class="mirally-companion__pulse"></span><span data-slot="state"></span></div>
           <h2 class="mirally-companion__title" data-slot="title"></h2><p class="mirally-companion__status" data-slot="status" role="status"></p>
           <button data-action="attention" hidden>查看需要你决定的事 ↗</button>
@@ -419,12 +552,14 @@
         </form>
       </div>`;
     surface.querySelectorAll('img').forEach(image => { image.src = MARK; });
+    setForm(surfaceMode, false);
+    setPet(petType, false);
     document.body.append(surface);
     window.__mirallyContext?.bind($('.mirally-companion__target-handle'),{
       onStart:()=>text('[data-slot="receipt"]','正在读取窗口画面…'),
       onReady:async result=>{
         if(!await window.__mirallyIntake.attach([result.file]))throw new Error('画面暂未加入，请重试。');
-        expand(true);text('[data-slot="receipt"]','已带上「'+result.title+'」'+(result.source==='visible-area'?'的可见区域，请核对截图和遮挡。':'的画面，核对后再补充要求。'));schedule();
+        setView('detail');text('[data-slot="receipt"]','已带上「'+result.title+'」'+(result.source==='visible-area'?'的可见区域，请核对截图和遮挡。':'的画面，核对后再补充要求。'));schedule();
       },onError:value=>{expand(true);text('[data-slot="receipt"]',value);}
     });
     entry = document.createElement('nav');
@@ -435,32 +570,97 @@
     entry.querySelector('[data-entry="dock"]').onclick = dock;
     entry.querySelector('[data-entry="office"]').onclick = openOffice;
     document.body.append(entry);
-    const holdOpen = () => document.activeElement === $('[data-slot="draft"]') || !!pane?.state?.chatMessage;
+    let leaveTimer, reactionTimer, keyboardFocus=false, hoverSuppressed=false;
+    const react = value => {
+      clearTimeout(reactionTimer);
+      surface.dataset.reaction=value;
+      reactionTimer=setTimeout(()=>delete surface.dataset.reaction,value==='drag'?900:1100);
+    };
+    const holdOpen = () => surface.dataset.view === 'reply' || (document.hasFocus() && (document.activeElement === $('[data-slot="draft"]') ||
+      (keyboardFocus && surface.contains(document.activeElement)))) || surface.dataset.dragover==='true';
+    const cancelLeave = () => { clearTimeout(leaveTimer); leaveTimer=null; };
+    const compact = () => {
+      cancelLeave(); keyboardFocus=false; hoverSuppressed=true;
+      if (surface.dataset.view === 'reply') dismissReply();
+      if (surface.contains(document.activeElement)) document.activeElement.blur();
+      expand(false);
+    };
+    const openMenu = () => {
+      hoverSuppressed=false; cancelLeave();
+      if (surface.dataset.view !== 'menu') setView('menu');
+    };
+    const openPetMenu = () => {
+      if (mode === 'companion' && surfaceMode === 'pet' && surface.dataset.view === 'compact') openMenu();
+    };
+    const leave = () => {
+      cancelLeave();
+      // WebView's rounded native region follows the growing CSS surface. A
+      // brief grace covers intermediate leave events while crossing its edge.
+      leaveTimer=setTimeout(()=>{ if (!surface.matches(':hover') && !holdOpen()) expand(false); },100);
+    };
     const collapseAfterFocus = () => requestAnimationFrame(() => {
-      if (!surface.matches(':hover') && !holdOpen()) expand(false);
+      if (!surface.matches(':hover') && !holdOpen()) leave();
     });
-    surface.addEventListener('pointerenter', () => { if (surfaceMode==='rail') expand(true); });
+    surface.addEventListener('pointerenter', () => {
+      cancelLeave();
+      if (!hoverSuppressed) {
+        if (surface.dataset.view === 'compact' && surfaceMode !== 'pet') expand(true);
+        if (surfaceMode === 'pet') react('hello');
+      }
+    });
     surface.addEventListener('pointerleave', () => {
-      if (!holdOpen()) expand(false);
+      hoverSuppressed=false;
+      dragStart=null;
+      if (!holdOpen()) leave();
     });
+    surface.addEventListener('focusin',cancelLeave);
+    surface.addEventListener('keydown',()=>{ keyboardFocus=true; },true);
+    surface.addEventListener('keydown',event=>{ if (event.key==='Escape') { event.preventDefault(); compact(); } });
     surface.addEventListener('focusout', collapseAfterFocus);
     $('.mirally-companion__rail').onkeydown = event => {
-      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); expand(true); $('[data-slot="draft"]').focus(); }
+      if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+        event.preventDefault(); openMenu(); $('.mirally-companion__menu-actions button').focus();
+      } else if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        if (surfaceMode === 'pet') react('poke');
+        else { expand(true); $('[data-slot="draft"]').focus(); }
+      }
     };
     $('[data-slot="draft"]').oninput = event => pane?.state?.handleChatDraftChange(event.target.value);
     $('[data-slot="draft"]').onkeydown = event => {
       if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); send(); }
     };
     $('.mirally-companion__composer').onsubmit = event => { event.preventDefault(); send(); };
-    let dragStart, moved = false;
+    let dragStart, movedAt=0;
+    // Open on mouse release even if the native host suppresses contextmenu.
+    surface.addEventListener('pointerup',event=>{
+      if (event.button !== 2 || !event.target.closest('.mirally-companion__rail')) return;
+      event.preventDefault(); event.stopPropagation(); openMenu();
+    },true);
+    surface.addEventListener('contextmenu',event=>{
+      if (!event.target.closest('.mirally-companion__rail')) return;
+      event.preventDefault(); event.stopPropagation(); openMenu();
+    });
     surface.addEventListener('click', event => {
-      if (moved) { moved=false; event.preventDefault(); return; }
-      if (event.target.closest('.mirally-companion__rail')) expand(true);
-      const form = event.target.closest('[data-form]')?.dataset.form;
-      if (form) setForm(form);
+      if (event.detail && movedAt && performance.now()-movedAt<350) { movedAt=0; event.preventDefault(); return; }
+      movedAt=0;
+      if (event.target.closest('.mirally-companion__rail')) {
+        hoverSuppressed=false; cancelLeave();
+        if (surfaceMode === 'pet') react('poke');
+        else { expand(true); $('[data-slot="draft"]').focus(); }
+      }
+      const form = event.target.closest('button[data-form]')?.dataset.form;
+      if (form) { setForm(form); compact(); }
+      const pet = event.target.closest('button[data-pet]')?.dataset.pet;
+      if (pet) { setPet(pet); compact(); }
       const action = event.target.closest('[data-action]')?.dataset.action;
+      if (action === 'pet') react('poke');
+      if (action === 'quick') { setView('quick'); $('[data-slot="draft"]').focus(); }
+      if (action === 'reply-compose') { dismissReply(); setView('quick'); $('[data-slot="draft"]').focus(); }
+      if (action === 'detail') setView('detail');
       if (action === 'workspace' || action === 'reply') workspace(() => window.__mirallyWork?.close());
       if (action === 'minimize') post('minimize');
+      if (action === 'collapse' || action === 'notice-close') compact();
       if (action === 'attention') nativeAttention();
       if (action === 'stop') pane?.state?.handleAbortChat?.();
       if (action === 'files') { const target = pane; workspace(() => nativeFiles(target)); }
@@ -481,30 +681,35 @@
       }
     });
     surface.addEventListener('pointerdown',event=>{
-      moved=false;
+      keyboardFocus=false; movedAt=0; cancelLeave();
       if (event.button===0 && (event.target.closest('[data-action="drag"]') || event.altKey)) {
-        event.preventDefault(); post('drag');
-      } else if (event.button===0 && surfaceMode!=='rail' && surface.dataset.expanded!=='true') {
+        event.preventDefault(); react('drag'); post('drag');
+      } else if (event.button===0 && !event.target.closest('button,a,input,textarea,select,summary,[role="button"]:not(.mirally-companion__rail)') &&
+        (event.target.closest('.mirally-companion__header') ||
+          (surface.dataset.view==='detail' && event.clientY<=$('.mirally-companion__header').getBoundingClientRect().bottom) ||
+          (surfaceMode!=='rail' && event.target.closest('.mirally-companion__rail')))) {
         dragStart={x:event.screenX,y:event.screenY};
-        surface.setPointerCapture(event.pointerId);
+        react('poke');
       }
+      if (event.target.closest('[data-action="pet"]')) react('poke');
     });
     surface.addEventListener('pointermove',event=>{
+      if (event.buttons!==1) { dragStart=null; return; }
       if (dragStart && Math.hypot(event.screenX-dragStart.x,event.screenY-dragStart.y)>5) {
-        dragStart=null; moved=true;
-        if (surface.hasPointerCapture(event.pointerId)) surface.releasePointerCapture(event.pointerId);
-        post('drag');
+        dragStart=null; movedAt=performance.now(); react('drag'); post('drag');
       }
     });
-    surface.addEventListener('pointerup',()=>{ dragStart=null; });
-    surface.addEventListener('pointercancel',()=>{ dragStart=null; });
+    for (const event of ['pointerup','pointercancel','blur']) window.addEventListener(event,()=>{ dragStart=null; });
+    window.addEventListener('blur',()=>{ keyboardFocus=false; if (mode==='companion') leave(); });
     surface.querySelectorAll('details').forEach(node => node.addEventListener('toggle', schedule));
     surface.addEventListener('dragover', event => {
       if ([...event.dataTransfer?.types||[]].some(type=>['Files','text/plain','text/uri-list'].includes(type))) {
-        event.preventDefault(); surface.dataset.dragover='true';
+        event.preventDefault(); cancelLeave(); surface.dataset.dragover='true'; expand(true);
       }
     });
-    surface.addEventListener('dragleave', event => { if (!surface.contains(event.relatedTarget)) delete surface.dataset.dragover; });
+    surface.addEventListener('dragleave', event => {
+      if (!surface.contains(event.relatedTarget)) { delete surface.dataset.dragover; if (!holdOpen()) leave(); }
+    });
     surface.addEventListener('drop', async event => {
       const data = window.__mirallyIntake?.readDrop(event.dataTransfer);
       if (!data || (!data.files.length && !data.text && !data.urls.length)) return;
@@ -532,7 +737,7 @@
       })) schedule();
     });
     observer.observe(document.body, {childList:true, subtree:true, characterData:true, attributes:true, attributeFilter:['class']});
-    window.__mirallyCompanion = {dock, workspace, expand, setForm, ensureReady, syncShape, refresh:schedule};
+    window.__mirallyCompanion = {dock, workspace, expand, setView, setForm, setPet, openPetMenu, ensureReady, syncShape, refresh:schedule};
     window.addEventListener('pagehide', () => disposers.splice(0).forEach(dispose => dispose()));
     schedule();
   }

@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 ASSETS = Path(__file__).resolve().parent / "assets"
-BRAND_VERSION = "2026.10.04.2"
+BRAND_VERSION = "2026.10.05.6"
 
 
 def brand_script(url: str) -> str:
@@ -29,7 +29,10 @@ def brand_script(url: str) -> str:
         "control-ui-mirally.js", "control-ui-office.js", "control-ui-intake.js", "control-ui-context.js", "control-ui-work.js", "control-ui-companion.js"))
     return script.replace("__MIRALLY_ORIGIN__", json.dumps(origin)).replace(
         "__MIRALLY_STYLE__", json.dumps(css)
-    ).replace("__MIRALLY_MARK__", json.dumps(logo)).replace("__MIRALLY_VERSION__", json.dumps(BRAND_VERSION))
+    ).replace("__MIRALLY_MARK__", json.dumps(logo)).replace(
+        "__MIRALLY_PETS__", json.dumps({kind: (ASSETS / name).read_text(encoding="utf-8") for kind, name in (
+            ("otter", "mirally-pet-otter.svg"), ("fox", "mirally-pet.svg"))})
+    ).replace("__MIRALLY_VERSION__", json.dumps(BRAND_VERSION))
 
 
 def startup_message(message: str) -> str:

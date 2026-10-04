@@ -116,9 +116,11 @@ class OpenClawHostTests(unittest.TestCase):
         order = []
         shell.host.connect.side_effect = lambda status: order.append('native') or 'http://127.0.0.1/'
         shell.window.events.loaded.wait.side_effect = lambda timeout: order.append('opening document') or True
+        shell._startup_visible = Mock()
+        shell._startup_visible.wait.side_effect = lambda timeout: order.append('opening frame') or True
         with patch.object(shell, '_install_brand'):
             shell._connect()
-        self.assertEqual(order, ['native', 'opening document'])
+        self.assertEqual(order, ['native', 'opening document', 'opening frame'])
         shell.window.load_url.assert_called_once_with('http://127.0.0.1/')
 
     def test_status_before_webview_initialization_is_delivered_later(self):

@@ -2,6 +2,103 @@ const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const office = require('../openassist/assets/control-ui-office.js');
 
+const replyFrame = overrides => ({scope:'pane:session',turn:'user:1',reply:null,completion:null,
+  working:false,waiting:false,error:null,loading:false,...overrides});
+const finalReply = (key='answer:1',text='你好呀！') => ({key,text});
+const done = runId => ({phase:'done',sessionKey:'session',runId,occurredAt:123});
+
+test('reply tracker baselines old history and remembers it across session switches', () => {
+  const track=office.createReplyTracker(), state=replyFrame({reply:finalReply()});
+  assert.equal(track(state),null);
+  assert.equal(track(replyFrame({scope:'other',reply:finalReply('other')})),null);
+  assert.equal(track(state),null);
+});
+test('a new final reply notifies even without a published terminal event', () => {
+  const track=office.createReplyTracker(); track(replyFrame());
+  const result=track(replyFrame({reply:finalReply()}));
+  assert.equal(result.text,'你好呀！');
+  assert.equal(track(replyFrame({reply:finalReply()})),null);
+});
+test('final reply while working stays pending until work really stops', () => {
+  const track=office.createReplyTracker(); track(replyFrame({working:true}));
+  assert.equal(track(replyFrame({working:true,reply:finalReply()})),null);
+  assert.equal(track(replyFrame({reply:finalReply()})).text,'你好呀！');
+});
+test('waiting for a decision does not consume a completed reply', () => {
+  const track=office.createReplyTracker(); track(replyFrame());
+  assert.equal(track(replyFrame({waiting:true,reply:finalReply()})),null);
+  assert.equal(track(replyFrame({reply:finalReply()})).text,'你好呀！');
+});
+test('hydrating history is not a delivery and later replies still notify', () => {
+  const track=office.createReplyTracker(); track(replyFrame({loading:true}));
+  assert.equal(track(replyFrame({loading:true,reply:finalReply('old')})),null);
+  assert.equal(track(replyFrame({reply:finalReply('old')})),null);
+  assert.equal(track(replyFrame({reply:finalReply('new')})).text,'你好呀！');
+});
+test('initial hydration may restore the user turn and old terminal without a notification', () => {
+  const track=office.createReplyTracker(); track(replyFrame({turn:'empty',loading:true}));
+  assert.equal(track(replyFrame({loading:true,reply:finalReply('old'),completion:done('old-run')})),null);
+  assert.equal(track(replyFrame({reply:finalReply('old'),completion:done('old-run')})),null);
+});
+test('delayed initial hydration after an empty pane does not announce restored history', () => {
+  const track=office.createReplyTracker(); track(replyFrame({turn:'empty'}));
+  assert.equal(track(replyFrame({turn:'empty',loading:true})),null);
+  assert.equal(track(replyFrame({loading:true,reply:finalReply('old'),completion:done('old-run')})),null);
+  assert.equal(track(replyFrame({reply:finalReply('old'),completion:done('old-run')})),null);
+});
+test('idle history refresh after delivery does not replay a restored answer', () => {
+  const track=office.createReplyTracker(); track(replyFrame());
+  track(replyFrame({working:true}));
+  assert.equal(track(replyFrame({reply:finalReply()})).text,'你好呀！');
+  assert.equal(track(replyFrame({loading:true,reply:finalReply('restored-id')})),null);
+  assert.equal(track(replyFrame({reply:finalReply('restored-id')})),null);
+});
+test('completion history refresh pauses delivery without consuming final or terminal', () => {
+  const track=office.createReplyTracker(); track(replyFrame({working:true}));
+  assert.equal(track(replyFrame({loading:true,reply:finalReply(),completion:done('refresh-run')})),null);
+  const result=track(replyFrame({reply:finalReply(),completion:done('refresh-run')}));
+  assert.equal(result.text,'你好呀！');
+  assert.equal(result.key,'session:refresh-run');
+});
+test('synchronous reply history refresh survives missing terminal publication', () => {
+  const track=office.createReplyTracker(); track(replyFrame({reply:finalReply('old')}));
+  track(replyFrame({turn:'user:2',reply:finalReply('old')}));
+  assert.equal(track(replyFrame({turn:'user:2',loading:true,reply:finalReply('new')})),null);
+  assert.equal(track(replyFrame({turn:'user:2',reply:finalReply('new')})).text,'你好呀！');
+});
+test('same text in different user turns can notify again', () => {
+  const track=office.createReplyTracker(); track(replyFrame());
+  const first=track(replyFrame({reply:finalReply()}));
+  track(replyFrame({turn:'user:2',working:true}));
+  const second=track(replyFrame({turn:'user:2',reply:finalReply()}));
+  assert.equal(second.text,first.text); assert.notEqual(second.key,first.key);
+});
+test('an atomic fast user turn and final response change still notifies', () => {
+  const track=office.createReplyTracker(); track(replyFrame({reply:finalReply('old')}));
+  assert.equal(track(replyFrame({turn:'user:2',reply:finalReply('new')})).text,'你好呀！');
+});
+test('native done without text yields a fallback and later text updates the same notice', () => {
+  const track=office.createReplyTracker(); track(replyFrame());
+  const fallback=track(replyFrame({completion:done('run:1')}));
+  assert.equal(fallback.text,'');
+  assert.equal(track(replyFrame({completion:done('run:1')})),null);
+  const update=track(replyFrame({reply:finalReply(),completion:done('run:1')}));
+  assert.equal(update.key,fallback.key); assert.equal(update.text,'你好呀！');
+  assert.equal(track(replyFrame({reply:finalReply()})),null);
+});
+test('done does not reuse an older turns reply as the new result', () => {
+  const track=office.createReplyTracker(); track(replyFrame({reply:finalReply('old')}));
+  const fallback=track(replyFrame({turn:'user:2',reply:finalReply('old'),completion:done('run:2')}));
+  assert.equal(fallback.text,'');
+});
+test('interrupted or error replies are not announced as successful after errors clear', () => {
+  for (const issue of [{completion:{phase:'interrupted'}},{error:'failed'}]) {
+    const track=office.createReplyTracker(); track(replyFrame());
+    assert.equal(track(replyFrame({reply:finalReply(),...issue})),null);
+    assert.equal(track(replyFrame({reply:finalReply()})),null);
+  }
+});
+
 test('ordinary conversation and a quoted handoff do not become a completed task', () => {
   assert.equal(office.handoff('你好！有什么可以帮你？'), null);
   assert.equal(office.handoff('```md\n## 交接\n### 已完成\n生成文件\n```'), null);
@@ -50,6 +147,7 @@ test('intermediate tool narration cannot be handed off as the final reply', () =
   const message={role:'assistant',content:'我准备整理文件'};
   assert.equal(office.isFinal(message),false);
   assert.equal(office.isFinal({...message,stopReason:'tooluse'}),false);
+  assert.equal(office.isFinal({...message,stopReason:'error',__openclaw:{runTerminal:true}}),false);
   assert.equal(office.isFinal({...message,channel:'commentary',__openclaw:{runTerminal:true}}),false);
   assert.equal(office.isFinal({...message,phase:'commentary',stopReason:'stop'}),false);
   assert.equal(office.isFinal({...message,stopReason:'stop',content:[{type:'text',text:'正在处理',textSignature:'{"v":1,"phase":"commentary"}'}]}),false);

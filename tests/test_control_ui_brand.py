@@ -39,6 +39,61 @@ class PresentationBoundaryTests(unittest.TestCase):
         shell._web_message(None, args)
         shell._companion_action.assert_called_once_with(payload)
 
+    def test_native_pet_context_request_opens_the_existing_menu(self):
+        shell = ControlUIShell(Mock())
+        shell._workspace = object()
+        shell._surface_mode, shell._surface_view = 'pet', 'compact'
+        view, args = Mock(), Mock(Handled=False)
+        shell._context_menu_requested(view, args)
+        self.assertTrue(args.Handled)
+        view.ExecuteScriptAsync.assert_called_once_with("window.__mirallyCompanion?.openPetMenu()")
+
+    def test_other_context_requests_keep_the_native_browser_behavior(self):
+        shell = ControlUIShell(Mock())
+        for workspace, form, presentation in (
+            (None, 'pet', 'compact'),
+            (object(), 'rail', 'compact'),
+            (object(), 'badge', 'compact'),
+            (object(), 'pet', 'quick'),
+            (object(), 'pet', 'menu'),
+            (object(), 'pet', 'detail'),
+        ):
+            with self.subTest(form=form, presentation=presentation, docked=workspace is not None):
+                shell._workspace, shell._surface_mode, shell._surface_view = workspace, form, presentation
+                view, args = Mock(), Mock(Handled=False)
+                shell._context_menu_requested(view, args)
+                self.assertFalse(args.Handled)
+                view.ExecuteScriptAsync.assert_not_called()
+
+    def test_first_startup_frame_reveals_only_the_local_opening_page(self):
+        shell = ControlUIShell(Mock())
+        shell.window = Mock(native=Mock(Opacity=0))
+        payload = json.dumps({'type': 'mirally-startup-painted'})
+        for source in ('https://example.com/', 'http://127.0.0.1:18789/', 'file:///startup.html'):
+            args = Mock(Source=source)
+            args.get_WebMessageAsJson.return_value = payload
+            shell._web_message(None, args)
+            self.assertEqual(shell.window.native.Opacity, 0)
+            self.assertFalse(shell._startup_visible.is_set())
+        args = Mock(Source='about:blank')
+        args.get_WebMessageAsJson.return_value = payload
+        shell._web_message(None, args)
+        self.assertEqual(shell.window.native.Opacity, 1)
+        self.assertTrue(shell._startup_visible.is_set())
+        shell.window.native.Opacity = 0.5
+        shell._web_message(None, args)
+        self.assertEqual(shell.window.native.Opacity, 0.5)
+
+    def test_late_startup_frame_does_not_reveal_a_closing_window(self):
+        shell = ControlUIShell(Mock())
+        shell.window = Mock(native=Mock(Opacity=0))
+        shell.closed.set()
+        args = Mock(Source='about:blank')
+        args.get_WebMessageAsJson.return_value = json.dumps({'type': 'mirally-startup-painted'})
+        shell._web_message(None, args)
+        self.assertEqual(shell.window.native.Opacity, 0)
+        self.assertFalse(shell._startup_visible.is_set())
+
 
 if __name__ == '__main__':
     unittest.main()

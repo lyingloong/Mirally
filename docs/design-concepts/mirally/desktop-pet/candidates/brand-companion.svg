@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 144" fill="none" aria-hidden="true">
+  <title>Mirally embrace companion — concept-derived original vector</title>
+  <defs>
+    <linearGradient id="pet-g-shell" x1="24" y1="26" x2="98" y2="85" gradientUnits="userSpaceOnUse"><stop stop-color="#9bf8f6"/><stop offset=".35" stop-color="#45d9f2"/><stop offset=".75" stop-color="#2ba5f4"/><stop offset="1" stop-color="#3673e8"/></linearGradient>
+    <linearGradient id="pet-g-body" x1="38" y1="87" x2="79" y2="132" gradientUnits="userSpaceOnUse"><stop stop-color="#37c7f5"/><stop offset=".6" stop-color="#248eeb"/><stop offset="1" stop-color="#376ce0"/></linearGradient>
+    <linearGradient id="pet-g-arm" x1="28" y1="92" x2="60" y2="123" gradientUnits="userSpaceOnUse"><stop stop-color="#8cf4ef"/><stop offset=".3" stop-color="#39d8ee"/><stop offset=".75" stop-color="#28b5f3"/><stop offset="1" stop-color="#368aec"/></linearGradient>
+    <linearGradient id="pet-g-right" x1="80" y1="90" x2="96" y2="125" gradientUnits="userSpaceOnUse"><stop stop-color="#69e5f8"/><stop offset=".45" stop-color="#32c4f4"/><stop offset="1" stop-color="#2a85ec"/></linearGradient>
+    <radialGradient id="pet-g-face" cx=".38" cy=".26" r=".85"><stop stop-color="#fff"/><stop offset=".5" stop-color="#e6f6ff"/><stop offset="1" stop-color="#bbdffc"/></radialGradient>
+    <radialGradient id="pet-g-shine" cx=".28" cy=".18" r=".7"><stop stop-color="#fff" stop-opacity=".65"/><stop offset=".7" stop-color="#fff" stop-opacity="0"/></radialGradient>
+    <linearGradient id="pet-g-eye" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#102654"/><stop offset=".6" stop-color="#17447c"/><stop offset="1" stop-color="#31bef0"/></linearGradient>
+    <radialGradient id="pet-g-cheek"><stop stop-color="#8edcff" stop-opacity=".8"/><stop offset="1" stop-color="#a4e8ff" stop-opacity="0"/></radialGradient>
+    <linearGradient id="pet-g-screen" x1="70" y1="105" x2="90" y2="131" gradientUnits="userSpaceOnUse"><stop stop-color="#d5f7ff"/><stop offset="1" stop-color="#79bff7"/></linearGradient>
+  </defs>
+  <ellipse class="mp-shadow" cx="60" cy="138" rx="25" ry="2.6" fill="#238cdf" opacity=".15"/>
+  <g class="mp-float">
+    <path d="M43 83C35 92 36 110 42 119C43 122 42 127 43 132C44 137 54 137 56 132L59 122H62L65 132C67 138 77 136 78 132L79 120C85 110 84 94 77 84Z" fill="url(#pet-g-body)"/>
+    <path d="M43 121C43 127 42 132 46 134C50 136 54 134 55 131L57 124M65 124L67 131C69 135 74 135 77 132" stroke="#5bd6f9" stroke-width="1.3" stroke-linecap="round" opacity=".5"/>
+    <path d="M43 89C49 89 56 94 60 98C64 94 71 89 77 89L69 111C67 117 53 117 51 111Z" fill="#1586e7" opacity=".65"/>
+    <g class="mp-arm-left">
+      <path d="M43 93C31 88 24 99 22 110C20 120 26 126 34 123C42 120 45 111 50 107C53 104 58 104 62 105C60 101 53 96 43 93Z" fill="url(#pet-g-arm)"/>
+      <path d="M31 96C36 93 40 94 45 96" stroke="#c4fcff" stroke-opacity=".65" stroke-width="1.3" stroke-linecap="round"/>
+      <path d="M28 119C34 118 37 110 41 106" stroke="#8aecff" stroke-opacity=".35" stroke-width="1.3" stroke-linecap="round"/>
+    </g>
+    <g class="mp-arm-right">
+      <path d="M77 93C89 89 96 101 98 111C100 121 93 126 86 123C77 120 75 111 70 107C66 105 61 105 58 107C59 103 68 96 77 93Z" fill="url(#pet-g-right)"/>
+      <path d="M78 95C85 93 89 97 91 101" stroke="#c6f7ff" stroke-opacity=".6" stroke-width="1.3" stroke-linecap="round"/>
+    </g>
+    <path d="M40 97C47 100 49 106 57 110C64 114 69 111 77 103C74 113 66 120 58 118C49 116 44 107 40 97Z" fill="url(#pet-g-arm)"/>
+    <path d="M47 105C54 113 60 116 67 113" stroke="#9bedff" stroke-width="1" stroke-linecap="round" opacity=".55"/>
+    <g class="mp-head">
+      <path d="M22 62C22 39 38 24 60 24C82 24 99 40 99 62C99 83 85 92 60 92C35 92 22 82 22 62Z" fill="url(#pet-g-shell)"/>
+      <path d="M22 62C22 39 38 24 60 24C82 24 99 40 99 62C99 83 85 92 60 92C35 92 22 82 22 62Z" fill="url(#pet-g-shine)"/>
+      <path d="M33 43C41 30 57 28 69 30" stroke="#c4ffff" stroke-width="1.1" stroke-linecap="round" opacity=".65"/>
+      <path d="M92 50C99 70 91 85 71 88" stroke="#2177db" stroke-width="1.5" stroke-linecap="round" opacity=".3"/>
+      <path d="M30 65C30 51 42 44 60 44C78 44 91 51 91 65C91 80 80 87 60 87C40 87 30 80 30 65Z" fill="url(#pet-g-face)"/>
+      <path d="M32 61C34 51 44 46 58 46" stroke="#fff" stroke-opacity=".55" stroke-width="1" stroke-linecap="round"/>
+      <ellipse cx="38" cy="74" rx="8" ry="5.5" fill="url(#pet-g-cheek)"/><ellipse cx="82" cy="74" rx="8" ry="5.5" fill="url(#pet-g-cheek)"/>
+      <g class="mp-eyes">
+        <g class="mp-eye"><ellipse cx="46" cy="66" rx="5.4" ry="7.3" fill="url(#pet-g-eye)"/><ellipse cx="44.4" cy="62.9" rx="1.9" ry="2.2" fill="#fff"/><circle cx="47.4" cy="69.3" r=".9" fill="#8de9ff" opacity=".8"/></g>
+        <g class="mp-eye"><ellipse cx="74" cy="66" rx="5.4" ry="7.3" fill="url(#pet-g-eye)"/><ellipse cx="72.4" cy="62.9" rx="1.9" ry="2.2" fill="#fff"/><circle cx="75.4" cy="69.3" r=".9" fill="#8de9ff" opacity=".8"/></g>
+      </g>
+      <g class="mp-smile-eyes" stroke="#174478" stroke-width="2.7" stroke-linecap="round"><path d="M41 66Q46 59 51 66"/><path d="M69 66Q74 59 79 66"/></g>
+      <path class="mp-mouth" d="M56 75Q60 79 64 75" stroke="#21477a" stroke-width="1.7" stroke-linecap="round"/>
+    </g>
+    <g class="mp-laptop">
+      <path d="M50 131H102L99 134H52Z" fill="#73c9f8" stroke="#529ae6" stroke-width=".8"/>
+      <path d="M65 109H100L96 131H61Z" fill="url(#pet-g-screen)" stroke="#eefcff" stroke-width="1.4" stroke-linejoin="round"/>
+      <path d="M78 119C79 116 82 116 83 119C84 116 87 117 87 119C87 121 83 123 83 123C83 123 78 121 78 119Z" fill="#fff" opacity=".9"/>
+    </g>
+    <g class="mp-heart"><path d="M60 112C37 96 46 84 54 91L60 96L66 91C74 84 83 96 60 112Z" fill="#6ad9f4" stroke="#ecfdff" stroke-width="1.4"/></g>
+    <g class="mp-sparkles" fill="#67d5f7"><path d="M13 39L15 44L20 46L15 48L13 53L11 48L6 46L11 44Z"/><path d="M105 29L107 34L112 36L107 38L105 43L103 38L98 36L103 34Z"/></g>
+    <g class="mp-sleep" stroke="#78c9f3" stroke-width="1.5" stroke-linecap="round"><path d="M99 53H104L99 59H104M105 42H112L105 49H112"/></g>
+  </g>
+</svg>
