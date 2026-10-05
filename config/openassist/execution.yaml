@@ -1,0 +1,10 @@
+# Product-level budgets for the native executor. No model/provider credentials.
+# Pauses and explicit user interaction are excluded from the total budget.
+total_seconds: 600
+initialization_seconds: 60
+model_seconds: 90
+tool_seconds: 30
+model_attempts: 2
+context_chars: 32000
+# A timeout closes admission to new work. Already-running system calls must
+# settle before the desktop is released; these values are not a kill deadline.

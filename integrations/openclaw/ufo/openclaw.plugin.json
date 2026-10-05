@@ -1,0 +1,12 @@
+{
+  "id": "mirally-ufo",
+  "name": "Mirally UFO",
+  "description": "Run the UFO native Windows desktop agent from an OpenClaw agent.",
+  "version": "0.1.0",
+  "activation": { "onStartup": true },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

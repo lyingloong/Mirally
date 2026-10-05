@@ -6,6 +6,8 @@ Mirally 是来自 MIRA + ally 的 Windows 助手。当前版本以完整的 [Ope
 
 **原生功能和配置管理方式保留。** 对话、历史、模型、权限、记忆、工具、自动化和插件继续使用 OpenClaw 的实现。外壳统一产品文案与图标、隐藏上游推广卡，品牌替换不会改写消息或服务配置。
 
+现有智能体选择器也可以选择「桌面助手（UFO）」。它通过产品维护的 OpenClaw Agent Harness 使用 UFO 原生 HostAgent/AppAgent 执行 Windows 桌面任务；OpenClaw 仍管理会话、模型选择和审批。需要控制鼠标、键盘或当前窗口时，再选择这个智能体。
+
 ## 启动
 
 已配置本项目的环境，在项目根目录执行：
@@ -58,6 +60,23 @@ py -3.10 -m venv .\.venv
 
 已有 OpenClaw 配置不会被覆盖。全新环境通过 `.\run-openclaw.ps1 onboard` 使用官方引导。后续模型、服务、权限和插件配置均按 OpenClaw 的原生方式管理。
 
+## 启用 UFO 桌面智能体
+
+UFO 是可选执行器，其锁定依赖建议使用 Python 3.10（64 位）。初始化 main 使用的同一子模块版本，并将依赖安装到根目录环境：
+
+```powershell
+git submodule update --init UFO
+.\.venv\Scripts\python.exe -m pip install -r requirements-ufo.txt
+.\.venv\Scripts\python.exe tools\configure_ufo_agent.py --model "provider/vision-model"
+.\.venv\Scripts\python.exe tools\configure_ufo_agent.py --model "provider/vision-model" --apply
+```
+
+将 `provider/vision-model` 换成已经在 OpenClaw 配好的视觉模型引用。脚本先验证；加 `--apply` 后通过官方配置补丁添加 `ufo` 智能体与插件，不改变默认智能体、模型凭据或已有插件路径。若同名智能体已有其他配置，使用 `--agent-id` 指定新名称。
+
+Gateway 空闲时重启，然后在现有智能体选择器中选择「桌面助手（UFO）」。当前支持 API Key 认证的 OpenAI-compatible Chat Completions；自定义请求头、代理、其他 API 协议和图片附件会明确拒绝。运行中可停止，普通文字补充会使旧计划失效；具有可独立撤销来源权限的补充暂不支持。
+
+UFO 操作当前交互桌面，会占用鼠标、键盘和窗口。Mirally 桌面窗口登记后从 UFO 截图和控件列表中排除；外部浏览器控制台不具备此窗口隔离。普通问答先在聊天层回答，不触发截图。详细链路、设置和验证边界见 [UFO 智能体接入](docs/ufo-openclaw-agent.md)。
+
 ## 原生入口与后台运行
 
 完整浏览器界面和 CLI 始终可用：
@@ -70,7 +89,7 @@ py -3.10 -m venv .\.venv
 
 也可以自行在终端运行 `.\run-openclaw.ps1 gateway run`，随后打开 Mirally；套壳会复用该进程。终端启动的 Gateway 可用 Ctrl+C 停止。套壳自动启动的 Gateway 是独立后台进程，本地日志与启动 PID 记录在私有状态目录 `mirally-host/`；关闭桌面窗口不会结束它，也不会安装开机启动服务。
 
-任务仍由 OpenClaw 执行。文件、命令和独立浏览器已通过真实后台任务验证，用户实测没有干扰鼠标。套壳不添加鼠标钩子、桌面截图循环或另一套任务调度。
+默认智能体仍由 OpenClaw 执行。文件、命令和独立浏览器已通过真实后台任务验证，用户实测没有干扰鼠标。选择 UFO 时才使用前台桌面观察和执行链路。
 
 ## 配置与数据
 
@@ -106,4 +125,4 @@ py -3.10 -m venv .\.venv
 
 [文档导航](docs/README.md) · [迁移路线](docs/openclaw-integration-roadmap.md) · [图标资源](openassist/assets/README.md)
 
-OpenClaw 与 UFO 的上游许可证和版权声明保留。当前使用未修改的官方 OpenClaw 发行包，旧 UFO 本地修改见历史版本说明。
+OpenClaw 与 UFO 的上游许可证和版权声明保留。当前使用未修改的官方 OpenClaw 发行包；UFO 作为只读 submodule 使用主仓库锁定的版本，产品适配位于 `openassist/runtime/ufo/`。

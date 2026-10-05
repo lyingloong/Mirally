@@ -142,6 +142,7 @@ class TaskControllerTests(unittest.TestCase):
         c.on_agent_event({"type": "step", "observation": "private", "thought": "secret", "actions": [{"text": "password"}]})
         c.on_agent_event({"type": "progress", "message": "API_KEY=secret"})
         self.assertTrue(c.events.empty())
+        c.phase = "executing"
         c.on_agent_event({"type": "action_result", "action": "type_text", "ok": True, "detail": "private typed contents"})
         event = c.events.get_nowait()
         self.assertNotIn("private", str(event))
@@ -159,7 +160,9 @@ class TaskControllerTests(unittest.TestCase):
         ids = [e["receipt_id"] for e in queued]
         self.assertEqual(len(set(ids)), 2)
         self.assertTrue(all(e["status"] == "queued" for e in queued))
-        self.assertEqual(c.take_supplements(), ["Keep the originals", "Use the Archive folder"])
+        supplements = c.take_supplements()
+        self.assertEqual([item.text for item in supplements], ["Keep the originals", "Use the Archive folder"])
+        self.assertEqual([item.receipt_id for item in supplements], ids)
         self.assertTrue(c.events.empty(), "Queue consumption must not claim context was updated")
         # A later addition is not acknowledged by the earlier consumed batch.
         self.assertTrue(c.supplement("Only PDF files"))

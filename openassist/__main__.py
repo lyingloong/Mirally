@@ -35,26 +35,25 @@ def main() -> None:
     if sum((args.demo, args.legacy, args.ufo)) > 1:
         parser.error("Choose one of --demo, --legacy, or --ufo")
     if args.demo:
-        from openassist.shell import OpenAssistShell
+        from openassist.ui.shell import OpenAssistShell
         OpenAssistShell(product_root, demo=True).run()
         return
     ufo_root = product_root / "UFO"
-    if not (ufo_root / "ufo" / "agents" / "single_agent" / "runner.py").is_file():
+    if not (ufo_root / "ufo" / "module" / "sessions" / "session.py").is_file():
         raise SystemExit(f"UFO agent kernel was not found under {ufo_root}")
 
-    from openassist.config import configure_ufo_config_root
+    from openassist.runtime.config import configure_ufo_config_root
 
-    # UFO resolves prompts, screenshots, and logs relative to its repository
-    # root, while configuration is owned by the OpenAssist product layer.
-    configure_ufo_config_root(product_root)
-    sys.path.insert(0, str(ufo_root))
+    # Keep UFO's source and prompts in the submodule while loading runtime YAML
+    # from OpenAssist's product-owned configuration directory.
+    configure_ufo_config_root(product_root, ufo_root=ufo_root)
     os.chdir(ufo_root)
 
     if args.legacy:
-        from openassist.desktop import OpenAssistWindow
+        from openassist.ui.desktop import OpenAssistWindow
         OpenAssistWindow(product_root=product_root, ufo_root=ufo_root).run()
     else:
-        from openassist.shell import OpenAssistShell
+        from openassist.ui.shell import OpenAssistShell
         OpenAssistShell(product_root).run()
 
 

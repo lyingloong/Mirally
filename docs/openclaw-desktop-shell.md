@@ -2,6 +2,10 @@
 
 当前主入口承载 OpenClaw 官方 Control UI，并在独立 Windows 窗口中应用 Mirally 品牌、默认晴空蓝主题、相伴 M 图标和启动动画。业务交互、模型配置、工具策略、权限、会话、记忆和调度继续由原生实现管理。先前的 Tk Gateway 客户端转为 [实验客户端](openclaw-desktop-client.md)。
 
+现有智能体选择器可按 [UFO 智能体接入](ufo-openclaw-agent.md) 启用可选桌面助手。其 worker 使用当前交互桌面；WebView 宿主登记进程和草稿编辑状态，供截图隔离与新动作准入使用。外部浏览器入口没有此登记。默认 OpenClaw 智能体仍沿用下文的后台执行方式。
+
+关闭客户端也不会停止 UFO 回合；需要让出桌面时先使用原生停止操作，等待已发出的调用收尾。
+
 更新日期：2026-10-05。当前桌面皮肤版本为 `2026.10.05.6`，包含三种伙伴形态、小海獭/小飞狐矢量造型、透明与右键菜单修复、开屏首帧及品牌精简，以及当前会话的主动回复气泡。升级后关闭并重新打开 Mirally 窗口即可加载；已有 Gateway 不用重启。逐项体验检查见[验收清单](mirally-feature-checklist.md)，造型来源与动作见[伙伴设计记录](design-concepts/mirally/desktop-pet/README.md)。
 
 ## 使用方式

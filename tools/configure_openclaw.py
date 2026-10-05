@@ -88,7 +88,8 @@ def main() -> None:
     # Keep the tested transport metadata when this is the template's model.
     # Unknown models retain the original generic onboarding behavior.
     route['models'] = [next((entry for entry in route['models'] if entry['id'] == model),
-                            {'id': model, 'name': 'Configured Mirally provider'})]
+                            {'id': model, 'name': 'Configured Mirally provider',
+                             'input': ['text', 'image'], 'reasoning': False})]
     destination.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding='utf-8')
     print('Private native OpenClaw configuration initialized. Credentials were not printed.')
     print('Workspace:', workspace)

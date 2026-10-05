@@ -2,6 +2,8 @@
 
 状态：原生后台基线与 Mirally 桌面套壳已接通。当前主入口承载完整官方 Control UI，并应用独立的 Mirally 品牌、默认主题和侧边伙伴视图；首版 Tk 客户端保留为实验入口。更新日期：2026-10-04。安装、入口和实际验证边界见 [原生运行与验收](openclaw-native-setup.md) 及 [桌面套壳说明](openclaw-desktop-shell.md)。
 
+2026-10-05：在 feat 上合并 main 的 UFO 适配层，并通过官方 Agent Harness 添加可选 UFO 智能体。默认智能体与前端保持 feat 的路径；UFO 使用原生 `normal` Session。配置、已验证链路与未覆盖限制见 [UFO 智能体接入](ufo-openclaw-agent.md)。
+
 ## 方向与优先级
 
 **完整保留 OpenClaw，让 Mirally 适配 OpenClaw。**先把原生系统用起来，再决定现有界面和交互如何接入。OpenClaw 的会话、记忆、Agent 循环、工具、任务调度、补充消息、停止、审批和恢复机制是接入依据；旧 Mirally 的控制逻辑不是新系统必须遵守的规格。

@@ -26,7 +26,7 @@ def brand_script(url: str) -> str:
     css = "\n".join((ASSETS / name).read_text(encoding="utf-8") for name in (
         "control-ui-mirally.css", "control-ui-companion.css", "control-ui-work.css"))
     script = "\n".join((ASSETS / name).read_text(encoding="utf-8") for name in (
-        "control-ui-mirally.js", "control-ui-office.js", "control-ui-intake.js", "control-ui-context.js", "control-ui-work.js", "control-ui-companion.js"))
+        "control-ui-mirally.js", "control-ui-office.js", "control-ui-intake.js", "control-ui-context.js", "control-ui-work.js", "control-ui-companion.js", "control-ui-ufo-input.js"))
     return script.replace("__MIRALLY_ORIGIN__", json.dumps(origin)).replace(
         "__MIRALLY_STYLE__", json.dumps(css)
     ).replace("__MIRALLY_MARK__", json.dumps(logo)).replace(

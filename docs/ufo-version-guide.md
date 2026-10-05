@@ -2,7 +2,7 @@
 
 ![Mirally 相伴 M 图标](../openassist/assets/mirally-128.png)
 
-> 本文记录迁移前的 UFO 版本，对应 `run.ps1 --ufo`、`--demo` 和 `--legacy` 入口。新 OpenClaw 版本的安装与使用见 [项目 README](../README.md)。下文原默认启动命令需加 `--ufo`，演示和 legacy 命令不变。
+> 本文保留迁移前 UFO 界面的安装与操作参考。当前独立 `run.ps1 --ufo` 已合并 main 的新版原生执行层，链路和能力以 [UFO 接入详解](ufo-integration.md) 为准；默认 OpenClaw 界面中的可选 UFO 智能体见 [当前接入说明](ufo-openclaw-agent.md)。下文原默认启动命令需加 `--ufo`，演示和 legacy 命令不变。
 
 Mirally 是面向 Windows 的对话与桌面助手。可以直接问问题、讨论想法、起草文字，也可以让它处理电脑上的事情；需要实际操作时再进入桌面观察与执行流程。名字结合 MIRA 与 ally，图标采用「相伴 M」：蓝青渐变的双人流线构成 M，呼应 Mirally 与 MIRA，并以彼此连接的姿态表达伙伴关系。
 

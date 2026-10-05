@@ -1,0 +1,4 @@
+# Optional Windows UFO agent, alongside the existing OpenClaw desktop host.
+# Install into the same root .venv. The submodule remains read-only.
+-r UFO/requirements.txt
+-r requirements-openclaw.txt

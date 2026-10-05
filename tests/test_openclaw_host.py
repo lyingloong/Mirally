@@ -101,7 +101,7 @@ class OpenClawHostTests(unittest.TestCase):
             subprocess.CompletedProcess([], 0, json.dumps({'ok':True,'browserUrl':handoff}), ''),
         ]) as run:
             self.assertEqual(self.host.dashboard(), handoff)
-            self.assertEqual(run.call_args_list[0].args[0], [str(self.host.node), str(adapter)])
+            self.assertEqual(run.call_args_list[0].args[0], [str(self.host.node), str(adapter.resolve())])
             self.assertEqual(run.call_args_list[1].args[0][-2:], ['dashboard', '--json'])
         with patch('openassist.openclaw_host.subprocess.run', return_value=
                    subprocess.CompletedProcess([], 1, json.dumps({'ok':False,'reason':'not ready'}), '')) as run:

@@ -10,7 +10,7 @@
     "defaults": {
       "workspace": "LOCAL_WORKSPACE",
       "thinkingDefault": "off",
-      "model": { "primary": "mirally/qwen/qwen3.8-flash" }
+      "model": { "primary": "mirally/YOUR_VISION_MODEL" }
     }
   },
   "models": {
@@ -21,16 +21,10 @@
         "apiKey": "${MIRALLY_PROVIDER_API_KEY}",
         "api": "openai-completions",
         "models": [{
-          "id": "qwen/qwen3.8-flash",
-          "name": "Qwen via configured provider",
+          "id": "YOUR_VISION_MODEL",
+          "name": "Your configured vision model",
           "input": ["text", "image"],
-          "reasoning": true,
-          "compat": {
-            "thinkingFormat": "openai",
-            "supportsReasoningEffort": true,
-            "supportedReasoningEfforts": ["none", "low", "medium", "xhigh"],
-            "reasoningEffortMap": { "minimal": "low", "high": "xhigh" }
-          }
+          "reasoning": false
         }]
       }
     }

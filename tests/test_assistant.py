@@ -1,18 +1,41 @@
 import json
 import queue
+import sys
 import tempfile
 import threading
 import time
 import unittest
+from types import ModuleType, SimpleNamespace
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from openassist.assistant import Assistant, AssistantDecision
 from openassist.conversation import ConversationStore
 from openassist.task_controller import TaskController
+from openassist.runtime.completion import ufo_completion
 
 
 class AssistantProtocolTests(unittest.TestCase):
+    def test_runtime_completion_uses_supported_ufo_api_and_app_model(self):
+        llm_call = SimpleNamespace(get_completion=Mock(return_value=("response", 0.0)))
+        agent_type = SimpleNamespace(APP="APP_AGENT")
+        llm = ModuleType("ufo.llm")
+        llm.AgentType = agent_type
+        llm.llm_call = llm_call
+        ufo = ModuleType("ufo")
+        ufo.llm = llm
+
+        with patch.dict(sys.modules, {"ufo": ufo, "ufo.llm": llm}), patch(
+            "openassist.runtime.completion.bounded_model_services"
+        ) as bounded:
+            result = ufo_completion([{"role": "user", "content": "hello"}])
+
+        self.assertEqual(result, "response")
+        llm_call.get_completion.assert_called_once_with(
+            [{"role": "user", "content": "hello"}], "APP_AGENT", False
+        )
+        bounded.assert_called_once()
+
     def test_answer_preserves_paragraphs_and_code(self):
         answer = "例子：\n\n```python\nif True:\n    print('你好')\n```"
         assistant = Assistant(lambda _: json.dumps({"mode": "reply", "message": answer}))

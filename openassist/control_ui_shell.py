@@ -95,6 +95,7 @@ class ControlUIShell:
         self._startup_status = None
         self._context_menu_bound = False
         self._startup_visible = threading.Event()
+        self._frontend_registration = None
 
     def _status(self, message: str, error: bool = False) -> None:
         if self.closed.is_set():
@@ -185,6 +186,9 @@ class ControlUIShell:
 
     def _close(self) -> None:
         self.closed.set()
+        if self._frontend_registration is not None:
+            self._frontend_registration.close()
+            self._frontend_registration = None
         if self.host:
             self.host.close()
 
@@ -196,6 +200,9 @@ class ControlUIShell:
         form = self.window.native
 
         def apply():
+            from openassist.platform.frontend_registry import FrontendRegistration
+            if self._frontend_registration is None:
+                self._frontend_registration = FrontendRegistration(self.root)
             # WebView2 initializes after WinForms shows the host. Keep that
             # empty backplate invisible until the opening page has painted.
             form.Opacity = 0
@@ -221,6 +228,13 @@ class ControlUIShell:
                     and not self._startup_visible.is_set()):
                 self.window.native.Opacity = 1
                 self._startup_visible.set()
+            return
+        if isinstance(value, dict) and value.get("type") == "mirally-ufo-input":
+            parts = urlsplit(str(args.Source))
+            if ((parts.scheme, parts.netloc) == self._gateway_origin
+                    and type(value.get("editing")) is bool
+                    and self._frontend_registration is not None):
+                self._frontend_registration.update(value["editing"])
             return
         if isinstance(value, dict) and value.get('type') == 'mirally-companion':
             parts = urlsplit(str(args.Source))
@@ -528,3 +542,5 @@ class ControlUIShell:
             )
         except webview.WebViewException:
             raise SystemExit("无法启动 WebView2，请检查 Microsoft Edge WebView2 Runtime 和 requirements-openclaw.txt。") from None
+        finally:
+            self._close()
