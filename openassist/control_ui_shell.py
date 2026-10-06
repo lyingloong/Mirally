@@ -108,11 +108,16 @@ class ControlUIShell:
             display = message if error else startup_message(message)
             self.window.evaluate_js(f"window.setStartupStatus?.({json.dumps(display)}, {str(error).lower()})")
 
-    def _connect(self, reload: bool = False) -> None:
+    def _connect(self, reload: bool = False, restart: bool = False) -> None:
         if not self._connecting.acquire(blocking=False):
             return
         try:
             if self.closed.is_set():
+                return
+            if restart and not self.window.create_confirmation_dialog(
+                    "重启 Gateway",
+                    "重启会中断当前任务和其他已连接窗口的工作。请先停止任务并保存未发送的草稿。\n\n"
+                    "Mirally 窗口将保持打开，重启后自动重新连接。现在重启吗？"):
                 return
             if reload:
                 if self._workspace is not None:
@@ -122,7 +127,7 @@ class ControlUIShell:
             started = time.monotonic()
             if self.host is None:
                 self.host = OpenClawHost(self.root)
-            url = self.host.connect(self._status)
+            url = self.host.restart(self._status) if restart else self.host.connect(self._status)
             if (not self.window.events.loaded.wait(20)
                     or not self._startup_visible.wait(20) or self.closed.is_set()):
                 return
@@ -170,6 +175,9 @@ class ControlUIShell:
 
     def _retry(self) -> None:
         threading.Thread(target=self._connect, kwargs={"reload": True}, daemon=True).start()
+
+    def _restart_gateway(self) -> None:
+        threading.Thread(target=self._connect, kwargs={"reload": True, "restart": True}, daemon=True).start()
 
     def _start_connect(self) -> None:
         threading.Thread(target=self._connect, daemon=True).start()
@@ -528,6 +536,7 @@ class ControlUIShell:
         menu = [Menu("⋯", [
             MenuAction("侧边伙伴", self._dock),
             MenuAction("重新连接", self._retry),
+            MenuAction("重启 Gateway…", self._restart_gateway),
             MenuAction("在浏览器中打开", self._browser),
             MenuSeparator(),
             MenuAction("关闭窗口", self.window.destroy),

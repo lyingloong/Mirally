@@ -34,10 +34,20 @@ For the complete architecture and source-level call chains, see:
 
 The selectable UFO route is `Control UI -> OpenClaw Gateway -> mirally-ufo
 Agent Harness -> runtime/ufo/worker.py -> UfoExecutor -> normal Session`.
+The default OpenClaw agent can use the same route as a desktop subagent via
+`sessions_spawn(agentId="ufo")`. Both selecting UFO directly and spawning it as
+a desktop subagent skip conversation intent classification and start the executor.
 OpenClaw owns the durable session and model selection; the worker uses a private
 temporary YAML snapshot and the host-prepared model route. Windows ownership
 is serialized across workers by a native named mutex. The existing default
 OpenClaw agent remains unchanged.
+
+The worker's Windows stdio control channel uses `platform/stdio_pipe.py` to
+check available pipe bytes before reading. An idle synchronous stdin read can
+block NumPy/native DLL initialization on Windows, so startup verification keeps
+the input pipe open and the control reader alive throughout the real imports.
+Tests cover both `python.exe` and `pythonw.exe`, then deliver cancellation over
+that same channel without calling a model or accessing the desktop.
 
 The independent `--ufo` desktop route is `TaskController -> Executor.run ->
 UfoExecutor -> SingleRequestSession(mode="normal")`. Conversation routing first
@@ -54,5 +64,7 @@ their patched functions and window state after cleanup.
 The adapter exposes actual capability boundaries: pause and supplement are
 available at safe boundaries, cancellation is cooperative, and an in-flight
 third-party call is allowed to settle before resources are restored. The
-interface can therefore show “正在停止” without claiming that arbitrary native
-threads were force-killed.
+Gateway harness additionally terminates its own worker process tree after a
+1.5-second cancellation grace period if cleanup does not finish. The independent
+`--ufo` route retains cooperative cancellation; neither route can undo an OS
+action that has already been dispatched.

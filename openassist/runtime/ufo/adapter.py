@@ -14,6 +14,7 @@ from .config import load_execution_limits, bounded_model_services
 from .controls import ExecutionBudgetExceeded, NativeRuntime, runtime_controls
 from .events import EventStream, session_result
 from .locking import UFO_RUNTIME_LOCK as _RUN_LOCK
+from .diagnostics import startup_diagnostics
 
 
 logger = logging.getLogger(__name__)
@@ -45,14 +46,24 @@ class UfoExecutor:
             if sys.platform == "win32":
                 from openassist.platform.desktop_lock import desktop_execution_lock
                 stack.enter_context(desktop_execution_lock())
-            events.emit("phase", phase="preparing", summary="正在初始化原生执行器")
-            stack.enter_context(native_compatibility())
-            from ufo.module.sessions.session import Session
-            from .observation import observation_isolation
+            def startup_event(event):
+                events.emit(event["type"], **{key: value for key, value in event.items() if key != "type"})
 
-            stack.enter_context(bounded_model_services(self.limits))
-            stack.enter_context(runtime_controls(runtime))
-            stack.enter_context(observation_isolation(services, services.excluded_process_ids))
+            with startup_diagnostics(startup_event) as mark:
+                mark("session_import")
+                from ufo.module.sessions.session import Session
+                from .observation import observation_isolation
+
+                # Importing the class does not construct a Context or register
+                # MCP servers. Install product fixes before creating a Session
+                # and retain their original task scope.
+                mark("native_compatibility")
+                stack.enter_context(native_compatibility())
+
+                mark("runtime_hooks")
+                stack.enter_context(bounded_model_services(self.limits))
+                stack.enter_context(runtime_controls(runtime))
+                stack.enter_context(observation_isolation(services, services.excluded_process_ids))
 
             class SingleRequestSession(Session):
                 def next_request(self):
@@ -61,12 +72,14 @@ class UfoExecutor:
                     self._finish = True
                     return ""
 
+            events.emit("phase", phase="preparing", stage="session_creation")
             future = runtime.pool.submit(SingleRequestSession, request.task_id, False, 0,
                                          request=request.text, mode="normal")
             runtime.register_worker(future)
             session = await runtime.wait_worker(future, "initialization", self.limits.initialization_seconds)
             runtime.session = session
             diagnostics_path = events.open(session.log_path)
+            events.emit("phase", phase="observing", stage="session_running")
             # Check size before screenshots/actions; preserve referenced text exactly.
             runtime.context_message()
             await session.run()

@@ -1,10 +1,10 @@
 # UFO 作为 OpenClaw 智能体
 
-更新日期：2026-10-05。feat 保留官方 Control UI、Mirally 皮肤、侧边伙伴和默认 OpenClaw 智能体；main 的 UFO 配置桥接、执行协议、原生 Session 和回归测试合并到同一分支。UFO 使用 main 的 gitlink `a795552d976c4c019d7c2f778a0effb5cef7de6b`，没有修改子模块源码。
+更新日期：2026-10-06。feat 保留官方 Control UI、Mirally 皮肤、侧边伙伴和默认 OpenClaw 智能体；main 的 UFO 配置桥接、执行协议、原生 Session 和回归测试合并到同一分支。UFO 使用 main 的 gitlink `a795552d976c4c019d7c2f778a0effb5cef7de6b`，没有修改子模块源码。
 
 ## 两条执行路径
 
-用户在已有智能体选择器中选择后端。默认 OpenClaw 智能体继续使用自己的工具和执行循环；UFO 智能体通过官方 Agent Harness 扩展执行整个回合，不把桌面任务交给两个规划器重复处理。
+用户在已有智能体选择器中选择后端，或者由默认 OpenClaw 智能体通过 `sessions_spawn(agentId="ufo")` 创建桌面子会话。默认 OpenClaw 智能体继续拥有整体规划、文件、命令和其他工具；UFO 只负责被委派的 Windows 桌面任务。
 
 ```mermaid
 flowchart LR
@@ -12,20 +12,22 @@ flowchart LR
     G --> O[默认 OpenClaw 执行器]
     G --> H[mirally-ufo Harness]
     H --> P[独立 Python worker]
-    P --> A[普通对话意图与回答]
-    A --> S[需要桌面操作时启动 UFO normal Session]
+    P --> S[UFO normal Session]
     S --> W[HostAgent / AppAgent / Windows MCP]
     P --> H
 ```
 
-普通聊天由 worker 使用同一个已选模型直接回答。只有真实桌面请求进入 UFO。此意图检查不读取屏幕，不生成额外桌面计划；它复用 `core/assistant.py`，避免问候和解释类消息触发截图。
+直接选择 UFO 时，worker 直接进入桌面执行器，不再额外调用一次对话意图模型；普通聊天应继续使用默认 OpenClaw 智能体。由 `sessions_spawn` 创建的子会话也直接进入桌面执行器，因为父 Agent 已经完成了任务分流。子会话模式由 OpenClaw 的受信任生命周期元数据维护，不接受用户文本中的伪造标记。
+
+主 Agent 的委派提示应包含一个清晰、可独立执行的桌面目标和验收条件，例如“在当前浏览器打开 Gmail，告诉我是否已登录及未读数量”。UFO 返回结构化的完成、部分完成、未完成、失败或取消结果，子会话的结果再由 OpenClaw 主会话汇总给用户。UFO worker 只接收本次调用所需的一次性模型路由，不读取 OpenClaw 本地凭据配置，也不会获得主 Agent 的文件工具或 `sessions_spawn` 工具面。
 
 ## 代码与配置归属
 
 | 位置 | 责任 |
 | --- | --- |
 | `integrations/openclaw/ufo/` | 官方插件注册、模型路由预检、会话读取与结果持久化、停止/补充句柄、审批和问题回调 |
-| `openassist/runtime/ufo/worker.py` | 单次任务的私有 stdio 协议，输入版本、回调、意图检查与执行服务 |
+| `openassist/runtime/ufo/worker.py` | 单次任务的私有 stdio 协议、输入回调与桌面任务执行服务；保留旧 conversation 模式以兼容协议调用 |
+| `openassist/platform/stdio_pipe.py` | Windows 控制管道读取；先检查可读字节再读取，避免空闲同步读取阻塞原生扩展初始化 |
 | `openassist/runtime/ufo/model_bridge.py` | 将 Gateway 准备好的模型、endpoint、认证和受支持生成参数传给真实 UFO 模型服务；退出时恢复 |
 | `openassist/runtime/ufo/adapter.py` | main 的 `SingleRequestSession(mode="normal")`、控制、观察隔离、预算及收尾 |
 | `openassist/platform/frontend_registry.py` | 前端 PID 与创建时间登记，识别 WebView 子进程、编辑状态、跨进程截图隐藏/恢复 |
@@ -38,7 +40,7 @@ UFO 的系统、MCP 和提示词设置继续维护在 `config/openassist/ufo/`�
 
 ## 交互边界
 
-停止会撤销新动作的准入，并等待已经发出的模型或系统调用收尾。进程没有被强杀；Windows 桌面互斥量、截图恢复和适配补丁保持到真实调用结束。Gateway 退出也等待插件拥有的 worker 结束。已发生的系统操作不能撤销。
+停止先通过控制通道撤销新动作的准入，给已经发出的调用约 1.5 秒协作收尾；若 worker 仍未退出，Harness 终止该 worker 进程树，避免不可中断的初始化或 COM 调用无限占用会话。桌面互斥量会随进程退出释放，但强制退出不能保证所有窗口恢复回调完成，也不能撤销已经发生的系统操作。子会话停止由主会话的 OpenClaw 生命周期传入同一个 worker 控制通道。
 
 普通文字补充先沿用原生输入持久化，然后使 worker 的观察和计划版本失效；在后续模型实际使用后确认采用。等待超过回执预算会报告未确认，不能据此重复发送。每次模型请求和工具调用都再次核对宿主执行权；工具先经过 `runBeforeToolCall`，UFO 敏感操作确认转成原生审批，追问转成原生 Gateway question。
 
@@ -51,6 +53,27 @@ WebView 桌面宿主登记输入状态；有焦点且包含草稿时，worker �
 会话读取使用官方 SessionManager 和上下文装配，保留前文正文，并加入工作区 bootstrap 内容。超过 32,000 字符的 UFO 上下文会明确拒绝，不截断引用后继续执行。结果区分完成、部分完成、未完成、失败和取消，具体回答回到原生历史；日志/截图继续作为 UFO 本地诊断产物。目前未把 UFO 产物注册进 OpenClaw Files 面板，也未承诺自定义上下文引擎的完整记忆/压缩生命周期。
 
 ## 支持与验证
+
+### 等待时查看具体阶段
+
+每轮 Gateway UFO 调用从 Harness 入口开始写入 `.artifacts/ufo-runs/<runId>.jsonl`，不必等原生 Session 创建成功。Gateway 的日志中也会记录这个运行 ID 和诊断文件位置。修改 Harness 后需要重启 Gateway，可在任务收尾后点击 Mirally 顶部「⋯ → 重启 Gateway…」，确认后窗口自动重新连接。关闭 Mirally 窗口不会停止 Gateway，已有任务也不会加载新代码。按钮只处理已核实的本项目本机进程，其他部署按原管理方式重启。
+
+在项目根目录实时查看最近一轮：
+
+```powershell
+$ufoRunLog = Get-ChildItem .artifacts/ufo-runs/*.jsonl | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+Get-Content -LiteralPath $ufoRunLog.FullName -Encoding UTF8 -Tail 20 -Wait
+```
+
+`stage` 区分上下文装配、配置加载（`configuring`）、模型路由绑定（`model_binding`）、Session 导入（`session_import`）、原生适配安装（`native_compatibility`）、运行时钩子（`runtime_hooks`）、Session 创建（`session_creation`）、原生运行（`session_running`），以及模型、工具和收尾等待（`model` / `tool` / `cleanup`）。Session 类定义与兼容层都加载完成后才创建原生 Session。`agent` 和 `attempt` 标识 Host/App 模型调用与重试；`action` 是工具名称。`elapsed_seconds` 在等待事件中表示该阶段耗时，`run_elapsed_seconds` 表示整轮耗时。`host_callback` 与 `host_callback_finished` 可以定位宿主授权或用户确认的等待。
+
+Windows 上曾复现控制线程挂起同步 stdin 读取时，NumPy 原生扩展初始化阻塞，表现为 `session_import` 或 `native_compatibility` 心跳持续停在 `overrides.py:8`。改变导入顺序不能解决这个并发条件。worker 现在借用输入管道句柄，通过 `PeekNamedPipe` 检查可读字节，只读取已到达的数据；保留 UTF-8 分帧、EOF 撤销和取消消息。回归测试在 `python.exe` 与实际使用的 `pythonw.exe` 子进程中保持 stdin 打开且无数据，加载真实 UFO Session 导入链后再发送取消；不会调用模型或操作桌面。使用 `subprocess.run/communicate` 提前关闭 stdin 的导入测试无法覆盖这个问题。
+
+同步初始化超过 10 秒时，`startup_wait` 每 10 秒记录当前阶段及主线程调用栈中的文件名、函数和行号；不记录源代码行或局部变量。原生等待预算继续记录超时与收尾状态。启动心跳不会取消初始化截止时间；60 秒内未进入原生 Session、模型/工具或明确的用户等待时，Harness 终止本轮启动。此诊断日志只保留白名单元数据，不复制任务正文、回答、截图、工具参数、完整异常或模型凭据；每轮最多写入约 512 KB，旧文件保留在被 Git 忽略的本地目录。
+
+若本地扩展加载阻塞并占用 Python 的 GIL，心跳线程也可能无法继续输出；Gateway 的独立启动计时仍生效，日志中的最后一个 `stage` 可用于判断阻塞边界。
+
+Control UI 的通用“等待响应”文案目前没有细分这些 UFO 阶段；详细诊断以此文件为准。`UFO/logs/<taskId>/openassist-events.jsonl` 是 Session 创建后的原生事件记录，可能包含任务数据，请按需本地查看。
 
 首版限定 Windows 本机、支持图像输入的 OpenAI-compatible Chat Completions、API Key 认证、无自定义请求传输。使用宿主准备的自定义 baseUrl；带 URL 凭据、查询参数或 Azure API-version 语义的端点拒绝。支持 `temperature`、`maxTokens` 以及模型明确声明的 `reasoning_effort` 映射；其他思考或生成设置拒绝。受限工具策略、禁用工具、工作区限定和沙箱执行不绕过：不适配的会话在桌面动作前拒绝。没有通过 UFO 暴露 OpenClaw 的整套工具、Skill 或跨设备 Galaxy 能力。
 

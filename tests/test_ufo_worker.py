@@ -12,19 +12,73 @@ from unittest.mock import Mock, patch
 
 from openassist.core.execution import ExecutionCancelled, Reobserve
 from openassist.platform.frontend_registry import FrontendRegistration, registered_frontends
-from openassist.runtime.ufo.worker import WorkerChannel, WorkerServices, prepare_worker_config
+from openassist.runtime.ufo.worker import WorkerChannel, WorkerServices, prepare_worker_config, worker_mode
 from tools.configure_ufo_agent import agent_patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class WorkerProtocolTests(unittest.TestCase):
+    def test_worker_mode_defaults_to_conversation_and_rejects_unknown_values(self):
+        self.assertEqual(worker_mode({}), "conversation")
+        self.assertEqual(worker_mode({"mode": "desktop_subtask"}), "desktop_subtask")
+        with self.assertRaises(ValueError):
+            worker_mode({"mode": "reply"})
+
     def test_observation_is_not_started_after_host_refuses(self):
-        channel, frontend = Mock(), Mock()
-        channel.rpc.return_value = False
+        channel, frontend = WorkerChannel(io.StringIO(), io.StringIO()), Mock()
+        channel.rpc = Mock(return_value=False)
+        frontend.editing.return_value = False
         with self.assertRaises(ExecutionCancelled):
             WorkerServices(channel, frontend).capture("before")
+
+    def test_classifier_checkpoint_does_not_wait_for_a_focused_composer(self):
+        channel, frontend = WorkerChannel(io.StringIO(), io.StringIO()), Mock()
+        frontend.editing.return_value = True
+        self.assertEqual(WorkerServices(channel, frontend).checkpoint(wait_for_editing=False), 1)
+        frontend.editing.assert_called_once()
+
+    def test_nonblocking_composer_checkpoint_still_honors_pause(self):
+        channel, frontend = WorkerChannel(io.StringIO(), io.StringIO()), Mock()
+        channel.paused = True
+        frontend.editing.return_value = False
+        services = WorkerServices(channel, frontend)
+        result = []
+        thread = threading.Thread(target=lambda: result.append(services.checkpoint(wait_for_editing=False)))
+        thread.start()
+        time.sleep(0.03)
+        self.assertTrue(thread.is_alive())
+        with channel.condition:
+            channel.paused = False
+            channel.condition.notify_all()
+        thread.join(1)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(result, [0])
+
+    def test_desktop_checkpoint_still_waits_for_a_focused_composer(self):
+        channel, frontend = WorkerChannel(io.StringIO(), io.StringIO()), Mock()
+        frontend.editing.side_effect = [True, False]
+        services = WorkerServices(channel, frontend)
+        self.assertEqual(services.checkpoint(wait_for_editing=True), 1)
+        self.assertEqual(frontend.editing.call_count, 2)
         frontend.before.assert_not_called()
+
+    def test_desktop_action_boundary_waits_for_composer(self):
+        channel, frontend = WorkerChannel(io.StringIO(), io.StringIO()), Mock()
+        frontend.editing.side_effect = [True, False]
+        services = WorkerServices(channel, frontend)
+        self.assertEqual(services.desktop_access("before", expected_revision=1), 1)
+        self.assertEqual(frontend.editing.call_count, 2)
+
+    def test_capture_boundary_waits_before_observation(self):
+        channel, frontend = WorkerChannel(io.StringIO(), io.StringIO()), Mock()
+        frontend.editing.side_effect = [True, False]
+        channel.rpc = Mock(return_value=True)
+        services = WorkerServices(channel, frontend)
+        services.capture("before")
+        self.assertEqual(frontend.editing.call_count, 2)
+        frontend.before.assert_called_once()
+        channel.rpc.assert_called_once_with("authorize_observation")
 
     def test_cancel_before_start_unblocks_worker(self):
         channel = WorkerChannel(io.StringIO('{"type":"cancel"}\n'), io.StringIO())

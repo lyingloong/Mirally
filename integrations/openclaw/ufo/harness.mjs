@@ -11,8 +11,10 @@ import {
 } from "openclaw/plugin-sdk/agent-harness-runtime";
 import { SessionManager } from "openclaw/plugin-sdk/agent-sessions";
 import { appendSessionTranscriptMessageByIdentityStrict } from "openclaw/plugin-sdk/session-transcript-runtime";
+import {createRunDiagnostics} from "./diagnostics.mjs";
 
 export const HARNESS_ID = "mirally-ufo";
+export const WORKER_MODES = Object.freeze({conversation: "conversation", desktopSubtask: "desktop_subtask"});
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const MAX_FRAME = 2_000_000;
 const CONTEXT_CHARS = 32_000;
@@ -143,6 +145,15 @@ export function preparedRoute(params) {
     parameters: parametersFor(params, model)};
 }
 
+/**
+ * Selecting the UFO agent is already an explicit desktop intent. A spawned
+ * child carries the same mode; the worker's conversation mode remains only a
+ * protocol-compatible fallback for older callers.
+ */
+export function workerMode(params) {
+  return WORKER_MODES.desktopSubtask;
+}
+
 function workerProcess(root) {
   // The Windows venv python.exe is a console launcher. It can create a
   // second visible conhost even when Node passes windowsHide=true. pythonw
@@ -162,6 +173,19 @@ function writeFrame(worker, value) {
   if (Buffer.byteLength(frame) > MAX_FRAME) throw refuse("UFO 请求过大，没有继续执行。");
   if (worker.stdin.destroyed || worker.stdin.writableEnded) throw new Error("UFO control channel closed");
   worker.stdin.write(frame);
+}
+
+function forceTerminate(worker) {
+  if (!worker || worker.exitCode !== null || worker.killed) return;
+  if (process.platform === "win32") {
+    // python.exe may be a launcher with a second Python child. Kill the
+    // process tree so a blocked UIA/COM call cannot retain the Gateway run.
+    const killer = spawn("taskkill", ["/PID", String(worker.pid), "/T", "/F"],
+      {stdio: "ignore", windowsHide: true});
+    killer.on("error", () => {});
+  } else {
+    try { worker.kill("SIGKILL"); } catch {}
+  }
 }
 
 export async function* readFrames(stream) {
@@ -234,6 +258,10 @@ export function createUfoHarness(api, dependencies = {}) {
     executionEnvironment: "host-only",
     supports: ctx => routeSupport(ctx, api.config),
     async runAttempt(params) {
+      const diagnostic = createRunDiagnostics(root, params.runId,
+        message => api.logger?.warn?.(message));
+      diagnostic("harness_entered");
+      api.logger?.info?.(`[UFO] runId=${params.runId} progress=.artifacts/ufo-runs/${params.runId}.jsonl`);
       const host = params.hostCapabilities;
       host.assertActive();
       params.abortSignal?.throwIfAborted();
@@ -248,14 +276,24 @@ export function createUfoHarness(api, dependencies = {}) {
         if (receipt?.rejectedReason || params.userTurnTranscriptRecorder.isBlocked())
           throw refuse("当前输入没有获得会话执行权，未启动 UFO。");
       }
+      diagnostic("phase", {stage: "context_assembly"});
       const context = await readContext(params);
+      diagnostic("phase", {stage: "context_ready"});
       host.assertActive();
       params.abortSignal?.throwIfAborted();
+      const mode = workerMode(params);
       params.onExecutionPhase?.({phase: "context_assembled", provider: params.provider,
         model: params.modelId, backend: HARNESS_ID});
+      if (mode === WORKER_MODES.desktopSubtask)
+        params.onExecutionPhase?.({phase: "desktop_subtask_dispatched", provider: params.provider,
+          model: params.modelId, backend: HARNESS_ID});
       const worker = launch();
+      diagnostic("worker_spawned", {pid: worker.pid});
       worker.stderr.resume(); // Never echo provider exceptions or private desktop data.
-      let stopped = false, settled = false, generation = 0, ready = false, timedOut = false;
+      let stopped = false, settled = false, generation = 0, ready = false, progressed = false;
+      let startupStage = "worker_startup", startupTimeoutStage;
+      let timedOut = false, startupTimedOut = false;
+      let forceStopTimer;
       let result, failure, lastToolError;
       const usage = {input: 0, output: 0, totalTokens: 0};
       const toolMetas = [], receipts = new Map(), inputAuthorities = new Map(), requests = new Set();
@@ -263,6 +301,7 @@ export function createUfoHarness(api, dependencies = {}) {
       const closed = new Promise(resolve => {
         worker.once("error", () => { failure = new Error("Cannot start UFO worker"); resolve(); });
         worker.once("close", code => {
+          diagnostic("worker_closed", {exit_code: code});
           if (code !== 0 && !failure) failure = new Error("UFO worker exited unexpectedly");
           resolve();
         });
@@ -272,9 +311,14 @@ export function createUfoHarness(api, dependencies = {}) {
       const abort = () => {
         if (stopped || settled) return;
         stopped = true; generation++;
+        diagnostic("cancel_requested");
         for (const controller of requests) controller.abort();
         try { writeFrame(worker, {type: "cancel"}); } catch {}
         if (!ready) worker.stdin.end();
+        // A native Windows call can remain inside a non-interruptible COM
+        // operation. Give cooperative cleanup a short window, then kill the
+        // worker tree so the host session receives a terminal outcome.
+        forceStopTimer ??= setTimeout(() => forceTerminate(worker), 1500);
       };
       const assertCurrent = () => {
         host.assertActive();
@@ -346,12 +390,22 @@ export function createUfoHarness(api, dependencies = {}) {
       const timeout = setTimeout(() => { timedOut = true;
         params.onAttemptTimeout?.(new Error("UFO run budget expired")); abort(); }, params.timeoutMs ?? 600_000);
       const startup = setTimeout(() => {
-        if (!ready) { failure = new Error("UFO worker initialization timed out"); abort(); }
-      }, 30_000);
+        if (!progressed) {
+          startupTimedOut = true;
+          // Keep the stage observed at the deadline.  A cancelled worker may
+          // emit a late cleanup event (for example `initialization`) after
+          // this callback, but that is not where the timeout occurred.
+          startupTimeoutStage = startupStage;
+          diagnostic("startup_timeout", {stage: startupTimeoutStage, timed_out: true});
+          failure = new Error(ready ? "UFO worker initialization made no progress" : "UFO worker initialization timed out");
+          abort();
+        }
+      }, params.ufoStartupTimeoutMs ?? 60_000);
       const emit = (stream, data) => {
         emitAgentEvent({runId: params.runId, stream, data});
       };
       const request = async frame => {
+        diagnostic("host_callback", {operation: frame.operation});
         const controller = new AbortController(), captured = generation;
         requests.add(controller);
         const check = () => { assertCurrent(); controller.signal.throwIfAborted();
@@ -396,7 +450,9 @@ export function createUfoHarness(api, dependencies = {}) {
           check();
           for (const assertion of inputAuthorities.values()) assertion();
           writeFrame(worker, {type: "response", id: frame.id, ok: true, value});
+          diagnostic("host_callback_finished", {operation: frame.operation});
         } catch {
+          diagnostic("host_callback_refused", {operation: frame.operation});
           try { writeFrame(worker, {type: "response", id: frame.id, ok: false,
             error: "操作授权已取消、被拒绝或当前要求已变化。"}); } catch {}
         } finally { requests.delete(controller); }
@@ -404,10 +460,11 @@ export function createUfoHarness(api, dependencies = {}) {
       try {
         for await (const frame of readFrames(worker.stdout)) {
           if (frame.type === "ready" && !ready && frame.version === 1) {
-            ready = true; clearTimeout(startup); assertCurrent();
+            ready = true; assertCurrent();
+            diagnostic("worker_ready");
             params.onExecutionPhase?.({phase: "process_spawned", provider: params.provider,
               model: params.modelId, backend: HARNESS_ID});
-            writeFrame(worker, {type: "run", run_id: params.runId, text: params.prompt, context, route});
+            writeFrame(worker, {type: "run", run_id: params.runId, text: params.prompt, context, route, mode});
             params.userTurnTranscriptRecorder?.markSentToProvider();
           } else if (!ready) throw new Error("UFO protocol handshake failed");
           else if (frame.type === "request") {
@@ -422,6 +479,17 @@ export function createUfoHarness(api, dependencies = {}) {
             receipts.get(frame.receipt_id)?.options?.onQueueAccepted?.(true);
           } else if (frame.type === "event") {
             const event = frame.event;
+            if (typeof event.stage === "string") startupStage = event.stage;
+            // Import heartbeats prove liveness, not successful initialization.
+            // Keep the deadline until the native Session actually starts (or
+            // an older worker reaches a model/tool or explicit user wait).
+            if (!progressed && (event.stage === "session_running" ||
+                ["planning", "paused"].includes(event.phase) ||
+                ["model_attempt", "tool_started"].includes(event.type))) {
+              progressed = true;
+              clearTimeout(startup);
+            }
+            diagnostic(event.type, event);
             if (event.type === "context_applied") {
               for (const id of event.receipt_ids ?? []) {
                 const pending = receipts.get(id);
@@ -448,6 +516,11 @@ export function createUfoHarness(api, dependencies = {}) {
               emit("tool", {phase: "result", name: event.action, toolCallId: event.call_id,
                 isError: !event.ok, result: {status: event.ok ? "completed" : "failed"}});
             } else if (event.type === "phase" || event.type === "waiting") {
+              if (event.type === "waiting" && event.stage === "tool" && event.timed_out && !timedOut) {
+                timedOut = true;
+                failure = new Error("UFO desktop tool timed out");
+                abort();
+              }
               if (event.phase === "planning")
                 params.onExecutionPhase?.({phase: "model_call_started", provider: params.provider,
                   model: params.modelId, backend: HARNESS_ID});
@@ -456,16 +529,19 @@ export function createUfoHarness(api, dependencies = {}) {
               params.onRunProgress?.({reason: event.phase ?? event.stage ?? "ufo", backend: HARNESS_ID});
             }
           } else if (frame.type === "result" && !result) {
+            diagnostic("result", frame.result);
             result = frame.result; worker.stdin.end();
           } else throw new Error("Unexpected UFO protocol message");
         }
       } catch (error) {
+        diagnostic("protocol_error", {error_type: error?.name});
         failure = error; abort();
         worker.stdin.end();
       } finally {
-        // No force kill: a running OS call must settle before its Windows
-        // mutex and capture state are released.
+        // Prefer cooperative cleanup; abort() has a bounded force-kill
+        // fallback for a native call that never returns.
         await closed;
+        if (forceStopTimer) clearTimeout(forceStopTimer);
         settled = true; clearTimeout(timeout); clearTimeout(startup);
         params.abortSignal?.removeEventListener("abort", abort);
         unregisterRun(params.sessionId, handle, params.sessionKey, params.sessionFile);
@@ -473,13 +549,26 @@ export function createUfoHarness(api, dependencies = {}) {
         for (const controller of requests) controller.abort();
         for (const pending of receipts.values()) pending.reject(new Error("UFO did not confirm adoption of this input"));
       }
-      if (!result) result = {status: stopped ? "cancelled" : "failed",
-        message: stopped ? "执行已停止；已发出的操作已完成收尾。" : "UFO 执行进程未能返回结果，请检查依赖和配置。"};
+      // A startup timeout asks abort() to stop the worker, so the worker may
+      // report a late cooperative "cancelled" result. Preserve the actual
+      // cause instead of exposing a generic cancelled/error turn to OpenClaw.
+      if (startupTimedOut) result = {
+        status: "failed",
+        message: `UFO 执行器初始化超时（阶段：${startupTimeoutStage ?? startupStage}），未进入原生 Session；请查看 .artifacts/ufo-runs/${params.runId}.jsonl。`,
+        reason: "startup_timeout",
+      };
+      else if (!result) result = timedOut ?
+        {status: "incomplete", message: "UFO 桌面操作超时，已停止本次任务。"} :
+        {status: stopped ? "cancelled" : "failed",
+          message: stopped ? "执行已停止；已发出的操作已完成收尾。" : "UFO 执行进程未能返回结果，请检查依赖和配置。"};
       if (failure && result.status === "completed") result = {status: "incomplete",
         message: "执行进程异常结束，无法确认任务全部完成。"};
       const assistant = assistantMessage(params, result, usage);
+      diagnostic("finished", {status: result.status, reason: result.reason});
       let owned = false;
-      if (!stopped && assistant.stopReason !== "aborted") {
+      // Internal startup protection is not a user cancellation. Persist this
+      // diagnostic reply so restart recovery does not end with a blank Error.
+      if ((!stopped || startupTimedOut) && assistant.stopReason !== "aborted") {
         host.assertActive();
         const saved = await persistAssistant({...params.sessionTarget, agentId: params.agentId,
           sessionId: params.sessionId, sessionKey: params.sessionKey, config: params.config,
@@ -489,6 +578,7 @@ export function createUfoHarness(api, dependencies = {}) {
         owned = true;
       }
       const terminal = timedOut ? {kind: "timeout", phase: "prompt", source: "run_budget", aborted: true} :
+        startupTimedOut ? {kind: "failed", phase: "prompt", source: "startup", error: new Error(assistant.errorMessage)} :
         result.status === "cancelled" || stopped ? {kind: "aborted", source: "external"} :
         result.status === "failed" ? {kind: "failed", source: "prompt", error: new Error(assistant.errorMessage)} : {kind: "ok"};
       const replay = {hadPotentialSideEffects: hadEffects, replaySafe: !hadEffects};

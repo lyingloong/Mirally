@@ -17,6 +17,15 @@ import uuid
 from openassist.core.execution import ExecutionCancelled, ExecutionRequest, ExecutionServices, Reobserve, Supplement
 
 MAX_FRAME = 2_000_000
+WORKER_MODES = frozenset(("conversation", "desktop_subtask"))
+
+
+def worker_mode(data):
+    """Validate the host-selected execution mode before loading UFO."""
+    mode = data.get("mode", "conversation")
+    if mode not in WORKER_MODES:
+        raise ValueError("Unsupported UFO worker mode")
+    return mode
 
 
 def prepare_worker_config(root, temporary_root):
@@ -142,7 +151,7 @@ class WorkerServices:
         self.channel, self.frontend = channel, frontend
         self.was_editing = False
 
-    def checkpoint(self):
+    def checkpoint(self, *, wait_for_editing=False):
         waiting = False
         with self.channel.condition:
             while True:
@@ -151,7 +160,7 @@ class WorkerServices:
                 if editing and not self.was_editing:
                     self.channel.revision += 1
                 self.was_editing = editing
-                if not self.channel.paused and not editing:
+                if not self.channel.paused and (not editing or not wait_for_editing):
                     return self.channel.revision
                 if not waiting:
                     self.channel.send({"type": "event", "event": {
@@ -163,7 +172,10 @@ class WorkerServices:
     def desktop_access(self, phase, *, expected_revision=None):
         if phase == "after":
             return self.channel.revision
-        current = self.checkpoint()
+        # The composer may remain focused while the model is planning. Only
+        # wait at the actual desktop boundary, where a screenshot or action is
+        # about to interact with the user's workspace.
+        current = self.checkpoint(wait_for_editing=True)
         if expected_revision is not None and current != expected_revision:
             raise Reobserve()
         return current
@@ -193,6 +205,9 @@ class WorkerServices:
 
     def capture(self, phase):
         if phase == "before":
+            # Native observation is desktop access too: never capture behind
+            # the user's back while they are composing a message.
+            self.checkpoint(wait_for_editing=True)
             if self.channel.rpc("authorize_observation") is not True:
                 raise ExecutionCancelled()
             self.frontend.before()
@@ -214,6 +229,12 @@ class WorkerServices:
         )
 
 
+def stdio_channel(source, sink):
+    """Keep native DLL imports independent from an idle Windows stdin reader."""
+    from openassist.platform.stdio_pipe import control_pipe_reader
+    return WorkerChannel(control_pipe_reader(source), sink)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, required=True)
@@ -223,36 +244,64 @@ def main():
     source, sink = sys.stdin, sys.stdout
     # Native rich/log output must never be mistaken for a JSON protocol frame.
     sys.stdout = sys.stderr
-    channel = WorkerChannel(source, sink)
+    channel = stdio_channel(source, sink)
     threading.Thread(target=channel.listen, daemon=True, name="ufo-control").start()
     channel.send({"type": "ready", "version": 1})
     channel.ready.wait()
     if not channel.first:
         return
     root = args.root.resolve()
-    from openassist.runtime.ufo.config import configure_ufo_config_root
-    from openassist.platform.frontend_registry import FrontendCapture
-    from openassist.runtime.ufo.adapter import UfoExecutor
-    from openassist.runtime.ufo.model_bridge import selected_model
     data = channel.first
     frontend = None
     scope = ExitStack()
     try:
-        temporary = Path(scope.enter_context(tempfile.TemporaryDirectory(prefix="mirally-ufo-")))
-        configure_ufo_config_root(prepare_worker_config(root, temporary), ufo_root=root / "UFO")
-        os.chdir(root / "UFO")
-        request = ExecutionRequest(data["run_id"], data["text"], data.get("context", {}))
-        frontend = FrontendCapture(root)
-        services = WorkerServices(channel, frontend)
-        from openassist.core.assistant import Assistant
-        from openassist.core.execution import TaskResult
-        with selected_model(data["route"], lambda usage: channel.send({"type": "usage", **usage})) as model:
+        mode = worker_mode(data)
+        from openassist.runtime.ufo.diagnostics import startup_diagnostics
+        with startup_diagnostics(lambda event: channel.send({"type": "event", "event": event})) as mark:
+            from openassist.runtime.ufo.config import configure_ufo_config_root
+            from openassist.platform.frontend_registry import FrontendCapture
+            from openassist.runtime.ufo.adapter import UfoExecutor
+            from openassist.runtime.ufo.model_bridge import selected_model
+            mark("configuring")
+            temporary = Path(scope.enter_context(tempfile.TemporaryDirectory(prefix="mirally-ufo-")))
+            configure_ufo_config_root(prepare_worker_config(root, temporary), ufo_root=root / "UFO")
+            os.chdir(root / "UFO")
+            request = ExecutionRequest(data["run_id"], data["text"], data.get("context", {}))
+            mark("frontend_registry")
+            frontend = FrontendCapture(root)
+            services = WorkerServices(channel, frontend)
+            from openassist.core.assistant import Assistant
+            from openassist.core.execution import TaskResult
+            mark("model_binding")
+            model_scope = scope.enter_context(ExitStack())
+            model = model_scope.enter_context(selected_model(data["route"],
+                lambda usage: channel.send({"type": "usage", **usage})))
+            mark("model_ready")
+        with model_scope:
             additions, receipts = [], []
-            while True:
-                expected = services.checkpoint()
+            if mode == "desktop_subtask":
+                # Do not block Session startup or model initialization on a
+                # focused composer; capture/action boundaries enforce that.
+                expected = services.checkpoint(wait_for_editing=False)
                 updates = channel.take_inputs()
                 additions.extend(item.text for item in updates)
                 receipts.extend(item.receipt_id for item in updates)
+                if channel.revision != expected:
+                    raise Reobserve()
+                channel.send({"type": "event", "event": {"type": "context_applied",
+                             "receipt_ids": receipts, "source": "desktop"}})
+                decision = type("DesktopDecision", (), {"mode": "desktop_subtask"})()
+            while mode != "desktop_subtask":
+                # A sent Control UI message can briefly keep its composer
+                # focused. Let the conversation classifier finish while that
+                # state settles; NativeRuntime still blocks before capture or
+                # any desktop action.
+                expected = services.checkpoint(wait_for_editing=False)
+                updates = channel.take_inputs()
+                additions.extend(item.text for item in updates)
+                receipts.extend(item.receipt_id for item in updates)
+                channel.send({"type": "event", "event": {"type": "phase", "phase": "planning",
+                             "summary": "正在判断是否需要桌面操作"}})
                 def completion(messages):
                     services.authorize_model(receipts, expected)
                     channel.send({"type": "event", "event": {"type": "phase", "phase": "planning",

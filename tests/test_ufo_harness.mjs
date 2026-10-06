@@ -1,11 +1,17 @@
-import test from "node:test";
+import test, {after} from "node:test";
 import assert from "node:assert/strict";
 import {spawn} from "node:child_process";
 import {randomUUID} from "node:crypto";
 import {Readable} from "node:stream";
-import {createUfoHarness, preparedRoute, routeSupport, taskContext, readFrames, HARNESS_ID} from "../integrations/openclaw/ufo/harness.mjs";
+import {mkdtempSync, readFileSync, rmSync} from "node:fs";
+import {tmpdir} from "node:os";
+import path from "node:path";
+import {diagnosticMetadata} from "../integrations/openclaw/ufo/diagnostics.mjs";
+import {createUfoHarness, preparedRoute, routeSupport, taskContext, readFrames, workerMode, HARNESS_ID, WORKER_MODES} from "../integrations/openclaw/ufo/harness.mjs";
 
 const model = {api: "openai-completions", baseUrl: "http://127.0.0.1:1234/v1", input: ["text", "image"]};
+const testRoot = mkdtempSync(path.join(tmpdir(), "mirally-ufo-harness-"));
+after(() => rmSync(testRoot, {recursive:true, force:true}));
 const route = {requestedRuntime: HARNESS_ID, modelProvider: {...model, requestTransportOverrides: "none",
   preparedAuth: {mode: "api-key"}}};
 
@@ -67,13 +73,19 @@ test("JSON framing handles split UTF-8 and rejects partial shutdown", async () =
   await assert.rejects(async () => {for await (const frame of readFrames(Readable.from(['{"broken":']))) {}});
 });
 
-function params() {
+test("direct UFO and host-created child sessions select the desktop subtask mode", () => {
+  assert.equal(workerMode({}), WORKER_MODES.desktopSubtask);
+  assert.equal(workerMode({spawnedBy: "agent:main:session:123"}), WORKER_MODES.desktopSubtask);
+  assert.equal(workerMode({spawnedBy: ""}), WORKER_MODES.desktopSubtask);
+});
+
+function params(overrides = {}) {
   const id = randomUUID();
-  return {sessionId: id, sessionKey: "agent:ufo:test-" + id, sessionFile: "unused", agentId: "ufo",
+  return {...{sessionId: id, sessionKey: "agent:ufo:test-" + id, sessionFile: "unused", agentId: "ufo",
     runId: randomUUID(), prompt: "合成测试", provider: "test", modelId: "vision", timeoutMs: 3000,
     modelRegistry: {find: () => model}, resolvedApiKey: "test-only", thinkLevel: "off",
     hostCapabilities: {assertActive() {}, runBeforeToolCall: async () => ({blocked: false})},
-    observeToolTerminal: () => ({}), workspaceDir: process.cwd(), config: {}};
+    observeToolTerminal: () => ({}), workspaceDir: process.cwd(), config: {}}, ...overrides};
 }
 function child(program) {
   return spawn(process.execPath, ["--input-type=module", "-e", `
@@ -86,14 +98,47 @@ function child(program) {
   `], {stdio: ["pipe", "pipe", "pipe"], windowsHide: true});
 }
 function harness(program, extra = {}) {
-  return createUfoHarness({}, {spawnWorker: () => child(program), contextFor: async () => ({}),
+  return createUfoHarness({}, {root:testRoot, spawnWorker: () => child(program), contextFor: async () => ({}),
     persistAssistant: async () => ({kind: "result"}), ...extra});
 }
+
+test("diagnostics follow startup, model and terminal events without private content", async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "mirally-ufo-diagnostics-"));
+  const input = params({prompt: "PRIVATE_PROMPT", resolvedApiKey: "PRIVATE_KEY"});
+  try {
+    const result = await harness(`
+      if(frame.type==='run') {
+        send({type:'event',event:{type:'phase',phase:'preparing',stage:'model_binding',summary:'PRIVATE_SUMMARY'}});
+        send({type:'event',event:{type:'model_attempt',agent:'HOST_AGENT',attempt:1}});
+        send({type:'event',event:{type:'waiting',stage:'model',elapsed_seconds:12,remaining_seconds:78}});
+        send({type:'result',result:{status:'failed',reason:'TimeoutError',message:'PRIVATE_RESULT'}});
+      }
+    `, {root}).runAttempt(input);
+    assert.equal(result.terminal.kind, "failed");
+    const content = readFileSync(path.join(root, ".artifacts/ufo-runs", input.runId + ".jsonl"), "utf8");
+    assert.doesNotMatch(content, /PRIVATE_/);
+    const events = content.trim().split("\n").map(JSON.parse);
+    assert.equal(events[0].type, "harness_entered");
+    assert.ok(events.some(event => event.stage === "model_binding"));
+    assert.ok(events.some(event => event.agent === "HOST_AGENT" && event.attempt === 1));
+    assert.ok(events.some(event => event.stage === "model" && event.elapsed_seconds === 12));
+    assert.equal(events.at(-1).status, "failed");
+    assert.deepEqual(diagnosticMetadata({arguments:{secret:"PRIVATE_ARG"}, route:{key:"PRIVATE_KEY"},
+      stack:[{file:"worker.py",function:"main",line:20,locals:"PRIVATE_LOCAL"}]}),
+      {stack:[{file:"worker.py",function:"main",line:20}]});
+  } finally { rmSync(root, {recursive:true, force:true}); }
+});
 test("business answer survives real worker IPC and transcript handoff", async () => {
-  const result = await harness(`if(frame.type==='run') send({type:'result', result:{status:'partial',message:'第一部分已完成'}});`).runAttempt(params());
+  const result = await harness(`if(frame.type==='run') send({type:'result', result:{status:'partial',message:frame.mode+':第一部分已完成'}});`).runAttempt(params());
   assert.equal(result.terminal.kind, "ok");
   assert.equal(result.assistantTranscriptOwned, true);
-  assert.match(result.assistantTexts[0], /部分完成.*第一部分已完成/s);
+  assert.match(result.assistantTexts[0], /部分完成.*desktop_subtask.*第一部分已完成/s);
+});
+test("a spawned OpenClaw child is sent directly to the desktop executor", async () => {
+  const result = await harness(`if(frame.type==='run') send({type:'result', result:{status:'completed',message:frame.mode}});`).runAttempt(
+    params({spawnedBy: "agent:main:session:parent"}));
+  assert.equal(result.terminal.kind, "ok");
+  assert.equal(result.assistantTexts[0], "desktop_subtask");
 });
 test("stop during a pending authorization revokes it and drains the process", async () => {
   const input = params(), controller = new AbortController(); input.abortSignal = controller.signal;
@@ -109,6 +154,54 @@ test("stop during a pending authorization revokes it and drains the process", as
   assert.equal(result.terminal.kind, "aborted");
   assert.equal(result.assistantTranscriptOwned, false);
   assert.doesNotMatch(result.assistantTexts.join(), /BAD_ACTION/);
+});
+test("a non-interruptible native tool timeout force-stops the worker", async () => {
+  const started = Date.now();
+  const result = await harness(`
+    if(frame.type==='run') send({type:'event',event:{type:'waiting',stage:'tool',timed_out:true,in_flight:true}});
+  `, {registerRun: (_, value) => value}).runAttempt(params({timeoutMs: 10000}));
+  assert.equal(result.terminal.kind, "timeout");
+  assert.match(result.assistantTexts[0], /桌面操作超时/);
+  assert.ok(Date.now() - started < 7000);
+});
+test("a worker that sends no post-handshake progress is stopped", async () => {
+  const started = Date.now();
+  const result = await harness(``).runAttempt(params({timeoutMs: 10000, ufoStartupTimeoutMs: 100}));
+  assert.equal(result.terminal.kind, "failed");
+  assert.ok(Date.now() - started < 5000);
+});
+
+test("startup heartbeats cannot hide a stuck native import from the deadline", async () => {
+  const result = await harness(`
+    if(frame.type==='run') {
+      send({type:'event',event:{type:'phase',phase:'preparing',stage:'native_compatibility'}});
+      setInterval(()=>send({type:'event',event:{type:'startup_wait',stage:'native_compatibility'}}),20);
+    }
+    if(frame.type==='cancel') send({type:'result',result:{status:'failed',message:'startup stopped'}});
+  `).runAttempt(params({timeoutMs:10000,ufoStartupTimeoutMs:150}));
+  assert.equal(result.terminal.kind, "failed");
+  assert.equal(result.terminal.source, "startup");
+});
+
+test("startup timeout persists a useful reply when the worker reports late cancellation", async () => {
+  let persisted;
+  const result = await harness(`
+    if(frame.type==='run') {
+      send({type:'event',event:{type:'phase',phase:'preparing',stage:'native_compatibility'}});
+      // This cleanup event arrives after the harness deadline.  It must not
+      // replace the stage captured at the timeout boundary.
+      setTimeout(()=>send({type:'event',event:{type:'waiting',stage:'initialization',stopping:true}}),130);
+      setTimeout(()=>send({type:'result',result:{status:'cancelled',message:'late cancellation'}}),180);
+    }
+  `, {persistAssistant: async ({message}) => {persisted = message; return {kind:'result'};}})
+    .runAttempt(params({timeoutMs:10000,ufoStartupTimeoutMs:100}));
+  assert.equal(result.terminal.kind, "failed");
+  assert.equal(result.terminal.source, "startup");
+  assert.equal(result.assistantTranscriptOwned, true);
+  assert.match(result.assistantTexts[0], /初始化超时/);
+  assert.match(result.assistantTexts[0], /native_compatibility/);
+  assert.doesNotMatch(result.assistantTexts[0], /阶段：initialization/);
+  assert.match(JSON.stringify(persisted), /native_compatibility/);
 });
 test("question answers use the native nested answer schema", async () => {
   const instance = harness(`
