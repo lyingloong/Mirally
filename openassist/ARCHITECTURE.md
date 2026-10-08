@@ -4,10 +4,21 @@ The product package is split by responsibility:
 
 - `core/` owns conversation state, intent handoff, and task lifecycle. It does
   not import Tk or Windows APIs.
+- `core/activity/` owns the product-neutral observation protocol, privacy
+  decisions, single-writer SQLite store, asset lifecycle, and consumer cursor
+  contract. It does not import UFO or Windows APIs.
 - `runtime/` owns product configuration, speech providers, and the adapter that
   starts a UFO native `Session`.
+- `runtime/activity/` owns the optional activity sensor lifecycle, CLI and
+  agent-control lease bridge. It is disabled unless the user enables its own
+  activity configuration.
 - `platform/` owns Windows-only capture isolation, raw input, focus, and taskbar
   integration.
+- `platform/activity/` owns read-only foreground identity/window titles,
+  bounded browser address-bar extraction in an isolated UIA worker,
+  input metadata aggregation, the isolated Raw Input helper, and bounded UIA structure
+  inspection. WGC/content workers remain isolated platform adapters and do not
+  belong in the core store.
 - `ui/` owns Mirally's Tk workbench, edge companion, themes, and presentation.
 
 The default frontend is feat's `control_ui_shell.py`, hosting the official
@@ -15,6 +26,30 @@ OpenClaw Control UI. `openclaw_host.py` manages its native process connection.
 The Tk modules at the package root remain compatibility imports; native host
 and experimental OpenClaw client modules retain their existing locations.
 New UFO product code belongs in the responsibility packages above.
+
+The activity data layer is independent from the OpenClaw session database and
+from UFO task callbacks. `ObservationStore` assigns durable `ingest_seq`
+cursors, publishes asset files only after an atomic commit, and represents
+privacy denials, gaps, stale evidence, and expired assets explicitly.
+When explicitly enabled, the current implementation starts the foreground
+poller, an isolated Raw Input metadata helper, and a bounded UIA worker. The
+content layer adds explicit window/all-monitor WGC, a process-isolated
+Windows.Media.Ocr worker, UIA Name/Value/Text, committed-text deltas and
+sequence-checked clipboard reads. The sensor remains disabled by default;
+the enabled template and isolated monitor test use rich content defaults. WinEvent/WTS
+lifecycle events and automatic host startup are not yet wired.
+The enabled sensor treats foreground metadata, input metadata, and UIA
+structure as one baseline contract and records a degraded collector state when
+one platform source is unavailable.
+
+`runtime/activity/scheduler.py` coalesces foreground, periodic, typing-pause,
+click, scroll and clipboard triggers in a bounded queue. One evidence thread
+owns expensive sources; the foreground poller and Raw Input message pump never
+wait for COM, graphics or clipboard delayed rendering. Pause generations and
+pre/post identity checks discard stale results. Monitor frames use explicit
+monitor IDs and do not claim the foreground application owns the whole image.
+Image SHA-256 gates OCR; quota eviction uses store tombstones. See
+[rich capture](../docs/activity-rich-capture.md) for coverage limits.
 
 `UFO/` is a Git submodule pointing at the OpenAssist UFO fork. Product-owned
 configuration is kept under `config/openassist/ufo/`; `runtime.config` configures

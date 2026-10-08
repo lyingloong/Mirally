@@ -13,6 +13,9 @@ Mirally 是面向 Windows 的对话与桌面助手，名称取自 MIRA + ally。
 | 两份合成材料的办公演示与明天验收清单 | [办公协作演示](demo/README.md) |
 | 模型思考参数、慢请求原因与响应耗时复测 | [响应耗时定位](response-latency.md) |
 | 当前记忆范围与上下文限制 | [当前范围](../README.md#当前范围) |
+| Windows 活动观察数据层、Screenpipe 源码参考和实施状态 | [活动观察数据层方案](activity-sensor-design.md) |
+| Activity 与 Screenpipe 的能力差距和陪伴场景对齐目标 | [Screenpipe 对齐情况](activity-screenpipe-gap.md) |
+| 持续屏幕、UIA 正文、输入文本与剪贴板的实现和测试 | [丰富内容采集](activity-rich-capture.md) |
 | 旧 UFO 的输入协调、截图隔离和验证脚本 | [历史桌面体验实现与验证](desktop-experience-implementation.md) |
 | 之前的 Tk OpenClaw 浮窗客户端 | [实验客户端说明](openclaw-desktop-client.md) |
 | UFO 各目录、原生 Session、状态机、工具链、Galaxy 与 AIP | [UFO 仓库架构与源码导读](ufo-architecture.md) |

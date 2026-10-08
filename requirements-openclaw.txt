@@ -4,3 +4,13 @@ pywebview==6.1
 Pillow>=11.3,<13
 PyYAML>=6.0.1,<7
 psutil>=5.9,<8
+# Product activity workers (UIA structure and browser address-bar context).
+uiautomation==2.0.18; sys_platform == "win32"
+# Optional Windows content layer: HWND WGC is native; OCR uses Windows.Media.Ocr.
+winrt-runtime==3.2.1
+winrt-Windows.Foundation==3.2.1
+winrt-Windows.Foundation.Collections==3.2.1
+winrt-Windows.Globalization==3.2.1
+winrt-Windows.Graphics.Imaging==3.2.1
+winrt-Windows.Media.Ocr==3.2.1
+winrt-Windows.Storage.Streams==3.2.1

@@ -1,0 +1,78 @@
+# Product-owned Windows activity observation. Disabled by default.
+# Copy to activity.yaml and enable explicitly after reviewing the privacy policy.
+enabled: false
+policy_version: 1
+poll_interval_seconds: 1.0
+
+collection:
+  # The three baseline streams are collected together when enabled:
+  # foreground metadata, aggregated input metadata, and bounded UIA structure.
+  default_level: content
+  # Window titles and browser address-bar URLs are the companion's primary
+  # context.  Set either to false when a deployment should omit that field.
+  window_titles: true
+  browser_urls: true
+  browser_url_timeout_ms: 1200
+  browser_url_poll_interval_seconds: 3.0
+  audio: false
+
+input:
+  enabled: true
+  text: true
+  clipboard: true
+  clipboard_timeout_ms: 1500
+  clipboard_max_chars: 12000
+  quiet_ms: 1500
+  max_burst_ms: 10000
+
+ui_structure:
+  enabled: true
+  content: true
+  max_text_chars: 12000
+  timeout_ms: 5000
+  max_depth: 16
+  max_nodes: 180
+
+visual:
+  enabled: true
+  continuous: true
+  interval_seconds: 3.0
+  # Explicit all-monitor capture, never a fallback from window capture.
+  scope: monitors
+  persist_images: true
+  max_per_minute: 120
+  burst: 2
+  timeout_ms: 2500
+  max_dimension: 1920
+  # Reject captures that are mostly exact-black after exclusion masks. The
+  # monitor/window thresholds use the captured region, not the whole desktop.
+  drop_black_frames: true
+  monitor_black_fraction: 0.90
+  window_black_fraction: 0.80
+  black_pixel_threshold: 8
+  # Native Windows OCR is only used when visual capture and content policy
+  # are both explicitly enabled.  These are language tags, not credentials.
+  ocr_enabled: true
+  ocr_timeout_ms: 2500
+  languages: [zh-CN, en-US]
+  desktop_fallback: false
+
+actor:
+  pause_content_during_agent_control: true
+  include_unknown_in_user_knowledge: false
+
+privacy:
+  exclude_self: true
+  deny_content_on_unknown_desktop: true
+  excluded_apps: []
+  excluded_windows: []
+  allowed_apps: []
+
+storage:
+  # null uses %LOCALAPPDATA%\\Mirally\\activity on Windows.
+  directory: null
+  database_path: null
+  observation_retention_days: 14
+  image_retention_hours: 24
+  image_quota_mib: 1024
+  min_free_space_mib: 2048

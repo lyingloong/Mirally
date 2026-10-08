@@ -34,7 +34,17 @@ class GatewayUfoTests(unittest.TestCase):
                 data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 prompts.append(data)
                 marker = "合成正文：保持段落\n\n第二段全部保留。"
-                content = json.dumps({"mode": "reply", "message": marker}, ensure_ascii=False)
+                # The selected UFO agent enters the native desktop subtask
+                # path directly. Its model contract is HostAgentResponse,
+                # not the product conversation AssistantDecision envelope.
+                content = json.dumps({
+                    "observation": "当前请求只需要文本回复，无需桌面操作。",
+                    "thought": "直接结束本轮并返回合成正文。",
+                    "status": "FINISH",
+                    "message": [marker],
+                    "plan": [],
+                    "result": marker,
+                }, ensure_ascii=False)
                 value = {"id": "synthetic-completion", "object": "chat.completion", "created": 1,
                          "model": "vision", "choices": [{"index": 0, "finish_reason": "stop",
                              "message": {"role": "assistant", "content": content}}],
@@ -121,7 +131,20 @@ class GatewayUfoTests(unittest.TestCase):
                     history = json.dumps(prompts[-1]["messages"], ensure_ascii=False)
                     self.assertIn("合成正文", history)
                     self.assertIn("第二段全部保留", history)
-                    self.assertTrue(all(not isinstance(m.get("content"), list) for p in prompts for m in p["messages"]))
+                    # Native UFO observation legitimately sends the current
+                    # screenshot as OpenAI multimodal content. Historical
+                    # text must remain intact, while image parts need only be
+                    # structurally valid.
+                    for prompt in prompts:
+                        for message in prompt["messages"]:
+                            content = message.get("content")
+                            self.assertTrue(
+                                isinstance(content, str) or (
+                                    isinstance(content, list)
+                                    and all(isinstance(part, dict) for part in content)
+                                ),
+                                message,
+                            )
                     gateway.terminate()
                     gateway.wait(timeout=15)
                     gateway = None

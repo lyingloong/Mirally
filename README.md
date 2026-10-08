@@ -104,10 +104,51 @@ UFO 操作当前交互桌面，会占用鼠标、键盘和窗口。Mirally 桌�
 | `config/openassist/openclaw/mirally-webview/` | 桌面窗口的浏览器数据、原生设备配对和界面偏好 |
 | `config/openassist/openclaw/mirally-host/` | 本地后台启动日志与进程记录 |
 | `config/openassist/openclaw.template.json` | 可提交的无凭据配置模板 |
+| `config/openassist/activity.yaml.template` | 活动观察数据层模板，默认关闭；启用后数据保存在用户本地目录 |
 | `integrations/openclaw/package-lock.json` | 完整原生运行依赖版本 |
 | `openassist/assets/` | 正式矢量源与统一导出的 PNG、ICO |
 
 私有状态目录、`.venv`、`.artifacts/`、`node_modules/` 和 `output/` 已被 Git 忽略。配对使用原生的一次性浏览器流程；套壳不会把模型密钥复制进页面，也不会打印认证 URL。
+
+活动观察数据层目前作为独立、默认关闭的产品能力提供基础实现。复制
+`config/openassist/activity.yaml.template` 为 `activity.yaml`，在确认本地隐私策略后设置
+`enabled: true`；诊断和只读查询使用：
+
+```powershell
+.\.venv\Scripts\python.exe -m openassist.runtime.activity.cli doctor
+.\.venv\Scripts\python.exe -m openassist.runtime.activity.cli status
+.\.venv\Scripts\python.exe -m openassist.runtime.activity.cli query --limit 20
+```
+
+需要观察采集器本身时，可以直接启动独立的本地监控界面。它使用隔离的测试目录，不读取模型凭据，也不会修改正式 Activity 配置：
+
+```powershell
+.\.venv\Scripts\python.exe -m openassist.runtime.activity.cli monitor --test
+```
+
+命令会绑定到 `127.0.0.1`、打印一次性访问地址并打开浏览器。测试模式默认完整采集：持续多显示器截图与 OCR、UIA 正文和属性、已提交输入文本变化、剪贴板更新及复制/剪切/粘贴事件，截图保留在 `.artifacts/activity-monitor/`。界面提供最新优先的事件时间线、截图预览、来源和调度诊断，以及暂停/恢复/停止控制。勾选「显示内容」查看正文和图片；这只改变显示，不改变采集。需要不打开浏览器时使用 `--no-open`，退出监控使用终端 `Ctrl+C`。监控与正式传感器共用单实例锁。
+
+不需要手动配置即可测试；只测基础元数据和 UIA 结构时添加 `--metadata-only`。旧 `--content`、`--persist-images` 参数保留兼容，但现在已经是测试默认行为。已有正式 `activity.yaml` 不会自动覆盖，旧配置仍按原设置运行；要使用丰富内容配置，参照最新模板调整并重启采集器。
+
+窗口标题和浏览器地址栏 URL 已作为 `window_context` 事件采集：标题使用 Win32 前台窗口 API，浏览器 URL 使用有界 UI Automation worker；同一浏览器窗口导航后会更新上下文。模板与 `monitor --test` 默认启用，可在 `activity.yaml` 的 `collection.window_titles`、`collection.browser_urls` 中分别关闭；已有监控进程需要重新启动以加载改动。当前数据层与 Screenpipe 的功能差距、完整对齐目标和已知限制见 [Activity 与 Screenpipe 对齐情况](docs/activity-screenpipe-gap.md)。
+
+第一版已实现版本化 Observation、单写者 SQLite、资产生命周期、隐私策略、游标和
+agent 控制租约。完整启用后，基础观察契约要求同时具备前台基础元数据、输入元数据和受限
+UIA 结构；Raw Input helper 聚合计数并通知剪贴板变化，有界 UIA worker 返回结构和获准正文。
+旧配置缺少其中一项时不会静默当作完整采集，状态会显示 `degraded`。
+采集器整体仍默认关闭；启用最新模板后，截图、UIA 正文、输入文本、剪贴板和 OCR 默认一起开启，音频未接入。后台有界队列合并周期检查、输入停顿、点击和滚动触发，未变化的图像不重复保存；OCR 成功后不重复识别，失败时最多退避补试两次，以 `ocr_result` 关联原始帧。截图遮罩按窗口遮挡关系计算，避免后台 Mirally 窗口遮黑其他应用；UIA 内容默认深度 16，优先读取文档和编辑区。图片配额、保留时间、低磁盘保护和暂停均生效。实现与限制见 [丰富内容采集](docs/activity-rich-capture.md)。
+
+WGC 现在复用常驻会话，避免周期截图反复开关捕获描边，并尽力请求关闭边框；Windows 权限限制下仍可能显示边框。默认过滤显示器黑色超过 90%、窗口范围黑色超过 80% 的帧，只保留过滤诊断，不执行 OCR 或保存图片；阈值按实际捕获区域计算。暂停/停止会释放会话，恢复后按需重建。更新此实现后重启 Activity 采集器即可，不需要重启 Gateway；其他机器需要重新构建 helper。监控页 `wgc_session` 可查看实际会话与边框请求状态。
+
+截图和 OCR 需要本机 helper（本开发机已构建；新环境需构建一次）：
+
+```powershell
+.\tools\build-activity-wgc.ps1
+$env:OPENASSIST_WGC_HELPER = "$PWD\tools\bin\desktop_wgc.exe"
+```
+
+然后在自有 `activity.yaml` 中同时显式授权 `collection.default_level: content` 和
+`visual.enabled: true`，最新模板已设置。`visual.scope: monitors` 显式捕获所有显示器，改为 `foreground` 可只捕获前台窗口；两者不互相 fallback。正文与边界框保存在 Observation，无法读取、超时或语言包缺失保留诊断，不伪造内容。
 
 ## 当前范围
 
