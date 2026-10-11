@@ -23,12 +23,17 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Optional
 
 from openassist.core.activity.models import CollectionLevel
+from openassist.core.activity.knowledge import ActivityOrganizer, ContextQuery, KnowledgeStore
 from openassist.core.activity.policy import ActivityPolicy
 from openassist.core.activity.store import CursorExpiredError, ObservationStore
 
 from .config import ActivityConfig
 from .lock import ActivityProcessLock
 from .service import ActivitySensor
+
+
+_THREAD_JOIN_TIMEOUT_SECONDS = 5.0
+_HTTP_THREAD_JOIN_TIMEOUT_SECONDS = 3.0
 
 
 MONITOR_HTML = r"""<!doctype html>
@@ -76,7 +81,7 @@ tr.event { cursor:pointer; } tr.event:hover { background:#f3f8fb; } .kind { font
 <div class="statusbar">
 <div class="stat"><span>采集器</span><b id="collector">-</b></div><div class="stat"><span>策略 / 采集级别</span><b id="policy">-</b></div>
 <div class="stat"><span>存储</span><b id="store">-</b></div><div class="stat"><span>最新事件序号</span><b id="events">0</b></div>
-<div class="stat"><span>最近事件</span><b id="last">-</b></div><div class="stat"><span>内容层</span><b id="content">off</b></div>
+<div class="stat"><span>最近事件</span><b id="last">-</b></div><div class="stat"><span>内容层</span><b id="content">off</b></div><div class="stat"><span>组织索引</span><b id="knowledge">-</b></div>
 </div>
 <div class="layout"><section><h2>事件时间线 <span class="pill">最新优先</span></h2><div class="toolbar"><input id="kind" placeholder="事件类型"><input id="app" placeholder="应用标识"><button id="apply">应用筛选</button><span class="spacer"></span><label><input id="freeze" type="checkbox"> 冻结视图</label><span class="pill" id="poll">自动刷新</span></div>
 <div class="timeline"><table><thead><tr><th>时间</th><th>事件</th><th>应用</th><th>级别</th><th>质量</th></tr></thead><tbody id="rows"></tbody></table></div><div class="note">事件来自 append-only store，列表按最新事件置顶；默认隐藏 OCR 文本和文件路径。</div></section>
@@ -114,7 +119,7 @@ function stateClass(status) { return status==="ok"||status==="running"||status==
 function statusLabel(status) { return ({available:"可用",unavailable:"不可用",running:"运行中",degraded:"降级",paused:"已暂停",stopped:"已停止",healthy:"健康",error:"错误",idle:"未启动",on:"已开启",off:"未开启"})[status] || status; }
 function sourceRow(label, source, calls, results, duration) { const available=!!source?.available; const status=available?"available":"unavailable"; const resultText=Object.entries(results||{}).map(([key,value])=>key+"="+value).join(" · ")||"-"; return `<tr><td>${escHtml(label)}</td><td class="source-status ${stateClass(status)}">${escHtml(statusLabel(status))}</td><td>${escHtml(calls ?? "-")}</td><td>${escHtml(resultText)}${duration==null?"":" · "+escHtml(duration)+" ms"}</td></tr>`; }
 function coverageRows(coverage) { const baseline=coverage?.baseline||[], optional=coverage?.optional||[], missing=coverage?.not_collected||[]; const rows=[]; baseline.forEach(item=>rows.push(`<tr><td>${escHtml(item.name)}</td><td class="source-status ${item.available?"ok":"warn"}">${item.available?"已接入":"未接入"}</td></tr>`)); optional.forEach(item=>rows.push(`<tr><td>${escHtml(item.name)}</td><td class="source-status ${item.enabled?"ok":"warn"}">${item.enabled?"已授权":"默认关闭"}</td></tr>`)); if(missing.length) rows.push(`<tr><td>明确不采集</td><td>${escHtml(missing.join("、"))}</td></tr>`); return rows.join(""); }
-async function status() { const s=await api("/api/status"); const c=s.collector||{}; const h=s.health||{}; const metrics=s.metrics||{}; const collectorClass=stateClass(c.status||"idle"); $("collector").innerHTML=`<span class="status-dot ${collectorClass}"></span>${escHtml(statusLabel(c.status||"idle"))}`; $("policy").textContent=(s.policy_version||"-")+" / "+(s.collection_level||"-"); $("store").innerHTML=`<span class="status-dot ${h.available?"ok":"bad"}"></span>${h.available?"健康":"错误"}`; $("events").textContent=h.newest_ingest_seq==null?"0":String(h.newest_ingest_seq); $("last").textContent=when(metrics.last_event_at_utc_ms); $("content").textContent=s.content_enabled?"已开启":"未开启"; $("sources").innerHTML=sourceRow("Foreground",s.sources?.foreground,metrics.foreground_events,{events:metrics.events_by_kind?.foreground_changed||0},null)+sourceRow("Window context",s.sources?.window_context,metrics.events_by_kind?.window_context||0,{events:metrics.events_by_kind?.window_context||0},null)+sourceRow("Browser URL",s.sources?.browser_url,metrics.browser_url_calls,metrics.browser_url_by_status,metrics.browser_url_last_duration_ms)+sourceRow("Input",s.sources?.input,metrics.input_batches,{},null)+sourceRow("UIA",s.sources?.uia,metrics.uia_calls,metrics.uia_by_status,metrics.uia_last_duration_ms)+sourceRow("WGC",s.sources?.visual,metrics.capture_calls,metrics.capture_by_status,metrics.capture_last_duration_ms)+sourceRow("OCR",s.sources?.ocr,metrics.ocr_calls,metrics.ocr_by_status,metrics.ocr_last_duration_ms); $("sourceNote").textContent="采集器指标为当前进程累计值；重启后从 0 开始，事件记录仍保留在 SQLite。"; $("coverage").innerHTML=coverageRows(s.coverage); $("health").innerHTML=rows({available:h.available,schema_version:h.schema_version,queue_size:h.queue_size,oldest_ingest_seq:h.oldest_ingest_seq,newest_ingest_seq:h.newest_ingest_seq,pending_assets:h.pending_assets,db_bytes:h.db_bytes,wal_bytes:h.wal_bytes,error:h.error||"-"}); }
+async function status() { const s=await api("/api/status"); const c=s.collector||{}; const h=s.health||{}; const metrics=s.metrics||{}; const k=s.knowledge||{}; const collectorClass=stateClass(c.status||"idle"); $("collector").innerHTML=`<span class="status-dot ${collectorClass}"></span>${escHtml(statusLabel(c.status||"idle"))}`; $("policy").textContent=(s.policy_version||"-")+" / "+(s.collection_level||"-"); $("store").innerHTML=`<span class="status-dot ${h.available?"ok":"bad"}"></span>${h.available?"健康":"错误"}`; $("events").textContent=h.newest_ingest_seq==null?"0":String(h.newest_ingest_seq); $("last").textContent=when(metrics.last_event_at_utc_ms); $("content").textContent=s.content_enabled?"已开启":"未开启"; const lag=k.organizer_lag||0; $("knowledge").innerHTML=`<span class="status-dot ${lag?"warn":"ok"}"></span>${lag?"积压 "+lag:"已追平"}`; $("sources").innerHTML=sourceRow("Foreground",s.sources?.foreground,metrics.foreground_events,{events:metrics.events_by_kind?.foreground_changed||0},null)+sourceRow("Window context",s.sources?.window_context,metrics.events_by_kind?.window_context||0,{events:metrics.events_by_kind?.window_context||0},null)+sourceRow("Browser URL",s.sources?.browser_url,metrics.browser_url_calls,metrics.browser_url_by_status,metrics.browser_url_last_duration_ms)+sourceRow("Input",s.sources?.input,metrics.input_batches,{},null)+sourceRow("UIA",s.sources?.uia,metrics.uia_calls,metrics.uia_by_status,metrics.uia_last_duration_ms)+sourceRow("WGC",s.sources?.visual,metrics.capture_calls,metrics.capture_by_status,metrics.capture_last_duration_ms)+sourceRow("OCR",s.sources?.ocr,metrics.ocr_calls,metrics.ocr_by_status,metrics.ocr_last_duration_ms); $("sourceNote").textContent="采集器指标为当前进程累计值；重启后从 0 开始，事件记录仍保留在 SQLite。"; $("coverage").innerHTML=coverageRows(s.coverage); $("health").innerHTML=rows({available:h.available,schema_version:h.schema_version,queue_size:h.queue_size,oldest_ingest_seq:h.oldest_ingest_seq,newest_ingest_seq:h.newest_ingest_seq,pending_assets:h.pending_assets,db_bytes:h.db_bytes,wal_bytes:h.wal_bytes,error:h.error||"-",knowledge:k}); }
 async function events(reset=false) { if(reset) cursor=0; const params=new URLSearchParams({after:String(cursor),limit:"100"}); const kind=$("kind").value.trim(), app=$("app").value.trim(); if(kind) params.set("kind",kind); if(app) params.set("app",app); if(reveal) params.set("include_content","1"); const result=await api("/api/events?"+params); if(result.cursor_expired && !reset) { cursor=0; return events(true); } addRows(result.events||[],reset); cursor=result.cursor||cursor; if((result.events||[]).length) showEvent(result.events[result.events.length-1]); }
 async function control(action) { await api("/api/control/"+action,{method:"POST"}); await status(); if(action==="stop") { stopped=true; $("poll").textContent="stopped"; } }
 async function tick() { if(stopped || ticking) return; ticking=true; try { await status(); const m=await api("/api/metrics"); $("evidence").innerHTML=rows({queue:m.scheduler,triggers:m.last_triggers,wgc_session:m.capture_runtime||{},black_frame_skips:m.black_frame_skips||0,black_filter_errors:m.black_filter_errors||0,input_text:m.events_by_kind?.input_text||0,clipboard:m.clipboard_by_status||{},stale_jobs:m.stale_jobs||0,stale_results:m.stale_results||0,errors:m.evidence_errors||0,low_disk_skips:m.low_disk_skips||0}); if(!frozen) await events(false); $("poll").textContent=frozen?"视图已冻结":"自动刷新"; setError(""); } catch(e) { setError(e.message); } finally { ticking=false; } }
@@ -201,14 +206,25 @@ class ActivityMonitorRuntime:
         self.root = Path(root or Path(__file__).resolve().parents[3])
         self.store = ObservationStore(config.database_path, asset_directory=config.asset_directory)
         self.sensor = ActivitySensor(config, store=self.store)
+        knowledge_path = config.knowledge_database_path or config.database_path.with_name("activity-knowledge.sqlite3")
+        self.knowledge_store = KnowledgeStore(knowledge_path)
+        self.organizer = ActivityOrganizer(
+            self.store,
+            self.knowledge_store,
+            idle_timeout_ms=int(config.knowledge_idle_timeout_seconds * 1000),
+            allowed_lateness_ms=int(config.knowledge_allowed_lateness_seconds * 1000),
+        )
         self.token = secrets.token_urlsafe(24)
         self.stop_event = threading.Event()
         self.sensor_thread: Optional[threading.Thread] = None
+        self.organizer_thread: Optional[threading.Thread] = None
         self.http_thread: Optional[threading.Thread] = None
         self.httpd: Optional[ThreadingHTTPServer] = None
         self.lock = ActivityProcessLock(fallback_path=config.database_path.with_suffix(".lock"))
         self.started_at = time.time()
         self.thread_error: Optional[str] = None
+        self._closed = False
+        self._close_lock = threading.RLock()
 
     @property
     def url(self) -> str:
@@ -224,6 +240,8 @@ class ActivityMonitorRuntime:
             self.stop_event.clear()
             self.sensor_thread = threading.Thread(target=self._run_sensor, name="mirally-activity-monitor-sensor", daemon=True)
             self.sensor_thread.start()
+            self.organizer_thread = threading.Thread(target=self._run_organizer, name="mirally-activity-monitor-organizer", daemon=True)
+            self.organizer_thread.start()
             handler = self._handler_factory()
             self.httpd = ThreadingHTTPServer(("127.0.0.1", int(port)), handler)
             self.httpd.daemon_threads = True
@@ -249,26 +267,71 @@ class ActivityMonitorRuntime:
             except Exception:
                 pass
 
+    def _run_organizer(self) -> None:
+        while not self.stop_event.is_set():
+            try:
+                self.organizer.process_once(limit=self.config.knowledge_batch_size)
+            except Exception as error:
+                if self.stop_event.is_set():
+                    break
+                try:
+                    self.store.set_state("organizer", {"status": "error", "error": f"{type(error).__name__}: {error}", "at": int(time.time() * 1000)})
+                except Exception:
+                    break
+            self.stop_event.wait(self.config.knowledge_poll_interval_seconds)
+
     def request_stop(self) -> None:
         self.stop_event.set()
         self.sensor.stop()
 
     def close(self) -> None:
-        self.request_stop()
-        if self.httpd is not None:
-            self.httpd.shutdown()
-            self.httpd.server_close()
-            self.httpd = None
-        if self.http_thread is not None and self.http_thread.is_alive():
-            self.http_thread.join(timeout=3.0)
-        self.http_thread = None
-        if self.sensor_thread is not None and self.sensor_thread.is_alive():
-            self.sensor_thread.join(timeout=5.0)
-        self.sensor_thread = None
-        try:
+        with self._close_lock:
+            if self._closed:
+                return
+            self.request_stop()
+            if self.httpd is not None:
+                self.httpd.shutdown()
+                self.httpd.server_close()
+                self.httpd = None
+            for attribute, timeout in (
+                ("http_thread", _HTTP_THREAD_JOIN_TIMEOUT_SECONDS),
+                ("sensor_thread", _THREAD_JOIN_TIMEOUT_SECONDS),
+                ("organizer_thread", _THREAD_JOIN_TIMEOUT_SECONDS),
+            ):
+                worker = getattr(self, attribute)
+                if worker is not None and worker.is_alive():
+                    if worker is not threading.current_thread():
+                        worker.join(timeout=timeout)
+                    if worker.is_alive():
+                        self.thread_error = f"{attribute} did not stop; activity stores and process lock remain open"
+                        raise RuntimeError(self.thread_error)
+                setattr(self, attribute, None)
+            # A failed sensor close can mean that an evidence worker still owns
+            # these stores. Retain them and the instance lock so shutdown can be
+            # retried after the worker ends, without another sensor starting.
             self.sensor.close()
-        finally:
-            self.lock.release()
+            try:
+                # Sensor shutdown can flush the last UIA/input record after the
+                # polling organizer has stopped. The sensor owns closing its raw
+                # store, so reopen it strictly read-only for the final bounded drain.
+                if self.config.database_path.is_file():
+                    with ObservationStore(self.config.database_path, asset_directory=self.config.asset_directory, read_only=True) as source:
+                        previous_source = self.organizer.source
+                        self.organizer.source = source
+                        try:
+                            stats = self.organizer.catch_up(batch_size=self.config.knowledge_batch_size, max_batches=100)
+                            if stats.errors or stats.lag:
+                                raise RuntimeError(
+                                    f"activity final projection incomplete (errors={stats.errors}, lag={stats.lag}); "
+                                    "raw observations retained for retry"
+                                )
+                        finally:
+                            self.organizer.source = previous_source
+            finally:
+                self.knowledge_store.close()
+                self.store.close()
+                self.lock.release()
+                self._closed = True
 
     def serve(self, *, port: int = 0, open_browser: bool = True, duration: Optional[float] = None) -> int:
         url = self.start(port=port)
@@ -315,6 +378,7 @@ class ActivityMonitorRuntime:
             "collector": collector,
             "pause": pause,
             "health": asdict(health),
+            "knowledge": self.organizer.health(),
             "metrics": self.sensor.metrics_snapshot(),
             "sources": {
                 "foreground": {"available": bool(getattr(self.sensor.source, "available", False))},
@@ -425,6 +489,26 @@ class ActivityMonitorRequestHandler(BaseHTTPRequestHandler):
                 self._json(self.runtime.sensor.metrics_snapshot())
             elif path == "/api/events":
                 self._json(self.runtime.events(query))
+            elif path == "/api/knowledge/context":
+                self._knowledge_context(query)
+            elif path == "/api/knowledge/summary":
+                self._knowledge_summary(query)
+            elif path == "/api/knowledge/health":
+                self._json(self.runtime.organizer.health())
+            elif path.startswith("/api/knowledge/episodes/"):
+                episode_id = urllib.parse.unquote(path.rsplit("/", 1)[-1])
+                episode = self.runtime.organizer.get_episode(episode_id)
+                if episode is None:
+                    self._error(HTTPStatus.NOT_FOUND, "episode not found")
+                else:
+                    self._json(episode.to_dict())
+            elif path == "/api/knowledge/evidence":
+                ids = [value for value in query.get("id", ()) if value]
+                if not ids:
+                    self._error(HTTPStatus.BAD_REQUEST, "at least one evidence id is required")
+                else:
+                    include_assets = (query.get("include_assets") or [""])[0].lower() in {"1", "true", "yes"}
+                    self._json({"evidence": [value.to_dict() for value in self.runtime.organizer.get_evidence(ids, include_assets=include_assets)]})
             elif path.startswith("/api/events/"):
                 observation_id = urllib.parse.unquote(path.rsplit("/", 1)[-1])
                 value = self.runtime.store.get(observation_id)
@@ -441,6 +525,46 @@ class ActivityMonitorRequestHandler(BaseHTTPRequestHandler):
             self._error(HTTPStatus.BAD_REQUEST, str(error))
         except Exception as error:
             self._error(HTTPStatus.INTERNAL_SERVER_ERROR, f"{type(error).__name__}: {error}")
+
+    def _knowledge_context(self, query: Mapping[str, list[str]]) -> None:
+        def one(name: str) -> Optional[str]:
+            values = query.get(name) or []
+            return values[0] if values else None
+
+        def integer(name: str) -> Optional[int]:
+            value = one(name)
+            return None if value in (None, "") else int(value)
+
+        context = self.runtime.organizer.context(ContextQuery(
+            query=one("q"), start_utc_ms=integer("start"), end_utc_ms=integer("end"),
+            apps=tuple(query.get("app", ())), windows=tuple(query.get("window", ())),
+            kinds=tuple(query.get("kind", ())), mode=one("mode") or "outline",
+            purpose=one("purpose") or "agent_context", max_items=int(one("limit") or 30),
+            token_budget=int(one("tokens") or 4000),
+            include_assets=one("include_assets") in {"1", "true", "yes"},
+            include_uia=one("include_uia") in {"1", "true", "yes"},
+            include_ocr=one("include_ocr") not in {"0", "false", "no"},
+            after_item_id=one("after_item"),
+        ))
+        self._json(context.to_dict())
+
+    def _knowledge_summary(self, query: Mapping[str, list[str]]) -> None:
+        def one(name: str) -> Optional[str]:
+            values = query.get(name) or []
+            return values[0] if values else None
+
+        def integer(name: str) -> Optional[int]:
+            value = one(name)
+            return None if value in (None, "") else int(value)
+
+        context = ContextQuery(
+            query=one("q"), start_utc_ms=integer("start"), end_utc_ms=integer("end"),
+            apps=tuple(query.get("app", ())), windows=tuple(query.get("window", ())),
+            kinds=tuple(query.get("kind", ())), mode="outline", purpose="diagnostics",
+            max_items=int(one("limit") or 100), max_episodes=int(one("episodes") or 100),
+            token_budget=int(one("tokens") or 4000),
+        )
+        self._json(self.runtime.organizer.activity_summary(context))
 
     def _asset(self, asset_id: str, query: Mapping[str, list[str]]) -> None:
         asset_id = urllib.parse.unquote(asset_id)

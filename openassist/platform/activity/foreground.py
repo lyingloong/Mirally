@@ -82,18 +82,24 @@ class WindowsForegroundSource:
         if not self.include_window_title or self._user32 is None:
             return None
         try:
-            length = int(self._user32.GetWindowTextLengthW(ctypes.c_void_p(hwnd)) or 0)
-            if length <= 0:
-                return None
-            buffer = ctypes.create_unicode_buffer(min(length, 2048) + 1)
-            copied = int(
-                self._user32.GetWindowTextW(
-                    ctypes.c_void_p(hwnd), buffer, len(buffer)
+            # A growing caption must be retried instead of accepting the
+            # prefix that fit the previous length. Unstable captions stay unknown.
+            for _ in range(3):
+                length = int(self._user32.GetWindowTextLengthW(ctypes.c_void_p(hwnd)) or 0)
+                if length <= 0:
+                    return None
+                buffer = ctypes.create_unicode_buffer(length + 1)
+                copied = int(
+                    self._user32.GetWindowTextW(
+                        ctypes.c_void_p(hwnd), buffer, len(buffer)
+                    )
+                    or 0
                 )
-                or 0
-            )
-            title = buffer.value[: min(copied, 2048)].strip()
-            return title or None
+                if int(self._user32.GetWindowTextLengthW(ctypes.c_void_p(hwnd)) or 0) > length:
+                    continue
+                title = buffer.value[:copied]
+                return title or None
+            return None
         except (AttributeError, OSError, TypeError, ValueError):
             return None
 

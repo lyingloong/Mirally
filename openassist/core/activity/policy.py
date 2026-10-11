@@ -45,6 +45,8 @@ class ActivityPolicy:
     excluded_windows: Tuple[str, ...] = ()
     allowed_apps: Tuple[str, ...] = ()
     agent_pause_content: bool = True
+    # Legacy configuration value retained for compatibility. Raw collection
+    # never crops payloads to this value; query budgets belong to consumers.
     max_payload_bytes: int = 64 * 1024
     _self_app_ids: Tuple[str, ...] = field(default_factory=tuple, repr=False)
 

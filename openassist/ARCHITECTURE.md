@@ -7,11 +7,22 @@ The product package is split by responsibility:
 - `core/activity/` owns the product-neutral observation protocol, privacy
   decisions, single-writer SQLite store, asset lifecycle, and consumer cursor
   contract. It does not import UFO or Windows APIs.
+  Its `knowledge/` package projects rebuildable Items, Episodes, search context
+  and memory candidates from the original observations.
+  Projection v2 preserves complete captured source evidence and emits observed actions,
+  objects, changes, references and uncertainty. Each observation is committed
+  atomically; projection failures remain visible in a bounded retry queue.
+  The deterministic `activity.event.v1` view joins observed actions, window
+  states and text within existing Episodes, preserving partial fragments,
+  evidence references and uncertainty without inferring completed user tasks.
 - `runtime/` owns product configuration, speech providers, and the adapter that
   starts a UFO native `Session`.
 - `runtime/activity/` owns the optional activity sensor lifecycle, CLI and
   agent-control lease bridge. It is disabled unless the user enables its own
   activity configuration.
+  The organizer consumes the source database read-only; its context source and
+  lazy JSONL bridge serve shared OpenClaw activity tools without starting the
+  collector. Direct native UFO loops do not yet consume the host tool registry.
 - `platform/` owns Windows-only capture isolation, raw input, focus, and taskbar
   integration.
 - `platform/activity/` owns read-only foreground identity/window titles,
@@ -32,7 +43,7 @@ from UFO task callbacks. `ObservationStore` assigns durable `ingest_seq`
 cursors, publishes asset files only after an atomic commit, and represents
 privacy denials, gaps, stale evidence, and expired assets explicitly.
 When explicitly enabled, the current implementation starts the foreground
-poller, an isolated Raw Input metadata helper, and a bounded UIA worker. The
+poller, an isolated Raw Input metadata helper, and a UIA worker with a deadline. The
 content layer adds explicit window/all-monitor WGC, a process-isolated
 Windows.Media.Ocr worker, UIA Name/Value/Text, committed-text deltas and
 sequence-checked clipboard reads. The sensor remains disabled by default;
@@ -41,6 +52,14 @@ lifecycle events and automatic host startup are not yet wired.
 The enabled sensor treats foreground metadata, input metadata, and UIA
 structure as one baseline contract and records a degraded collector state when
 one platform source is unavailable.
+Persistent `collector_diagnostics` records effective channels, source health,
+safe counters and pause intervals without captured content. Monitor shutdown
+waits for its workers, closes the sensor and drains remaining observations
+through a read-only source before closing derived storage. Failed worker joins
+retain the stores and process lock so shutdown can be retried safely.
+Authorized text and structures are stored without character, node or byte
+cropping. UIA declares its privacy/visibility scope and reports read failures;
+consumer summaries and queries apply their own budgets to derived views.
 
 `runtime/activity/scheduler.py` coalesces foreground, periodic, typing-pause,
 click, scroll and clipboard triggers in a bounded queue. One evidence thread

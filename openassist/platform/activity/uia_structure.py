@@ -1,4 +1,4 @@
-"""Bounded, process-isolated Windows UI Automation structure capture."""
+"""Process-isolated Windows UI Automation capture with a bounded deadline."""
 
 from __future__ import annotations
 
@@ -20,7 +20,9 @@ class UIAStructureResult:
     missing_reasons: tuple[str, ...] = ()
     nodes: tuple[Mapping[str, Any], ...] = ()
     focused_control: Mapping[str, Any] = field(default_factory=dict)
+    focus_status: str = "unknown"
     content_enabled: bool = False
+    capture_scope: Mapping[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -33,7 +35,9 @@ class UIAStructureResult:
             "missing_reasons": list(self.missing_reasons),
             "nodes": [dict(node) for node in self.nodes],
             "focused_control": dict(self.focused_control),
+            "focus_status": self.focus_status,
             "content_enabled": self.content_enabled,
+            "capture_scope": dict(self.capture_scope),
         }
 
 
@@ -67,9 +71,9 @@ class WindowsUIASource:
             "--hwnd",
             str(int(hwnd)),
             "--max-depth",
-            str(max(0, min(32, int(max_depth)))),
+            str(int(max_depth)),
             "--max-nodes",
-            str(max(1, min(2000, int(max_nodes)))),
+            str(int(max_nodes)),
         ]
         creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         if include_content:
@@ -99,9 +103,9 @@ class WindowsUIASource:
         if process.returncode != 0:
             return UIAStructureResult("unavailable", missing_reasons=("worker_exit",))
         try:
-            if len(output.encode("utf-8")) > 60000:
-                raise ValueError("UIA response exceeded budget")
             value = json.loads(output or "{}")
+            if not isinstance(value, dict):
+                raise ValueError("invalid UIA envelope")
             roles = {
                 str(key): max(0, int(count))
                 for key, count in (value.get("role_counts") or {}).items()
@@ -116,7 +120,7 @@ class WindowsUIASource:
                 missing_reasons=tuple(str(item) for item in value.get("missing_reasons", ())),
                 nodes=tuple(
                     dict(node) if include_content else {
-                        "role": str(node.get("role", "Unknown"))[:80],
+                        "role": str(node.get("role", "Unknown")),
                         "depth": max(0, int(node.get("depth", 0))),
                         "offscreen": bool(node.get("offscreen", False)),
                         "bounds": {
@@ -124,12 +128,15 @@ class WindowsUIASource:
                             for key in ("width", "height")
                             if key in (node.get("bounds") or {})
                         },
+                        **({"scope_excluded": str(node["scope_excluded"])} if "scope_excluded" in node else {}),
                     }
                     for node in (value.get("nodes") or ())
                     if isinstance(node, Mapping)
                 ),
                 focused_control=dict(value.get("focused_control") or {}) if include_content else {},
+                focus_status=str(value.get("focus_status", "unknown")) if include_content else "content_disabled",
                 content_enabled=include_content,
+                capture_scope=dict(value.get("capture_scope") or {}),
             )
         except (TypeError, ValueError, json.JSONDecodeError):
             return UIAStructureResult("unavailable", missing_reasons=("invalid_worker_response",))

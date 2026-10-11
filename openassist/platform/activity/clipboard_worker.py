@@ -9,6 +9,7 @@ from ctypes import wintypes
 
 
 def read(expected_sequence: int, max_chars: int, after_sequence: int = 0) -> dict:
+    # max_chars is accepted for old callers, but raw clipboard text is complete.
     if sys.platform != "win32":
         return {"status": "unavailable", "missing_reasons": ["not_windows"]}
     user = ctypes.windll.user32
@@ -47,17 +48,24 @@ def read(expected_sequence: int, max_chars: int, after_sequence: int = 0) -> dic
             return {"status": "unavailable", "missing_reasons": ["clipboard_lock"]}
         try:
             size = int(kernel.GlobalSize(handle))
-            count = min(size, (max_chars + 2) * 2)
-            data = ctypes.string_at(address, count - count % 2)
-            decoded = data.decode("utf-16-le", errors="replace")
-            text = decoded.split("\x00", 1)[0]
-            truncated = len(text) > max_chars or (size > count and "\x00" not in decoded)
+            if size <= 0:
+                return {"status": "error", "missing_reasons": ["clipboard_invalid_size"]}
+            data = ctypes.string_at(address, size)
+            end = data.find(b"\x00\x00")
+            while end >= 0 and end % 2:
+                end = data.find(b"\x00\x00", end + 1)
+            if end < 0:
+                return {"status": "error", "missing_reasons": ["clipboard_unterminated_text"]}
+            try:
+                text = data[:end].decode("utf-16-le")
+            except UnicodeDecodeError:
+                return {"status": "error", "missing_reasons": ["clipboard_invalid_unicode"]}
         finally:
             kernel.GlobalUnlock(handle)
         if int(user.GetClipboardSequenceNumber()) != sequence:
             return {"status": "stale", "missing_reasons": ["clipboard_replaced"]}
-        return {"status": "ok", "sequence": sequence, "text": text[:max_chars],
-                "truncated": truncated, "owner_hwnd": int(user.GetClipboardOwner() or 0)}
+        return {"status": "ok", "sequence": sequence, "text": text,
+                "truncated": False, "owner_hwnd": int(user.GetClipboardOwner() or 0)}
     finally:
         user.CloseClipboard()
 
@@ -69,7 +77,7 @@ if __name__ == "__main__":
     parser.add_argument("--max-chars", type=int, default=12000)
     args = parser.parse_args()
     try:
-        value = read(args.sequence, max(256, min(24000, args.max_chars)), args.after_sequence)
+        value = read(args.sequence, args.max_chars, args.after_sequence)
     except Exception as error:
         value = {"status": "error", "missing_reasons": [type(error).__name__]}
     print(json.dumps(value, separators=(",", ":")))

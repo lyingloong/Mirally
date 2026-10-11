@@ -22,19 +22,22 @@ def agent_patch(config, root, model, agent_id="ufo"):
         raise ValueError("The agent id already belongs to another configuration; choose --agent-id")
     plugins = config.get("plugins", {})
     paths = list(plugins.get("load", {}).get("paths", []))
-    plugin = str((root / "integrations/openclaw/ufo").resolve())
-    if plugin not in paths:
-        paths.append(plugin)
+    for plugin_root in ("integrations/openclaw/activity", "integrations/openclaw/ufo"):
+        plugin = str((root / plugin_root).resolve())
+        if plugin not in paths:
+            paths.append(plugin)
     result = {"plugins": {"load": {"paths": paths},
-                          "entries": {"mirally-ufo": {"enabled": True}}},
+                          "entries": {"mirally-activity": {"enabled": True},
+                                       "mirally-ufo": {"enabled": True}}},
               "agents": {"entries": {agent_id: {
                   "name": "桌面助手（UFO）", "model": model,
                   "models": {model: {"agentRuntime": {"id": "mirally-ufo"}}},
               }}}}
     if "allow" in plugins:
         allowed = list(plugins["allow"])
-        if "mirally-ufo" not in allowed:
-            allowed.append("mirally-ufo")
+        for plugin_id in ("mirally-activity", "mirally-ufo"):
+            if plugin_id not in allowed:
+                allowed.append(plugin_id)
         result["plugins"]["allow"] = allowed
     return result
 

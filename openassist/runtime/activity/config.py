@@ -29,6 +29,8 @@ class ActivityConfig:
     input_max_burst_ms: int = 10_000
     ui_structure_enabled: bool = False
     uia_timeout_ms: int = 1200
+    # Legacy size/depth settings remain loadable; raw workers ignore these
+    # values. Only consumer queries may shorten captured text or structure.
     uia_max_depth: int = 16
     uia_max_nodes: int = 180
     visual_enabled: bool = False
@@ -57,6 +59,11 @@ class ActivityConfig:
     monitor_black_fraction: float = 0.90
     window_black_fraction: float = 0.80
     black_pixel_threshold: int = 8
+    knowledge_database_path: Optional[Path] = None
+    knowledge_poll_interval_seconds: float = 1.0
+    knowledge_batch_size: int = 200
+    knowledge_idle_timeout_seconds: float = 300.0
+    knowledge_allowed_lateness_seconds: float = 60.0
 
     @classmethod
     def disabled(cls, product_root: Path) -> "ActivityConfig":
@@ -119,6 +126,8 @@ def load_activity_config(product_root: Path, path: Optional[Path] = None) -> Act
         )
     input_data = data.get("input") or {}
     structure_data = data.get("ui_structure") or {}
+    knowledge_data = data.get("knowledge") or {}
+    database_path = _path(storage.get("database_path"), data_root / "observations.sqlite3")
     window_titles_enabled = bool(
         collection.get("window_titles", data.get("window_titles", True))
     )
@@ -137,7 +146,7 @@ def load_activity_config(product_root: Path, path: Optional[Path] = None) -> Act
     )
     return ActivityConfig(
         enabled=bool(data.get("enabled", False)),
-        database_path=_path(storage.get("database_path"), data_root / "observations.sqlite3"),
+        database_path=database_path,
         asset_directory=_path(storage.get("directory"), data_root) / "assets",
         poll_interval_seconds=max(0.25, min(10.0, float(data.get("poll_interval_seconds", 1.0)))),
         policy=policy,
@@ -180,6 +189,20 @@ def load_activity_config(product_root: Path, path: Optional[Path] = None) -> Act
         monitor_black_fraction=max(0.5, min(1.0, float(visual.get("monitor_black_fraction", 0.90)))),
         window_black_fraction=max(0.5, min(1.0, float(visual.get("window_black_fraction", 0.80)))),
         black_pixel_threshold=max(0, min(32, int(visual.get("black_pixel_threshold", 8)))),
+        knowledge_database_path=_path(
+            storage.get("knowledge_database_path"),
+            database_path.with_name("activity-knowledge.sqlite3"),
+        ),
+        knowledge_poll_interval_seconds=max(
+            0.1, min(60.0, float(knowledge_data.get("poll_interval_seconds", 1.0)))
+        ),
+        knowledge_batch_size=max(1, min(500, int(knowledge_data.get("batch_size", 200)))),
+        knowledge_idle_timeout_seconds=max(
+            1.0, min(86_400.0, float(knowledge_data.get("idle_timeout_seconds", 300.0)))
+        ),
+        knowledge_allowed_lateness_seconds=max(
+            0.0, min(86_400.0, float(knowledge_data.get("allowed_lateness_seconds", 60.0)))
+        ),
     )
 
 

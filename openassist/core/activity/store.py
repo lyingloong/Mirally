@@ -103,17 +103,31 @@ class ObservationStore:
         asset_directory: Optional[Path] = None,
         queue_size: int = 4096,
         command_timeout: float = 5.0,
+        read_only: bool = False,
     ) -> None:
         self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._read_only = read_only
+        if not read_only:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
         self.asset_directory = Path(asset_directory or self.path.parent / "assets")
-        self.asset_directory.mkdir(parents=True, exist_ok=True)
+        if not read_only:
+            self.asset_directory.mkdir(parents=True, exist_ok=True)
         self._queue: "queue.Queue[Optional[_Command]]" = queue.Queue(maxsize=queue_size)
         self._command_timeout = command_timeout
         self._closed = threading.Event()
         self._ready = threading.Event()
         self._startup_error: Optional[BaseException] = None
         self._last_error: Optional[str] = None
+        if read_only:
+            self._writer = None
+            # Opening a consumer must never create or migrate the source DB.
+            connection = self._connect()
+            try:
+                connection.execute("SELECT value FROM schema_meta WHERE key='store_generation'").fetchone()
+            finally:
+                connection.close()
+            self._ready.set()
+            return
         self._writer = threading.Thread(
             target=self._writer_main,
             name="openassist-activity-db-writer",
@@ -130,7 +144,8 @@ class ObservationStore:
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(
-            str(self.path),
+            self.path.resolve().as_uri() + "?mode=ro" if self._read_only else str(self.path),
+            uri=self._read_only,
             timeout=max(0.25, self._command_timeout),
             isolation_level=None,
             check_same_thread=True,
@@ -321,6 +336,8 @@ class ObservationStore:
         return method(connection, *args, **kwargs)
 
     def _submit(self, operation: str, *args: Any, **kwargs: Any) -> Any:
+        if self._read_only:
+            raise PermissionError("activity observation consumer is read-only")
         if self._closed.is_set() or not self._writer.is_alive():
             raise StoreClosedError("activity store is closed")
         future: Future = Future()
@@ -893,7 +910,7 @@ class ObservationStore:
     def close(self) -> None:
         if self._closed.is_set():
             return
-        if self._writer.is_alive():
+        if self._writer is not None and self._writer.is_alive():
             try:
                 self._queue.put(None, timeout=self._command_timeout)
             except queue.Full:

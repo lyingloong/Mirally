@@ -11,6 +11,19 @@ from .models import (
 from .policy import ActivityPolicy, PrivacyDecision
 from .source import ObservationSource
 from .store import AssetReservation, ObservationStore, StoreHealth
+from .knowledge import (
+    ActivityEpisode,
+    ActivityItem,
+    ActivityOrganizer,
+    ContextBundle,
+    ContextQuery,
+    Evidence,
+    KnowledgeHealth,
+    KnowledgeStore,
+    MemoryCandidate,
+    MemoryFact,
+    OrganizerStats,
+)
 
 __all__ = [
     "ActivityPolicy",
@@ -25,4 +38,15 @@ __all__ = [
     "PrivacyDecision",
     "PrivacyStatus",
     "StoreHealth",
+    "ActivityEpisode",
+    "ActivityItem",
+    "ActivityOrganizer",
+    "ContextBundle",
+    "ContextQuery",
+    "Evidence",
+    "KnowledgeHealth",
+    "KnowledgeStore",
+    "MemoryCandidate",
+    "MemoryFact",
+    "OrganizerStats",
 ]

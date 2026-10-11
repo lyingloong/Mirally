@@ -14,6 +14,11 @@ Mirally 是面向 Windows 的对话与桌面助手，名称取自 MIRA + ally。
 | 模型思考参数、慢请求原因与响应耗时复测 | [响应耗时定位](response-latency.md) |
 | 当前记忆范围与上下文限制 | [当前范围](../README.md#当前范围) |
 | Windows 活动观察数据层、Screenpipe 源码参考和实施状态 | [活动观察数据层方案](activity-sensor-design.md) |
+| 采集层之上的活动组织、上下文检索与记忆衔接设计 | [Activity Knowledge Layer](activity-knowledge-layer.md) |
+| 将动作、窗口状态与文字组织为事件，查询使用轨迹和来源限制 | [Activity 事件视图](activity-events.md) |
+| 数据是否实际收集、组织是否正确，以及能否说明用户行为 | [Activity 数据层评估与验收](activity-data-acceptance.md) |
+| 清理后新样本的检查、投影 v2 完善与事实时间线 | [Activity 新数据检查](activity-fresh-data-review.md) |
+| OpenClaw agent 按需访问活动知识的统一接入 | [Activity Agent Access](activity-agent-access.md) |
 | Activity 与 Screenpipe 的能力差距和陪伴场景对齐目标 | [Screenpipe 对齐情况](activity-screenpipe-gap.md) |
 | 持续屏幕、UIA 正文、输入文本与剪贴板的实现和测试 | [丰富内容采集](activity-rich-capture.md) |
 | 旧 UFO 的输入协调、截图隔离和验证脚本 | [历史桌面体验实现与验证](desktop-experience-implementation.md) |

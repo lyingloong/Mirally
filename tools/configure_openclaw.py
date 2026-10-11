@@ -78,6 +78,16 @@ def main() -> None:
     if not key or not model:
         raise SystemExit('The existing provider is missing credentials or model ID.')
     config = json.loads((ROOT/'config/openassist/openclaw.template.json').read_text(encoding='utf-8'))
+    # Activity knowledge is a shared OpenClaw capability.  Loading the plugin
+    # does not start collection or open the activity database; its tools spawn
+    # the read-only bridge only when an agent explicitly calls one.
+    activity_plugin = str((ROOT / 'integrations/openclaw/activity').resolve())
+    config.setdefault('plugins', {}).setdefault('load', {}).setdefault('paths', [])
+    if activity_plugin not in config['plugins']['load']['paths']:
+        config['plugins']['load']['paths'].append(activity_plugin)
+    config['plugins'].setdefault('entries', {})['mirally-activity'] = {'enabled': True}
+    if 'mirally-activity' not in config['plugins'].setdefault('allow', []):
+        config['plugins']['allow'].append('mirally-activity')
     workspace = state/'workspace'
     seed_identity(workspace)
     config['gateway']['auth']['token'] = secrets.token_urlsafe(32)

@@ -44,11 +44,10 @@ class OCRResult:
         }
 
     def bounded(self, max_bytes: int = 48 * 1024, max_text_chars: int = 24_000) -> "OCRResult":
-        """Keep OCR metadata below the observation field limit.
+        """Explicitly limit a processing/query view, never the raw capture.
 
-        Windows OCR can return a large line/word tree for a dense monitor. A
-        bounded result preserves the text prefix and a useful subset of lines,
-        instead of making the whole image reservation fail at SQLite commit.
+        The caller chooses this lossy view; recognize() always returns the full
+        worker result, including the complete text, line and word trees.
         """
 
         text = self.text[:max_text_chars]
@@ -191,4 +190,4 @@ class WindowsNativeOCRSource:
             language=data.get("language"),
             duration_ms=float(data.get("duration_ms", (time.monotonic() - started) * 1000)),
             missing_reasons=reasons,
-        ).bounded()
+        )

@@ -4,6 +4,8 @@
 
 启用 Activity Sensor 后，基础观察契约包含前台元数据、输入聚合和 UIA 结构，缺失源时显示 `degraded`。2026-10-08 已扩展为丰富内容默认配置：标题/URL、持续多显示器截图和 OCR、UIA 正文与属性、已提交输入文本变化和 Unicode 剪贴板。整体仍需显式启动，独立配置开关保留；音频未接入。最新实现、配置和测试以 [丰富内容采集](activity-rich-capture.md) 为准，对照见 [Activity 与 Screenpipe](activity-screenpipe-gap.md)。下文研究建议中的保守基线、阶段划分和默认配置是历史设计，不覆盖最新实现说明。
 
+2026-10-11 原始采集契约修正：获准采集的文字及 UIA 声明范围内的树完整保存，不再按字符数、节点数、深度或 JSON 大小截断。下文 depth 6／nodes 180 等旧预算仅为历史研究建议；当前只有处理摘要和查询输出应用内容预算，采集读取失败或超时明确报告不可用。详情见 [新数据检查](activity-fresh-data-review.md#5-原始采集契约纠正与轨迹判断)。
+
 Mirally 研究基线：主仓库 `04b2232`，分支 `feat/mirally-openclaw-desktop`；UFO 子模块 `a795552d976c4c019d7c2f778a0effb5cef7de6b`。Screenpipe 已克隆至本机 `tmp/screenpipe/`，研究快照为 `ac204c0b8e3499225f5d26bd4b4bef48ef818674`，提交时间 2026-10-06 17:40:49 UTC。以下源码结论都针对这个快照，不代表其历史版本或未来版本。
 
 ## 1. 建议采用的方向

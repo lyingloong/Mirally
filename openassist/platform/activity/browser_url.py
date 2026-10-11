@@ -37,12 +37,12 @@ class BrowserURLResult:
 
 
 def normalize_browser_url(value: object) -> Optional[str]:
-    """Return a bounded URL-like address-bar value, excluding search text."""
+    """Return the complete URL-like address-bar value, excluding search text."""
 
     if not isinstance(value, str):
         return None
     candidate = value.strip()
-    if not candidate or len(candidate) > 4096 or any(char.isspace() or ord(char) < 32 for char in candidate):
+    if not candidate or any(char.isspace() or ord(char) < 32 for char in candidate):
         return None
     lowered = candidate.lower()
     schemes = (

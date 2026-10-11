@@ -130,14 +130,15 @@ class ObservationInput:
             CollectionLevel.CONTENT,
         }:
             raise ValueError(f"unknown collection level: {self.collection_level}")
-        if len(json.dumps(self.payload, ensure_ascii=False)) > 64 * 1024:
-            raise ValueError("observation payload exceeds 64 KiB")
-        if self.uia_summary is not None and len(json.dumps(self.uia_summary, ensure_ascii=False)) > 64 * 1024:
-            raise ValueError("UIA summary exceeds 64 KiB")
-        if self.visual_summary is not None and len(json.dumps(self.visual_summary, ensure_ascii=False)) > 64 * 1024:
-            raise ValueError("visual summary exceeds 64 KiB")
-        if self.ocr_summary is not None and len(json.dumps(self.ocr_summary, ensure_ascii=False)) > 64 * 1024:
-            raise ValueError("OCR summary exceeds 64 KiB")
+        # Source content is retained in full. Query and projection budgets must
+        # not reject or replace the original evidence before it is stored.
+        for name in ("payload", "uia_summary", "visual_summary", "ocr_summary"):
+            value = getattr(self, name)
+            if value is None and name != "payload":
+                continue
+            if not isinstance(value, Mapping):
+                raise ValueError(f"observation {name} must be a JSON object")
+            json.dumps(value, ensure_ascii=False)
 
 
 @dataclass(frozen=True)

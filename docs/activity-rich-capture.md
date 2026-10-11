@@ -37,7 +37,7 @@
 
 采集队列按目标合并，最多 32 项，15 秒过期；前台 poller 与 Raw Input pump 不执行慢 COM/GPU/剪贴板调用。UIA、WGC、OCR、地址栏和剪贴板均使用有期限的隔离进程。暂停/恢复产生新的 generation，旧任务和过期目标结果不写入；恢复清空内容基线并重新观察。停止时等待有界 worker 退出，再关闭数据库。内容记录保留实际触发标签（`foreground_settled`、`periodic_visual_check`、`typing_pause`、`click`、`scroll_stop`、`periodic_monitor`），不再把所有显示器帧都伪装成周期帧。
 
-采集完成时间记录在截图读回和遮罩完成之后、OCR 之前；OCR 耗时不会把截图时间向后推。OCR 文本和行/词框在父进程再次限制到 48 KiB 以下，超限会保留前缀并加 `ocr_result_limit`，避免图片已经预留后因摘要过大而留下缺失资产。
+采集完成时间记录在截图读回和遮罩完成之后、OCR 之前；OCR 耗时不会把截图时间向后推。2026-10-11 起，OCR 返回的正文和全部行／词框完整保存，父子进程不再施加 48 KiB 或字符前缀预算。原始 Observation 的正文、UIA、OCR 字段不再受旧 64 KiB 拒绝限制；摘要和查询的限额由组织层处理，完整证据保持不变。
 
 ### 常驻 WGC 与屏幕描边
 
@@ -57,10 +57,12 @@
 
 模板整体 `enabled: false`，启用后 `collection.default_level: content`，`ui_structure.content`、`input.text`、`input.clipboard`、`visual.enabled/persist_images/continuous` 为 true。旧 `collection.input_content/clipboard` 作为兼容 fallback；新 `input` 字段优先。独立关闭任一源不关闭其他源。
 
-- UIA：内容采集默认 depth 16（可配置至 32）、nodes 180，优先遍历 Document/Edit 和 Pane/Group 分支，避免浏览器工具栏先耗尽预算；正文预算 12000 字符，焦点输入最多 4000 字符，worker JSON 总预算约 42 KiB。截断分别标注 `uia_depth_limit`、`uia_node_limit`、`uia_text_limit`、`uia_byte_limit`；密码状态无法读取时不读该控件正文。已有配置显式指定的深度仍生效。
+- UIA：完整遍历目标窗口声明范围内的树，正文使用无长度限制的 `GetText(-1)`（见 [Microsoft API 契约](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationclient/nf-uiautomationclient-iuiautomationtextrange-gettext)）。旧 depth/nodes/max_text_chars 配置仍可加载，原始采集不应用其裁剪。`capture_scope` 声明 offscreen、密码和未知可见性／密码状态子树的排除；只保留被排除根节点的结构元数据。读取失败、provider 循环或父进程超时返回明确不可用诊断，不将成功前缀当作完整树。
+- UIA 结构模式：`include_content=False` 只保存声明的角色、深度、离屏状态、矩形宽高及排除原因，不保存正文或窗口内坐标；完整性针对该结构字段范围，不代表 UIA 的所有可用属性都已采集。正文模式保存完整获准控件属性，包括坐标。
 - 截图遮罩：排除最小化和 DWM cloaked 窗口，按 Z-order 扣除上层不透明窗口的客户端内部区域，只遮黑排除窗口可能露出的部分。透明、点击穿透、非矩形和未知 no-redirection 窗口不用于消除下层遮罩；普通 Chromium 主窗口的 DirectComposition 样式单独识别，避免 Edge/VS Code 被误判为透明。非客户端边缘保持保守遮罩。捕获前后都检查遮罩，混合 DPI 坐标转换使用临时线程 DPI 上下文并恢复。剧烈窗口移动/重排不是原子快照，仍需真实场景验证。
 - 黑帧过滤：遮罩完成后在实际截图区域内按像素计算黑色比例。显示器区域超过 90%、前台窗口区域超过 80% 时，不执行 OCR、不保存图片，只留带 `mostly_black` 的不可用 `content_snapshot` 和诊断比例；因此小窗口按自己的面积判断，不会因它只占桌面一小块而天然被过滤。黑色阈值默认 RGB 最大值不超过 8，可配置；关闭 `drop_black_frames` 才会保留这类帧。
 - OCR：父子进程固定 UTF-8，不依赖 Windows 控制台代码页。图片去重只看 PNG SHA-256，不看遮罩计数；OCR 失败仍保留首帧并单独有界重试。`ocr_result.caused_by` 指向原始 `content_snapshot`，后续消费者应沿此关系读取最新 OCR 结果，不覆盖原始事件。
+- 输入／剪贴板：完整保留获准的控件文本、编辑差分及 Unicode 剪贴板正文；旧 max_chars 不截原文。剪贴板继续检查序号、Unicode 和终止符，读取失败保留诊断。此前被截断的输入基线保持未知。窗口标题及合法地址栏值也不再按旧 2048／4096 字符裁剪或拒绝。
 - Worker deadline：UIA 5 秒、WGC 2.5 秒、OCR 2.5 秒、地址栏 1.2 秒、剪贴板 1.5 秒。原生 fixture 的 UIA 约 4 秒，较原结构采集需要更宽的隔离预算。
 - 图片：默认最长边 1920、每分钟最多 120 次采集检查，保留 24 小时、上限 1024 MiB、至少 2048 MiB 剩余空间。达到配额先通过资产 tombstone 删除最老图像；超大单图不保存，低磁盘跳过截图并保留原因。观察默认保留 14 天。
 - 监控：loopback/token 访问，默认脱敏 OCR、UIA 属性、输入和剪贴板正文；授权查看后提供文字和图片。暂停与关闭内容查看含义不同。

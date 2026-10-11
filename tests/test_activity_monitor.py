@@ -4,11 +4,13 @@ import json
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 import unittest
 import urllib.request
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 from openassist.core.activity.models import Actor, CollectionLevel, Observation
 from openassist.core.activity.policy import ActivityPolicy
@@ -45,7 +47,222 @@ class _FakeForeground:
         )
 
 
+class _TrackingLock:
+    def __init__(self) -> None:
+        self.held = True
+        self.release_calls = 0
+
+    def release(self) -> None:
+        self.held = False
+        self.release_calls += 1
+
+
 class ActivityMonitorTests(unittest.TestCase):
+    def test_close_retains_resources_until_monitor_thread_stops(self) -> None:
+        for attribute in ("http_thread", "sensor_thread", "organizer_thread"):
+            with self.subTest(thread=attribute), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                config = replace(build_test_config(root, content=False), input_enabled=False, ui_structure_enabled=False)
+                runtime = ActivityMonitorRuntime(config, root=root)
+                lock = _TrackingLock()
+                runtime.lock = lock
+
+                class StoreClosingSensor:
+                    close_calls = 0
+
+                    def stop(self):
+                        pass
+
+                    def close(self):
+                        self.close_calls += 1
+                        runtime.store.close()
+
+                runtime.sensor = StoreClosingSensor()
+                release = threading.Event()
+                worker = threading.Thread(target=release.wait, daemon=True)
+                setattr(runtime, attribute, worker)
+                worker.start()
+                try:
+                    with patch("openassist.runtime.activity.monitor._THREAD_JOIN_TIMEOUT_SECONDS", 0.01), \
+                            patch("openassist.runtime.activity.monitor._HTTP_THREAD_JOIN_TIMEOUT_SECONDS", 0.01):
+                        with self.assertRaisesRegex(RuntimeError, f"{attribute} did not stop"):
+                            runtime.close()
+                    self.assertIs(getattr(runtime, attribute), worker)
+                    self.assertTrue(worker.is_alive())
+                    self.assertFalse(runtime._closed)
+                    self.assertTrue(lock.held)
+                    self.assertEqual(lock.release_calls, 0)
+                    self.assertEqual(runtime.sensor.close_calls, 0)
+                    self.assertTrue(runtime.knowledge_store.health().available)
+                    self.assertIs(runtime.organizer.source, runtime.store)
+                    runtime.store.append(Observation.create(
+                        kind="window_context", source_id="fixture", source_epoch="epoch", source_seq=0,
+                        boot_id="boot", observed_at_utc_ms=1000,
+                        payload={"window_title": "Fixture context"},
+                    ))
+                    self.assertEqual(runtime.knowledge_store.health("activity-knowledge").item_count, 0)
+                finally:
+                    release.set()
+                    worker.join(timeout=2)
+                    runtime.close()
+                self.assertFalse(worker.is_alive())
+                self.assertIsNone(getattr(runtime, attribute))
+                self.assertTrue(runtime._closed)
+                self.assertFalse(lock.held)
+                self.assertEqual(lock.release_calls, 1)
+                self.assertEqual(runtime.sensor.close_calls, 1)
+                runtime.close()
+                self.assertEqual(lock.release_calls, 1)
+                from openassist.core.activity.knowledge import KnowledgeStore
+                with KnowledgeStore(config.database_path.with_name("activity-knowledge.sqlite3")) as knowledge:
+                    health = knowledge.health("activity-knowledge")
+                    self.assertEqual(health.item_count, 1)
+                    self.assertEqual(health.processed_ingest_seq, 1)
+
+    def test_close_preserves_stores_when_sensor_evidence_worker_cannot_stop(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = replace(build_test_config(root, content=False), input_enabled=False, ui_structure_enabled=False)
+            runtime = ActivityMonitorRuntime(config, root=root)
+            runtime.sensor = ActivitySensor(
+                config, store=runtime.store, source=_FakeForeground(), input_source=None, uia_source=None,
+            )
+            lock = _TrackingLock()
+            runtime.lock = lock
+            release = threading.Event()
+            worker = threading.Thread(target=release.wait, daemon=True)
+            runtime.sensor._evidence_thread = worker
+            worker.start()
+            join_worker = worker.join
+            try:
+                with patch.object(worker, "join", side_effect=lambda timeout=None: join_worker(timeout=0.01)):
+                    with self.assertRaisesRegex(RuntimeError, "evidence worker did not stop"):
+                        runtime.close()
+                self.assertIs(runtime.sensor._evidence_thread, worker)
+                self.assertTrue(worker.is_alive())
+                self.assertFalse(runtime._closed)
+                self.assertTrue(lock.held)
+                self.assertEqual(lock.release_calls, 0)
+                self.assertTrue(runtime.knowledge_store.health().available)
+                self.assertIs(runtime.organizer.source, runtime.store)
+                runtime.store.append(Observation.create(
+                    kind="window_context", source_id="fixture", source_epoch="epoch", source_seq=0,
+                    boot_id="boot", observed_at_utc_ms=1000,
+                    payload={"window_title": "Fixture context"},
+                ))
+                self.assertEqual(runtime.knowledge_store.health("activity-knowledge").item_count, 0)
+            finally:
+                release.set()
+                worker.join(timeout=2)
+                runtime.close()
+            self.assertFalse(worker.is_alive())
+            self.assertIsNone(runtime.sensor._evidence_thread)
+            self.assertTrue(runtime.sensor._diagnostics_closed)
+            self.assertTrue(runtime._closed)
+            self.assertFalse(lock.held)
+            self.assertEqual(lock.release_calls, 1)
+            from openassist.core.activity.knowledge import KnowledgeStore
+            with KnowledgeStore(config.database_path.with_name("activity-knowledge.sqlite3")) as knowledge:
+                health = knowledge.health("activity-knowledge")
+                self.assertEqual(health.item_count, 1)
+                self.assertEqual(health.processed_ingest_seq, 1)
+
+    def test_close_projects_final_sensor_flush_without_new_capture(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = replace(build_test_config(root, content=False), input_enabled=False, ui_structure_enabled=False)
+            runtime = ActivityMonitorRuntime(config, root=root)
+
+            class FinalFlushSensor:
+                def stop(self):
+                    pass
+
+                def close(self):
+                    runtime.store.append(Observation.create(
+                        kind="context_snapshot", source_id="fixture", source_epoch="epoch", source_seq=0,
+                        boot_id="boot", observed_at_utc_ms=1000,
+                        uia_summary={"nodes": [{"role": "Document", "text": "Final flushed body"}]},
+                    ))
+                    runtime.store.close()
+
+            runtime.sensor = FinalFlushSensor()
+            runtime.close()
+            runtime.close()
+            from openassist.core.activity.knowledge import KnowledgeStore
+            with KnowledgeStore(config.database_path.with_name("activity-knowledge.sqlite3")) as knowledge:
+                health = knowledge.health("activity-knowledge")
+                self.assertEqual(health.item_count, 1)
+                self.assertEqual(health.processed_ingest_seq, 1)
+
+    def test_close_reports_failed_final_projection_and_releases_stopped_resources(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = replace(build_test_config(root, content=False), input_enabled=False, ui_structure_enabled=False)
+            runtime = ActivityMonitorRuntime(config, root=root)
+            lock = _TrackingLock()
+            runtime.lock = lock
+            flushed = []
+
+            class FinalFlushSensor:
+                def stop(self):
+                    pass
+
+                def close(self):
+                    flushed.append(runtime.store.append(Observation.create(
+                        kind="window_context", source_id="fixture", source_epoch="epoch", source_seq=0,
+                        boot_id="boot", observed_at_utc_ms=1000,
+                        payload={"window_title": "Fixture context"},
+                    )))
+                    runtime.store.close()
+
+            class FailingParser:
+                def parse(self, item):
+                    raise ValueError("fixture final parser failure")
+
+            runtime.sensor = FinalFlushSensor()
+            runtime.organizer.parser_registry = FailingParser()
+            with self.assertRaisesRegex(RuntimeError, r"final projection incomplete \(errors=1, lag=0\)"):
+                runtime.close()
+            self.assertTrue(runtime._closed)
+            self.assertFalse(runtime.store._writer.is_alive())
+            self.assertTrue(runtime.knowledge_store._closed)
+            self.assertIs(runtime.organizer.source, runtime.store)
+            self.assertFalse(lock.held)
+            self.assertEqual(lock.release_calls, 1)
+            runtime.close()
+            self.assertEqual(lock.release_calls, 1)
+            from openassist.core.activity.knowledge import KnowledgeStore
+            from openassist.core.activity.store import ObservationStore
+            with ObservationStore(config.database_path, read_only=True) as source:
+                self.assertIsNotNone(source.get(flushed[0].observation_id))
+            with KnowledgeStore(config.database_path.with_name("activity-knowledge.sqlite3")) as knowledge:
+                health = knowledge.health("activity-knowledge")
+                self.assertEqual(health.item_count, 0)
+                self.assertEqual(health.processed_ingest_seq, 1)
+                errors = knowledge.list_projection_errors()
+                self.assertEqual(len(errors), 1)
+                self.assertEqual(errors[0]["observation_id"], flushed[0].observation_id)
+                self.assertEqual(errors[0]["attempts"], 1)
+                self.assertIn("fixture final parser failure", errors[0]["error"])
+
+    def test_close_does_not_report_old_terminal_projection_error_as_new_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = replace(build_test_config(root, content=False), input_enabled=False, ui_structure_enabled=False)
+            runtime = ActivityMonitorRuntime(config, root=root)
+            runtime.sensor = ActivitySensor(
+                config, store=runtime.store, source=_FakeForeground(), input_source=None, uia_source=None,
+            )
+            for _ in range(3):
+                runtime.knowledge_store.record_projection_error("old-unavailable-observation", 0, "old terminal failure")
+            runtime.close()
+            self.assertTrue(runtime._closed)
+            from openassist.core.activity.knowledge import KnowledgeStore
+            with KnowledgeStore(config.database_path.with_name("activity-knowledge.sqlite3")) as knowledge:
+                errors = knowledge.list_projection_errors()
+                self.assertEqual(len(errors), 1)
+                self.assertEqual(errors[0]["attempts"], 3)
+
     def test_safe_observation_redacts_ocr_text(self) -> None:
         value = Observation.create(
             kind="content_snapshot",
@@ -114,6 +331,7 @@ class ActivityMonitorTests(unittest.TestCase):
                 status, payload = get("/api/status")
                 self.assertEqual(status, 200)
                 self.assertTrue(payload["health"]["available"])
+                self.assertIn("knowledge", payload)
                 self.assertEqual(payload["collection_level"], CollectionLevel.STRUCTURE)
                 self.assertEqual(len(payload["coverage"]["baseline"]), 5)
                 self.assertIn("原始逐键字符流", payload["coverage"]["not_collected"])
@@ -125,6 +343,12 @@ class ActivityMonitorTests(unittest.TestCase):
                     time.sleep(0.05)
                 self.assertTrue(events["events"])
                 self.assertEqual(events["events"][0]["kind"], "foreground_changed")
+
+                _, knowledge_health = get("/api/knowledge/health")
+                self.assertTrue(knowledge_health["knowledge"]["available"])
+                context_status, context = get("/api/knowledge/context?mode=outline&limit=5")
+                self.assertEqual(context_status, 200)
+                self.assertIn("index_watermark", context)
 
                 request = urllib.request.Request(
                     f"{url.split('/?')[0]}/api/control/pause",

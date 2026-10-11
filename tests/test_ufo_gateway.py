@@ -1,7 +1,8 @@
-"""Real Gateway -> registered harness -> Python worker, with a local fake API.
+"""Opt-in Gateway -> UFO desktop worker test with a synthetic model API.
 
-No desktop session is admitted: both synthetic messages are ordinary chat.
-The test never reads the developer's OpenClaw/UFO credentials.
+The current selected UFO route can capture the real interactive desktop even
+for a text-only request. It must not run in the default no-desktop suite.
+It never reads the developer's OpenClaw/UFO model credentials.
 """
 import json
 from contextlib import ExitStack
@@ -21,8 +22,9 @@ from tools.configure_ufo_agent import agent_patch
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@unittest.skipUnless(sys.platform == "win32" and (ROOT / ".artifacts/openclaw-runtime.json").is_file(),
-                     "Requires the installed Windows OpenClaw and UFO dependencies")
+@unittest.skipUnless(sys.platform == "win32" and (ROOT / ".artifacts/openclaw-runtime.json").is_file()
+                     and os.environ.get("OPENASSIST_TEST_DESKTOP") == "1",
+                     "Real desktop observation requires explicit OPENASSIST_TEST_DESKTOP=1")
 class GatewayUfoTests(unittest.TestCase):
     def test_real_gateway_loads_ufo_and_preserves_reply_history(self):
         prompts = []

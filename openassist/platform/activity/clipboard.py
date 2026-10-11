@@ -1,4 +1,4 @@
-"""Bounded clipboard reads with sequence checks and no clipboard writes."""
+"""Complete clipboard reads with an isolated deadline and sequence checks."""
 
 import json
 import subprocess
@@ -20,12 +20,12 @@ class WindowsClipboardSource:
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8",
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), timeout=timeout_ms / 1000,
             )
-            if result.returncode or len(result.stdout) > 160000:
+            if result.returncode:
                 raise ValueError("clipboard worker response")
             value = json.loads(result.stdout)
             if not isinstance(value, dict):
                 raise ValueError("clipboard worker response")
-            value["text"] = str(value.get("text", ""))[:max_chars] if value.get("status") == "ok" else None
+            value["text"] = str(value.get("text", "")) if value.get("status") == "ok" else None
             return value
         except subprocess.TimeoutExpired:
             return {"status": "timeout", "missing_reasons": ["worker_deadline"]}

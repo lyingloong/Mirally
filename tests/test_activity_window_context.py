@@ -31,22 +31,40 @@ def _control(role="PaneControl", name="", value="", children=(), **properties):
 
 
 class ActivityWindowContextTests(unittest.TestCase):
-    def test_title_read_is_bounded_and_can_be_disabled(self):
+    def test_title_read_preserves_full_caption_and_can_be_disabled(self):
         source = WindowsForegroundSource()
         user32 = Mock()
         source._user32 = user32
-        user32.GetWindowTextLengthW.return_value = 4000
+        caption = " " + "窗" * 3998 + " "
+        user32.GetWindowTextLengthW.return_value = len(caption)
 
         def read_title(hwnd, buffer, length):
-            buffer.value = "Test window"
-            self.assertEqual(length, 2049)
+            buffer.value = caption
+            self.assertEqual(length, 4001)
             return len(buffer.value)
 
         user32.GetWindowTextW.side_effect = read_title
-        self.assertEqual(source._window_title(100), "Test window")
+        self.assertEqual(source._window_title(100), caption)
         source.include_window_title = False
         self.assertIsNone(source._window_title(100))
         self.assertEqual(user32.GetWindowTextW.call_count, 1)
+
+    def test_long_address_bar_value_is_preserved_without_capture_budget(self):
+        address = "https://example.test/path?q=" + "a" * 70000
+        self.assertEqual(normalize_browser_url(address), address)
+
+    def test_growing_caption_retries_instead_of_returning_a_prefix(self):
+        source = WindowsForegroundSource()
+        source._user32 = Mock()
+        source._user32.GetWindowTextLengthW.side_effect = [3, 9, 9, 9]
+
+        def read_title(hwnd, buffer, length):
+            buffer.value = "完整窗口标题内容长"[:length - 1]
+            return len(buffer.value)
+
+        source._user32.GetWindowTextW.side_effect = read_title
+        self.assertEqual(source._window_title(100), "完整窗口标题内容长")
+        self.assertEqual(source._user32.GetWindowTextW.call_count, 2)
 
     def test_address_bar_skips_web_document_and_uses_localized_browser_chrome(self):
         page_field = _control("EditControl", "Address", "https://wrong.test")
@@ -148,6 +166,7 @@ finally:
             config = load_activity_config(root, path)
             self.assertTrue(config.window_titles_enabled)
             self.assertTrue(config.browser_urls_enabled)
+            self.assertEqual(config.knowledge_batch_size, 200)
             path.write_text(
                 "enabled: true\ncollection:\n  window_titles: false\n  browser_urls: false\n"
                 "  browser_url_poll_interval_seconds: 5\n  browser_url_timeout_ms: 2000\n",
@@ -158,6 +177,16 @@ finally:
             self.assertFalse(config.browser_urls_enabled)
             self.assertEqual(config.browser_url_poll_interval_seconds, 5)
             self.assertEqual(config.browser_url_timeout_ms, 2000)
+            path.write_text(
+                "enabled: true\nknowledge:\n  batch_size: 42\n  idle_timeout_seconds: 90\n"
+                "  allowed_lateness_seconds: 12\n  poll_interval_seconds: 2\n",
+                encoding="utf-8",
+            )
+            config = load_activity_config(root, path)
+            self.assertEqual(config.knowledge_batch_size, 42)
+            self.assertEqual(config.knowledge_idle_timeout_seconds, 90)
+            self.assertEqual(config.knowledge_allowed_lateness_seconds, 12)
+            self.assertEqual(config.knowledge_poll_interval_seconds, 2)
             disabled = ActivityConfig.disabled(root)
             self.assertFalse(disabled.window_titles_enabled)
             self.assertFalse(disabled.browser_urls_enabled)

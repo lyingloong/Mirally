@@ -130,13 +130,17 @@ UFO 操作当前交互桌面，会占用鼠标、键盘和窗口。Mirally 桌�
 
 不需要手动配置即可测试；只测基础元数据和 UIA 结构时添加 `--metadata-only`。旧 `--content`、`--persist-images` 参数保留兼容，但现在已经是测试默认行为。已有正式 `activity.yaml` 不会自动覆盖，旧配置仍按原设置运行；要使用丰富内容配置，参照最新模板调整并重启采集器。
 
-窗口标题和浏览器地址栏 URL 已作为 `window_context` 事件采集：标题使用 Win32 前台窗口 API，浏览器 URL 使用有界 UI Automation worker；同一浏览器窗口导航后会更新上下文。模板与 `monitor --test` 默认启用，可在 `activity.yaml` 的 `collection.window_titles`、`collection.browser_urls` 中分别关闭；已有监控进程需要重新启动以加载改动。当前数据层与 Screenpipe 的功能差距、完整对齐目标和已知限制见 [Activity 与 Screenpipe 对齐情况](docs/activity-screenpipe-gap.md)。
+当前组织层使用 `activity.v2`，以动作、对象、变化、证据和未知项输出事实时间线；`knowledge-timeline` 可独立读取。`knowledge-events` 将同一窗口片段中的动作、窗口状态和 UIA/OCR 文字组织为 `activity.event.v1` 事件，保留来源和未知项，便于检查用户在一段时间内的使用轨迹；窗口状态不能单独证明用户阅读、保存或发送了内容。命令默认查询已组织数据，添加 `--sync` 可有界追赶原始库，详见 [Activity 事件视图](docs/activity-events.md)。运行结束后会补处理最后落库的记录，采集来源状态和无正文计数持久保存在 `collector_diagnostics`。旧投影查询会提示重建，避免混用版本。新样本的检查、修复和未验证边界见 [Activity 新数据检查](docs/activity-fresh-data-review.md)。
+
+窗口标题和浏览器地址栏 URL 已作为 `window_context` 事件采集：标题使用 Win32 前台窗口 API，浏览器 URL 使用有界 UI Automation worker；同一浏览器窗口导航后会更新上下文。模板与 `monitor --test` 默认启用，可在 `activity.yaml` 的 `collection.window_titles`、`collection.browser_urls` 中分别关闭；已有监控进程需要重新启动以加载改动。采集层之上的 Activity Knowledge 组织层会把 Observation 增量投影成活动项、Episode、FTS 索引和 Agent 上下文，可用 `knowledge-process`、`knowledge-query`、`knowledge-summary`、`knowledge-candidates`、`knowledge-facts` 和 `knowledge-status` 调试。组织器的追赶周期、批大小、Episode 空闲窗口和迟到宽限期可在 `activity.yaml` 的 `knowledge` 段配置。OpenClaw 的默认 agent、UFO 桌面子任务和未来 harness 通过共享的 `mirally-activity` 工具按需检索这些上下文，不会固定注入每轮 prompt；完整接入说明见 [Activity Agent Access](docs/activity-agent-access.md)。完整设计见 [Activity Knowledge Layer](docs/activity-knowledge-layer.md)，采集层与 Screenpipe 的差距见 [Activity 与 Screenpipe 对齐情况](docs/activity-screenpipe-gap.md)。
+
+已有 OpenClaw 安装需要单独启用共享活动工具：先运行 `.\.venv\Scripts\python.exe tools\configure_activity_agent.py` 验证，再加 `--apply` 应用官方定向补丁；可通过 `--activity-config` 选择历史测试库配置。插件只在实际检索时启动桥接，不启动采集器；历史数据默认查询会有界追赶索引。默认智能体可以检索后把相关背景交给 UFO 子任务，直接选择 UFO 的原生循环目前不能主动调用 OpenClaw 共享工具。Episode 提供观察计数摘要、封存状态和采集缺口，尚不声称理解用户任务语义。
 
 第一版已实现版本化 Observation、单写者 SQLite、资产生命周期、隐私策略、游标和
 agent 控制租约。完整启用后，基础观察契约要求同时具备前台基础元数据、输入元数据和受限
 UIA 结构；Raw Input helper 聚合计数并通知剪贴板变化，有界 UIA worker 返回结构和获准正文。
 旧配置缺少其中一项时不会静默当作完整采集，状态会显示 `degraded`。
-采集器整体仍默认关闭；启用最新模板后，截图、UIA 正文、输入文本、剪贴板和 OCR 默认一起开启，音频未接入。后台有界队列合并周期检查、输入停顿、点击和滚动触发，未变化的图像不重复保存；OCR 成功后不重复识别，失败时最多退避补试两次，以 `ocr_result` 关联原始帧。截图遮罩按窗口遮挡关系计算，避免后台 Mirally 窗口遮黑其他应用；UIA 内容默认深度 16，优先读取文档和编辑区。图片配额、保留时间、低磁盘保护和暂停均生效。实现与限制见 [丰富内容采集](docs/activity-rich-capture.md)。
+采集器整体仍默认关闭；启用最新模板后，截图、UIA 正文、输入文本、剪贴板和 OCR 默认一起开启，音频未接入。后台有界队列合并周期检查、输入停顿、点击和滚动触发，未变化的图像不重复保存；OCR 成功后不重复识别，失败时最多退避补试两次，以 `ocr_result` 关联原始帧。截图遮罩按窗口遮挡关系计算，避免后台 Mirally 窗口遮黑其他应用；UIA 完整读取声明隐私范围内的树，原始文字和结构不按字符、节点、深度或 JSON 大小裁剪。摘要和查询另设预算并标注截断；采集超时或读取失败保留诊断。图片配额、保留时间、低磁盘保护和暂停均生效。实现与限制见 [丰富内容采集](docs/activity-rich-capture.md)。
 
 WGC 现在复用常驻会话，避免周期截图反复开关捕获描边，并尽力请求关闭边框；Windows 权限限制下仍可能显示边框。默认过滤显示器黑色超过 90%、窗口范围黑色超过 80% 的帧，只保留过滤诊断，不执行 OCR 或保存图片；阈值按实际捕获区域计算。暂停/停止会释放会话，恢复后按需重建。更新此实现后重启 Activity 采集器即可，不需要重启 Gateway；其他机器需要重新构建 helper。监控页 `wgc_session` 可查看实际会话与边框请求状态。
 

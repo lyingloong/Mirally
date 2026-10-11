@@ -64,7 +64,8 @@ class Control:
         return SimpleNamespace(Value=self.text, IsReadOnly=False)
 
     def GetTextPattern(self):
-        return SimpleNamespace(DocumentRange=SimpleNamespace(GetText=lambda count: self.text[:count]))
+        return SimpleNamespace(DocumentRange=SimpleNamespace(
+            GetText=lambda count: self.text if count == -1 else self.text[:count]))
 
 
 class RichSources:
@@ -271,6 +272,7 @@ class RichCaptureTests(unittest.TestCase):
 
     def test_uia_body_properties_and_password_subtrees(self):
         root = Control(children=[Control("hello"), Control("secret", [Control("secret-child")], True)])
+        root.HasKeyboardFocus = True
         result = inspect_tree(root, 6, 180, include_content=True, focused=root)
         self.assertEqual(result["nodes"][1]["value"], "hello")
         self.assertIn("control_id", result["nodes"][1])
@@ -286,15 +288,20 @@ class RichCaptureTests(unittest.TestCase):
         self.assertNotIn("name", result["nodes"][0])
         self.assertFalse(result["content_enabled"])
 
-    def test_uia_unicode_budget_and_depth_are_explicit(self):
+    def test_raw_uia_ignores_legacy_unicode_budget_and_depth(self):
         root = Control("\u4e2d"*20000, [Control("\u4e2d"*20000) for _ in range(200)])
         result = inspect_tree(root, 6, 180, include_content=True, max_text_chars=12000, focused=root)
-        self.assertLess(len(json.dumps(result, ensure_ascii=False).encode()), 60000)
-        self.assertTrue(result["truncated"])
+        self.assertGreater(len(json.dumps(result, ensure_ascii=False).encode()), 60000)
+        self.assertEqual(result["node_count"], 201)
+        self.assertTrue(all(node["value"] == "\u4e2d" * 20000 for node in result["nodes"]))
+        self.assertFalse(result["truncated"])
         limited = inspect_tree(root, 0, 180, include_content=True)
-        self.assertTrue(limited["truncated"])
-        self.assertTrue(inspect_tree(Control("long value"), 1, 10,
-                                    include_content=True, max_text_chars=3)["truncated"])
+        self.assertEqual(limited["node_count"], 201)
+        self.assertFalse(limited["truncated"])
+        small_legacy_budget = inspect_tree(Control("long value"), 1, 10,
+                                          include_content=True, max_text_chars=3)
+        self.assertEqual(small_legacy_budget["nodes"][0]["value"], "long value")
+        self.assertFalse(small_legacy_budget["truncated"])
 
     def test_native_uia_integer_password_state_and_raw_mouse_abi(self):
         from openassist.platform.activity.input_worker import RawMouse
@@ -515,7 +522,7 @@ class RichCaptureTests(unittest.TestCase):
             finally:
                 sensor.close()
 
-    def test_ocr_result_is_bounded_before_observation_validation(self):
+    def test_explicit_ocr_processing_view_can_be_bounded(self):
         result = OCRResult("ok", text="x" * 100_000,
                            lines=({"text": "x" * 2_000, "words": []},) * 100)
         bounded = result.bounded()
@@ -667,7 +674,7 @@ class RichCaptureTests(unittest.TestCase):
             finally:
                 sensor.close()
 
-    def test_uia_prioritizes_deep_document_over_toolbar_siblings(self):
+    def test_raw_uia_keeps_deep_document_and_all_toolbar_siblings(self):
         document = Control("document body")
         document.ControlTypeName = "DocumentControl"
         branch = document
@@ -680,10 +687,13 @@ class RichCaptureTests(unittest.TestCase):
         root = Control("", children=[*buttons, branch])
         result = inspect_tree(root, 16, 20, include_content=True)
         self.assertTrue(any(node.get("value") == "document body" for node in result["nodes"]))
-        self.assertLessEqual(result["node_count"], 20)
-        self.assertIn("uia_node_limit", result["missing_reasons"])
+        self.assertEqual(result["node_count"], 44)
+        self.assertFalse(result["truncated"])
+        self.assertEqual(result["missing_reasons"], [])
         limited = inspect_tree(root, 6, 180, include_content=True)
-        self.assertIn("uia_depth_limit", limited["missing_reasons"])
+        self.assertEqual(limited["node_count"], 44)
+        self.assertTrue(any(node.get("value") == "document body" for node in limited["nodes"]))
+        self.assertFalse(limited["truncated"])
 
     def test_multiple_monitor_identity_and_no_secure_desktop_capture(self):
         with tempfile.TemporaryDirectory() as directory:

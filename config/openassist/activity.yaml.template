@@ -6,7 +6,7 @@ poll_interval_seconds: 1.0
 
 collection:
   # The three baseline streams are collected together when enabled:
-  # foreground metadata, aggregated input metadata, and bounded UIA structure.
+  # foreground metadata, aggregated input metadata, and UIA structure.
   default_level: content
   # Window titles and browser address-bar URLs are the companion's primary
   # context.  Set either to false when a deployment should omit that field.
@@ -21,17 +21,15 @@ input:
   text: true
   clipboard: true
   clipboard_timeout_ms: 1500
-  clipboard_max_chars: 12000
   quiet_ms: 1500
   max_burst_ms: 10000
 
 ui_structure:
   enabled: true
   content: true
-  max_text_chars: 12000
+  # Raw text and nodes are stored in full. Isolation deadlines report failure
+  # instead of returning a successful prefix. Query/summary budgets are separate.
   timeout_ms: 5000
-  max_depth: 16
-  max_nodes: 180
 
 visual:
   enabled: true
@@ -72,7 +70,17 @@ storage:
   # null uses %LOCALAPPDATA%\\Mirally\\activity on Windows.
   directory: null
   database_path: null
+  # The derived activity knowledge database is rebuildable and kept separate
+  # from the append-only observation database.
+  knowledge_database_path: null
   observation_retention_days: 14
   image_retention_hours: 24
   image_quota_mib: 1024
   min_free_space_mib: 2048
+
+knowledge:
+  # The organizer is a rebuildable consumer of the observation store.
+  poll_interval_seconds: 1.0
+  batch_size: 200
+  idle_timeout_seconds: 300
+  allowed_lateness_seconds: 60

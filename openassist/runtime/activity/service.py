@@ -153,6 +153,16 @@ class ActivitySensor:
         self._stop = threading.Event()
         self._started = False
         self._paused = False
+        self._diagnostics_started_at: Optional[int] = None
+        self._diagnostics_stopped_at: Optional[int] = None
+        self._diagnostics_last_write = 0.0
+        self._diagnostics_closed = False
+        self._diagnostics_pauses: deque[dict[str, Any]] = deque(maxlen=64)
+        self._diagnostics_source_snapshot: dict[str, Any] = {}
+        self._diagnostics_source_signals: dict[str, int] = {}
+        self._diagnostics_active_source_reasons: dict[str, str] = {}
+        self._diagnostics_input_started: Optional[bool] = None
+        self._diagnostics_write_error: Optional[Exception] = None
         self._metrics_lock = threading.Lock()
         self._metrics: dict[str, Any] = {
             "started_count": 0,
@@ -193,6 +203,8 @@ class ActivitySensor:
                 "capture_by_status",
                 "ocr_by_status",
                 "browser_url_by_status",
+                "input_batch_rejections",
+                "clipboard_event_rejections",
             ):
                 result[name] = dict(self._metrics.get(name, {}))
             result["started"] = bool(self._started)
@@ -208,6 +220,126 @@ class ActivitySensor:
         if callback is not None:
             callback()
 
+    @staticmethod
+    def _diagnostic_reason(value: Any) -> Optional[str]:
+        # Only protocol reason codes belong in health state, never exception
+        # messages, paths, titles or caller-supplied prose.
+        if value is None:
+            return None
+        if isinstance(value, str) and 0 < len(value) <= 80 and all(
+                char.isascii() and (char.isalnum() or char == "_") for char in value):
+            return value
+        return "unspecified"
+
+    def _collection_source_diagnostics(self) -> dict[str, Any]:
+        content = self.config.policy.default_level == CollectionLevel.CONTENT
+        inputs = bool(self.config.input_enabled)
+        visual = bool(self.config.visual_enabled)
+        uia = bool(self.config.ui_structure_enabled)
+        sources = {
+            "foreground": (True, self.source),
+            "window_titles": (self.config.window_titles_enabled, self.source),
+            "browser_urls": (self.config.browser_urls_enabled, self.browser_source),
+            "input_metadata": (inputs, self.input_source),
+            "uia_structure": (uia, self.uia_source),
+            "uia_content": (uia and content and self.config.uia_content_enabled, self.uia_source),
+            "input_text": (uia and content and self.config.uia_content_enabled
+                           and self.config.input_text_enabled, self.uia_source),
+            "visual": (visual and content, self.visual_source),
+            "ocr": (visual and content and self.config.ocr_enabled, self.ocr_source),
+            "clipboard": (inputs and self.config.clipboard_enabled, self.input_source),
+            "clipboard_content": (inputs and content and self.config.clipboard_enabled, self.clipboard_source),
+        }
+        result = {}
+        input_status = getattr(self.input_source, "status", None)
+        for name, (configured, source) in sources.items():
+            enabled = bool(self.config.enabled and self.policy.enabled and configured)
+            available = bool(source is not None and getattr(source, "available", False))
+            running = None
+            reason = None if available else "source_unavailable" if source is not None else "source_missing"
+            if name in {"input_metadata", "clipboard", "clipboard_content"}:
+                # Clipboard notifications depend on the same Raw Input worker.
+                running = getattr(input_status, "running", self._diagnostics_input_started)
+                if self.input_source is None:
+                    running, reason = False, "input_source_missing"
+                else:
+                    available = available and bool(getattr(input_status, "available",
+                                                           getattr(self.input_source, "available", False)))
+                    reason = getattr(input_status, "reason", None) or reason
+                    if running is False and reason is None:
+                        reason = "input_worker_not_running"
+            if name in self._diagnostics_active_source_reasons:
+                reason = self._diagnostics_active_source_reasons[name]
+            if not enabled:
+                running, reason = False, "disabled_by_configuration"
+            result[name] = {"enabled": enabled, "available": available,
+                            "running": running, "reason": self._diagnostic_reason(reason)}
+        return result
+
+    def _persist_collection_diagnostics(self, status: str, *, preserve_sources: bool = False) -> None:
+        with self._state_lock:
+            try:
+                self._write_collection_diagnostics(status, preserve_sources=preserve_sources)
+            except Exception as error:
+                self._diagnostics_write_error = error
+                raise
+            self._diagnostics_write_error = None
+
+    def _write_collection_diagnostics(self, status: str, *, preserve_sources: bool = False) -> None:
+        if self._diagnostics_started_at is None or self._diagnostics_closed:
+            return
+        if self._diagnostics_stopped_at is not None:
+            status, preserve_sources = "stopped", True
+        if not preserve_sources:
+            self._diagnostics_source_snapshot = self._collection_source_diagnostics()
+        sources = {name: dict(value) for name, value in self._diagnostics_source_snapshot.items()}
+        if status in {"running", "degraded"}:
+            baseline_missing = (not self.config.input_enabled or not self.config.ui_structure_enabled
+                                or self.policy.default_level == CollectionLevel.METADATA)
+            source_failed = any(value["enabled"] and (not value["available"]
+                                or value["running"] is False or value["reason"] is not None)
+                                for value in sources.values())
+            status = "degraded" if baseline_missing or source_failed else "running"
+        if status == "stopped":
+            for value in sources.values():
+                value["running_before_stop"] = value["running"]
+                value["running"] = False
+        with self._metrics_lock:
+            # All retained values are counts, durations or protocol status
+            # counts. last_triggers and arbitrary runtime dictionaries are not
+            # copied into durable diagnostics.
+            metrics = {name: value for name, value in self._metrics.items()
+                       if value is None or isinstance(value, (int, float, bool))}
+            for name, value in self._metrics.items():
+                if isinstance(value, dict):
+                    metrics[name] = {self._diagnostic_reason(key) or "unspecified": count
+                                     for key, count in value.items() if isinstance(count, (int, float))}
+            signals = dict(self._diagnostics_source_signals)
+        scheduler = self._queue.status()
+        self.store.set_state("collector_diagnostics", {
+            "schema_version": 1, "source_id": self.source_id, "source_epoch": self.source_epoch,
+            "status": status, "policy_version": self.policy.policy_version,
+            "started_at_utc_ms": self._diagnostics_started_at,
+            "stopped_at_utc_ms": self._diagnostics_stopped_at,
+            "updated_at_utc_ms": int(time.time() * 1000), "paused": self._paused,
+            "pause_intervals": list(self._diagnostics_pauses), "sources": sources,
+            "metrics": metrics, "source_signals": signals, "scheduler": scheduler,
+            "known_gap_counts": {name: int(metrics.get(name, 0)) for name in (
+                "unattributed_input_batches", "unattributed_clipboard_events", "stale_jobs",
+                "stale_results", "evidence_errors", "low_disk_skips", "black_frame_skips")},
+            "coverage_basis": "lifecycle_and_sampled_source_health",
+        })
+        self._diagnostics_last_write = time.monotonic()
+
+    def _record_diagnostic_pause(self, paused: bool, reason: Any = "user") -> None:
+        now = int(time.time() * 1000)
+        if paused and not self._paused:
+            self._diagnostics_pauses.append({"started_at_utc_ms": now, "ended_at_utc_ms": None,
+                "reason": reason if isinstance(reason, str) and reason in {"user", "manual", "agent_control", "desktop_unavailable"}
+                else "unspecified"})
+        elif not paused and self._diagnostics_pauses and self._diagnostics_pauses[-1]["ended_at_utc_ms"] is None:
+            self._diagnostics_pauses[-1]["ended_at_utc_ms"] = now
+
     def _next_seq(self) -> int:
         with self._seq_lock:
             value = self._source_seq
@@ -219,7 +351,7 @@ class ActivitySensor:
             CollectionLevel.CONTENT, app_id=snapshot.app_id, window_name=snapshot.window_title,
             control_owner=self._control_owner(), paused=self._paused).allowed
 
-    def _current(self, snapshot) -> bool:
+    def _current(self, snapshot, *, allow_caption_change: bool = False) -> bool:
         if self._stop.is_set() or self._paused:
             return False
         job = getattr(self._job_local, "job", None)
@@ -227,6 +359,14 @@ class ActivitySensor:
             return False
         if snapshot.hwnd == 0 and self.config.visual_scope == "monitors":
             return self.monitor_source.desktop_available()
+        if allow_caption_change:
+            poll = getattr(self.source, "poll", None)
+            if callable(poll):
+                current = poll()
+                return bool(current and all(
+                    getattr(current, field, None) == getattr(snapshot, field, None)
+                    for field in ("hwnd", "pid", "process_instance_id", "window_instance_id")
+                ))
         matches = getattr(self.source, "matches", None)
         return bool(matches(snapshot)) if matches is not None else True
 
@@ -298,10 +438,14 @@ class ActivitySensor:
         pause_state = self.store.get_state("collector_pause", {})
         paused = bool(isinstance(pause_state, Mapping) and pause_state.get("paused"))
         with self._state_lock:
-            if paused != self._paused:
+            changed = paused != self._paused
+            if changed:
+                self._record_diagnostic_pause(paused, pause_state.get("reason") if isinstance(pause_state, Mapping) else None)
                 self._invalidate_evidence()
                 self._visual_lifecycle("pause" if paused else "resume")
             self._paused = paused
+        if changed:
+            self._persist_collection_diagnostics("paused" if paused else "running")
         collector_state = self.store.get_state("collector", {})
         if isinstance(collector_state, Mapping) and collector_state.get("status") == "stop_requested":
             self._stop.set()
@@ -311,6 +455,9 @@ class ActivitySensor:
         if self._started:
             return
         self._started = True
+        self._diagnostics_started_at = int(time.time() * 1000)
+        self._diagnostics_stopped_at = None
+        self._diagnostics_active_source_reasons.clear()
         self._stop.clear()
         if not self._paused:
             self._visual_lifecycle("resume")
@@ -321,6 +468,7 @@ class ActivitySensor:
                 input_started = self.input_source.start(self.record_input_metadata, event_callback=self.record_input_event)
             else:
                 input_started = self.input_source.start(self.record_input_metadata)
+        self._diagnostics_input_started = bool(input_started)
         baseline_degraded = bool(
             self.config.enabled
             and (
@@ -358,16 +506,21 @@ class ActivitySensor:
                 "started_at_utc_ms": int(time.time() * 1000),
             },
         )
+        self._persist_collection_diagnostics(
+            "disabled" if not self.config.enabled else "degraded" if baseline_degraded else "running")
 
     def pause(self, reason: str = "user") -> None:
         with self._state_lock:
+            self._record_diagnostic_pause(True, reason)
             self._paused = True
             self._invalidate_evidence()
             self._visual_lifecycle("pause")
         self.store.set_state("collector_pause", {"paused": True, "reason": reason, "at": int(time.time() * 1000)})
+        self._persist_collection_diagnostics("paused")
 
     def resume(self) -> None:
         with self._state_lock:
+            self._record_diagnostic_pause(False)
             self._paused = False
             self._invalidate_evidence()
             self._visual_lifecycle("resume")
@@ -375,6 +528,7 @@ class ActivitySensor:
         self._last_window_context_key = None
         self._browser_window_id = None
         self.store.set_state("collector_pause", {"paused": False, "at": int(time.time() * 1000)})
+        self._persist_collection_diagnostics("running")
 
     def _invalidate_evidence(self) -> None:
         self._generation += 1
@@ -386,20 +540,42 @@ class ActivitySensor:
         self._last_evidence_at = self._last_monitors_at = 0.0
 
     def stop(self) -> None:
-        with self._state_lock:
-            self._stop.set()
-            self._queue.clear()
-            self._visual_lifecycle("pause")
-        if self.input_source is not None:
-            stop_input = getattr(self.input_source, "stop", None)
-            if stop_input is not None:
-                stop_input()
-        if self._started:
-            self.store.set_state("collector", {"status": "stopped", "at": int(time.time() * 1000)})
-        self._started = False
+        # Snapshot before platform stop() clears the worker's failure reason.
+        # Repeated stop/close calls retain that snapshot rather than replacing
+        # it with the deliberately stopped source state.
+        try:
+            with self._state_lock:
+                if self._started:
+                    self._diagnostics_source_snapshot = self._collection_source_diagnostics()
+                    self._diagnostics_stopped_at = int(time.time() * 1000)
+                    if self._diagnostics_pauses and self._diagnostics_pauses[-1]["ended_at_utc_ms"] is None:
+                        self._diagnostics_pauses[-1]["ended_at_utc_ms"] = self._diagnostics_stopped_at
+                    self._persist_collection_diagnostics("stopped", preserve_sources=True)
+        finally:
+            # A diagnostics write failure remains visible to the caller while
+            # still releasing platform resources and stopping collection.
+            with self._state_lock:
+                self._stop.set()
+                self._queue.clear()
+                self._visual_lifecycle("pause")
+            if self.input_source is not None:
+                stop_input = getattr(self.input_source, "stop", None)
+                if stop_input is not None:
+                    stop_input()
+            if self._started:
+                self.store.set_state("collector", {"status": "stopped", "at": int(time.time() * 1000)})
+            self._started = False
 
     def close(self) -> None:
-        self.stop()
+        if self._diagnostics_closed:
+            return
+        diagnostics_error = None
+        try:
+            self.stop()
+        except Exception as error:
+            if error is not self._diagnostics_write_error:
+                raise
+            diagnostics_error = error
         worker = self._evidence_thread
         if worker is not None and worker is not threading.current_thread():
             # Each platform call has its own killable-process deadline.
@@ -407,10 +583,19 @@ class ActivitySensor:
                                 self.config.ocr_timeout_ms + self.config.browser_url_timeout_ms +
                                 self.config.clipboard_timeout_ms) / 1000 + 3)
             if worker.is_alive():
-                raise RuntimeError("activity evidence worker did not stop; store remains open")
+                raise RuntimeError("activity evidence worker did not stop; store remains open") from diagnostics_error
         self._evidence_thread = None
         self._visual_lifecycle("close")
+        try:
+            self._persist_collection_diagnostics("stopped", preserve_sources=True)
+        except Exception as error:
+            if error is not self._diagnostics_write_error:
+                raise
+            diagnostics_error = diagnostics_error or error
         self.store.close()
+        self._diagnostics_closed = True
+        if diagnostics_error is not None:
+            raise diagnostics_error
 
     def emit(
         self, kind: str, **kwargs,
@@ -444,6 +629,7 @@ class ActivitySensor:
         capture_started_at: Optional[int] = None,
         capture_finished_at: Optional[int] = None,
         truncated: bool = False,
+        time_quality: str = "observed",
     ) -> Optional[Observation]:
         job = getattr(self._job_local, "job", None)
         if self._stop.is_set() or (job is not None and not self._current(job.snapshot)):
@@ -458,10 +644,6 @@ class ActivitySensor:
         if not decision.allowed:
             return None
         safe_payload = dict(payload or {})
-        if len(str(safe_payload).encode("utf-8")) > self.policy.max_payload_bytes:
-            safe_payload = {"truncated": True, "original_kind": kind}
-            quality = "partial"
-            missing_reasons = tuple(missing_reasons) + ("payload_limit",)
         now = int(time.time() * 1000)
         observation = Observation.create(
             kind=kind,
@@ -471,6 +653,7 @@ class ActivitySensor:
             observed_at_utc_ms=observed_at_utc_ms or now,
             monotonic_ns=monotonic_value or time.monotonic_ns(),
             boot_id=getattr(self.source, "_boot", "unknown"),
+            time_quality=time_quality,
             session_instance_id=session_instance_id,
             process_instance_id=process_instance_id,
             window_instance_id=window_instance_id,
@@ -758,7 +941,16 @@ class ActivitySensor:
         self._metric_status("ocr_by_status", result.status)
         with self._metrics_lock:
             self._metrics["ocr_last_duration_ms"] = round((time.monotonic() - started) * 1000, 2)
-        return result.bounded()
+        # The observation stores the complete OCR response. Compact views are
+        # produced by the organizer/query layer without modifying this source.
+        return result
+
+    @staticmethod
+    def _ocr_completeness(result) -> tuple[bool, tuple[str, ...], bool]:
+        missing = tuple(result.missing_reasons)
+        truncated = bool(getattr(result, "truncated", False)) or bool(
+            {"ocr_result_limit", "ocr_text_limit", "ocr_byte_limit", "ocr_truncated"}.intersection(missing))
+        return result.status == "ok" and not missing and not truncated, missing, truncated
 
     def _retry_ocr(self, key, snapshot, capture) -> Optional[Observation]:
         retry = self._ocr_retries.get(key)
@@ -770,6 +962,7 @@ class ActivitySensor:
         generation = self._generation
         self._metric_inc("ocr_retries")
         result = self._recognize_capture(capture.path)
+        ocr_complete, missing, truncated = self._ocr_completeness(result)
         with self._state_lock:
             if generation != self._generation or not self._content_allowed(snapshot):
                 self._metric_inc("stale_results")
@@ -782,8 +975,8 @@ class ActivitySensor:
                 ocr_summary=result.as_dict(), asset_refs=original.asset_refs,
                 caused_by=(original.observation_id,), capture_group_id=original.capture_group_id,
                 actor=original.actor, actor_basis=original.actor_basis,
-                quality="complete" if result.status == "ok" else "partial",
-                missing_reasons=result.missing_reasons)
+                quality="complete" if ocr_complete else "partial",
+                missing_reasons=missing, truncated=truncated)
             if observation is not None:
                 if result.status == "ok":
                     self._ocr_retries.pop(key, None)
@@ -968,11 +1161,11 @@ class ActivitySensor:
             finally:
                 capture.path.unlink(missing_ok=True)
         ocr = self._recognize_capture(capture.path)
+        ocr_complete, ocr_missing, ocr_truncated = self._ocr_completeness(ocr)
         black_filter_missing = ("black_filter_unavailable",) if black_filter_error else ()
-        quality = ("complete" if (not self.config.ocr_enabled or ocr.status == "ok")
+        quality = ("complete" if (not self.config.ocr_enabled or ocr_complete)
                    and not black_filter_error else "partial")
-        missing = black_filter_missing + (tuple(ocr.missing_reasons)
-                                          if ocr.status not in {"ok", "disabled"} else ())
+        missing = black_filter_missing + ocr_missing
         reservation = None
         asset_refs: tuple[str, ...] = ()
         observation = None
@@ -1022,7 +1215,7 @@ class ActivitySensor:
                 observed_at_utc_ms=capture_finished_at,
                 capture_started_at=capture_started_at,
                 capture_finished_at=capture_finished_at,
-                truncated=bool(getattr(ocr, "truncated", False)),
+                truncated=ocr_truncated,
             )
             if observation is not None and reservation is not None:
                 self.store.commit_asset_bytes(reservation, content, observation)
@@ -1069,18 +1262,35 @@ class ActivitySensor:
 
     def record_input_event(self, event: Mapping[str, Any]) -> None:
         if event.get("type") == "source_diagnostic":
+            reason = ("clipboard_listener_failed" if event.get("reason") == "clipboard_listener_failed"
+                      else "unspecified_source_diagnostic")
+            with self._metrics_lock:
+                self._diagnostics_source_signals[reason] = self._diagnostics_source_signals.get(reason, 0) + 1
+                if reason == "clipboard_listener_failed":
+                    self._diagnostics_active_source_reasons["clipboard"] = reason
             self.emit("collector_diagnostic", payload={"stage": "input", "reason": event.get("reason")})
             return
         if event.get("type") not in {"clipboard_changed", "clipboard_operation"}:
             return
-        snapshot = self._previous_foreground
-        if (snapshot is None or event.get("hwnd") != snapshot.hwnd or event.get("pid") != snapshot.pid
-                or not self.config.clipboard_enabled or not self._current(snapshot)):
-            self._metric_inc("unattributed_clipboard_events")
+        if not self.config.clipboard_enabled:
             return
+        snapshot, reason = self._input_foreground(event.get("hwnd"), event.get("pid"))
+        if snapshot is None:
+            self._metric_status("clipboard_event_rejections", reason)
+            if reason != "privacy_denied":
+                self._metric_inc("unattributed_clipboard_events")
+            return
+        owner = self._control_owner()
+        shortcut = (event["type"] == "clipboard_operation"
+                    and event.get("operation") in {"copy", "cut", "paste"})
+        actor = Actor.USER if shortcut and owner == "unclaimed" else Actor.UNKNOWN
+        basis = ("raw_input_shortcut" if owner == "unclaimed" else "mixed_control") if shortcut else "clipboard_notification"
         observation = self.emit(str(event["type"]), app_id=snapshot.app_id,
                                 window_instance_id=snapshot.window_instance_id,
+                                process_instance_id=snapshot.process_instance_id,
                                 payload={"operation": event.get("operation"), "sequence": event.get("sequence")},
+                                actor=actor, actor_basis=basis,
+                                identity_confidence=snapshot.identity_confidence,
                                 observed_at_utc_ms=event.get("observed_at_utc_ms"))
         if observation and event.get("operation") not in {"copy", "cut"} and self._content_allowed(snapshot):
             self._submit(snapshot, "clipboard", (observation.observation_id,),
@@ -1123,38 +1333,100 @@ class ActivitySensor:
         motion: bool = False,
         quiet_ms: Optional[int] = None,
         snapshot: Optional[ForegroundSnapshot] = None,
+        started_monotonic_ns: Optional[int] = None,
+        ended_monotonic_ns: Optional[int] = None,
+        helper_emitted_at_utc_ms: Optional[int] = None,
     ) -> Optional[Observation]:
         self._metric_inc("input_batches")
         owner = self._control_owner()
         actor = Actor.USER if owner == "unclaimed" else Actor.UNKNOWN
         basis = "raw_input_metadata" if owner == "unclaimed" else "mixed_control"
         foreground = snapshot or self._previous_foreground
-        if foreground is not None and (not self._current(foreground) or not self.policy.decide(
-                CollectionLevel.METADATA, app_id=foreground.app_id, window_name=foreground.window_title,
-                paused=self._paused).allowed):
-            return None
+        if foreground is not None:
+            # Input metadata is attributed to the live window identity. Its
+            # caption may have changed between the helper flush and receipt;
+            # content jobs below retain the strict caption/page check.
+            # record_input_metadata has already performed the identity and
+            # policy check against a fresh poll. Direct callers retain the
+            # historical strict check without requiring another platform poll.
+            if snapshot is None and not self._current(foreground):
+                self._metric_inc("unattributed_input_batches")
+                return None
+            if not self.policy.decide(
+                    CollectionLevel.METADATA, app_id=foreground.app_id, window_name=foreground.window_title,
+                    paused=self._paused).allowed:
+                return None
+        payload = {
+            "keyboard_count": max(0, int(keyboard_count)),
+            "click_count": max(0, int(click_count)),
+            "scroll_count": max(0, int(scroll_count)),
+            "motion": bool(motion),
+            "quiet_ms": max(0, int(quiet_ms)) if quiet_ms is not None else None,
+        }
+        timing = {
+            "started_monotonic_ns": started_monotonic_ns,
+            "ended_monotonic_ns": ended_monotonic_ns,
+            "helper_emitted_at_utc_ms": helper_emitted_at_utc_ms,
+        }
+        payload.update({name: value for name, value in timing.items() if value is not None})
         return self.emit(
             "input_batch",
             app_id=foreground.app_id if foreground is not None else None,
             process_instance_id=(foreground.process_instance_id if foreground is not None else None),
             window_instance_id=(foreground.window_instance_id if foreground is not None else None),
-            payload={
-                "keyboard_count": max(0, int(keyboard_count)),
-                "click_count": max(0, int(click_count)),
-                "scroll_count": max(0, int(scroll_count)),
-                "motion": bool(motion),
-                "quiet_ms": max(0, int(quiet_ms)) if quiet_ms is not None else None,
-            },
+            payload=payload,
             actor=actor,
             actor_basis=basis,
+            identity_confidence=(getattr(foreground, "identity_confidence", "unknown")
+                                 if foreground is not None else "unknown"),
+            # Keep the helper-reported batch range and flush wall clock.
+            # The range may include quiet time, not exact action wall times.
+            time_quality="unknown" if any(value is not None for value in timing.values()) else "observed",
         )
+
+    def _input_foreground(self, hwnd, pid) -> tuple[Optional[ForegroundSnapshot], str]:
+        """Resolve metadata at receipt rather than requiring an old poll's title.
+
+        A helper message names the foreground HWND/PID at the input. Only a
+        matching live snapshot may authorize fresh evidence. A delayed message
+        for a previous window stays rejected: a cached HWND/PID does not prove
+        that the same window lifetime or privacy policy still applies.
+        """
+
+        if self._stop.is_set() or self._paused:
+            return None, "collection_inactive"
+        poll = getattr(self.source, "poll", None)
+        snapshot = poll() if callable(poll) else self._previous_foreground
+        if snapshot is None:
+            return None, "foreground_unavailable"
+        if not hwnd or not pid or hwnd != snapshot.hwnd or pid != snapshot.pid:
+            return None, "foreground_identity_mismatch"
+        if callable(poll):
+            # A caption can change while typing without changing the window.
+            # Revalidate its lifetime, then apply policy to the latest caption;
+            # content jobs still use the stricter page/caption match in _current.
+            current = poll()
+            if current is None or any(getattr(current, field) != getattr(snapshot, field)
+                                      for field in ("hwnd", "pid", "process_instance_id", "window_instance_id")):
+                return None, "foreground_changed_during_validation"
+            snapshot = current
+        elif not self._current(snapshot):
+            return None, "foreground_changed_during_validation"
+        if not self.policy.decide(
+                CollectionLevel.METADATA, app_id=snapshot.app_id, window_name=snapshot.window_title,
+                control_owner=self._control_owner(), paused=self._paused).allowed:
+            return None, "privacy_denied"
+        return snapshot, "matched_live_foreground"
 
     def record_input_metadata(self, batch: InputBatch) -> Optional[Observation]:
         """Persist an already aggregated batch without exposing raw packets."""
 
-        snapshot = self._previous_foreground
-        if batch.hwnd and (snapshot is None or batch.hwnd != snapshot.hwnd or batch.pid != snapshot.pid):
-            self._metric_inc("unattributed_input_batches")
+        self._metric_inc("input_batches_received")
+        snapshot, reason = self._input_foreground(batch.hwnd, batch.pid)
+        if snapshot is None:
+            self._metric_status("input_batch_rejections", reason)
+            if reason != "privacy_denied":
+                self._metric_inc("unattributed_input_batches")
             return None
         observation = self.record_input_batch(
             keyboard_count=batch.keyboard_count,
@@ -1163,6 +1435,9 @@ class ActivitySensor:
             motion=batch.motion,
             quiet_ms=batch.quiet_ms,
             snapshot=snapshot,
+            started_monotonic_ns=batch.started_monotonic_ns,
+            ended_monotonic_ns=batch.ended_monotonic_ns,
+            helper_emitted_at_utc_ms=batch.observed_at_utc_ms,
         )
         if observation and snapshot and (batch.keyboard_count or batch.click_count or batch.scroll_count):
             trigger = "typing_pause" if batch.keyboard_count else "scroll_stop" if batch.scroll_count else "click"
@@ -1232,6 +1507,11 @@ class ActivitySensor:
         if not self._started:
             self.start()
         self._refresh_external_state()
+        if time.monotonic() - self._diagnostics_last_write >= 10.0:
+            self._persist_collection_diagnostics(
+                "stopped" if self._stop.is_set() else "paused" if self._paused
+                else "running" if self.config.enabled else "disabled",
+                preserve_sources=self._stop.is_set())
         if not self.config.enabled or self._paused or self._stop.is_set():
             return None
         snapshot = self.source.poll()
