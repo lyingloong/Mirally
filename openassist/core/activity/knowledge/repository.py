@@ -327,6 +327,10 @@ class KnowledgeStore:
     def _execute(self, sql: str, params: Sequence[Any] = ()) -> sqlite3.Cursor:
         return self._connection.execute(sql, tuple(params))
 
+    def _require_writable(self) -> None:
+        if self.read_only:
+            raise PermissionError("knowledge store is read-only")
+
     def _commit(self) -> None:
         if not self._transaction_depth:
             self._connection.commit()
@@ -338,6 +342,7 @@ class KnowledgeStore:
         Savepoints also let a nested projection roll back independently. The
         lock covers the whole scope so another thread cannot commit its writes.
         """
+        self._require_writable()
         with self._lock:
             self._savepoint_seq += 1
             name = f"knowledge_transaction_{self._savepoint_seq}"
@@ -363,6 +368,7 @@ class KnowledgeStore:
             return ("", 0) if row is None else (str(row[0]), int(row[1]))
 
     def set_checkpoint(self, consumer_id: str, generation: str, ingest_seq: int) -> None:
+        self._require_writable()
         with self._lock:
             self._execute(
                 """INSERT INTO organizer_checkpoints(consumer_id,source_generation,processed_ingest_seq,updated_at_utc_ms)
@@ -440,11 +446,13 @@ class KnowledgeStore:
             self._commit()
 
     def attach_item_episode(self, item_id: str, episode_id: str) -> None:
+        self._require_writable()
         with self._lock:
             self._execute("UPDATE activity_items SET episode_id=?,updated_at_utc_ms=? WHERE item_id=?", (episode_id, int(time.time() * 1000), item_id))
             self._commit()
 
     def upsert_annotation(self, item_id: str, annotation: Any) -> None:
+        self._require_writable()
         now = int(time.time() * 1000)
         with self._lock:
             self._execute(
@@ -581,6 +589,7 @@ class KnowledgeStore:
 
     def record_projection_error(self, observation_id: str, ingest_seq: Optional[int], error: Any,
                                 *, consumer_id: str = "activity-knowledge") -> None:
+        self._require_writable()
         now = int(time.time() * 1000)
         with self._lock:
             self._execute(
@@ -594,6 +603,7 @@ class KnowledgeStore:
             self._commit()
 
     def clear_projection_error(self, observation_id: str, *, consumer_id: str = "activity-knowledge") -> None:
+        self._require_writable()
         with self._lock:
             self._execute("DELETE FROM projection_errors WHERE consumer_id=? AND observation_id=?",
                           (consumer_id, observation_id))
@@ -671,6 +681,7 @@ class KnowledgeStore:
 
     def finalize_episodes(self, before_utc_ms: int, *, reason: str = "idle", except_window: Optional[str] = None,
                           foreground_only: bool = False) -> None:
+        self._require_writable()
         with self._lock:
             clause = "finalized=0 AND end_utc_ms<?"
             params: list[Any] = [reason, int(time.time() * 1000), before_utc_ms]
@@ -723,6 +734,7 @@ class KnowledgeStore:
         return count
 
     def upsert_episode(self, episode: ActivityEpisode) -> None:
+        self._require_writable()
         now = int(time.time() * 1000)
         with self._lock:
             self._execute(
@@ -937,6 +949,7 @@ class KnowledgeStore:
         return episodes, items, evidence
 
     def upsert_memory_candidate(self, candidate: MemoryCandidate) -> None:
+        self._require_writable()
         now = int(time.time() * 1000)
         with self._lock:
             self._execute(
@@ -986,6 +999,7 @@ class KnowledgeStore:
             )
 
     def set_memory_status(self, candidate_id: str, status: str, *, conflicts_with: Sequence[str] = ()) -> bool:
+        self._require_writable()
         if status not in {"candidate", "accepted", "superseded", "rejected", "retracted"}:
             raise ValueError("invalid memory candidate status")
         with self._lock:
@@ -997,6 +1011,7 @@ class KnowledgeStore:
             return cursor.rowcount > 0
 
     def upsert_memory_fact(self, fact: MemoryFact) -> None:
+        self._require_writable()
         if fact.status not in {"active", "superseded", "retracted"}:
             raise ValueError("invalid memory fact status")
         now = int(time.time() * 1000)
@@ -1050,6 +1065,7 @@ class KnowledgeStore:
             ]
 
     def set_memory_fact_status(self, fact_id: str, status: str) -> bool:
+        self._require_writable()
         if status not in {"active", "superseded", "retracted"}:
             raise ValueError("invalid memory fact status")
         with self._lock:
@@ -1061,6 +1077,7 @@ class KnowledgeStore:
             return cursor.rowcount > 0
 
     def reset(self) -> None:
+        self._require_writable()
         with self.transaction():
             for table in ("activity_evidence", "activity_item_sources", "activity_items", "activity_episodes",
                           "semantic_annotations", "memory_candidates", "memory_facts", "organizer_checkpoints",

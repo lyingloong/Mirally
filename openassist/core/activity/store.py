@@ -622,6 +622,8 @@ class ObservationStore:
         asset/observation commit are ordered so recovery can distinguish a
         pending file from a published asset.
         """
+        if self._read_only:
+            raise PermissionError("activity observation consumer is read-only")
 
         reservation.temp_path.parent.mkdir(parents=True, exist_ok=True)
         digest = hashlib.sha256(content).hexdigest()
@@ -881,6 +883,8 @@ class ObservationStore:
     def recover_assets(self, *, orphan_grace_seconds: int = 300) -> Mapping[str, int]:
         """Reconcile files left by a crash without publishing uncommitted data."""
 
+        if self._read_only:
+            raise PermissionError("activity observation consumer is read-only")
         now = time.time()
         pending_removed = 0
         orphan_removed = 0

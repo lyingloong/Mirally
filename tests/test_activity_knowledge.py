@@ -171,6 +171,8 @@ class ActivityKnowledgeTests(unittest.TestCase):
             self.assertFalse(missing_assets.exists())
             with self.assertRaises(PermissionError):
                 reader.set_state("unexpected", "write")
+            with self.assertRaises(PermissionError):
+                reader.recover_assets()
         self.assertEqual(hashlib.sha256(self.source.path.read_bytes()).digest(), before)
 
     def test_chinese_phrase_and_literal_url_are_searchable(self) -> None:

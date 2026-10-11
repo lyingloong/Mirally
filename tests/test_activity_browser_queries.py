@@ -103,6 +103,35 @@ class ActivityBrowserQueryTests(unittest.TestCase):
         self.assertEqual(self.digest(self.knowledge_path), before)
         self.source = ObservationStore(self.raw_path)
 
+    def test_knowledge_read_only_rejects_projection_mutations_before_sqlite(self) -> None:
+        self.append("window_context", 1000, payload={"window_title": "Stable"})
+        self.source.close()
+        with KnowledgeStore(self.knowledge_path) as knowledge:
+            with ObservationStore(self.raw_path, read_only=True) as source:
+                ActivityOrganizer(source, knowledge).catch_up()
+        with KnowledgeStore(self.knowledge_path, read_only=True) as reader:
+            mutations = (
+                lambda: reader.set_checkpoint("fixture", "generation", 1),
+                lambda: reader.upsert_item(None, None),
+                lambda: reader.attach_item_episode("item", "episode"),
+                lambda: reader.upsert_annotation("item", None),
+                lambda: reader.record_projection_error("observation", 1, RuntimeError("fixture")),
+                lambda: reader.clear_projection_error("observation"),
+                lambda: reader.finalize_episodes(1000),
+                lambda: reader.finalize_for_gap(1000, ("restart",)),
+                lambda: reader.upsert_episode(None),
+                lambda: reader.upsert_memory_candidate(None),
+                lambda: reader.set_memory_status("candidate", "accepted"),
+                lambda: reader.upsert_memory_fact(None),
+                lambda: reader.set_memory_fact_status("fact", "active"),
+                lambda: reader.reset(),
+            )
+            for mutate in mutations:
+                with self.subTest(mutate=mutate):
+                    with self.assertRaisesRegex(PermissionError, "read-only"):
+                        mutate()
+        self.source = ObservationStore(self.raw_path)
+
     def test_read_only_missing_database_has_actionable_error(self) -> None:
         self.source.close()
         with self.assertRaisesRegex(FileNotFoundError, "knowledge-process"):

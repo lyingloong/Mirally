@@ -8,11 +8,13 @@ import urllib.error
 import urllib.request
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from openassist.core.activity import Actor, CollectionLevel, Observation, ObservationStore
 from openassist.core.activity.knowledge.projection import build_projection
 from openassist.runtime.activity.browser import ActivityBrowserRuntime
-from openassist.runtime.activity.monitor import build_test_config
+from openassist.runtime.activity.monitor import ActivityMonitorRuntime, build_test_config
 
 
 class ActivityBrowserRuntimeTests(unittest.TestCase):
@@ -130,6 +132,36 @@ class ActivityBrowserRuntimeTests(unittest.TestCase):
         self.assertEqual(self.runtime.start(port=0).split("/?", 1)[0].startswith("http://127.0.0.1:"), True)
         self.assertFalse(hasattr(self.runtime, "sensor_thread"))
         self.assertEqual(self._digest(self.config.database_path), self.raw_digest)
+
+    def test_filtered_event_pages_do_not_report_a_phantom_next_page(self) -> None:
+        class FilteredStore:
+            def __init__(self, rows):
+                self.rows = rows
+                self.requested_limit = None
+
+            def query(self, **kwargs):
+                self.requested_limit = kwargs["limit"]
+                return self.rows[: self.requested_limit]
+
+            def read_since(self, *_args, **_kwargs):
+                raise AssertionError("filtered query should use query()")
+
+        def check(runtime_type):
+            runtime = runtime_type.__new__(runtime_type)
+            runtime.store = FilteredStore([SimpleNamespace(ingest_seq=7)])
+            with patch.object(
+                __import__(runtime_type.__module__, fromlist=["_safe_observation"]),
+                "_safe_observation",
+                side_effect=lambda row, **_kwargs: {"ingest_seq": row.ingest_seq},
+            ):
+                result = runtime.events({"kind": ["ocr_result"], "limit": ["1"]})
+            self.assertEqual(runtime.store.requested_limit, 2)
+            self.assertEqual(result["events"], [{"ingest_seq": 7}])
+            self.assertFalse(result["has_more"])
+            self.assertEqual(result["cursor"], 7)
+
+        check(ActivityBrowserRuntime)
+        check(ActivityMonitorRuntime)
 
     def test_all_data_layers_are_queryable_and_paginated(self) -> None:
         self.runtime.start(port=0)

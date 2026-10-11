@@ -84,3 +84,11 @@
 Windows 接口依据：[剪贴板更新通知](https://learn.microsoft.com/en-us/windows/win32/dataxchg/wm-clipboardupdate)、[UIA ValuePattern](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationclient/nn-uiautomationclient-iuiautomationvaluepattern)、[GetWindow Z-order](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getwindow)、[DWM 窗口属性](https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute)。Screenpipe 对照与剩余差距见 [对齐情况](activity-screenpipe-gap.md)。
 
 Chromium 不透明主窗口的 no-redirection 兼容依据：[窗口样式计算及透明 popup 条件](https://chromium.googlesource.com/chromium/src/+/HEAD/ui/views/widget/widget_hwnd_utils.cc)。这是针对现有 Chromium 窗口约定的适配，不是 Windows 为任意 DirectComposition 窗口提供的不透明性保证。
+
+## Developer browser
+
+The collector monitor is for live capture diagnostics. To inspect an existing run across every data layer without starting collection, use the historical developer browser described in [Activity developer browser](activity-browser.md):
+
+```powershell
+.\.venv\Scripts\python.exe -m openassist.runtime.activity.cli browse --config path\to\activity.yaml
+```

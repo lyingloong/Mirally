@@ -169,6 +169,14 @@ class ActivityEventsCliTests(unittest.TestCase):
             self.assertEqual(cli.main(["--config", str(self.config), "knowledge-events", "--limit", "501"]), 1)
         self.assertIn("max_items must be between 1 and 500", errors.getvalue())
 
+    def test_knowledge_status_does_not_create_a_missing_projection(self) -> None:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(cli.main(["--config", str(self.config), "knowledge-status"]), 0)
+        result = json.loads(output.getvalue())
+        self.assertEqual(result["status"], "not_ready")
+        self.assertFalse(self.derived.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

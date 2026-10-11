@@ -167,7 +167,8 @@ openassist/
     service.py          # 生命周期、队列、scheduler、健康检查
     config.py           # activity.yaml，独立配置校验
     ipc.py              # 当前用户管道、认证、消息限额
-    cli.py              # run/status/query/tail/pause/resume/stop/doctor/monitor
+    cli.py              # run/status/query/tail/pause/resume/stop/doctor/monitor/browse/knowledge-*
+
     agent_activity.py   # 桌面执行租约桥接
 config/openassist/activity.yaml.template  # 已实现模板，默认关闭
 tests/test_activity_*.py
@@ -635,3 +636,6 @@ $env:OPENASSIST_WGC_HELPER = "$PWD\tools\bin\desktop_wgc.exe"
 下一步还需要把现有前台源接到真正的 WinEvent/WTS message pump，并由 OpenClaw/UFO worker 发布真实租约；目前 CLI 可以独立诊断和运行，但产品默认宿主不会自动启动它。还要用新服务测量 Raw Input/锁屏/RDP 等未验证路径，并补 UIA app backoff、OCR text-region gate、FTS/只读查询和 WGC 矩阵。UIA 小内容变化和 Windows 捕获矩阵是实测风险；长期语义识别和知识质量是另一层任务，不能由这份采集方案代为承诺。
 
 这份文档是初步方案。开发中出现更简单可靠的实现或更好的产品需求，可以覆盖模块划分和参数；但事实/推断分离、采集前权限、失败/缺口可见、用户与 agent 活动边界以及可恢复消费需要保持明确，并同步更新说明与验收。
+## Current inspection entry points
+
+`monitor` is the live collector diagnostic page. `browse` opens an existing source database and its projected knowledge layers without starting collection. The browser routes cover raw observations, items, episodes, evidence, events, timeline, context, summary, memory candidates/facts, assets, and health. See [Activity developer browser](activity-browser.md) for the current command and read-only/sync behavior.

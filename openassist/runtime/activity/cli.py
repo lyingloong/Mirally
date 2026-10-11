@@ -48,7 +48,20 @@ def _print(value: Any) -> None:
 
 def command_status(args: argparse.Namespace) -> int:
     config = _config(args)
-    with _store(config, read_only=config.database_path.is_file()) as store:
+    if not config.database_path.is_file():
+        _print({
+            "status": "not_ready",
+            "enabled": config.enabled,
+            "database": str(config.database_path),
+            "knowledge_database": str(_knowledge_path(config)),
+            "policy_version": config.policy.policy_version,
+            "collection_level": config.policy.default_level,
+            "health": None,
+            "collector": {},
+            "collector_diagnostics": {},
+        })
+        return 0
+    with _store(config, read_only=True) as store:
         health = store.health()
         state = store.get_state("collector", {})
         _print(
@@ -109,7 +122,7 @@ def command_doctor(args: argparse.Namespace) -> int:
 
 def command_query(args: argparse.Namespace) -> int:
     config = _config(args)
-    with _store(config) as store:
+    with _store(config, read_only=True) as store:
         rows = store.query(
             start_utc_ms=args.start,
             end_utc_ms=args.end,
@@ -125,7 +138,7 @@ def command_query(args: argparse.Namespace) -> int:
 
 def command_tail(args: argparse.Namespace) -> int:
     config = _config(args)
-    with _store(config) as store:
+    with _store(config, read_only=True) as store:
         cursor = args.after
         deadline = time.monotonic() + args.duration if args.duration else None
         while True:
@@ -166,7 +179,16 @@ def _knowledge_context(args: argparse.Namespace) -> ContextQuery:
 
 def command_knowledge_status(args: argparse.Namespace) -> int:
     config = _config(args)
-    with _store(config, read_only=True) as source, KnowledgeStore(_knowledge_path(config)) as knowledge:
+    knowledge_path = _knowledge_path(config)
+    if not config.database_path.is_file() or not knowledge_path.is_file():
+        _print({
+            "status": "not_ready",
+            "source_database": str(config.database_path),
+            "knowledge_database": str(knowledge_path),
+            "health": {"available": False, "last_error": "knowledge-process has not produced a projection"},
+        })
+        return 0
+    with _store(config, read_only=True) as source, KnowledgeStore(knowledge_path, read_only=True) as knowledge:
         organizer = ActivityOrganizer(source, knowledge)
         _print(organizer.health())
     return 0
@@ -187,7 +209,8 @@ def command_knowledge_process(args: argparse.Namespace) -> int:
 def command_knowledge_query(args: argparse.Namespace) -> int:
     config = _config(args)
     query = _knowledge_context(args)
-    with _store(config, read_only=True) as source, KnowledgeStore(_knowledge_path(config)) as knowledge:
+    query.validate()
+    with _store(config, read_only=True) as source, KnowledgeStore(_knowledge_path(config), read_only=not args.sync) as knowledge:
         organizer = ActivityOrganizer(source, knowledge)
         if args.sync:
             organizer.catch_up(batch_size=args.sync_limit, max_batches=args.sync_batches)
@@ -198,7 +221,8 @@ def command_knowledge_query(args: argparse.Namespace) -> int:
 def command_knowledge_timeline(args: argparse.Namespace) -> int:
     config = _config(args)
     query = _knowledge_context(args)
-    with _store(config, read_only=True) as source, KnowledgeStore(_knowledge_path(config)) as knowledge:
+    query.validate()
+    with _store(config, read_only=True) as source, KnowledgeStore(_knowledge_path(config), read_only=not args.sync) as knowledge:
         organizer = ActivityOrganizer(source, knowledge)
         if args.sync:
             organizer.catch_up(batch_size=args.sync_limit, max_batches=args.sync_batches)
@@ -209,7 +233,8 @@ def command_knowledge_timeline(args: argparse.Namespace) -> int:
 def command_knowledge_events(args: argparse.Namespace) -> int:
     config = _config(args)
     query = _knowledge_context(args)
-    with _store(config, read_only=True) as source, KnowledgeStore(_knowledge_path(config)) as knowledge:
+    query.validate()
+    with _store(config, read_only=True) as source, KnowledgeStore(_knowledge_path(config), read_only=not args.sync) as knowledge:
         organizer = ActivityOrganizer(source, knowledge)
         if args.sync:
             organizer.catch_up(batch_size=args.sync_limit, max_batches=args.sync_batches)
@@ -219,14 +244,14 @@ def command_knowledge_events(args: argparse.Namespace) -> int:
 
 def command_knowledge_candidates(args: argparse.Namespace) -> int:
     config = _config(args)
-    with KnowledgeStore(_knowledge_path(config)) as knowledge:
+    with KnowledgeStore(_knowledge_path(config), read_only=True) as knowledge:
         _print([candidate.to_dict() for candidate in knowledge.list_memory_candidates(status=args.status, limit=args.limit)])
     return 0
 
 
 def command_knowledge_facts(args: argparse.Namespace) -> int:
     config = _config(args)
-    with KnowledgeStore(_knowledge_path(config)) as knowledge:
+    with KnowledgeStore(_knowledge_path(config), read_only=True) as knowledge:
         _print([fact.to_dict() for fact in knowledge.list_memory_facts(status=args.status, limit=args.limit)])
     return 0
 
@@ -234,7 +259,8 @@ def command_knowledge_facts(args: argparse.Namespace) -> int:
 def command_knowledge_summary(args: argparse.Namespace) -> int:
     config = _config(args)
     query = _knowledge_context(args)
-    with _store(config, read_only=True) as source, KnowledgeStore(_knowledge_path(config)) as knowledge:
+    query.validate()
+    with _store(config, read_only=True) as source, KnowledgeStore(_knowledge_path(config), read_only=not args.sync) as knowledge:
         organizer = ActivityOrganizer(source, knowledge)
         if args.sync:
             organizer.catch_up(batch_size=args.sync_limit, max_batches=args.sync_batches)

@@ -141,14 +141,18 @@ class ActivityBrowserRuntime:
         apps = [value for value in params.get("app", []) if value]
         try:
             if kinds or apps:
-                rows = self.store.query(after_ingest_seq=after, kinds=kinds or None, app_ids=apps or None, limit=limit)
-                has_more = len(rows) >= limit
-                cursor = rows[-1].ingest_seq if rows and rows[-1].ingest_seq is not None else after
+                rows = self.store.query(
+                    after_ingest_seq=after, kinds=kinds or None, app_ids=apps or None, limit=limit + 1
+                )
+                has_more = len(rows) > limit
+                selected = rows[:limit]
+                cursor = selected[-1].ingest_seq if selected and selected[-1].ingest_seq is not None else after
             else:
                 rows, cursor, has_more = self.store.read_since(after, limit=limit)
         except CursorExpiredError as error:
             return {"events": [], "cursor": after, "has_more": False, "cursor_expired": True, "error": str(error)}
-        return {"events": [_safe_observation(row, include_content=include_content) for row in rows], "cursor": cursor, "has_more": has_more}
+        selected = rows[:limit] if (kinds or apps) else rows
+        return {"events": [_safe_observation(row, include_content=include_content) for row in selected], "cursor": cursor, "has_more": has_more}
 
     @staticmethod
     def _query(params: Mapping[str, list[str]], *, mode: Optional[str] = None) -> Any:

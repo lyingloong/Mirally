@@ -51,6 +51,12 @@
 .\.venv\Scripts\python.exe -m openassist.runtime.activity.cli --config path\to\activity.yaml knowledge-events --limit 100 --episodes 30 --tokens 8000
 ```
 
+For the browser view of all layers, use `browse`; it is separate from the live `monitor` page and does not start collection:
+
+```powershell
+.\.venv\Scripts\python.exe -m openassist.runtime.activity.cli browse --config path\to\activity.yaml
+```
+
 命令默认包含 UIA 和 OCR 文字，使用 `--no-uia` 或 `--no-ocr` 排除对应文字证据，使用 `--include-assets` 请求资产引用。这些选项只控制查询视图，不改变采集设置。
 
 过滤参数包括 `--start`、`--end`（UTC Unix 毫秒）、`--query`、可重复的 `--app`、`--window`、`--kind`，以及 `--episode`。`--limit` 限制参与本页的 ActivityItem 数量，范围 1–500；`--episodes` 限制本页事件数，范围 1–100；`--tokens` 范围 128–100000，按序列化 UTF-8 字节数不超过预算的三倍估算，并非模型 tokenizer 的精确计数。
