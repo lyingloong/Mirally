@@ -344,6 +344,18 @@ class ActivityMonitorTests(unittest.TestCase):
                 self.assertTrue(events["events"])
                 self.assertEqual(events["events"][0]["kind"], "foreground_changed")
 
+                _, browser_page = get("/api/browser/observations?limit=1")
+                self.assertTrue(browser_page["observations"])
+                self.assertIn("observation_id", browser_page["observations"][0])
+                if browser_page["has_more"]:
+                    _, next_browser_page = get(
+                        f"/api/browser/observations?limit=1&before={browser_page['cursor']}"
+                    )
+                    self.assertNotEqual(
+                        browser_page["observations"][0]["observation_id"],
+                        next_browser_page["observations"][0]["observation_id"],
+                    )
+
                 _, knowledge_health = get("/api/knowledge/health")
                 self.assertTrue(knowledge_health["knowledge"]["available"])
                 context_status, context = get("/api/knowledge/context?mode=outline&limit=5")

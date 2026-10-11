@@ -313,6 +313,35 @@ def command_monitor(args: argparse.Namespace) -> int:
     runtime = ActivityMonitorRuntime(config, root=_root())
     return runtime.serve(port=args.port, open_browser=not args.no_open, duration=args.duration)
 
+def command_browse(args: argparse.Namespace) -> int:
+    from dataclasses import replace
+    from .browser import ActivityBrowserRuntime
+
+    configured_path = getattr(args, "config", None) or getattr(args, "browser_config", None)
+    if args.test and configured_path:
+        print("browse --test cannot be combined with --config", file=sys.stderr)
+        return 2
+    if args.test:
+        config = build_test_config(_root())
+    else:
+        config = load_activity_config(_root(), Path(configured_path).resolve() if configured_path else None)
+    if args.database:
+        database = Path(args.database).resolve()
+        config = replace(
+            config, database_path=database,
+            asset_directory=Path(args.assets).resolve() if args.assets else database.parent / "assets",
+            knowledge_database_path=Path(args.knowledge_database).resolve() if args.knowledge_database else database.with_name("activity-knowledge.sqlite3"),
+        )
+    if not config.database_path.is_file():
+        print(f"Activity database not found: {config.database_path}", file=sys.stderr)
+        return 2
+    try:
+        runtime = ActivityBrowserRuntime(config, root=_root(), sync=not args.no_sync)
+        return runtime.serve(port=args.port, open_browser=not args.no_open, duration=args.duration)
+    except (OSError, ValueError, RuntimeError) as error:
+        print(f"Activity browser: {error}", file=sys.stderr)
+        return 2
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Mirally local activity observation service")
@@ -437,6 +466,17 @@ def build_parser() -> argparse.ArgumentParser:
     monitor.add_argument("--duration", type=float)
     monitor.add_argument("--no-open", action="store_true", help="print the URL without opening a browser")
     monitor.set_defaults(handler=command_monitor)
+    browse = sub.add_parser("browse", help="browse all layers of existing activity data without collection")
+    browse.add_argument("--config", dest="browser_config", help="activity.yaml path (may follow browse)")
+    browse.add_argument("--test", action="store_true", help="browse existing .artifacts/activity-monitor data")
+    browse.add_argument("--database", help="source observations.sqlite3 path")
+    browse.add_argument("--knowledge-database", help="derived knowledge database (with --database)")
+    browse.add_argument("--assets", help="asset directory (with --database)")
+    browse.add_argument("--no-sync", action="store_true", help="read the existing derived index without catching up")
+    browse.add_argument("--port", type=int, default=0, help="loopback port (0 chooses a free port)")
+    browse.add_argument("--duration", type=float)
+    browse.add_argument("--no-open", action="store_true", help="print the URL without opening a browser")
+    browse.set_defaults(handler=command_browse)
     for action in ("pause", "resume", "stop"):
         control = sub.add_parser(action)
         control.add_argument("--reason", default="cli")

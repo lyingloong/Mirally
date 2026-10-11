@@ -710,6 +710,9 @@ class ObservationStore:
         actors: Optional[Sequence[str]] = None,
         kinds: Optional[Sequence[str]] = None,
         after_ingest_seq: Optional[int] = None,
+        before_ingest_seq: Optional[int] = None,
+        query: Optional[str] = None,
+        descending: bool = False,
         limit: int = 100,
     ) -> List[Observation]:
         limit = max(1, min(MAX_QUERY_LIMIT, int(limit)))
@@ -724,16 +727,31 @@ class ObservationStore:
         if after_ingest_seq is not None:
             clauses.append("ingest_seq > ?")
             params.append(int(after_ingest_seq))
+        if before_ingest_seq is not None:
+            clauses.append("ingest_seq < ?")
+            params.append(int(before_ingest_seq))
         for field_name, values in (("app_id", app_ids), ("actor", actors), ("kind", kinds)):
             if values:
                 placeholders = ",".join("?" for _ in values)
                 clauses.append(f"{field_name} IN ({placeholders})")
                 params.extend(values)
+        if query:
+            # Search only persisted JSON/text columns. Escape LIKE metacharacters
+            # so developer queries remain literal even when they contain `%`,
+            # `_` or a backslash.
+            escaped = str(query).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{escaped}%"
+            clauses.append(
+                "(app_id LIKE ? ESCAPE '\\' OR payload_json LIKE ? ESCAPE '\\' "
+                "OR uia_summary_json LIKE ? ESCAPE '\\' OR ocr_summary_json LIKE ? ESCAPE '\\')"
+            )
+            params.extend((pattern, pattern, pattern, pattern))
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        order = "DESC" if descending else "ASC"
         connection = self._connect()
         try:
             rows = connection.execute(
-                f"SELECT * FROM observations{where} ORDER BY ingest_seq LIMIT ?",
+                f"SELECT * FROM observations{where} ORDER BY ingest_seq {order} LIMIT ?",
                 (*params, limit),
             ).fetchall()
             return [self._row_to_observation(row) for row in rows]

@@ -16,6 +16,7 @@ Mirally 是面向 Windows 的对话与桌面助手，名称取自 MIRA + ally。
 | Windows 活动观察数据层、Screenpipe 源码参考和实施状态 | [活动观察数据层方案](activity-sensor-design.md) |
 | 采集层之上的活动组织、上下文检索与记忆衔接设计 | [Activity Knowledge Layer](activity-knowledge-layer.md) |
 | 将动作、窗口状态与文字组织为事件，查询使用轨迹和来源限制 | [Activity 事件视图](activity-events.md) |
+| 按数据层回放历史 Observation、Evidence、事件、上下文、记忆和诊断 | [Activity 开发者浏览器](activity-browser.md) |
 | 数据是否实际收集、组织是否正确，以及能否说明用户行为 | [Activity 数据层评估与验收](activity-data-acceptance.md) |
 | 清理后新样本的检查、投影 v2 完善与事实时间线 | [Activity 新数据检查](activity-fresh-data-review.md) |
 | OpenClaw agent 按需访问活动知识的统一接入 | [Activity Agent Access](activity-agent-access.md) |

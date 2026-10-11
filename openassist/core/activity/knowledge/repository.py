@@ -57,21 +57,69 @@ class KnowledgeStore:
     and avoids a second write queue competing with the raw observation store.
     """
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, read_only: bool = False) -> None:
         self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.read_only = bool(read_only)
+        if not self.read_only:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+        elif not self.path.is_file():
+            raise FileNotFoundError(
+                f"knowledge database not found: {self.path}; run knowledge-process first"
+            )
         self._lock = threading.RLock()
         self._closed = False
         self._last_error: Optional[str] = None
         self._fts_available = True
         self._transaction_depth = 0
         self._savepoint_seq = 0
-        self._connection = sqlite3.connect(str(self.path), timeout=5.0, check_same_thread=False)
+        if self.read_only:
+            self._connection = sqlite3.connect(
+                self.path.resolve().as_uri() + "?mode=ro", uri=True, timeout=5.0, check_same_thread=False
+            )
+        else:
+            self._connection = sqlite3.connect(str(self.path), timeout=5.0, check_same_thread=False)
         self._connection.row_factory = sqlite3.Row
-        self._connection.execute("PRAGMA journal_mode=WAL")
-        self._connection.execute("PRAGMA synchronous=NORMAL")
+        if not self.read_only:
+            self._connection.execute("PRAGMA journal_mode=WAL")
+            self._connection.execute("PRAGMA synchronous=NORMAL")
         self._connection.execute("PRAGMA busy_timeout=2000")
-        self._initialize()
+        try:
+            if self.read_only:
+                self._check_read_only_schema()
+            else:
+                self._initialize()
+        except BaseException:
+            self._connection.close()
+            raise
+
+    def _check_read_only_schema(self) -> None:
+        """Validate an existing projection without creating or migrating it."""
+
+        try:
+            meta = self._connection.execute(
+                "SELECT value FROM knowledge_meta WHERE key='schema_version'"
+            ).fetchone()
+        except sqlite3.OperationalError as error:
+            raise RuntimeError(
+                "knowledge database is not initialized; run knowledge-process first"
+            ) from error
+        if meta is None:
+            raise RuntimeError(
+                "knowledge database has no schema version; run knowledge-process first"
+            )
+        try:
+            version = int(meta[0])
+        except (TypeError, ValueError) as error:
+            raise RuntimeError(
+                "knowledge database schema version is invalid; run knowledge-process first"
+            ) from error
+        if version != SCHEMA_VERSION:
+            raise RuntimeError(
+                f"unsupported knowledge schema {version}, expected {SCHEMA_VERSION}; run knowledge-process first"
+            )
+        self._fts_available = bool(self._connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='activity_fts'"
+        ).fetchone())
 
     def _initialize(self) -> None:
         with self._lock:
@@ -810,17 +858,71 @@ class KnowledgeStore:
                     raise
             return [self._item(row) for row in rows]
 
-    def query_episodes(self, *, start_utc_ms: Optional[int] = None, end_utc_ms: Optional[int] = None, limit: int = 10) -> list[ActivityEpisode]:
+    def query_episodes(
+        self,
+        *,
+        start_utc_ms: Optional[int] = None,
+        end_utc_ms: Optional[int] = None,
+        query: Optional[str] = None,
+        apps: Sequence[str] = (),
+        windows: Sequence[str] = (),
+        kinds: Sequence[str] = (),
+        after_episode_id: Optional[str] = None,
+        limit: int = 10,
+    ) -> list[ActivityEpisode]:
         clauses: list[str] = []
         params: list[Any] = []
         if start_utc_ms is not None:
             clauses.append("end_utc_ms >= ?"); params.append(int(start_utc_ms))
         if end_utc_ms is not None:
             clauses.append("start_utc_ms < ?"); params.append(int(end_utc_ms))
+        if apps:
+            clauses.append(f"primary_app IN ({','.join('?' for _ in apps)})")
+            params.extend(str(value) for value in apps)
+        if windows:
+            clauses.append(f"primary_window_id IN ({','.join('?' for _ in windows)})")
+            params.extend(str(value) for value in windows)
+        if query:
+            escaped_query = str(query).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{escaped_query}%"
+            clauses.append(
+                "EXISTS (SELECT 1 FROM activity_items i LEFT JOIN activity_evidence e ON e.item_id=i.item_id "
+                "WHERE i.episode_id=activity_episodes.episode_id AND "
+                "(i.title LIKE ? ESCAPE '\\' OR i.url LIKE ? ESCAPE '\\' OR "
+                "i.text_summary LIKE ? ESCAPE '\\' OR i.app_id LIKE ? ESCAPE '\\' OR "
+                "i.structured_json LIKE ? ESCAPE '\\' OR e.text LIKE ? ESCAPE '\\'))"
+            )
+            params.extend((pattern,) * 6)
+        if kinds:
+            placeholders = ",".join("?" for _ in kinds)
+            clauses.append(
+                f"EXISTS (SELECT 1 FROM activity_items k WHERE k.episode_id=activity_episodes.episode_id "
+                f"AND (k.kind IN ({placeholders}) OR json_extract(k.structured_json, '$.source.kind') IN ({placeholders})))"
+            )
+            params.extend(str(value) for value in kinds)
+            params.extend(str(value) for value in kinds)
+        if after_episode_id:
+            with self._lock:
+                cursor = self._execute(
+                    "SELECT start_utc_ms,episode_id FROM activity_episodes WHERE episode_id=?",
+                    (after_episode_id,),
+                ).fetchone()
+            if cursor is None:
+                raise ValueError("activity episode continuation cursor no longer exists; restart the query")
+            clauses.append("(start_utc_ms < ? OR (start_utc_ms=? AND episode_id < ?))")
+            params.extend((int(cursor[0]), int(cursor[0]), str(after_episode_id)))
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
         with self._lock:
-            rows = self._execute(f"SELECT * FROM activity_episodes{where} ORDER BY start_utc_ms DESC LIMIT ?", (*params, max(1, min(100, int(limit))))).fetchall()
+            rows = self._execute(
+                f"SELECT * FROM activity_episodes{where} ORDER BY start_utc_ms DESC, episode_id DESC LIMIT ?",
+                (*params, max(1, min(101, int(limit)))),
+            ).fetchall()
             return [self._episode(row) for row in rows]
+
+    def get_evidence_for_items(self, item_ids: Iterable[str]) -> list[Evidence]:
+        """Return complete evidence rows associated with projected items."""
+
+        return self._evidence_for_items(item_ids)
 
     def context(self, query: "ContextQuery") -> tuple[list[ActivityEpisode], list[ActivityItem], list[Evidence]]:
         items = self.query_items(query=query.query, start_utc_ms=query.start_utc_ms, end_utc_ms=query.end_utc_ms, apps=query.apps, windows=query.windows, kinds=query.kinds, episode_id=query.episode_id, limit=query.max_items, after_item_id=query.after_item_id)
