@@ -12,6 +12,11 @@ from typing import Any, Iterable, Mapping
 from .models import ActivityEpisode, ActivityItem
 
 
+UIA_TEXT_EXCERPT_LIMIT = 600
+OCR_TEXT_EXCERPT_LIMIT = 24_000
+_EXCERPT_MARKER = "\n...[middle omitted]...\n"
+
+
 def _unique(values: Iterable[Any]) -> list[Any]:
     return list(dict.fromkeys(values))
 
@@ -40,16 +45,39 @@ def _limited_fields(values: Mapping[str, Any], limit: int = 600) -> tuple[dict[s
     return result, truncated
 
 
+def _text_excerpt(text: str, source_kind: str, *, limit_override: int | None = None) -> tuple[str, bool, int]:
+    """Keep OCR body text useful while bounding event responses.
+
+    UIA trees are intentionally represented by a small excerpt in event views.
+    OCR is already a flat text result, so the event view keeps substantially
+    more of it. If a very large OCR result still exceeds the view limit, retain
+    both ends instead of returning only the page header/navigation noise.
+    """
+
+    default_limit = OCR_TEXT_EXCERPT_LIMIT if source_kind in {"content_snapshot", "ocr_result"} else UIA_TEXT_EXCERPT_LIMIT
+    limit = max(1, int(limit_override)) if limit_override is not None else default_limit
+    if len(text) <= limit:
+        return text, False, limit
+    if limit <= len(_EXCERPT_MARKER):
+        return text[:limit], True, limit
+    available = limit - len(_EXCERPT_MARKER)
+    head = (available * 2) // 3
+    tail = available - head
+    return text[:head] + _EXCERPT_MARKER + text[-tail:], True, limit
+
+
 def _text_state(item: ActivityItem, text: str, source_kind: str,
                 cache: dict[tuple[str, str], dict[str, Any]]) -> dict[str, Any]:
     key = (item.item_id, source_kind)
     if key in cache:
         return cache[key]
     source = item.structured.get("source") or {}
+    excerpt, excerpt_truncated, excerpt_limit = _text_excerpt(text, source_kind)
     result = {
         **_references(item), "observed_at_utc_ms": item.start_utc_ms,
-        "source_kind": source_kind, "excerpt": text[:600],
-        "excerpt_truncated": len(text) > 600, "original_char_count": len(text),
+        "source_kind": source_kind, "excerpt": excerpt,
+        "excerpt_truncated": excerpt_truncated, "excerpt_limit_chars": excerpt_limit,
+        "original_char_count": len(text),
         "text_hash": hashlib.sha256(text.encode("utf-8")).hexdigest(),
         "quality": source.get("quality", item.quality),
         "source_truncated": bool((item.structured.get("projection") or {}).get("source_truncated")),

@@ -213,6 +213,31 @@ class ActivityEventTests(unittest.TestCase):
         self.assertEqual(self.knowledge.get_evidence((evidence_id,))[0].text, body)
         self.assertEqual(self.source.get(row.observation_id).uia_summary["nodes"][0]["text"], body)
 
+    def test_ocr_event_view_keeps_complete_body_beyond_uia_excerpt_limit(self):
+        body = "导航噪声\n" + "正文段落：重要 OCR 内容。\n" * 250
+        row = self.append("content_snapshot", 1000,
+                          ocr_summary={"status": "ok", "text": body, "lines": []})
+        event = self.query()["events"][0]
+        text = next(value for value in event["window_text"]
+                    if value["source_observation_ids"] == [row.observation_id])
+        self.assertEqual(text["source_kind"], "content_snapshot")
+        self.assertEqual(text["excerpt"], body)
+        self.assertFalse(text["excerpt_truncated"])
+        self.assertEqual(text["excerpt_limit_chars"], 24_000)
+
+    def test_oversized_ocr_event_view_keeps_tail_after_navigation_noise(self):
+        body = "导航噪声\n" + "正文段落：重要 OCR 内容。\n" * 2_000 + "文档末尾关键字"
+        row = self.append("content_snapshot", 1000,
+                          ocr_summary={"status": "ok", "text": body, "lines": []})
+        event = self.query()["events"][0]
+        text = next(value for value in event["window_text"]
+                    if value["source_observation_ids"] == [row.observation_id])
+        self.assertTrue(text["excerpt_truncated"])
+        self.assertEqual(text["excerpt_limit_chars"], 24_000)
+        self.assertTrue(text["excerpt"].startswith("导航噪声"))
+        self.assertTrue(text["excerpt"].endswith("文档末尾关键字"))
+        self.assertIn("middle omitted", text["excerpt"])
+
     def test_event_limit_pagination_emits_each_window_evidence_once(self):
         rows = [self.append("foreground_changed", 1000 + index, window=f"window-{index}") for index in range(3)]
         self.organizer.catch_up()

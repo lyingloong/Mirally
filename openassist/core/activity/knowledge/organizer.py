@@ -14,7 +14,7 @@ from .models import ActivityEpisode, ActivityItem, ContextBundle, ContextQuery, 
 from .repository import KnowledgeStore, deterministic_id
 from .semantic import ParserRegistry
 from .projection import build_projection
-from .events import build_event_fragments
+from .events import _text_excerpt, build_event_fragments
 from .coverage import collection_coverage
 
 
@@ -602,8 +602,10 @@ class ActivityOrganizer:
             source_kind = (item.structured.get("source") or {}).get("kind")
             if not ((source_kind == "context_snapshot" and not query.include_uia) or
                     (source_kind in {"content_snapshot", "ocr_result"} and not query.include_ocr)):
-                row["content_excerpt"] = item.text_summary[:500]
-                row["content_excerpt_truncated"] = len(item.text_summary) > 500
+                excerpt, excerpt_truncated, excerpt_limit = _text_excerpt(item.text_summary, source_kind or item.kind)
+                row["content_excerpt"] = excerpt
+                row["content_excerpt_truncated"] = excerpt_truncated
+                row["content_excerpt_limit_chars"] = excerpt_limit
             candidate = {**result, "timeline": rows + [row], "truncated": True, "next_cursor": item.item_id}
             if len(json.dumps(candidate, ensure_ascii=False, separators=(",", ":")).encode("utf-8")) > budget:
                 truncated = True

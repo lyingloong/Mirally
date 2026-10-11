@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional
 
 from openassist.core.activity.knowledge import ContextQuery
+from openassist.core.activity.knowledge.events import _text_excerpt
 
 from .config import ActivityConfig, load_activity_config
 from .context_source import ActivityContextSource
@@ -274,7 +275,13 @@ class ActivityAgentBridge:
                     value = dict(value)
                     value["text_truncated"] = False
                     if len(json.dumps(value, ensure_ascii=False).encode("utf-8")) > budget // 2:
-                        value["text"] = value.get("text", "")[:min(600, budget // 6)]
+                        text_limit = max(1, budget // 6)
+                        if value.get("content_type") == "ocr":
+                            value["text"], _, _ = _text_excerpt(
+                                str(value.get("text", "")), "ocr_result", limit_override=text_limit
+                            )
+                        else:
+                            value["text"] = value.get("text", "")[:min(600, text_limit)]
                         value["structured"] = {}
                         value["text_truncated"] = True
                     if len(json.dumps(selected + [value], ensure_ascii=False).encode("utf-8")) > budget:
