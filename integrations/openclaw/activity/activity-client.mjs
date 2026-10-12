@@ -205,6 +205,7 @@ export function createActivityClient(options = {}) {
     episode: (args, options) => request("episode", args, options),
     evidence: (args, options) => request("evidence", args, options),
     query: (args, options) => request("query", args, options),
+    events: (args, options) => request("events", args, options),
     close: () => stop(),
     get process() { return child; },
   });

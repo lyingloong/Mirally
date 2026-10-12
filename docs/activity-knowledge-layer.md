@@ -1,7 +1,7 @@
 # Activity Knowledge Layer 设计方案
 
 日期：2026-10-08  
-状态：存储、基础投影、检索与 OpenClaw 按需访问链路已实现；内容质量、证据关联和行为理解尚未通过数据验收，见 [Activity 数据层评估与验收](activity-data-acceptance.md)。应用语义解析器、向量检索、音频历史和正式 MCP 协议出口保留为扩展点
+状态：存储、基础投影、检索与 OpenClaw 按需访问链路已实现；内容质量、证据关联和行为理解尚未通过数据验收，见 [Activity 数据层评估与验收](activity-data-acceptance.md)。本地 stdio MCP 协议出口已实现；应用语义解析器、向量检索、音频历史和远程认证保留为扩展点
 
 2026-10-11 的数据层完善使用 `activity.v2`：在声明的采集范围内完整保留原始文字、结构和来源，按原帧关联迟到 OCR，隔离采集 epoch 和明确的资源缺口，分开维护显示器与前台活动，持久化事务失败；预算与摘录限制只作用于派生摘要和查询。`activity.event.v1` 将已有 Episode 中的动作、窗口状态与文字组织为可追溯的观察事件，具体语义、分页和 CLI 见 [Activity 事件视图](activity-events.md)。新样本的实际检查与复验见 [Activity 新数据检查](activity-fresh-data-review.md)。这些工程验证不能替代真实输入、复制粘贴及模型理解验收。
 
@@ -11,7 +11,7 @@
 
 Agent 需要的是另一种数据：用户正在做哪件事、哪些内容属于同一段活动、某个结论来自哪些证据、最近上下文中哪些内容值得带入当前任务。为此，在采集层和记忆维护层之间增加一个独立的 **Activity Knowledge Layer（活动知识组织层）**。
 
-这一层不替代采集层，也不直接等同于长期记忆。它把不可变的原始证据投影为可检索、可聚合、可追溯的活动知识，供 OpenClaw、UFO、未来的其他执行器以及记忆维护层使用。
+这一层不替代采集层，也不直接等同于长期记忆。它把不可变的原始证据投影为可检索、可聚合、可追溯的活动知识，供 OpenClaw、未来支持 MCP 的消费者以及记忆维护层使用；原生 UFO 循环不直接消费 Activity 知识。
 
 ```mermaid
 flowchart LR
@@ -366,7 +366,7 @@ activity_summary(query)
 organizer_health()
 ```
 
-当前由 `ActivityOrganizer` 和 `ActivityContextSource` 提供这些能力；OpenClaw 通过 `mirally-activity` 原生插件工具按需调用同一接口，工具未调用时不会启动桥接进程或打开数据库。Python JSONL bridge 负责参数校验、预算、索引追赶和结构化错误，不能直接绕过 ContextSource 读取 SQLite。未来如需 MCP，MCP 层复用这套协议，不改变组织器和查询模型。Screenpipe MCP 采用本地 daemon API 转发和紧凑输出，这种分层方式适合沿用。[Screenpipe MCP API 说明](https://github.com/screenpipe/screenpipe/blob/main/packages/screenpipe-mcp/README.md)
+当前由 `ActivityOrganizer` 和 `ActivityContextSource` 提供这些能力；OpenClaw 通过 `mcp.servers.mirally-activity` 的本地 stdio MCP 工具按需调用同一接口。OpenClaw 发现工具时可能启动子进程；配置读取、桥接实例和数据库访问延迟到实际工具调用，服务退出时关闭连接，不启动采集器。Python bridge 负责参数校验、预算、索引追赶和结构化错误，MCP 层只做协议适配，不能直接绕过 ContextSource 读取 SQLite。旧版 OpenClaw 可显式选择兼容插件路径。Screenpipe MCP 采用本地 daemon API 转发和紧凑输出，这种分层方式适合沿用。[Screenpipe MCP API 说明](https://github.com/screenpipe/screenpipe/blob/main/packages/screenpipe-mcp/README.md)
 
 ### 7.4 三种返回格式
 
@@ -376,7 +376,7 @@ organizer_health()
 | `structured` | 需要理解 UI 或输入时 | UIA 节点、OCR blocks、URL、输入统计 |
 | `evidence` | 需要核实事实时 | 原始 Observation 引用、资产引用、完整文本 |
 
-历史 UIA 节点和截图不能直接当成当前可操作句柄。需要执行桌面动作时，UFO 必须重新观察当前窗口并获得实时控件引用。
+历史 UIA 节点和截图不能直接当成当前可操作句柄。需要执行桌面动作时，执行器必须重新观察当前窗口并获得实时控件引用。
 
 ## 8. 记忆维护接口
 
@@ -437,7 +437,7 @@ created_at / updated_at
 | frame-context | `get_evidence` / `get_activity_around` | 返回来源和时间精度 |
 | compact outline | ContextBundle 的 `outline` | 默认限制 token 和字段 |
 | app parsers | Parser Registry | 未知应用使用通用解析器 |
-| pipes/MCP | Context API + 后续 MCP server | 由服务层控制权限 |
+| pipes/MCP | Context API + 本地 stdio MCP server | 由服务层控制权限 |
 | update-memory | MemoryCandidate/MemoryFact API | 记忆维护层负责接受、更新、撤回 |
 
 Screenpipe 官方 API 特别强调以下边界，应直接纳入我们的接口契约：
@@ -514,7 +514,7 @@ openassist/runtime/activity/
   organizer_api.py           # loopback REST/SDK/MCP 适配
 ```
 
-`platform/activity/` 继续只放 Windows 采集实现；`runtime/ufo/` 和 `integrations/openclaw/` 通过 Context API 消费，不直接依赖 Windows worker 或 UFO 内部对象。
+`platform/activity/` 继续只放 Windows 采集实现；`runtime/activity/mcp_server.py` 将 Context API 作为 stdio MCP 提供给 OpenClaw，不直接依赖 Windows worker 或 UFO 内部对象。`runtime/ufo/` 只保留桌面执行兼容适配。
 
 ## 12. 实现交付范围
 
@@ -530,7 +530,7 @@ openassist/runtime/activity/
 8. Parser Registry 和异步语义增强接口；没有解析器时 generic fallback 可用。
 9. MemoryCandidate、Fact 版本、冲突、撤回和证据追溯。
 10. 诊断页面和 CLI 能看到采集水位、组织水位、Episode、索引和错误。
-11. OpenClaw/UFO 可复用的只读 ContextSource 适配；MCP 作为同一 API 的协议出口。
+11. OpenClaw 可复用的只读 ContextSource 适配；MCP 作为同一 API 的协议出口。
 
 当前 ContextSource 已具备 `recent_activity`、`search_activity`、`get_activity_around`、`get_episode`、`get_evidence`、`activity_summary` 和 `organizer_health` 方法；CLI 与监控 API 可独立验证同一套结果。向量索引、音频历史、跨设备同步和更丰富的应用解析器应接入上述扩展点。它们不是另一个数据模型，也不能绕过 Evidence、ContextBundle、MemoryCandidate 和 MemoryFact 的生命周期。
 
@@ -547,7 +547,7 @@ openassist/runtime/activity/
 ### Agent 使用
 
 - “我刚才在哪个网页看到某段文字”可以先通过摘要定位 Episode，再获得具体证据。
-- UFO 执行前可以读取任务相关的历史 Context，但必须重新观察实时窗口才能操作。
+- OpenClaw 可以按需读取任务相关的历史 Context；桌面执行前仍必须重新观察实时窗口，原生 UFO 循环不直接读取 Activity。
 - 当前任务补充要求能够写入任务记忆，并与旧任务 revision 区分。
 - 普通对话不会无条件读取全量历史或截图。
 
@@ -573,7 +573,7 @@ openassist/runtime/activity/
 3. 加入 FTS5、结构化过滤、Context Bundle 和诊断接口。
 4. 接入 generic parser、App Parser Registry 和异步摘要/实体增强。
 5. 接入记忆候选、冲突与撤回生命周期。
-6. 接入 OpenClaw/UFO ContextSource，再提供 MCP 输出。
+6. 通过通用 stdio MCP 将 ContextSource 接入 OpenClaw；UFO 保留为桌面执行兼容路径。
 7. 用录制的 Observation fixture 做 replay、迟到、删除、重建和 Agent 场景验收。
 
 任何阶段都不能把“模型已经生成摘要”当作组织层完成的标志；只有原始证据、派生活动、查询上下文和记忆生命周期全部连通，才算完成这层能力。

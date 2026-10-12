@@ -21,8 +21,10 @@ The product package is split by responsibility:
   agent-control lease bridge. It is disabled unless the user enables its own
   activity configuration.
   The organizer consumes the source database read-only; its context source and
-  lazy JSONL bridge serve shared OpenClaw activity tools without starting the
-  collector. Direct native UFO loops do not yet consume the host tool registry.
+  stdio MCP adapter serve shared OpenClaw activity tools without starting the
+  collector. MCP discovery does not access Activity configuration or SQLite;
+  the query bridge opens lazily on a tool call and closes with its server.
+  Direct native UFO loops do not consume Activity knowledge.
 - `platform/` owns Windows-only capture isolation, raw input, focus, and taskbar
   integration.
 - `platform/activity/` owns read-only foreground identity/window titles,

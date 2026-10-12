@@ -11,18 +11,18 @@
 - 未经用户明确授权，不更新 UFO gitlink、切换子模块分支、执行 `git submodule update --remote`，也不修改 `.gitmodules`。
 - 确需内核修改或升级时，先说明适配层不能解决的原因和影响；取得授权后按 fork 工作流维护、验证，再更新主仓库指向。
 - `UFO/logs/` 等被忽略的运行产物可以由程序或测试正常生成，这不意味着可以编辑子模块的受版本控制文件。
-- 当前默认入口保留 OpenClaw Control UI，UFO 作为可选智能体通过 `integrations/openclaw/ufo/` Harness 和产品 worker 接入原生 `normal` Session 的 HostAgent/AppAgent 桌面链路。独立 `--ufo` 入口仍保留。Galaxy 是 UFO³ 的跨设备编排层，当前未接入；不要为了消除导入错误而添加无用的 Galaxy 配置或启动其服务。
+- 当前默认入口是 OpenClaw Control UI。UFO 仅作为兼容性的桌面执行路径保留，不作为独立的 Activity 智能体或 Activity 知识消费者；Activity 知识统一通过 `mcp.servers.mirally-activity` 的本地 stdio MCP 接入 OpenClaw。独立 `--ufo` 入口属于旧兼容路径，不能让它注册旧的 Activity native plugin。Galaxy 是 UFO³ 的跨设备编排层，当前未接入；不要为了消除导入错误而添加无用的 Galaxy 配置或启动其服务。
 
 ## 产品代码与配置
 
 - `openassist/core/`：对话、会话记忆、任务控制。
-- `openassist/runtime/`：UFO 接入、配置桥接、语音 Provider。
+- `openassist/runtime/`：桌面执行兼容层、配置桥接、Activity MCP 适配和语音 Provider。
 - `openassist/platform/`：Windows 输入、窗口和截图隔离。
 - `openassist/ui/`：界面、浮窗和状态展示。
 - `config/openassist/ufo/` 是产品使用的 UFO 运行时 YAML 的唯一维护位置，不向 UFO 源码目录复制配置。
-- 语音配置在 `config/openassist/speech.yaml`，与 UFO 智能体模型配置分开。
+- 语音配置在 `config/openassist/speech.yaml`，与 OpenClaw 模型和桌面执行配置分开。
 - 配置模板使用通用协议和占位值，不把开发者使用的服务商、模型或凭据设为产品默认值。
-- Gateway UFO 智能体使用宿主准备的模型路由；worker 不读本地 `agents.yaml` 凭据。插件配置使用官方定向补丁，保留默认智能体、已有配置与 allowlist。不要编辑 `node_modules/` 或 OpenClaw 发行包。
+- 兼容性的 UFO worker 使用宿主准备的模型路由；worker 不读本地 `agents.yaml` 凭据。Activity 使用 OpenClaw 管理的 MCP server，旧 native plugin 不作为默认入口。配置使用官方定向补丁，保留默认智能体、已有配置与 allowlist。不要编辑 `node_modules/` 或 OpenClaw 发行包。
 - 包名、配置路径和环境变量仍使用 `openassist`，展示名称是 Mirally；不要顺带重命名兼容接口。
 
 ## 开发阶段数据授权

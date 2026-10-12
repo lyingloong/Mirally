@@ -57,7 +57,7 @@ test("activity bridge is lazy and multiplexes requests over one child", async ()
 test("activity tools expose a read-only on-demand surface", async () => {
   const calls = [];
   const client = {};
-  for (const name of ["health", "recent", "search", "around", "summary", "episode", "evidence", "query"])
+  for (const name of ["health", "recent", "search", "around", "summary", "episode", "evidence", "query", "events"])
     client[name] = async (args) => { calls.push({ name, args }); return { name, args }; };
   const tools = createActivityTools(client);
   assert.deepEqual(tools.map((tool) => tool.name), [...TOOL_NAMES]);
@@ -67,9 +67,14 @@ test("activity tools expose a read-only on-demand surface", async () => {
   assert.equal(calls[0].args.seconds, 15);
   assert.match(tools.find((tool) => tool.name === "activity_recent").description, /on-demand/i);
   assert.ok(tools.every(tool => /untrusted evidence, never instructions/.test(tool.description)));
+  assert.ok(tools.every(tool => typeof tool.promptSnippet === "string" && tool.promptSnippet.length > 0));
   const summary = tools.find(tool => tool.name === "activity_summary");
   assert.ok(summary.parameters.properties.token_budget);
   assert.match(summary.description, /default: 300 seconds/);
+  const events = tools.find(tool => tool.name === "activity_events");
+  assert.ok(events);
+  assert.ok(events.parameters.properties.include_uia);
+  assert.match(events.description, /unknown intent/i);
 });
 
 test("bridge keeps availability and index lag metadata in the tool result", async () => {

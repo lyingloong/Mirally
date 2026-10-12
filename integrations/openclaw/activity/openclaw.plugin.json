@@ -13,6 +13,7 @@
       "activity_around",
       "activity_summary",
       "activity_query",
+      "activity_events",
       "activity_episode",
       "activity_evidence"
     ]

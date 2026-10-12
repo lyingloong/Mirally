@@ -1,4 +1,8 @@
-"""Add a UFO agent using OpenClaw's native config patch command."""
+"""Configure the legacy UFO desktop executor through OpenClaw.
+
+Activity knowledge is registered separately as the product-owned MCP server;
+this compatibility script must not load the old native Activity plugin.
+"""
 from __future__ import annotations
 
 import argparse
@@ -22,22 +26,19 @@ def agent_patch(config, root, model, agent_id="ufo"):
         raise ValueError("The agent id already belongs to another configuration; choose --agent-id")
     plugins = config.get("plugins", {})
     paths = list(plugins.get("load", {}).get("paths", []))
-    for plugin_root in ("integrations/openclaw/activity", "integrations/openclaw/ufo"):
-        plugin = str((root / plugin_root).resolve())
-        if plugin not in paths:
-            paths.append(plugin)
+    plugin = str((root / "integrations/openclaw/ufo").resolve())
+    if plugin not in paths:
+        paths.append(plugin)
     result = {"plugins": {"load": {"paths": paths},
-                          "entries": {"mirally-activity": {"enabled": True},
-                                       "mirally-ufo": {"enabled": True}}},
+                          "entries": {"mirally-ufo": {"enabled": True}}},
               "agents": {"entries": {agent_id: {
                   "name": "桌面助手（UFO）", "model": model,
                   "models": {model: {"agentRuntime": {"id": "mirally-ufo"}}},
               }}}}
     if "allow" in plugins:
         allowed = list(plugins["allow"])
-        for plugin_id in ("mirally-activity", "mirally-ufo"):
-            if plugin_id not in allowed:
-                allowed.append(plugin_id)
+        if "mirally-ufo" not in allowed:
+            allowed.append("mirally-ufo")
         result["plugins"]["allow"] = allowed
     return result
 

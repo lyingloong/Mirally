@@ -784,6 +784,24 @@ class KnowledgeStore:
                 quality=str(row["quality"]), confidence=float(row["confidence"]), extractor_version=str(row["extractor_version"]),
             ) for row in rows]
 
+    def evidence_ids_for_items(self, item_ids: Iterable[str]) -> dict[str, tuple[str, ...]]:
+        """Resolve item evidence references without loading captured content."""
+
+        values = tuple(dict.fromkeys(str(value) for value in item_ids if value))
+        if not values:
+            return {}
+        with self._lock:
+            placeholders = ",".join("?" for _ in values)
+            rows = self._execute(
+                f"SELECT item_id,evidence_id FROM activity_evidence WHERE item_id IN ({placeholders}) "
+                "ORDER BY observed_at_utc_ms,evidence_id",
+                values,
+            ).fetchall()
+        references: dict[str, list[str]] = {}
+        for row in rows:
+            references.setdefault(str(row["item_id"]), []).append(str(row["evidence_id"]))
+        return {item_id: tuple(ids) for item_id, ids in references.items()}
+
     def get_evidence(self, evidence_ids: Sequence[str]) -> list[Evidence]:
         """Return only explicitly requested evidence references."""
 

@@ -187,6 +187,12 @@ class ContextBundle:
     gaps: Tuple[str, ...] = ()
     truncated: bool = False
     next_cursor: Optional[str] = None
+    # ``context_policy`` identifies the consumer contract used to assemble the
+    # bundle.  Top-level references make it possible for an MCP client to
+    # render provenance without walking every item first.
+    context_policy: str = "agent_context"
+    source_observation_ids: Tuple[str, ...] = ()
+    evidence_ids: Tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -200,6 +206,9 @@ class ContextBundle:
             "gaps": list(self.gaps),
             "truncated": self.truncated,
             "next_cursor": self.next_cursor,
+            "context_policy": self.context_policy,
+            "source_observation_ids": list(self.source_observation_ids),
+            "evidence_ids": list(self.evidence_ids),
         }
 
 

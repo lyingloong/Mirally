@@ -10,7 +10,7 @@ Mirally 研究基线：主仓库 `04b2232`，分支 `feat/mirally-openclaw-deskt
 
 ## 1. 建议采用的方向
 
-建立一个独立的、当前 Windows 用户会话内的 **Activity Sensor**：持续记录低成本状态和输入元数据，按事件与预算补充 UIA、窗口图像，形成可查询、可重放的 Observation 数据。UFO、OpenClaw、以后可能增加的知识层都通过同一产品接口消费，不让采集器依赖某个智能体内核。
+建立一个独立的、当前 Windows 用户会话内的 **Activity Sensor**：持续记录低成本状态和输入元数据，按事件与预算补充 UIA、窗口图像，形成可查询、可重放的 Observation 数据。OpenClaw 与知识层通过同一产品接口消费，不让采集器依赖某个智能体内核；原生 UFO 循环仅保留为桌面执行兼容路径。
 
 值得参考 Screenpipe 的是采集和存储工程：触发合并、图像与可访问性信息配对、失败与缺失的表达、事件关联、写入协调、保留与恢复。产品目标已明确为陪伴场景的丰富上下文，应尽量对齐其内容采集、检索和 agent 消费能力，不能把活动计数当作完整数据层。当前实现范围与完整目标见 [Screenpipe 对齐情况](activity-screenpipe-gap.md)；下文保留原研究方案中的设计建议，不把建议视为已落地。
 
@@ -135,7 +135,7 @@ flowchart TB
   V --> A[独立 Asset Store]
   A --> D
   D --> Q[ObservationSource 查询与游标订阅]
-  Q --> C[OpenClaw / UFO / CLI / 未来知识层]
+  Q --> C[OpenClaw MCP / CLI / 知识层]
 ```
 
 Sensor 是独立后台进程，运行在普通权限的当前用户交互会话，不作为 Session 0 系统服务，也不随每次 UFO 任务启动。它不导入 UFO、Galaxy、LLM、Tk 或 OpenClaw 发行包；Gateway 重启与 Sensor 生命周期分离。
@@ -565,7 +565,7 @@ $env:OPENASSIST_WGC_HELPER = "$PWD\tools\bin\desktop_wgc.exe"
 | 音频/会议/STT/说话人 | 专门的设备与转录工程 | 语音 Provider 是命令识别方向 | 全天音频不在范围内 |
 | 数据库可靠性 | 写队列、协调、验证/恢复、迁移和混合存储能力 | 任务日志/会话存储，非观察数据库 | 单写者 SQLite + 资产协议 + 恢复验证 |
 | 数据寿命 | 多种保留模式、分批清理与水位 | 缺独立采集资产管理 | Observation / asset 分开保留、删除、过期 |
-| 检索、SDK、MCP、时间线 UI | 已有相关模块与产品入口 | 现有 agent UI 不展示全天观察历史 | 先 CLI + ObservationSource；受限 MCP 后置 |
+| 检索、SDK、MCP、时间线 UI | KnowledgeStore、ActivityContextSource、受限本地 MCP 与浏览器入口 | 现有 agent UI 不展示全天观察历史，远程认证未接入 | 继续完善 MCP 观测与数据验收 |
 | 语义和应用特例 | 有确定性解析器及应用专用逻辑 | 没有用户行为知识层 | 保持事实；语义层另立，引用证据 |
 | actor / agent 活动隔离 | 不能仅凭本次阅读认定覆盖我们的 UFO 控制语义 | 产品有桌面锁，无统一事实流租约 | 利用 worker 控制边界建立租约，不冒充物理因果证明 |
 | 长期实用性 | 大量工程与故障测试，平台适配广 | 短时单机实验，未做服务 soak | 承认工程缺口，分阶段验收 |

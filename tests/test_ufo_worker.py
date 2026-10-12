@@ -185,10 +185,10 @@ class WorkerProtocolTests(unittest.TestCase):
         self.assertNotIn("defaults", patch["agents"])
         self.assertEqual(patch["plugins"]["load"]["paths"][0], "existing")
         self.assertEqual(patch["plugins"]["load"]["paths"][1:], [
-            str((ROOT / "integrations/openclaw/activity").resolve()),
             str((ROOT / "integrations/openclaw/ufo").resolve()),
         ])
-        self.assertEqual(patch["plugins"]["allow"], ["existing", "mirally-activity", "mirally-ufo"])
+        self.assertNotIn("mirally-activity", patch["plugins"]["entries"])
+        self.assertEqual(patch["plugins"]["allow"], ["existing", "mirally-ufo"])
         self.assertEqual(patch["agents"]["entries"]["ufo"]["models"]["example/vision"]["agentRuntime"]["id"], "mirally-ufo")
         self.assertEqual(config["agents"]["defaults"]["model"], "original/model")
 

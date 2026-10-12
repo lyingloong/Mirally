@@ -14,7 +14,8 @@ from openassist.runtime.activity.agent_bridge import ActivityAgentBridge, run_js
 
 
 class ActivityAgentBridgeTests(unittest.TestCase):
-    def _history_bridge(self, root: Path, *, observed: int, text: str = "会议纪要", count: int = 1) -> ActivityAgentBridge:
+    def _history_bridge(self, root: Path, *, observed: int, text: str = "会议纪要", count: int = 1,
+                        kind: str = "input_text") -> ActivityAgentBridge:
         config = root / "activity.yaml"
         database = root / "observations.sqlite3"
         config.write_text(
@@ -24,9 +25,14 @@ class ActivityAgentBridgeTests(unittest.TestCase):
         )
         with ObservationStore(database) as store:
             for seq in range(count):
-                store.append(Observation.create(kind="input_text", source_id="fixture", source_epoch="epoch",
+                payload = {"inserted_text": text} if kind == "input_text" else {
+                    "window_title": "Inbox", "browser_url": "https://mail.google.com",
+                }
+                store.append(Observation.create(kind=kind, source_id="fixture", source_epoch="epoch",
                                                 source_seq=seq, boot_id="boot", observed_at_utc_ms=observed + seq,
-                                                payload={"inserted_text": text}))
+                                                app_id="msedge.exe" if kind == "window_context" else None,
+                                                window_instance_id="window-1" if kind == "window_context" else None,
+                                                payload=payload))
         return ActivityAgentBridge(root, config)
 
     def test_unsynchronized_empty_index_reports_lag_until_caught_up(self) -> None:
@@ -55,6 +61,21 @@ class ActivityAgentBridgeTests(unittest.TestCase):
                 self.assertEqual(span["end_utc_ms"] - span["start_utc_ms"], 300_001)
                 response = bridge.handle({"command": "summary", "args": {"seconds": 900}})
                 self.assertEqual(response["result"]["item_count"], 1)
+            finally:
+                bridge.close()
+
+    def test_events_expose_observed_activity_semantics_and_evidence_refs(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bridge = self._history_bridge(Path(directory), observed=int(time.time() * 1000), kind="window_context")
+            try:
+                response = bridge.handle({"command": "events", "args": {"seconds": 60}})
+                self.assertEqual(response["data_status"], "ok")
+                result = response["result"]
+                self.assertEqual(result["schema_version"], "activity.event.v1")
+                self.assertIn("observed_window_activity", result["semantics"])
+                self.assertTrue(result["unattributed_evidence"] or result["events"])
+                evidence = result["unattributed_evidence"] or result["events"][0]["evidence_ids"]
+                self.assertTrue(evidence)
             finally:
                 bridge.close()
 

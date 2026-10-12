@@ -10,6 +10,7 @@ from .models import (
     MemoryFact,
 )
 from .organizer import ActivityOrganizer, OrganizerStats
+from .context_policy import ActivityContextPolicy
 from .repository import KnowledgeHealth, KnowledgeStore
 from .semantic import ActivityParser, GenericActivityParser, ParserRegistry, SemanticAnnotation
 
@@ -17,6 +18,7 @@ __all__ = [
     "ActivityEpisode",
     "ActivityItem",
     "ActivityOrganizer",
+    "ActivityContextPolicy",
     "ContextBundle",
     "ContextQuery",
     "Evidence",

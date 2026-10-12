@@ -357,29 +357,21 @@ class ActivityOrganizer:
         selected_items: list[ActivityItem] = []
         selected_episodes: list[ActivityEpisode] = []
         selected_evidence: list[Evidence] = []
+        selected_evidence_ids: tuple[str, ...] = ()
         truncated = len(items) > query.max_items
         bundle = ContextBundle(
             query_id=f"ctx_{uuid.uuid4().hex}", generated_at_utc_ms=int(time.time() * 1000),
             index_watermark=self.knowledge.health(self.consumer_id).processed_ingest_seq,
+            context_policy=query.purpose,
         )
+        visible_evidence = [self._context_content(value, query) for value in evidence] if query.mode == "evidence" else []
+        item_evidence_ids = self.knowledge.evidence_ids_for_items(item.item_id for item in items[:query.max_items])
         projection_gaps = ("projection_incomplete",) if self.knowledge.health(self.consumer_id).projection_error_count else ()
         for item in items[:query.max_items]:
             if query.mode == "outline":
                 visible = replace(item, text_summary=item.text_summary[:600], structured={}, asset_refs=())
-            elif query.mode == "structured":
-                structured = dict(item.structured)
-                if not query.include_uia:
-                    structured.pop("uia_nodes", None)
-                    structured.pop("uia_text", None)
-                    structured.pop("focused_control", None)
-                    structured.pop("uia_metadata", None)
-                if not query.include_ocr:
-                    structured.pop("ocr_text", None)
-                    structured.pop("ocr_lines", None)
-                    structured.pop("ocr_metadata", None)
-                visible = replace(item, structured=structured, asset_refs=item.asset_refs if query.include_assets else ())
             else:
-                visible = replace(item, asset_refs=item.asset_refs if query.include_assets else ())
+                visible = self._context_content(item, query)
             proposed = selected_items + [visible]
             selected_ids = {value.item_id for value in proposed}
             # Return only the member ids present in this bounded context.
@@ -387,13 +379,21 @@ class ActivityOrganizer:
                 episode, item_ids=tuple(value for value in episode.item_ids if value in selected_ids),
                 summary=(episode.summary or "")[:600] or None,
             ) for episode in episodes if selected_ids.intersection(episode.item_ids)]
-            observation_ids = {oid for value in proposed for oid in value.source_observation_ids}
-            projected_evidence = [replace(value, asset_refs=value.asset_refs if query.include_assets else ())
-                                  for value in evidence if observation_ids.intersection(value.source_observation_ids)] if query.mode == "evidence" else []
+            projected_evidence_ids = tuple(
+                evidence_id for item_id, ids in item_evidence_ids.items() if item_id in selected_ids
+                for evidence_id in ids
+            )
+            evidence_id_set = set(projected_evidence_ids)
+            projected_evidence = [value for value in visible_evidence
+                                  if value.evidence_id in evidence_id_set] if query.mode == "evidence" else []
             gaps = tuple(dict.fromkeys(projection_gaps + tuple(gap for value in proposed for gap in value.missing_reasons)))
             candidate = replace(bundle, items=tuple(proposed), episodes=tuple(projected_episodes),
                                 evidence=tuple(projected_evidence), gaps=gaps, truncated=True,
-                                next_cursor=visible.item_id)
+                                next_cursor=visible.item_id,
+                                source_observation_ids=tuple(dict.fromkeys(
+                                    source_id for value in proposed for source_id in value.source_observation_ids
+                                )),
+                                evidence_ids=projected_evidence_ids)
             encoded = json.dumps(candidate.to_dict(), ensure_ascii=False, separators=(",", ":")).encode("utf-8")
             if len(encoded) > budget:
                 truncated = True
@@ -401,12 +401,52 @@ class ActivityOrganizer:
             selected_items = proposed
             selected_episodes = projected_episodes
             selected_evidence = projected_evidence
+            selected_evidence_ids = projected_evidence_ids
         gaps = tuple(dict.fromkeys(projection_gaps + tuple(gap for item in selected_items for gap in item.missing_reasons)))
         next_cursor = selected_items[-1].item_id if truncated and selected_items else None
+        source_observation_ids = tuple(dict.fromkeys(
+            source_id for item in selected_items for source_id in item.source_observation_ids
+        ))
         return replace(bundle,
             episodes=tuple(selected_episodes), items=tuple(selected_items), evidence=tuple(selected_evidence),
             gaps=gaps, truncated=truncated, next_cursor=next_cursor,
+            source_observation_ids=source_observation_ids, evidence_ids=selected_evidence_ids,
         )
+
+    def _context_content(self, value: ActivityItem | Evidence, query: ContextQuery) -> ActivityItem | Evidence:
+        """Select channels without changing the complete stored projection.
+
+        Captured text combines payload, UIA and OCR. Re-project the original
+        observation only when an excluded channel contributed content, rather
+        than removing substrings that may also occur in an allowed payload.
+        Outline summaries retain their existing bounded discovery behavior.
+        """
+        structured = dict(value.structured)
+        excluded = False
+        for enabled, fields in (
+            (query.include_uia, ("uia_nodes", "uia_text", "focused_control", "uia_metadata")),
+            (query.include_ocr, ("ocr_text", "ocr_lines", "ocr_metadata")),
+        ):
+            if not enabled:
+                excluded |= any(field in structured for field in fields)
+                for field in fields:
+                    structured.pop(field, None)
+        visible = replace(value, structured=structured, asset_refs=value.asset_refs if query.include_assets else ())
+        if excluded:
+            observation = self.source.get(value.source_observation_ids[0]) if value.source_observation_ids else None
+            if observation is not None:
+                selected_item, selected_evidence = build_projection(replace(
+                    observation,
+                    uia_summary=observation.uia_summary if query.include_uia else {},
+                    ocr_summary=observation.ocr_summary if query.include_ocr else {},
+                ), PROJECTION_VERSION)
+                text = selected_item.text_summary if isinstance(value, ActivityItem) else selected_evidence.text
+            else:
+                # An unavailable source cannot establish which part of the
+                # combined text belongs to an allowed channel.
+                text = ""
+            visible = replace(visible, **({"text_summary": text} if isinstance(value, ActivityItem) else {"text": text}))
+        return visible
 
     def propose_memory(self, statement: str, *, fact_key: Optional[str] = None, source_episode_ids: Iterable[str] = (), source_observation_ids: Iterable[str] = (), confidence: float = 0.5, extraction_method: str = "manual") -> MemoryCandidate:
         if not str(statement).strip():

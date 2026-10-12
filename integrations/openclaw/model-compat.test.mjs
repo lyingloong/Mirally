@@ -1,14 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync } from "node:fs";
 
-const template = JSON.parse(readFileSync(new URL("../../config/openassist/openclaw.template.json", import.meta.url), "utf8"));
-const provider = template.models.providers.mirally;
-const configuredModel = provider.models.find(model => model.id === "qwen/qwen3.8-flash");
-assert.ok(configuredModel, "The public template must configure Qwen");
+// A synthetic provider fixture keeps this compatibility regression independent
+// of the public template's provider/model placeholders. No API is called.
 const model = {
-  input: ["text"], contextWindow: 200000, maxTokens: 32768,
-  ...configuredModel, provider: "mirally", api: provider.api, baseUrl: provider.baseUrl,
+  id: "qwen/qwen3.8-flash", name: "Synthetic Qwen compatibility fixture",
+  input: ["text", "image"], contextWindow: 200000, maxTokens: 32768,
+  provider: "mirally", api: "openai-completions", baseUrl: "https://synthetic-provider.example/v1",
+  reasoning: true,
+  compat: {
+    thinkingFormat: "openai", supportsReasoningEffort: true,
+    supportedReasoningEfforts: ["none", "low", "medium", "xhigh"],
+    reasoningEffortMap: { minimal: "low", high: "xhigh" },
+  },
 };
 const context = { messages: [{ role: "user", content: "Hello", timestamp: 0 }] };
 const dist = new URL("node_modules/@openclaw/ai/dist/", import.meta.url);
@@ -29,13 +34,13 @@ for (const mode of ["direct", "managed"]) {
       const payload = buildRequest(model, context, options, policy);
       assert.equal(payload.reasoning_effort, expected, `${mode} ${level}`);
       assert.equal(payload.max_completion_tokens ?? payload.max_tokens, 16384);
-      assert.equal(payload.model, configuredModel.id);
+      assert.equal(payload.model, model.id);
     }
   });
 }
 
-test("configured Qwen keeps an image in the native provider request", () => {
-  assert.ok(configuredModel.input.includes("image"));
+test("Qwen fixture keeps an image in the native provider request", () => {
+  assert.ok(model.input.includes("image"));
   const imageContext = { messages: [{ role: "user", timestamp: 0, content: [
     { type: "text", text: "Describe this image." },
     { type: "image", mimeType: "image/png", data: "c3ludGhldGlj" },

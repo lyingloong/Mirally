@@ -44,7 +44,7 @@ _MAX_EPISODES = 50
 _MAX_TOKEN_BUDGET = 16_000
 _MAX_SYNC_BATCH = 200
 _MAX_SYNC_BATCHES = 10
-_COMMANDS = frozenset({"health", "query", "recent", "search", "around", "summary", "episode", "evidence"})
+_COMMANDS = frozenset({"health", "query", "events", "recent", "search", "around", "summary", "episode", "evidence"})
 
 
 def _as_mapping(value: Any, *, name: str = "args") -> Mapping[str, Any]:
@@ -160,7 +160,7 @@ class ActivityAgentBridge:
         stats = service.organizer.catch_up(batch_size=batch_size, max_batches=batches)
         return stats.__dict__
 
-    def _query(self, args: Mapping[str, Any]) -> ContextQuery:
+    def _query(self, args: Mapping[str, Any], *, include_uia_default: bool = False) -> ContextQuery:
         mode = str(args.get("mode", "outline"))
         purpose = str(args.get("purpose", "agent_context"))
         token_budget = _bounded_int(args.get("token_budget"), name="token_budget", minimum=128, maximum=_MAX_TOKEN_BUDGET, default=4_000)
@@ -178,7 +178,7 @@ class ActivityAgentBridge:
             max_episodes=_bounded_int(args.get("max_episodes"), name="max_episodes", minimum=1, maximum=_MAX_EPISODES, default=10),
             token_budget=token_budget,
             include_assets=_bool(args.get("include_assets"), False),
-            include_uia=_bool(args.get("include_uia"), False),
+            include_uia=_bool(args.get("include_uia"), include_uia_default),
             include_ocr=_bool(args.get("include_ocr"), True),
             after_item_id=_bounded_text(args.get("after_item_id"), name="after_item_id", maximum=_MAX_ID_CHARS),
         )
@@ -217,6 +217,17 @@ class ActivityAgentBridge:
 
             if command == "query":
                 result: Any = source.query(self._query(args))
+            elif command == "events":
+                # Event fragments are the agent-facing deterministic action
+                # view.  Keep UIA enabled by default here because the event
+                # summary needs observed text to explain changes; callers can
+                # explicitly disable it to reduce the response.
+                query = self._query(args, include_uia_default=True)
+                if query.start_utc_ms is None and query.end_utc_ms is None:
+                    lookback = _bounded_int(args.get("seconds"), name="seconds", minimum=1, maximum=_MAX_SECONDS, default=300)
+                    now = int(time.time() * 1000)
+                    query = ContextQuery(**{**query.__dict__, "start_utc_ms": now - lookback * 1000, "end_utc_ms": now + 1})
+                result = source.events(query)
             elif command == "recent":
                 seconds = _bounded_int(args.get("seconds"), name="seconds", minimum=1, maximum=_MAX_SECONDS, default=300)
                 mode = str(args.get("mode", "outline"))
@@ -297,9 +308,13 @@ class ActivityAgentBridge:
             data_status = "index_lagging" if lag else "ok"
             if result is None or isinstance(result, list) and not result or isinstance(result, dict) and "items" in result and not result["items"]:
                 data_status = "index_lagging" if data_status == "index_lagging" else "empty"
-            if isinstance(result, dict) and result.get("data_status") == "empty" and not lag:
-                data_status = "empty"
-            if isinstance(result, dict) and result.get("truncated") and (result.get("items") == [] or command == "evidence" and result.get("evidence") == []):
+            if isinstance(result, dict) and result.get("data_status") in {"empty", "projection_incomplete", "budget_exceeded"}:
+                data_status = str(result["data_status"])
+            if isinstance(result, dict) and result.get("truncated") and (
+                result.get("items") == []
+                or command == "evidence" and result.get("evidence") == []
+                or command == "events" and result.get("events") == []
+            ):
                 data_status = "budget_exceeded"
                 result["retry_hint"] = "Increase token_budget or use outline mode; matching activity was not empty."
             # Episode metadata and summary diagnostics can exceed the budget
