@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 from fnmatch import fnmatchcase
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -36,6 +37,18 @@ def _python_command(root: Path) -> str:
     return str(candidate.resolve())
 
 
+def _mcp_code_revision(root: Path) -> str:
+    """Let native config reload retire children after product code updates."""
+
+    revision = hashlib.sha256()
+    for package in ("openassist/core/activity", "openassist/runtime/activity"):
+        for source in sorted((root / package).rglob("*.py")):
+            revision.update(source.relative_to(root).as_posix().encode("utf-8"))
+            revision.update(b"\0")
+            revision.update(source.read_bytes())
+    return revision.hexdigest()[:16]
+
+
 def activity_mcp_server(root: Path, activity_config: Path | None = None, timeout_ms: int = 30000) -> dict:
     root = root.resolve()
     args = ["-m", "openassist.runtime.activity.mcp_server", "--root", str(root)]
@@ -46,6 +59,8 @@ def activity_mcp_server(root: Path, activity_config: Path | None = None, timeout
         "command": _python_command(root),
         "args": args,
         "cwd": str(root),
+        "env": {"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8",
+                "OPENASSIST_ACTIVITY_MCP_CODE_REVISION": _mcp_code_revision(root)},
         "connectionTimeoutMs": min(timeout_ms, 15000),
         "requestTimeoutMs": timeout_ms,
         "supportsParallelToolCalls": False,
@@ -127,6 +142,13 @@ def activity_patch(
     # be used explicitly on an older OpenClaw release.
     if PLUGIN_ID in config.get("plugins", {}).get("entries", {}):
         patch.setdefault("plugins", {}).setdefault("entries", {})[PLUGIN_ID] = {"enabled": False}
+    # A native skill advertises the capability even when OpenClaw's compact
+    # tool directory hides MCP schemas. Keep user-authored skills and policy.
+    skill_roots = list(config.get("skills", {}).get("load", {}).get("extraDirs", []))
+    skill_root = str((root / "integrations/openclaw/skills").resolve())
+    if skill_root not in skill_roots:
+        skill_roots.append(skill_root)
+    patch["skills"] = {"load": {"extraDirs": skill_roots}}
     return patch
 
 
@@ -169,6 +191,8 @@ def main() -> None:
     if args.apply:
         print("Probe the saved server with openclaw mcp doctor mirally-activity --probe, then verify calls with --mcp."
               if not args.legacy_plugin else "Verify activity_health through the Gateway legacy plugin.")
+        if not args.legacy_plugin:
+            print("Check the native mirally-activity skill is eligible; per-agent skill allowlists still apply.")
 
 
 if __name__ == "__main__":

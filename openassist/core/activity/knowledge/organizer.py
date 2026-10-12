@@ -699,6 +699,8 @@ class ActivityOrganizer:
             "coverage": "bounded_query_sample",
             "duration_basis": "observed_episode_span_not_user_active_time",
             "snippets": snippets,
+            "source_observation_ids": list(context.source_observation_ids),
+            "evidence_ids": list(context.evidence_ids),
             "organizer": health,
         }
 

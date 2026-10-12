@@ -120,6 +120,12 @@ class ActivityMcpServerTests(unittest.TestCase):
                     item = result["result"]["items"][0]
                     self.assertEqual(item["title"], "会议页面")
                     self.assertIn(observation.observation_id, item["source_observation_ids"])
+                    summary = (await client.call_tool("activity_summary", {
+                        "start_utc_ms": 1000, "end_utc_ms": 2000,
+                    })).data
+                    self.assertEqual(summary["data_status"], "ok")
+                    self.assertEqual(summary["result"]["item_count"], 1)
+                    self.assertIn(observation.observation_id, summary["result"]["source_observation_ids"])
                     with self.assertRaises(ToolError):
                         await client.call_tool("activity_query", {"start_utc_ms": 2000, "end_utc_ms": 1000})
                     self.assertEqual((await client.call_tool("activity_health", {})).data["status"], "ready")

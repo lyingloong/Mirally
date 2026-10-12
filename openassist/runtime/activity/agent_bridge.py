@@ -23,10 +23,12 @@ import json
 import sys
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional
 
 from openassist.core.activity.knowledge import ContextQuery
+from openassist.core.activity.knowledge.coverage import collection_coverage
 from openassist.core.activity.knowledge.events import _text_excerpt
 
 from .config import ActivityConfig, load_activity_config
@@ -44,6 +46,7 @@ _MAX_EPISODES = 50
 _MAX_TOKEN_BUDGET = 16_000
 _MAX_SYNC_BATCH = 200
 _MAX_SYNC_BATCHES = 10
+_COLLECTOR_FRESHNESS_MS = 30_000
 _COMMANDS = frozenset({"health", "query", "events", "recent", "search", "around", "summary", "episode", "evidence"})
 
 
@@ -109,6 +112,23 @@ def _bool(value: Any, default: bool = False) -> bool:
     return bool(value)
 
 
+def _timestamp_displays(value: Any) -> tuple[Optional[str], Optional[str]]:
+    """Format source milliseconds without guessing dates or user timezones."""
+    if not isinstance(value, int) or isinstance(value, bool):
+        return None, None
+    seconds, milliseconds = divmod(value, 1000)
+    try:
+        instant = datetime.fromtimestamp(seconds, tz=timezone.utc).replace(microsecond=milliseconds * 1000)
+    except (OverflowError, OSError, ValueError):
+        return None, None
+    utc_iso = instant.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    try:
+        host_local_iso = instant.astimezone().isoformat(timespec="milliseconds")
+    except (OverflowError, OSError, ValueError):
+        host_local_iso = None
+    return utc_iso, host_local_iso
+
+
 class ActivityAgentBridge:
     """Handle bounded activity knowledge requests in one long-lived process."""
 
@@ -127,6 +147,9 @@ class ActivityAgentBridge:
     def _base_status(self) -> dict[str, Any]:
         return {
             "enabled": bool(self.config.enabled),
+            "profile_enabled": bool(self.config.enabled),
+            "bridge_starts_collector": False,
+            "collector_running": None,
             "database": str(self.config.database_path),
             "knowledge_database": str(self.knowledge_path),
         }
@@ -138,10 +161,48 @@ class ActivityAgentBridge:
         return self.config.database_path.is_file() and self.config.database_path.stat().st_size > 0
 
     def _not_available(self, status: str, reason: str) -> dict[str, Any]:
-        payload = {**self._base_status(), "status": status, "data_status": status, "reason": reason}
+        payload = {**self._base_status(), "status": status, "data_status": status, "reason": reason,
+                   "history": {"available": None if status == "disabled" else False,
+                               "availability_checked": status != "disabled", "reason": reason},
+                   "collector": self._collector_status(None)}
         # Keep ``result`` present on every successful response.  This lets
         # OpenClaw use one decoder for health, empty and populated queries.
         return {**payload, "result": payload}
+
+    @staticmethod
+    def _collector_status(diagnostics: Any) -> dict[str, Any]:
+        """Expose last recorded collection state without claiming liveness."""
+        coverage = collection_coverage(diagnostics, ContextQuery())
+        sampled = coverage.get("updated_at_utc_ms")
+        age = int(time.time() * 1000) - sampled if sampled is not None else None
+        freshness = "unknown" if age is None else "future_timestamp" if age < 0 else (
+            "recent" if age <= _COLLECTOR_FRESHNESS_MS else "stale")
+        paused = diagnostics.get("paused") if isinstance(diagnostics, Mapping) else None
+        sources = coverage.get("sources", {})
+        recorded_sources = diagnostics.get("sources") if isinstance(diagnostics, Mapping) else None
+        for name, value in sources.items():
+            recorded = recorded_sources.get(name) if isinstance(recorded_sources, Mapping) else None
+            running = recorded.get("running") if isinstance(recorded, Mapping) else None
+            value["recorded_running"] = running if isinstance(running, bool) else None
+        return {
+            "diagnostics_available": coverage["diagnostics_available"],
+            "scope": "last_recorded_collector_session",
+            "recorded_status": coverage.get("collector_status") or "unknown",
+            "current_state": "unverified",
+            "running": None,
+            "process_liveness_confirmed": False,
+            "paused": paused if isinstance(paused, bool) else None,
+            "started_at_utc_ms": coverage.get("started_at_utc_ms"),
+            "stopped_at_utc_ms": coverage.get("stopped_at_utc_ms"),
+            "updated_at_utc_ms": sampled,
+            "diagnostics_age_ms": age if age is not None and age >= 0 else None,
+            "diagnostics_freshness": freshness,
+            "freshness_window_ms": _COLLECTOR_FRESHNESS_MS,
+            "sources": sources,
+            "known_gap_counts": coverage.get("known_gap_counts", {}),
+            "limitations": ["recorded_state_is_not_current_process_liveness",
+                            "zero_known_gaps_does_not_prove_complete_capture"],
+        }
 
     def _service_or_status(self) -> tuple[Optional[ActivityOrganizerService], Optional[dict[str, Any]]]:
         if not self.config.enabled:
@@ -200,6 +261,26 @@ class ActivityAgentBridge:
                 service, _ = self._service_or_status()
                 assert service is not None
                 health = service.health()
+                quality = health["quality"]
+                statistics = service.source.observation_statistics()
+                oldest_utc, oldest_host_local = _timestamp_displays(statistics["oldest_observed_utc_ms"])
+                newest_utc, newest_host_local = _timestamp_displays(statistics["newest_observed_utc_ms"])
+                health["history"] = {
+                    "available": True,
+                    "availability_checked": True,
+                    **statistics,
+                    "oldest_observed_utc_iso": oldest_utc,
+                    "newest_observed_utc_iso": newest_utc,
+                    "oldest_observed_host_local_iso": oldest_host_local,
+                    "newest_observed_host_local_iso": newest_host_local,
+                    "host_local_timezone_basis": "execution_host_timezone_may_differ_from_user",
+                    "indexed_item_count": health["knowledge"]["item_count"],
+                    "indexed_oldest_observed_utc_ms": quality["oldest_observed_utc_ms"],
+                    "indexed_newest_observed_utc_ms": quality["newest_observed_utc_ms"],
+                    "coverage_basis": "retained_observation_timestamp_bounds",
+                    "completeness": "unconfirmed",
+                }
+                health["collector"] = self._collector_status(service.source.get_state("collector_diagnostics"))
                 return {
                     **self._base_status(),
                     "status": "ready",

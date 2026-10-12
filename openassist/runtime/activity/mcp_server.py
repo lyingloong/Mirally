@@ -67,7 +67,10 @@ def create_server(root: Path, config: Optional[Path] = None) -> FastMCP:
 
     @app.tool(
         name="activity_health",
-        description="Check whether Activity collection and the read-only knowledge projection are available.",
+        description=(
+            "Check readable desktop Activity history, recorded dates and collector diagnostics. "
+            "A query-enabled profile does not establish that collection is currently running."
+        ),
         annotations=annotations,
     )
     def activity_health() -> dict[str, Any]:
@@ -125,18 +128,24 @@ def create_server(root: Path, config: Optional[Path] = None) -> FastMCP:
 
     @app.tool(
         name="activity_summary",
-        description="Summarize a bounded recent period by observed application and episode statistics.",
+        description=(
+            "Summarize a recent or explicit historical period by observed apps, episodes and brief snippets. "
+            "Prefer this bounded overview for a short recap; it does not require retrieving every item."
+        ),
         annotations=annotations,
     )
     def activity_summary(
         seconds: int = 300,
+        start_utc_ms: Optional[int] = None,
+        end_utc_ms: Optional[int] = None,
         max_items: int = 30,
         max_episodes: int = 10,
         token_budget: int = 4000,
         sync: bool = True,
     ) -> dict[str, Any]:
         return call("summary", {
-            "seconds": seconds, "max_items": max_items, "max_episodes": max_episodes,
+            "seconds": seconds, "start_utc_ms": start_utc_ms, "end_utc_ms": end_utc_ms,
+            "max_items": max_items, "max_episodes": max_episodes,
             "token_budget": token_budget, "sync": sync,
         })
 

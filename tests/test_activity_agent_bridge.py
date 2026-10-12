@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import tempfile
 import time
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 from openassist.core.activity import Observation, ObservationStore
 from openassist.runtime.activity.agent_bridge import ActivityAgentBridge, run_jsonl
@@ -49,6 +52,156 @@ class ActivityAgentBridgeTests(unittest.TestCase):
                 self.assertEqual(bridge.handle({"command": "health"})["data_status"], "ready")
             finally:
                 bridge.close()
+
+    def test_health_exposes_retained_history_before_index_sync_without_claiming_live_collection(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            # Late observations need not have timestamp order matching ingest
+            # order; health must use the observation-time index for its bounds.
+            bridge = self._history_bridge(Path(directory), observed=2000, count=2)
+            with ObservationStore(bridge.config.database_path) as store:
+                store.append(Observation.create(kind="input_text", source_id="late", source_epoch="epoch",
+                    source_seq=0, boot_id="boot", observed_at_utc_ms=1000, payload={"inserted_text": "earlier"}))
+            before = hashlib.sha256(bridge.config.database_path.read_bytes()).hexdigest()
+            try:
+                response = bridge.handle({"command": "health"})
+                self.assertEqual(response["status"], "ready")
+                self.assertTrue(response["profile_enabled"])
+                self.assertFalse(response["bridge_starts_collector"])
+                self.assertIsNone(response["collector_running"])
+                history = response["result"]["history"]
+                self.assertTrue(history["available"])
+                self.assertEqual(history["observation_count"], 3)
+                self.assertEqual(history["oldest_observed_utc_ms"], 1000)
+                self.assertEqual(history["newest_observed_utc_ms"], 2001)
+                self.assertEqual(history["indexed_item_count"], 0)
+                self.assertIsNone(history["indexed_newest_observed_utc_ms"])
+                collector = response["result"]["collector"]
+                self.assertEqual(collector["recorded_status"], "unknown")
+                self.assertEqual(collector["diagnostics_freshness"], "unknown")
+                self.assertFalse(collector["diagnostics_available"])
+                self.assertFalse(collector["process_liveness_confirmed"])
+                self.assertIsNone(bridge._service.thread)
+                self.assertIsNone(bridge._service.source._writer)
+                self.assertEqual(bridge.handle({"command": "recent"})["data_status"], "empty")
+                historical = bridge.handle({"command": "query", "args": {
+                    "start_utc_ms": history["oldest_observed_utc_ms"],
+                    "end_utc_ms": history["newest_observed_utc_ms"] + 1,
+                }})
+                self.assertEqual(len(historical["result"]["items"]), 3)
+                indexed = bridge.handle({"command": "health"})["result"]["history"]
+                self.assertEqual(indexed["indexed_item_count"], 3)
+                self.assertEqual(indexed["indexed_oldest_observed_utc_ms"], 1000)
+                self.assertEqual(indexed["indexed_newest_observed_utc_ms"], 2001)
+            finally:
+                bridge.close()
+            self.assertEqual(hashlib.sha256(bridge.config.database_path.read_bytes()).hexdigest(), before)
+
+    def test_health_distinguishes_recorded_collector_status_and_diagnostic_freshness(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bridge = self._history_bridge(Path(directory), observed=1000)
+            try:
+                for status, updated, freshness in (
+                    ("running", 90_000, "recent"),
+                    ("running", 60_000, "stale"),
+                    ("degraded", 90_000, "recent"),
+                    ("paused", 90_000, "recent"),
+                    ("stopped", 60_000, "stale"),
+                    ("running", 101_000, "future_timestamp"),
+                ):
+                    with self.subTest(status=status, updated=updated):
+                        with ObservationStore(bridge.config.database_path) as store:
+                            store.set_state("collector_diagnostics", {
+                                "status": status, "started_at_utc_ms": 1000,
+                                "stopped_at_utc_ms": 60_000 if status == "stopped" else None,
+                                "updated_at_utc_ms": updated, "paused": status == "paused",
+                                "sources": {"input_metadata": {"enabled": True, "available": False,
+                                    "running": False, "reason": "input_worker_not_running"}},
+                                "known_gap_counts": {"evidence_errors": 2},
+                            })
+                        with patch("openassist.runtime.activity.agent_bridge.time.time", return_value=100):
+                            response = bridge.handle({"command": "health"})
+                        collector = response["result"]["collector"]
+                        self.assertEqual(collector["recorded_status"], status)
+                        self.assertEqual(collector["diagnostics_freshness"], freshness)
+                        self.assertEqual(collector["scope"], "last_recorded_collector_session")
+                        self.assertFalse(collector["process_liveness_confirmed"])
+                        self.assertIsNone(collector["running"])
+                        self.assertEqual(collector["sources"]["input_metadata"]["reason"],
+                                         "input_worker_not_running")
+                        self.assertFalse(collector["sources"]["input_metadata"]["recorded_running"])
+                        self.assertEqual(collector["known_gap_counts"]["evidence_errors"], 2)
+                        self.assertEqual(collector["paused"], status == "paused")
+                        self.assertTrue(response["result"]["history"]["available"])
+            finally:
+                bridge.close()
+
+    def test_health_displays_verified_utc_and_host_local_dates_without_changing_query_timestamps(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            observed = 1_791_702_575_297
+            bridge = self._history_bridge(Path(directory), observed=observed)
+            try:
+                history = bridge.handle({"command": "health"})["result"]["history"]
+                expected_local = datetime(2026, 10, 11, 7, 9, 35, 297000,
+                                          tzinfo=timezone.utc).astimezone().isoformat(timespec="milliseconds")
+                for bound in ("oldest", "newest"):
+                    self.assertEqual(history[f"{bound}_observed_utc_ms"], observed)
+                    self.assertEqual(history[f"{bound}_observed_utc_iso"], "2026-10-11T07:09:35.297Z")
+                    self.assertEqual(history[f"{bound}_observed_host_local_iso"], expected_local)
+                self.assertEqual(history["host_local_timezone_basis"],
+                                 "execution_host_timezone_may_differ_from_user")
+                response = bridge.handle({"command": "query", "args": {
+                    "start_utc_ms": history["oldest_observed_utc_ms"],
+                    "end_utc_ms": history["newest_observed_utc_ms"] + 1,
+                }})
+                self.assertEqual(len(response["result"]["items"]), 1)
+            finally:
+                bridge.close()
+
+    def test_health_leaves_absent_or_unrepresentable_dates_unknown(self) -> None:
+        for observed, count in ((1000, 0), (2 ** 63 - 1, 1)):
+            with self.subTest(observed=observed, count=count), tempfile.TemporaryDirectory() as directory:
+                bridge = self._history_bridge(Path(directory), observed=observed, count=count)
+                try:
+                    response = bridge.handle({"command": "health"})
+                    self.assertEqual(response["status"], "ready")
+                    history = response["result"]["history"]
+                    for bound in ("oldest", "newest"):
+                        self.assertEqual(history[f"{bound}_observed_utc_ms"], observed if count else None)
+                        self.assertIsNone(history[f"{bound}_observed_utc_iso"])
+                        self.assertIsNone(history[f"{bound}_observed_host_local_iso"])
+                finally:
+                    bridge.close()
+
+    def test_empty_observation_statistics_preserve_unknown_time_bounds(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "observations.sqlite3"
+            with ObservationStore(database):
+                pass
+            before = hashlib.sha256(database.read_bytes()).hexdigest()
+            with ObservationStore(database, read_only=True) as store:
+                self.assertEqual(store.observation_statistics(), {"observation_count": 0,
+                    "oldest_observed_utc_ms": None, "newest_observed_utc_ms": None})
+            self.assertEqual(hashlib.sha256(database.read_bytes()).hexdigest(), before)
+
+    def test_disabled_profile_does_not_inspect_or_deny_existing_history(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            bridge = self._history_bridge(Path(directory), observed=1000)
+            bridge.close()
+            config = bridge.config_path
+            config.write_text(config.read_text(encoding="utf-8").replace("enabled: true", "enabled: false"),
+                              encoding="utf-8")
+            before = hashlib.sha256(bridge.config.database_path.read_bytes()).hexdigest()
+            bridge = ActivityAgentBridge(Path(directory), config)
+            try:
+                for command in ("health", "query"):
+                    response = bridge.handle({"command": command})
+                    self.assertEqual(response["status"], "disabled")
+                    self.assertIsNone(response["result"]["history"]["available"])
+                    self.assertFalse(response["result"]["history"]["availability_checked"])
+                    self.assertIsNone(bridge._service)
+            finally:
+                bridge.close()
+            self.assertEqual(hashlib.sha256(bridge.config.database_path.read_bytes()).hexdigest(), before)
 
     def test_summary_defaults_to_recent_period_and_reports_empty_history_window(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -112,6 +265,9 @@ class ActivityAgentBridgeTests(unittest.TestCase):
                 response = bridge.handle({"command": "health"})
                 self.assertEqual(response["status"], "disabled")
                 self.assertFalse(response["enabled"])
+                self.assertFalse(response["profile_enabled"])
+                self.assertIsNone(response["history"]["available"])
+                self.assertFalse(response["history"]["availability_checked"])
                 # The disabled configuration resolves to the platform data
                 # directory, which may already contain a user's database.
                 # The important contract is that this request never opens a

@@ -29,7 +29,7 @@ source returns a structured `disabled` or `not_ready` result.
 | `activity_recent` | Retrieve a bounded recent timeline |
 | `activity_search` | Search indexed titles, URLs, UI text and input metadata |
 | `activity_around` | Inspect an explicit UTC time window |
-| `activity_summary` | Summarize recent applications and episodes |
+| `activity_summary` | Summarize recent or explicitly dated applications and episodes |
 | `activity_query` | Run a precise bounded query |
 | `activity_events` | Return deterministic observed action/window/text fragments |
 | `activity_episode` | Retrieve one episode by id |
@@ -47,9 +47,14 @@ must take a fresh observation through the normal execution toolchain.
 
 Activity history is useful for questions such as "what was I doing earlier"
 or "find the page I opened this morning", but it adds noise and cost to an
-ordinary question. Tool descriptions provide the routing hint; the model calls
-the narrowest tool only when the current request needs historical desktop
-context. This keeps the same policy for the default OpenClaw agent and future
+ordinary question. OpenClaw's compact tool directory hides MCP names and
+descriptions until `tool_search` discovers them. The product-owned native
+`mirally-activity` skill advertises the capability and matching questions,
+including "你能看到我之前做了什么吗" and "能看到我使用电脑的activity吗".
+It directs the model to discover Activity, check health, and retrieve the
+requested period. Its description contains no historical user data.
+The model calls the narrowest tool only when the current request needs
+historical desktop context. This keeps the same policy for the default OpenClaw agent and future
 MCP-capable harnesses. The native UFO loop is not an Activity consumer.
 
 ## Configuration
@@ -64,6 +69,7 @@ targeted patch:
 ```
 
 The first command validates the patch. The second registers the MCP server
+and adds `integrations/openclaw/skills` to `skills.load.extraDirs`,
 while preserving existing models, plugins and tool policy.
 Activity's `mirally-activity__*` scope is added to the existing `tools.allow`
 or `tools.alsoAllow` list without removing other grants. Explicit denials stay
@@ -76,6 +82,14 @@ Activity collection stays separate in
 `config/openassist/activity.yaml`, and the template is disabled by default.
 To query an existing historical monitor dataset without starting a collector,
 pass a dedicated YAML with explicit storage paths using `--activity-config`.
+
+Verify the native guidance with
+`.\run-openclaw.ps1 skills list --agent main --eligible --json`.
+Existing extra skill directories, authored workspace files and skill policy
+are preserved. With the default skill watcher, existing sessions refresh on
+their next turn. An explicit `skills.load.watch: false`, disabled skill, or
+per-agent skill allowlist can require the corresponding native refresh or
+policy adjustment; the configuration helper does not override those choices.
 
 The MCP child does not read model credentials. It receives only the product
 root and optional activity config path. The bridge enforces limits on
@@ -94,6 +108,23 @@ deterministic observation counts, not semantic claims about user intent.
 Context budgeting includes serialized episode references and evidence. Window
 switches, URL navigation and idle periods seal episodes; late evidence can
 revise the matching historical interval without extending a closed visit.
+
+`activity_health.result.history` reports retained Observation counts and real
+oldest/newest timestamps independently of index catch-up, with UTC and
+host-local ISO labels for display. The millisecond values remain query bounds;
+the model should not mentally convert them to calendar dates. The `collector`
+section reports the last recorded state and diagnostic freshness; it does not
+confirm current process liveness (`current_state: unverified`). `profile_enabled` means query access is
+enabled, and `bridge_starts_collector` is always false. A disabled access
+profile leaves historical availability unchecked rather than asserting that
+no historical data exists. An empty recent 300-second query can coexist with
+older readable history. The model should state the actual coverage date and
+query the last recorded interval when the user asks for older activity.
+Capability questions need only health metadata. A brief recap uses
+`activity_summary` with explicit `start_utc_ms`/`end_utc_ms`, bounded application
+statistics and snippets with source references, rather than enumerating every
+item or episode. Detailed event queries and full pagination remain available
+when the user requests them.
 
 The default OpenClaw agent can retrieve relevant historical activity through
 the MCP tools. There is no fixed history injection and no parallel
@@ -132,6 +163,24 @@ restart existing Gateway MCP sessions or the Gateway before using those sessions
 A saved config, CLI probe or passing local test does not establish that an
 already-connected Gateway session has loaded the same code. End-to-end model
 tool selection remains a separate acceptance check.
+The configuration helper includes a revision of product Activity Python code
+in the child environment. Reapplying after code changes lets native MCP config
+reload retire the corresponding old child without restarting the Gateway;
+captured data and credentials are excluded from this revision.
+
+An opt-in real-model acceptance command exercises the user's two original
+questions, a historical recap and an unrelated question:
+
+```powershell
+.\.venv\Scripts\python.exe tools\verify_activity_agent_chat.py --run-model
+```
+
+It creates and archives an independent read-only Gateway test session using
+the configured model, restricts tools to read/search and Activity MCP, and
+records actual tool results and replies. It does not alter the main chat,
+start collection or operate the desktop. This command incurs provider charges
+and sends retrieved historical evidence to the configured model provider.
+Omit `--run-model` to check only the test session's tool policy.
 
 `activity_summary` defaults to the past 300 seconds. Use an explicit time window
 with `activity_query` for older evidence. `empty` means no indexed matches in
@@ -170,9 +219,19 @@ harness materialization and final tool-policy pipeline to expose and execute
 all nine canonical `mirally-activity__*` tools. Their results matched the local
 bridge, and the runtime was disposed after validation.
 
-The historical profile contained 94 Items and 22 Episodes. Source references,
+The historical profile contained 94 Observations, 94 Items and 22 Episodes. Source references,
 complete pagination, episode membership and source database hashes passed.
-The root Python suite ran 532 tests: 530 passed and two were skipped; the Node suite
-passed all 16 tests. Model-driven tool selection and live desktop execution
-were not exercised. Reports, full local exports and the native runtime check
-are kept in the ignored `.artifacts/activity-mcp-resume/` directory.
+Real configured-model turns also passed the two original capability questions,
+a short historical recap and an unrelated question. Capability answers used
+health metadata, displayed the correct recorded date and kept present collector
+liveness unverified. The recap invoked one bounded historical summary with
+source references; the unrelated question invoked no Activity tool. The
+read-only test session was archived, and the main conversation was unchanged.
+
+Offline and native-loader tests cover history bounds before index catch-up,
+ISO timestamp display, query budgets, skill refresh and policy exclusions.
+The root Python suite passed 547 of 549 tests with two expected skips; the
+Node suite passed all 16 tests. Live desktop execution and starting the
+collector are outside this acceptance check. Reports and full local acceptance
+traces are kept in the ignored `.artifacts/activity-mcp-guidance/` directory;
+the earlier transport export remains in `.artifacts/activity-mcp-resume/`.

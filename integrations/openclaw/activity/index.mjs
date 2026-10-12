@@ -111,10 +111,12 @@ export function createActivityTools(client) {
     createTool(client, {
       name: "activity_summary",
       label: "Activity summary",
-      description: `${common} Summarize a bounded recent period (default: 300 seconds) by application and observed episodes; counts and spans do not establish user intent or active work time.`,
+      description: `${common} Summarize a recent or explicit historical period (recent default: 300 seconds) by application and observed episodes; counts and spans do not establish user intent or active work time.`,
       promptSnippet: "Summarize recent local activity by app and episode.",
       parameters: Type.Object({
         seconds: integer("Lookback duration in seconds.", 1),
+        start_utc_ms: integer("Start of an explicit historical period in UTC milliseconds."),
+        end_utc_ms: integer("End of an explicit historical period in UTC milliseconds."),
         max_items: integer("Maximum activity items.", 1),
         max_episodes: integer("Maximum episodes.", 1),
         token_budget: integer("Maximum response budget.", 128),

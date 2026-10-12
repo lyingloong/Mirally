@@ -89,6 +89,7 @@ def main() -> None:
     activity = activity_patch(config, ROOT)
     config.setdefault('mcp', {}).setdefault('servers', {}).update(activity['mcp']['servers'])
     config.setdefault('tools', {}).update(activity['tools'])
+    config.setdefault('skills', {}).setdefault('load', {}).update(activity['skills']['load'])
     workspace = state/'workspace'
     seed_identity(workspace)
     config['gateway']['auth']['token'] = secrets.token_urlsafe(32)

@@ -662,6 +662,27 @@ class ObservationStore:
         finally:
             connection.close()
 
+    def observation_statistics(self) -> Dict[str, Optional[int]]:
+        """Return retained history bounds without reading observation content.
+
+        The timestamp boundary lookups use the observation time index. Keep
+        them in the same SQLite snapshot as the count so concurrent collection
+        cannot produce a range from a different retained history.
+        """
+        connection = self._connect()
+        try:
+            row = connection.execute("""SELECT COUNT(*),
+                (SELECT observed_at_utc_ms FROM observations
+                 ORDER BY observed_at_utc_ms ASC LIMIT 1),
+                (SELECT observed_at_utc_ms FROM observations
+                 ORDER BY observed_at_utc_ms DESC LIMIT 1)
+                FROM observations""").fetchone()
+            return {"observation_count": int(row[0]),
+                    "oldest_observed_utc_ms": row[1],
+                    "newest_observed_utc_ms": row[2]}
+        finally:
+            connection.close()
+
     def ack(self, consumer_id: str, scope_hash: str, cursor: int) -> str:
         return self._submit("ack", consumer_id, scope_hash, int(cursor))
 
