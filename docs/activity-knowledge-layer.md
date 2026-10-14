@@ -7,6 +7,10 @@
 
 ## 1. 目的
 
+2026-10-13：独立后台记忆维护与 OpenClaw 自动召回的实现边界见
+[Activity Memory](activity-memory.md)。正式记忆保存在独立库中，Activity
+投影重建不会重置它；本文下方的早期规划不能代替该实现说明和验收。
+
 当前的 Activity Sensor 已经负责从 Windows 采集前台窗口、应用标题、浏览器 URL、UIA 结构、截图、OCR、输入和剪贴板等 Observation。它回答的是“系统观察到了什么”。
 
 Agent 需要的是另一种数据：用户正在做哪件事、哪些内容属于同一段活动、某个结论来自哪些证据、最近上下文中哪些内容值得带入当前任务。为此，在采集层和记忆维护层之间增加一个独立的 **Activity Knowledge Layer（活动知识组织层）**。

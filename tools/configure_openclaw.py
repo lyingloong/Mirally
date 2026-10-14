@@ -12,8 +12,10 @@ import yaml
 
 try:
     from tools.configure_activity_agent import activity_patch
+    from tools.configure_memory_agent import memory_patch
 except ModuleNotFoundError:  # script execution sets sys.path to tools/
     from configure_activity_agent import activity_patch
+    from configure_memory_agent import memory_patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -90,6 +92,17 @@ def main() -> None:
     config.setdefault('mcp', {}).setdefault('servers', {}).update(activity['mcp']['servers'])
     config.setdefault('tools', {}).update(activity['tools'])
     config.setdefault('skills', {}).setdefault('load', {}).update(activity['skills']['load'])
+    # Register additive memory support without replacing OpenClaw's memory
+    # slot. The separate memory profile remains disabled until configured.
+    memory = memory_patch(config, ROOT)
+    config.setdefault('mcp', {}).setdefault('servers', {}).update(memory['mcp']['servers'])
+    config.setdefault('tools', {}).update(memory['tools'])
+    config.setdefault('skills', {}).setdefault('load', {}).update(memory['skills']['load'])
+    for key, value in memory['plugins'].items():
+        if isinstance(value, dict):
+            config.setdefault('plugins', {}).setdefault(key, {}).update(value)
+        else:
+            config.setdefault('plugins', {})[key] = value
     workspace = state/'workspace'
     seed_identity(workspace)
     config['gateway']['auth']['token'] = secrets.token_urlsafe(32)

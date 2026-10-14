@@ -20,6 +20,7 @@ Mirally 是面向 Windows 的对话与桌面助手，名称取自 MIRA + ally。
 | 数据是否实际收集、组织是否正确，以及能否说明用户行为 | [Activity 数据层评估与验收](activity-data-acceptance.md) |
 | 清理后新样本的检查、投影 v2 完善与事实时间线 | [Activity 新数据检查](activity-fresh-data-review.md) |
 | OpenClaw agent 按需访问活动知识的统一接入 | [Activity Agent Access](activity-agent-access.md) |
+| 无对话时整理 Activity、持久记忆和相关问题自动召回 | [Activity Memory](activity-memory.md) |
 | Activity 与 Screenpipe 的能力差距和陪伴场景对齐目标 | [Screenpipe 对齐情况](activity-screenpipe-gap.md) |
 | 持续屏幕、UIA 正文、输入文本与剪贴板的实现和测试 | [丰富内容采集](activity-rich-capture.md) |
 | 旧 UFO 的输入协调、截图隔离和验证脚本 | [历史桌面体验实现与验证](desktop-experience-implementation.md) |

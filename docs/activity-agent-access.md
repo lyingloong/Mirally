@@ -3,6 +3,11 @@
 The activity knowledge layer is a shared OpenClaw capability. It is not a
 UFO-specific memory path and it is not injected into every prompt.
 
+For continuous background memory formation and bounded automatic recall, see
+[Activity memory](activity-memory.md). The additive memory service consumes
+Activity independently of conversations; the Activity MCP described here
+remains the explicit detailed-evidence interface.
+
 ## Runtime path
 
 ```text

@@ -105,6 +105,7 @@ UFO 操作当前交互桌面，会占用鼠标、键盘和窗口。Mirally 桌�
 | `config/openassist/openclaw/mirally-host/` | 本地后台启动日志与进程记录 |
 | `config/openassist/openclaw.template.json` | 可提交的无凭据配置模板 |
 | `config/openassist/activity.yaml.template` | 活动观察数据层模板，默认关闭；启用后数据保存在用户本地目录 |
+| `config/openassist/memory.yaml.template` | 独立后台记忆层模板；记忆维护和语义模型调用分别启用 |
 | `integrations/openclaw/package-lock.json` | 完整原生运行依赖版本 |
 | `openassist/assets/` | 正式矢量源与统一导出的 PNG、ICO |
 
@@ -155,6 +156,8 @@ $env:OPENASSIST_WGC_HELPER = "$PWD\tools\bin\desktop_wgc.exe"
 
 然后在自有 `activity.yaml` 中同时显式授权 `collection.default_level: content` 和
 `visual.enabled: true`，最新模板已设置。`visual.scope: monitors` 显式捕获所有显示器，改为 `foreground` 可只捕获前台窗口；两者不互相 fallback。正文与边界框保存在 Observation，无法读取、超时或语言包缺失保留诊断，不伪造内容。
+
+后台记忆层可在没有对话时持续整理新增 Activity，保存带来源的情景记忆、近期工作快照和待审核事实。默认 OpenClaw agent 在相关问题中自动召回少量已有记忆，并可通过原生记忆搜索或 Memory MCP 深查。配置使用 `config/openassist/memory.yaml`，模板默认关闭；运行 `.\.venv\Scripts\python.exe tools\configure_memory_agent.py --apply` 注册后台服务和 MCP。语义整理可选使用 OpenClaw 管理的模型与持久预算，采集器仍单独配置。说明与维护命令见 [Activity Memory](docs/activity-memory.md)。
 
 ## 当前范围
 

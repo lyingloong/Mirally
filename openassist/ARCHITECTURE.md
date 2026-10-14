@@ -4,6 +4,9 @@ The product package is split by responsibility:
 
 - `core/` owns conversation state, intent handoff, and task lifecycle. It does
   not import Tk or Windows APIs.
+- `core/memory/` owns durable, versioned memories, source tombstones, indexed
+  recall, leased synthesis jobs and persistent usage budgets. Its database is
+  independent of rebuildable Activity projections.
 - `core/activity/` owns the product-neutral observation protocol, privacy
   decisions, single-writer SQLite store, asset lifecycle, and consumer cursor
   contract. It does not import UFO or Windows APIs.
@@ -25,6 +28,12 @@ The product package is split by responsibility:
   collector. MCP discovery does not access Activity configuration or SQLite;
   the query bridge opens lazily on a tool call and closes with its server.
   Direct native UFO loops do not consume Activity knowledge.
+- `runtime/memory/` owns continuously running memory maintenance, read-only
+  recall, CLI and portable Memory MCP. The additive OpenClaw memory plugin
+  supervises its worker, performs optional semantic completion through the
+  host-managed model route, and recalls relevant committed memories before
+  the default local agent's prompt. It preserves the native memory slot and
+  never starts Activity collection. See [Activity memory](../docs/activity-memory.md).
 - `platform/` owns Windows-only capture isolation, raw input, focus, and taskbar
   integration.
 - `platform/activity/` owns read-only foreground identity/window titles,
