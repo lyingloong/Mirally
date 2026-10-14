@@ -19,60 +19,60 @@ const scenes = [
     id: "work",
     time: "09:30",
     label: "专注工作",
-    kicker: "一起，把事情向前推进。",
+    kicker: "周末市集 · 筹备会议",
     title: (
       <>
-        留一点时间，
+        会开完了，
         <br />
-        给真正重要的事。
+        谁来做下一步？
       </>
     ),
     description:
-      "会议结束，思路还在继续。让 Mirally 帮你理清讨论、留下重点，把下一步变得清晰。你负责判断，它和你一起推进。",
+      "周末要办一场咖啡市集。场地、摊位、宣传都谈到了，让 Mirally 整理会议笔记，列出负责人和截止时间。",
     detail: "对话协作 · 任务推进 · 文件产出",
     questions: ["把这次会议整理成行动清单", "给我一份能直接用的会议摘要"],
-    intro: "这次讨论的信息有点多。要一起理一理吗？",
+    intro: "市集筹备会议结束了。要整理行动项，还是导出摘要？",
     answers: [
-      "整理好了：先明确体验目标，再完成关键场景原型，最后安排一次内部体验。每一步都有负责人和时间。",
-      "摘要已准备好，包含讨论结论、行动项和待确认问题。你可以下载 Markdown，接着补充或分享。",
+      "三项待办：小林周二确认场地，阿哲周四收齐摊位资料，小陈周五发布宣传。雨天方案还需要确认。",
+      "摘要包含市集安排、三项待办和雨天预案问题，可以下载后发给同事。",
     ],
   },
   {
     id: "memory",
     time: "15:00",
     label: "接上思路",
-    kicker: "让灵感，有迹可循。",
+    kicker: "周末市集 · 找回讨论",
     title: (
       <>
-        一句“刚才那个”，
+        上午怎么定的，
         <br />
-        也能接着聊。
+        下午还能找到。
       </>
     ),
     description:
-      "上午读过的资料、讨论过的方向、突然闪过的念头。那些值得留下的片段，可以整理成记忆，在需要时重新接上。",
+      "继续做市集海报，却忘了上午为什么选河边广场。问一句，找回相关记录，也能查看答案来自哪里。",
     detail: "活动记录 · 记忆整理 · 历史回顾",
-    questions: ["上午说的那个体验方案是什么？", "为什么当时决定先做桌面端？"],
-    intro: "有些思路，隔几个小时也值得继续。",
+    questions: ["上午定的市集方案是什么？", "为什么选河边广场？"],
+    intro: "上午的筹备记录已整理。你想找回哪一段？",
     answers: [
-      "你们上午讨论的是「和 Mirally 的一天」：用工作、记忆、娱乐三个场景讲清楚日常伙伴的价值。这里是演示资料中的相关片段。",
-      "演示会议记录里提到：桌面承载了高频工作情境，也适合验证“理解上下文 → 付诸行动”的完整体验。相关来源可以展开查看。",
+      "周六下午在河边广场办咖啡市集，计划安排 12 个摊位。小林确认场地，阿哲收齐摊位资料，小陈负责宣传。",
+      "筹备记录里写着：广场靠近地铁，附近有周末散步的人群。团队想先办一场小市集，看看大家是否愿意停下来喝杯咖啡。",
     ],
   },
   {
     id: "life",
     time: "21:30",
     label: "尽兴生活",
-    kicker: "每一个好奇，都有人回应。",
+    kicker: "下班以后 · 看剧",
     title: (
       <>
-        故事正精彩，
+        “这个人是谁？”
         <br />
-        好奇也不用暂停。
+        看剧时也能问。
       </>
     ),
     description:
-      "窝进沙发，打开喜欢的剧集。认不出的角色、想了解的背景，随口一问就能继续看下去。我们期待这样的陪伴，也能发生在生活里。",
+      "晚上打开一部新剧，突然认不出画面里的角色。我们想让 Mirally 看懂你正在看的内容，回答当下的问题，并尊重你的观看进度。",
     detail: "未来愿景 · 画面理解 · 即时陪伴",
     questions: ["这个角色是谁？", "他和女主是什么关系？别剧透"],
     intro: "今晚，我们只聊到你看到的第三集。",
@@ -85,7 +85,7 @@ const scenes = [
 
 function downloadSummary() {
   const content =
-    "# Mirally 产品体验讨论\n\n> 演示数据：此文档由展示页本地生成，并非真实会议记录。\n\n## 讨论结论\n\n- 以 Everyday Ally（日常伙伴）作为产品定位。\n- 用工作、记忆、娱乐三个场景呈现「和 Mirally 的一天」。\n- 先完成桌面体验验证，再探索更广泛的生活场景。\n\n## 行动清单\n\n| 事项 | 负责人（虚构） | 计划 |\n| --- | --- | --- |\n| 明确核心体验与演示脚本 | 产品组 | 周二 |\n| 完成三个场景的交互原型 | 设计组 | 周四 |\n| 组织内部体验与反馈 | 项目组 | 周五 |\n\n## 待确认\n\n- 哪些场景最能形成持续使用习惯？\n- 用户如何查看、纠正和删除记忆？\n";
+    "# 咖啡市集筹备会议\n\n> 演示数据：此文档由展示页本地生成，人物与活动均为虚构。\n\n## 讨论结论\n\n- 周六 14:00，在河边广场举办咖啡市集。\n- 计划安排 12 个摊位。\n- 选择河边广场是因为靠近地铁，周末散步人群多。\n\n## 行动清单\n\n| 事项 | 负责人（虚构） | 截止时间 | 状态 |\n| --- | --- | --- | --- |\n| 确认场地 | 小林 | 周二 | 待办 |\n| 收齐摊位资料 | 阿哲 | 周四 | 待办 |\n| 发布宣传 | 小陈 | 周五 | 待办 |\n\n## 待确认\n\n- 雨天是否改期？周二确认场地时一起决定。\n";
   const url = URL.createObjectURL(
     new Blob([content], { type: "text/markdown;charset=utf-8" }),
   );
@@ -104,7 +104,7 @@ function WorkSurface({ answered }) {
           <FolderOpen size={16} /> 我的工作空间
         </span>
         <span className="scene-sidebar-item scene-sidebar-active">
-          <FileText size={14} /> 产品体验讨论
+          <FileText size={14} /> 咖啡市集筹备
         </span>
         <span className="scene-sidebar-item">
           <FileText size={14} /> 本周计划
@@ -112,32 +112,30 @@ function WorkSurface({ answered }) {
         <span className="scene-sidebar-item">
           <FileText size={14} /> 灵感收集
         </span>
-        <span className="scene-sidebar-bottom">一个想法，向前一步。</span>
+        <span className="scene-sidebar-bottom">周末市集 · 项目资料</span>
       </aside>
       <div className="scene-document">
-        <span className="scene-document-meta">团队笔记 / 体验讨论</span>
-        <h4>让伙伴，走进日常。</h4>
+        <span className="scene-document-meta">团队笔记 / 市集筹备</span>
+        <h4>周六，河边见。</h4>
         <p className="scene-document-date">周一 · 09:00 — 09:25 · 演示会议</p>
         <div className="scene-document-rule" />
         <h5>我们达成的共识</h5>
-        <p>从熟悉的工作情境出发，让理解、记忆与行动连成一个自然的体验。</p>
+        <p>周六 14:00，在河边广场举办咖啡市集，计划安排 12 个摊位。</p>
         <h5>接下来，做三件事</h5>
-        {[
-          "明确核心体验与场景脚本",
-          "完成三个场景的交互原型",
-          "邀请团队一起体验",
-        ].map((item, i) => (
-          <div className="scene-task" key={item}>
-            <span className="scene-task-check" aria-hidden="true" />
-            <span>{item}</span>
-            <small>{["周二", "周四", "周五"][i]} · 待办</small>
-          </div>
-        ))}
+        {["小林：确认场地", "阿哲：收齐摊位资料", "小陈：发布宣传"].map(
+          (item, i) => (
+            <div className="scene-task" key={item}>
+              <span className="scene-task-check" aria-hidden="true" />
+              <span>{item}</span>
+              <small>{["周二", "周四", "周五"][i]} · 待办</small>
+            </div>
+          ),
+        )}
         <div className="scene-document-note">
           <Sparkles size={14} />{" "}
           {answered
-            ? "行动清单已整理，等待一起推进。"
-            : "留下结论，也留下下一步。"}
+            ? "三项待办已整理；雨天预案待确认。"
+            : "会议笔记 · 演示资料"}
         </div>
       </div>
     </div>
@@ -146,36 +144,28 @@ function WorkSurface({ answered }) {
 
 function MemorySurface({ answered, sourceOpen, setSourceOpen }) {
   return (
-    <div className="scene-memory-surface">
+    <div
+      className={`scene-memory-surface ${sourceOpen ? "scene-memory-expanded" : ""}`}
+    >
       <div className="scene-memory-heading">
         <span>YOUR DAY, CONNECTED</span>
         <h4>
-          今天的思路，
+          上午的讨论，
           <br />
-          还在这里。
+          有记录可查。
         </h4>
-        <p>把片段留下，把线索接起来。</p>
+        <p>同一个市集项目，继续往下做。</p>
       </div>
       <div className="scene-timeline">
         {[
           [
             "09:25",
-            "产品体验讨论",
-            "从桌面出发，探索日常伙伴的完整体验。",
+            "咖啡市集筹备",
+            "周六下午，河边广场，12 个摊位。",
             "会议笔记",
           ],
-          [
-            "10:10",
-            "场景与叙事",
-            "工作、记忆、娱乐，串起与 Mirally 的一天。",
-            "方案草稿",
-          ],
-          [
-            "11:40",
-            "一个值得继续的想法",
-            "帮助应该出现在好奇发生的那一刻。",
-            "灵感笔记",
-          ],
+          ["10:10", "场地资料", "靠近地铁，周末散步的人群多。", "场地备选"],
+          ["11:40", "宣传草稿", "海报主题：周六，河边见。", "海报文案"],
         ].map(([time, title, text, tag], index) => (
           <div
             className={`scene-timeline-item ${answered && index === 0 ? "scene-timeline-found" : ""}`}
@@ -206,10 +196,10 @@ function MemorySurface({ answered, sourceOpen, setSourceOpen }) {
       </button>
       {sourceOpen && (
         <div id="scene-source-detail" className="scene-source-detail">
-          <strong>09:25 · 产品体验讨论</strong>
+          <strong>09:25 · 咖啡市集筹备</strong>
           <p>
-            团队选择桌面作为起点：聚焦高频任务，验证上下文理解、可回顾记忆和任务执行。展示方案采用「和
-            Mirally 的一天」，连接工作、学习与娱乐。
+            河边广场靠近地铁，周末人流稳定。会议决定周六 14:00 开始，安排 12
+            个摊位；雨天是否改期，周二确认场地时一起决定。
           </p>
           <small>本段为页面内预置的演示资料。</small>
         </div>
@@ -334,20 +324,12 @@ export default function DayExperience() {
   }
 
   return (
-    <section className="day-section" id="a-day">
+    <section className="day-section chapter" id="a-day">
       <div className="day-container">
         <header className="day-section-heading">
-          <span className="day-eyebrow">A DAY, WITH MIRALLY</span>
-          <h2>
-            你的每一天，
-            <br />
-            都有默契。
-          </h2>
-          <p>
-            重要的事，琐碎的事，突然想问的事。
-            <br className="day-desktop-break" />
-            有一个伙伴，跟得上你的生活。
-          </p>
+          <span className="day-eyebrow">02 / A DAY, WITH MIRALLY</span>
+          <h2>和 Mirally 过一天。</h2>
+          <p>上午推进工作，晚上放松一下。点击时间切换场景。</p>
         </header>
         <div
           className="day-tabs"
@@ -389,7 +371,7 @@ export default function DayExperience() {
             <span className="day-story-detail">{scene.detail}</span>
             <div className="day-try-hint">
               <ArrowUpRight size={17} />
-              <span>点选演示问题，试试这份默契</span>
+              <span>点击右侧问题，体验一段对话</span>
             </div>
           </div>
           <div className={`scene-desktop scene-desktop-${scene.id}`}>
@@ -404,7 +386,7 @@ export default function DayExperience() {
                   ? "工作空间"
                   : active === 1
                     ? "我的一天"
-                    : "今晚，慢一点"}
+                    : "剧集播放"}
               </span>
               <span className="scene-window-time">
                 <Clock3 size={12} />

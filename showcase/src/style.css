@@ -552,69 +552,6 @@ summary:focus-visible {
     transform: translateY(0);
   }
 }
-.meaning {
-  padding: 95px 0 0;
-  display: grid;
-  grid-template-columns: 1fr 1.2fr;
-  gap: 60px;
-}
-.meaning-word .eyebrow {
-  font-size: 8px;
-  letter-spacing: 1.8px;
-  color: #819598;
-  margin-bottom: 15px;
-}
-.meaning-word > div {
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 85px;
-  letter-spacing: -4px;
-  font-style: italic;
-  line-height: 1.1;
-}
-.meaning-word > div span {
-  font-size: 17px;
-  letter-spacing: 1px;
-  color: #7d9197;
-  font-style: normal;
-  margin-left: 16px;
-}
-.meaning-word > p {
-  font-size: 11px;
-  color: #789094;
-  letter-spacing: 1.5px;
-  margin-top: 13px;
-}
-.meaning-copy h2 {
-  font-size: 33px;
-  line-height: 1.65;
-  font-weight: 500;
-  letter-spacing: -0.9px;
-}
-.meaning-copy h2 span {
-  color: #3389a1;
-}
-.meaning-copy p {
-  font-size: 12px;
-  line-height: 2.1;
-  color: #72868c;
-  margin-top: 17px;
-}
-.meaning-bottom {
-  grid-column: 1/-1;
-  display: flex;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--line);
-  padding: 0 0 30px;
-  margin-top: 2px;
-  color: #5e7d83;
-}
-.meaning-bottom > span {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  font-size: 11px;
-  letter-spacing: 1px;
-}
 .foundations {
   padding: 103px 0 0;
   background: #eef3f1;
@@ -1214,74 +1151,6 @@ summary:focus-visible {
   color: #3a8999;
   margin-top: 17px;
 }
-.closing {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  background: #eaf3f2;
-  text-align: center;
-  min-height: 700px;
-}
-.closing-glow {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  background:
-    radial-gradient(ellipse at 50% 45%, #ffffffd9, transparent 65%),
-    linear-gradient(135deg, #e0eef0, #e9f1e9);
-}
-.closing-inner {
-  padding: 55px 0 158px;
-  display: flex;
-  align-items: center;
-  flex-direction: column;
-  position: relative;
-  z-index: 1;
-}
-.closing-mark {
-  margin-bottom: 13px;
-}
-.closing .eyebrow {
-  color: #7ea0a4;
-  font-size: 9px;
-}
-.closing h2 {
-  font-size: 47px;
-  font-weight: 500;
-  letter-spacing: -1.6px;
-  line-height: 1.5;
-  margin: 21px 0;
-}
-.closing p {
-  font-size: 11px;
-  color: #7d979a;
-  line-height: 2.15;
-  margin-bottom: 26px;
-}
-.closing .button {
-  font-size: 12px;
-  padding: 16px 22px;
-}
-.back-to-top {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 9px;
-  color: #7e9b9d;
-  margin-top: 18px;
-}
-.closing-wordmark {
-  position: absolute;
-  bottom: -0.25em;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: clamp(190px, 32vw, 470px);
-  letter-spacing: -0.085em;
-  font-weight: 500;
-  line-height: 1.1;
-  color: #b7d4d439;
-  pointer-events: none;
-}
 .site-footer {
   background: #f6f8f7;
 }
@@ -1474,9 +1343,6 @@ summary:focus-visible {
   .hero-art-caption {
     font-size: 7px;
   }
-  .meaning {
-    gap: 40px;
-  }
   .main-nav {
     gap: 25px;
     margin-left: 20px;
@@ -1552,19 +1418,6 @@ summary:focus-visible {
   .brand img {
     width: 38px;
     height: 38px;
-  }
-  .meaning-copy h2 {
-    font-size: 27px;
-  }
-  .meaning {
-    padding-top: 70px;
-    gap: 35px;
-  }
-  .meaning-copy p {
-    font-size: 11px;
-  }
-  .meaning-word > div {
-    font-size: 75px;
   }
   .foundation-grid {
     grid-template-columns: 1fr;
@@ -1684,9 +1537,6 @@ summary:focus-visible {
   }
   .footer-inner > p {
     display: none;
-  }
-  .closing h2 {
-    font-size: 40px;
   }
 }
 @media (max-width: 700px) {
@@ -1857,46 +1707,6 @@ summary:focus-visible {
   .hero-bottom > span {
     font-size: 6px;
     letter-spacing: 1.1px;
-  }
-  .meaning {
-    padding-top: 58px;
-    gap: 30px;
-    grid-template-columns: 1fr;
-  }
-  .meaning-word .eyebrow {
-    font-size: 7px;
-    margin-bottom: 9px;
-  }
-  .meaning-word > div {
-    font-size: 65px;
-  }
-  .meaning-word > div span {
-    font-size: 14px;
-  }
-  .meaning-word > p {
-    font-size: 9px;
-    margin-top: 8px;
-  }
-  .meaning-copy h2 {
-    font-size: 29px;
-    line-height: 1.55;
-  }
-  .meaning-copy p {
-    font-size: 11px;
-  }
-  .meaning-bottom {
-    gap: 16px;
-    flex-wrap: wrap;
-    padding-bottom: 24px;
-    margin-top: 4px;
-  }
-  .meaning-bottom > span {
-    font-size: 8px;
-    letter-spacing: 0;
-    gap: 5px;
-  }
-  .meaning-bottom > span svg {
-    width: 12px;
   }
   .foundations {
     padding-top: 65px;
@@ -2139,29 +1949,6 @@ summary:focus-visible {
   .path-content {
     padding-left: 36px;
   }
-  .closing {
-    min-height: 625px;
-  }
-  .closing-inner {
-    padding: 45px 0 125px;
-  }
-  .closing-mark {
-    width: 78px;
-    height: 78px;
-    margin-bottom: 8px;
-  }
-  .closing h2 {
-    font-size: 35px;
-    letter-spacing: -1px;
-    margin: 20px 0;
-  }
-  .closing p {
-    font-size: 10px;
-  }
-  .closing-wordmark {
-    font-size: 37vw;
-    bottom: -0.1em;
-  }
   .footer-inner {
     padding: 22px 0;
     gap: 10px;
@@ -2209,19 +1996,10 @@ summary:focus-visible {
   .hero-switch {
     bottom: 230px;
   }
-  .meaning-bottom {
-    gap: 13px;
-  }
-  .meaning-bottom > span {
-    font-size: 7px;
-  }
   .header-cta {
     font-size: 9px;
     padding: 8px;
     gap: 6px;
-  }
-  .closing h2 {
-    font-size: 31px;
   }
 }
 /* Keep the fictional actor visible beside the HTML conversation. */
@@ -2277,15 +2055,6 @@ summary:focus-visible {
 .hero-bottom a {
   font-size: 11px;
 }
-.meaning-copy p {
-  font-size: 14px;
-}
-.meaning-word > p {
-  font-size: 12px;
-}
-.meaning-bottom > span {
-  font-size: 12px;
-}
 .section-heading > p {
   font-size: 14px;
 }
@@ -2333,13 +2102,6 @@ summary:focus-visible {
 }
 .path-content > span {
   font-size: 10px;
-}
-.closing p {
-  font-size: 13px;
-}
-.back-to-top {
-  font-size: 11px;
-  min-height: 36px;
 }
 .footer-inner > p {
   font-size: 11px;
@@ -2470,15 +2232,6 @@ summary:focus-visible {
   .hero-bottom a {
     font-size: 9px;
   }
-  .meaning-copy p {
-    font-size: 13px;
-  }
-  .meaning-word > p {
-    font-size: 11px;
-  }
-  .meaning-bottom > span {
-    font-size: 10px;
-  }
   .section-heading > p {
     font-size: 13px;
   }
@@ -2505,9 +2258,6 @@ summary:focus-visible {
   }
   .business-path > summary small {
     font-size: 11px;
-  }
-  .closing p {
-    font-size: 12px;
   }
   .footer-inner > div {
     font-size: 9px;

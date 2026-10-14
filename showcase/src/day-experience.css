@@ -1194,3 +1194,548 @@
     opacity: 0.65;
   }
 }
+
+/* Window-sized chapters use the space left after the shared navigation. */
+@media (min-width: 1000px) and (min-height: 700px) {
+  .day-section.chapter {
+    padding: 24px 0;
+  }
+  .day-section .day-container {
+    height: calc(100svh - var(--header-height, 72px) - 48px);
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 16px;
+  }
+  .day-section .day-section-heading {
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 24px;
+    margin: 0;
+    align-items: center;
+  }
+  .day-section .day-eyebrow {
+    margin: 0;
+    font-size: 9px;
+  }
+  .day-section .day-section-heading h2 {
+    font-size: clamp(28px, 3vw, 40px);
+    line-height: 1.3;
+  }
+  .day-section .day-section-heading > p {
+    font-size: 12px;
+    margin: 0;
+    max-width: none;
+  }
+  .day-section .day-tabs {
+    margin: 0;
+  }
+  .day-section .day-tab {
+    padding: 12px 20px;
+    font-size: 12px;
+  }
+  .day-section .day-tab:first-child {
+    padding-left: 0;
+  }
+  .day-section .day-tab-time {
+    font-size: 18px;
+  }
+  .day-section .day-experience {
+    grid-template-columns: minmax(200px, 0.65fr) minmax(0, 1.9fr);
+    gap: clamp(24px, 3vw, 48px);
+    align-items: stretch;
+  }
+  .day-section .day-story {
+    align-self: center;
+  }
+  .day-section .day-story h3 {
+    font-size: clamp(24px, 2.3vw, 32px);
+    margin-bottom: 16px;
+  }
+  .day-section .day-story > p {
+    margin-bottom: 20px;
+    line-height: 1.85;
+  }
+  .day-section .day-try-hint {
+    margin-top: 24px;
+  }
+  .day-section .scene-desktop {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .day-section .scene-window-bar {
+    height: 34px;
+    flex-shrink: 0;
+  }
+  .day-section .scene-demo-caption {
+    padding: 10px 14px;
+    flex-shrink: 0;
+  }
+  .day-section .scene-stage {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(268px, 45%);
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+  }
+  .day-section .scene-work-surface,
+  .day-section .scene-memory-surface {
+    min-height: 0;
+    height: auto;
+    padding: 0;
+    background: none;
+  }
+  .day-section .scene-doc-sidebar {
+    display: none;
+  }
+  .day-section .scene-document {
+    padding: 0;
+    max-width: none;
+  }
+  .day-section .scene-document h4 {
+    font-size: 23px;
+    margin: 12px 0 7px;
+  }
+  .day-section .scene-document h5 {
+    margin: 12px 0 6px;
+  }
+  .day-section .scene-document-rule {
+    margin: 12px 0;
+  }
+  .day-section .scene-document-note {
+    margin-top: 12px;
+    line-height: 1.7;
+  }
+  .day-section .scene-task {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .day-section .scene-task small {
+    margin-left: 19px;
+  }
+  .day-section .scene-chat {
+    position: relative;
+    width: 100%;
+    right: auto;
+    bottom: auto;
+    align-self: center;
+  }
+  .day-section .scene-chat-top {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .day-section .scene-chat-body {
+    padding: 10px 12px;
+  }
+  .day-section .scene-chat-user {
+    margin-bottom: 8px;
+  }
+  .day-section .scene-chat-answer {
+    line-height: 1.7;
+  }
+  .day-section .scene-question-list {
+    padding: 0 10px 10px;
+    gap: 5px;
+  }
+  .day-section .scene-question {
+    font-size: 11px;
+    min-height: 36px;
+    padding: 6px 8px;
+  }
+  .day-section .scene-download {
+    font-size: 10px;
+    min-height: 34px;
+    padding: 6px 8px;
+    margin-top: 8px;
+  }
+  .day-section .scene-chat-source {
+    min-height: 30px;
+    padding-top: 5px;
+  }
+  .day-section .scene-memory-heading h4 {
+    font-size: 22px;
+    margin: 8px 0;
+  }
+  .day-section .scene-memory-heading p {
+    margin-bottom: 13px;
+  }
+  .day-section .scene-timeline {
+    width: 100%;
+    min-width: 0;
+  }
+  .day-section .scene-timeline-item {
+    padding-bottom: 13px;
+    gap: 8px;
+  }
+  .day-section .scene-timeline-item:before {
+    left: 46px;
+  }
+  .day-section .scene-timeline-content h5 {
+    margin: 3px 0;
+  }
+  .day-section .scene-source-toggle {
+    min-height: 28px;
+    font-size: 10px;
+  }
+  .day-section .scene-source-detail {
+    width: 100%;
+    min-width: 0;
+    padding: 8px;
+    margin-top: 4px;
+    line-height: 1.6;
+  }
+  .day-section .scene-source-detail p {
+    margin: 4px 0;
+  }
+  .day-section .scene-life-surface {
+    position: absolute;
+    inset: 0;
+    height: auto;
+  }
+  .day-section .scene-desktop-life .scene-chat {
+    grid-column: 2;
+    bottom: auto;
+    margin-bottom: 26px;
+  }
+  .day-section .scene-film-info {
+    left: 24px;
+    right: auto;
+    top: 20px;
+    text-align: left;
+  }
+  .day-section .scene-film-info h4 {
+    font-size: 29px;
+  }
+  .day-section .scene-character-card {
+    left: 18px;
+    right: auto;
+    bottom: 58px;
+    width: calc(55% - 30px);
+    padding: 10px;
+  }
+  .day-section .scene-film-subtitle {
+    left: 24px;
+    bottom: 68px;
+    width: calc(55% - 40px);
+  }
+  .day-section .scene-player-controls {
+    bottom: 22px;
+  }
+  .day-section .scene-chat-reopen {
+    bottom: 20px;
+    right: 20px;
+  }
+}
+
+/* A narrow presentation window shows the same dialogue below a concise context. */
+@media (min-width: 480px) and (max-width: 999px) and (min-height: 700px) {
+  .day-section.chapter {
+    padding: 20px 0;
+  }
+  .day-section .day-container {
+    width: calc(100% - 48px);
+  }
+  .day-section .day-section-heading {
+    display: block;
+    margin-bottom: 14px;
+  }
+  .day-section .day-eyebrow {
+    font-size: 9px;
+    margin-bottom: 6px;
+  }
+  .day-section .day-section-heading h2 {
+    font-size: 28px;
+    line-height: 1.3;
+  }
+  .day-section .day-section-heading > p {
+    font-size: 11px;
+    margin: 8px 0 0;
+    max-width: none;
+    line-height: 1.6;
+  }
+  .day-section .day-tabs {
+    margin-bottom: 16px;
+  }
+  .day-section .day-tab {
+    display: flex;
+    gap: 10px;
+    padding: 12px 10px;
+    font-size: 11px;
+  }
+  .day-section .day-tab:first-child {
+    padding-left: 0;
+  }
+  .day-section .day-tab-time {
+    font-size: 16px;
+  }
+  .day-section .day-tab-dot {
+    display: none;
+  }
+  .day-section .day-experience {
+    display: block;
+  }
+  .day-section .day-story {
+    display: none;
+  }
+  .day-section .scene-window-bar {
+    height: 30px;
+  }
+  .day-section .scene-stage {
+    min-height: 0;
+    padding: 14px;
+  }
+  .day-section .scene-work-surface,
+  .day-section .scene-memory-surface {
+    min-height: 0;
+    padding: 0;
+  }
+  .day-section .scene-doc-sidebar {
+    display: none;
+  }
+  .day-section .scene-document {
+    padding: 0 0 14px;
+    max-width: none;
+  }
+  .day-section .scene-document-meta,
+  .day-section .scene-document-date,
+  .day-section .scene-document-rule,
+  .day-section .scene-document-note {
+    display: none;
+  }
+  .day-section .scene-document h4 {
+    font-size: 18px;
+    margin: 0 0 8px;
+  }
+  .day-section .scene-document h5 {
+    font-size: 10px;
+    margin: 8px 0 3px;
+  }
+  .day-section .scene-document p {
+    font-size: 10px;
+    line-height: 1.6;
+  }
+  .day-section .scene-task {
+    padding: 4px 0;
+  }
+  .day-section .scene-chat {
+    position: relative;
+    width: 100%;
+    right: auto;
+    bottom: auto;
+    margin: 0;
+  }
+  .day-section .scene-chat-top {
+    padding: 7px 10px;
+  }
+  .day-section .scene-chat-body {
+    padding: 10px 12px;
+  }
+  .day-section .scene-chat-answer {
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  .day-section .scene-chat-user {
+    font-size: 11px;
+    margin-bottom: 8px;
+    padding: 6px 9px;
+  }
+  .day-section .scene-question-list {
+    padding: 0 10px 10px;
+    gap: 5px;
+  }
+  .day-section .scene-question {
+    min-height: 36px;
+    font-size: 11px;
+    padding: 6px 9px;
+  }
+  .day-section .scene-download {
+    min-height: 34px;
+    font-size: 10px;
+    padding: 6px 9px;
+    margin-top: 7px;
+  }
+  .day-section .scene-memory-surface {
+    padding: 0 0 12px;
+    background: none;
+  }
+  .day-section .scene-memory-heading {
+    display: none;
+  }
+  .day-section .scene-timeline {
+    width: 100%;
+    min-width: 0;
+  }
+  .day-section .scene-timeline-item {
+    padding-bottom: 8px;
+  }
+  .day-section .scene-timeline-content {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 5px 10px;
+    align-items: center;
+  }
+  .day-section .scene-timeline-content small {
+    display: none;
+  }
+  .day-section .scene-timeline-content h5 {
+    margin: 0;
+  }
+  .day-section .scene-timeline-content p {
+    font-size: 9px;
+  }
+  .day-section .scene-source-toggle {
+    min-height: 30px;
+    font-size: 10px;
+  }
+  .day-section .scene-source-detail {
+    width: 100%;
+    min-width: 0;
+    padding: 8px 10px;
+    margin-top: 4px;
+    font-size: 10px;
+  }
+  .day-section .scene-source-detail p {
+    margin: 4px 0;
+  }
+  .day-section .scene-demo-caption {
+    padding: 8px 12px;
+    font-size: 9px;
+  }
+  .day-section .scene-life-surface {
+    height: 200px;
+    margin: -14px -14px 12px;
+  }
+  .day-section .scene-film-info {
+    top: 18px;
+    right: 20px;
+    left: auto;
+  }
+  .day-section .scene-film-info h4 {
+    font-size: 25px;
+    margin: 6px 0;
+  }
+  .day-section .scene-film-subtitle {
+    bottom: 45px;
+    left: 16px;
+    font-size: 10px;
+  }
+  .day-section .scene-player-controls {
+    bottom: 15px;
+    left: 16px;
+    right: 16px;
+  }
+  .day-section .scene-character-card {
+    left: 14px;
+    right: auto;
+    bottom: 40px;
+    max-width: 290px;
+    padding: 8px;
+  }
+  .day-section .scene-desktop-life .scene-chat {
+    bottom: auto;
+    margin: 0;
+  }
+  .day-section .scene-chat-reopen {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    width: max-content;
+    margin: 0 0 0 auto;
+  }
+}
+
+@media (min-width: 1000px) and (min-height: 700px) {
+  .day-section .scene-memory-expanded .scene-memory-heading {
+    display: none;
+  }
+  .day-section .scene-memory-expanded .scene-timeline-item {
+    padding-bottom: 9px;
+  }
+  .day-section .scene-memory-expanded .scene-timeline-content small {
+    display: none;
+  }
+  .day-section .scene-memory-expanded .scene-source-detail small {
+    display: none;
+  }
+}
+
+/* Keep the background records readable at presentation distance. */
+@media (min-width: 1000px) and (min-height: 700px) {
+  .day-section .scene-document-meta {
+    font-size: 10px;
+  }
+  .day-section .scene-document-date {
+    font-size: 10px !important;
+  }
+  .day-section .scene-document h5 {
+    font-size: 14px;
+    margin: 10px 0 5px;
+  }
+  .day-section .scene-document p {
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  .day-section .scene-task {
+    font-size: 12px;
+    padding: 5px 0;
+  }
+  .day-section .scene-task small {
+    font-size: 10px;
+  }
+  .day-section .scene-document-note {
+    font-size: 10px;
+    margin-top: 10px;
+  }
+  .day-section .scene-memory-heading span {
+    font-size: 10px;
+  }
+  .day-section .scene-memory-heading p {
+    font-size: 12px;
+  }
+  .day-section .scene-timeline-time {
+    font-size: 10px;
+  }
+  .day-section .scene-timeline-content small {
+    font-size: 10px;
+  }
+  .day-section .scene-timeline-content h5 {
+    font-size: 14px;
+    line-height: 1.35;
+  }
+  .day-section .scene-timeline-content p {
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .day-section .scene-source-toggle {
+    font-size: 11px;
+  }
+  .day-section .scene-source-detail {
+    font-size: 12px;
+  }
+  .day-section .scene-source-detail strong {
+    font-size: 12px;
+  }
+  .day-section .scene-source-detail small {
+    font-size: 10px;
+  }
+  .day-section .scene-memory-expanded .scene-timeline-item {
+    padding-bottom: 7px;
+  }
+}
+
+@media (min-width: 480px) and (max-width: 999px) and (min-height: 700px) {
+  /* The expanded source replaces the surrounding sample records. */
+  .day-section .scene-memory-expanded .scene-timeline-item:not(:first-child) {
+    display: none;
+  }
+  .day-section .scene-memory-expanded .scene-timeline-item:before {
+    display: none;
+  }
+  .day-section .scene-memory-expanded .scene-source-detail small {
+    display: none;
+  }
+  .day-section .scene-memory-expanded .scene-source-detail {
+    line-height: 1.6;
+  }
+}

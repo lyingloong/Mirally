@@ -7,7 +7,6 @@ import {
   Moon,
   Menu,
   X,
-  Play,
   Check,
   Layers3,
   Clock3,
@@ -19,10 +18,8 @@ import {
   Command,
   Search,
   Plus,
-  ChevronDown,
   Monitor,
   Circle,
-  Link2,
 } from "lucide-react";
 import DayExperience from "./DayExperience.jsx";
 
@@ -96,7 +93,7 @@ function Header() {
       },
       { rootMargin: "-20% 0px -55% 0px" },
     );
-    ["a-day", "already-here", "vision"].forEach((id) => {
+    ["top", "a-day", "already-here", "vision", "opportunity"].forEach((id) => {
       const el = document.getElementById(id);
       if (el) observer.observe(el);
     });
@@ -128,8 +125,9 @@ function Header() {
         >
           {[
             ["a-day", "与它的一天"],
-            ["already-here", "已在发生"],
+            ["already-here", "当前能力"],
             ["vision", "我们的愿景"],
+            ["opportunity", "商业路径"],
           ].map(([id, title]) => (
             <a
               href={`#${id}`}
@@ -155,6 +153,25 @@ function Header() {
         </button>
       </div>
       <div className="reading-progress" ref={progress} />
+      <nav className="chapter-nav" aria-label="章节导航">
+        {[
+          ["top", "认识 Mirally"],
+          ["a-day", "与它的一天"],
+          ["already-here", "当前能力"],
+          ["vision", "我们的愿景"],
+          ["opportunity", "商业路径"],
+        ].map(([id, label], index) => (
+          <a
+            key={id}
+            href={`#${id}`}
+            aria-label={`${index + 1}. ${label}`}
+            aria-current={active === id ? "location" : undefined}
+          >
+            <span>{label}</span>
+            <i />
+          </a>
+        ))}
+      </nav>
     </header>
   );
 }
@@ -163,7 +180,8 @@ function Hero() {
   const [night, setNight] = useState(false);
   return (
     <section
-      className={`hero ${night ? "hero-at-night" : ""}`}
+      className={`hero chapter ${night ? "hero-at-night" : ""}`}
+      id="top"
       aria-labelledby="hero-title"
     >
       <div className="hero-halo" aria-hidden="true" />
@@ -177,22 +195,21 @@ function Hero() {
             <br />
             <span>生活里相伴。</span>
           </h1>
-          <p className="hero-lede">从一个任务，到你的每一天。</p>
+          <p className="hero-lede">Mirally，你的 Everyday Ally。</p>
           <p className="hero-description">
-            我们正在打造一位理解当下、记得过往、
-            <br className="desktop-break" />
-            能够付诸行动的 AI 伙伴。你向前，它在身边。
+            Ally，就是伙伴。我们想让 Mirally 陪你完成手头的工作，
+            也陪你找回一个想法，或聊聊正在看的剧。
           </p>
           <div className="hero-actions">
             <a className="button button-dark" href="#a-day">
               体验与 Mirally 的一天 <ArrowUpRight size={19} />
             </a>
             <a className="text-link" href="#vision">
-              看见未来 <ArrowRight size={17} />
+              我们的愿景 <ArrowRight size={17} />
             </a>
           </div>
           <div className="hero-footnote">
-            <span className="mini-line" /> 始于桌面，走向生活的更多可能。
+            <span className="mini-line" /> 从 Windows 桌面开始。
           </div>
         </div>
         <div className="hero-art">
@@ -242,18 +259,18 @@ function Hero() {
             <div className="hero-question">
               {night
                 ? "这个角色是谁？我好像见过他。"
-                : "把刚才的灵感，整理成一个计划吧。"}
+                : "把刚才讨论的事整理一下，列出下一步。"}
             </div>
             <div className="hero-answer">
               {night
                 ? "一起看看他的故事。放心，只聊到你看过的那一集。"
-                : "好，我们从最想实现的那件事开始。"}
+                : "摘要和待办清单整理好了。时间安排还需要你确认。"}
               <span className="answer-spark">
                 <Sparkles size={15} />
               </span>
             </div>
             <a href="#a-day" className="hero-conversation-link">
-              试试这份默契 <ArrowRight size={14} />
+              打开场景演示 <ArrowRight size={14} />
             </a>
           </div>
           <div className="hero-switch" aria-label="切换首屏场景">
@@ -276,51 +293,10 @@ function Hero() {
         </div>
       </div>
       <div className="container hero-bottom">
-        <a href="#meaning">
-          <ArrowDown size={16} /> 往下，看看生活的另一种可能
+        <a href="#a-day">
+          <ArrowDown size={16} /> 接下来，看看它怎么参与一天
         </a>
         <span>01 — MEET YOUR ALLY</span>
-      </div>
-    </section>
-  );
-}
-
-function Meaning() {
-  return (
-    <section
-      className="meaning container"
-      id="meaning"
-      aria-labelledby="meaning-title"
-    >
-      <div className="meaning-word" data-reveal>
-        <span className="eyebrow">THE WORD BEHIND THE NAME</span>
-        <div>
-          ally<span> /ˈælaɪ/</span>
-        </div>
-        <p>伙伴 · 同伴 · 与你站在一起的人</p>
-      </div>
-      <div className="meaning-copy" data-reveal>
-        <h2 id="meaning-title">
-          生活有很多面。
-          <br />
-          你可以有<span>同一个伙伴。</span>
-        </h2>
-        <p>
-          在 Mirally 的名字里，Ally 就意味着伙伴。
-          <br />
-          我们希望这份默契，陪你从认真工作的时刻，走到自在生活的每一刻。
-        </p>
-      </div>
-      <div className="meaning-bottom">
-        <span>
-          <Circle size={10} /> 理解此刻的情境
-        </span>
-        <span>
-          <Link2 size={15} /> 接得上过往的思路
-        </span>
-        <span>
-          <ArrowUpRight size={16} /> 把想法变成行动
-        </span>
       </div>
     </section>
   );
@@ -353,12 +329,12 @@ function ProductIllustration() {
           <Plus size={16} />
         </aside>
         <div className="product-document">
-          <span className="document-breadcrumb">项目 / 下一次出发</span>
+          <span className="document-breadcrumb">项目 / 周末咖啡市集</span>
           <span className="document-icon">
             <FileText size={22} />
           </span>
-          <h4>好想法，开始落地。</h4>
-          <p>下一阶段 · 行动计划</p>
+          <h4>周末活动安排</h4>
+          <p>周六 14:00 · 河边广场</p>
           <div className="document-rule" />
           <span className="document-task">
             <Check size={13} /> 整理讨论与关键结论
@@ -367,7 +343,7 @@ function ProductIllustration() {
             <Check size={13} /> 对齐优先级与负责人
           </span>
           <span className="document-task pending">
-            <Circle size={12} /> 把下一步，交给行动
+            <Circle size={12} /> 确认场地与人员安排
           </span>
           <div className="document-lines">
             <i />
@@ -382,7 +358,7 @@ function ProductIllustration() {
         </div>
         <div className="product-companion">
           <img src="./mirally.png" width="40" height="40" alt="" />
-          <strong>一起，把事情向前推。</strong>
+          <strong>活动计划已更新。</strong>
           <p>
             随时补充想法。
             <br />
@@ -409,20 +385,20 @@ function ProductIllustration() {
 const capabilities = [
   {
     icon: PanelRight,
-    title: "随手就能找到的伙伴",
-    text: "停在屏幕边缘，展开就能继续聊。会话、草稿和附件，与完整工作台自然衔接。",
+    title: "随时展开，继续对话",
+    text: "从屏幕边缘展开侧边伙伴，会话、草稿和附件与完整工作台同步。",
     tag: "侧边伙伴",
   },
   {
     icon: MousePointer2,
-    title: "从想法，走到交付",
-    text: "在任务中补充要求，查看工具进展，接收文件成果；也能接入 Windows 桌面执行能力。",
+    title: "交付文件，也能执行任务",
+    text: "中途补充要求，查看工具进展，拿到文件成果。需要时可接入 Windows 桌面执行能力。",
     tag: "任务协作",
   },
   {
     icon: Layers3,
-    title: "让经历，成为用得上的记忆",
-    text: "查找活动历史，把片段整理为持久摘要。需要时，找回相关线索与上下文。",
+    title: "找回看过和做过的事",
+    text: "活动记录会整理为持久摘要。想继续之前的事，可以从历史与记忆中查找相关线索。",
     tag: "活动与记忆",
   },
 ];
@@ -430,7 +406,7 @@ const capabilities = [
 function Foundations() {
   return (
     <section
-      className="foundations"
+      className="foundations chapter"
       id="already-here"
       aria-labelledby="foundations-title"
     >
@@ -438,18 +414,14 @@ function Foundations() {
         <div className="section-heading" data-reveal>
           <div>
             <div className="eyebrow">
-              <span className="status-dot" /> ALREADY TAKING SHAPE
+              <span className="status-dot" /> 03 / BUILT SO FAR
             </div>
-            <h2 id="foundations-title">
-              未来的伙伴，
-              <br />
-              已经迈出第一步。
-            </h2>
+            <h2 id="foundations-title">从桌面开始，已经能做这些。</h2>
           </div>
           <p>
-            从桌面出发，让对话、行动与记忆相连。
+            前面的场景有了怎样的基础？
             <br />
-            这些，正在成为 Mirally 的日常。
+            当前版本已支持对话协作、文件产出和活动记忆。
           </p>
         </div>
         <div className="foundation-grid">
@@ -484,9 +456,9 @@ function Foundations() {
         <div className="trust-note">
           <ShieldCheck size={20} />
           <p>
-            <strong>好的陪伴，也懂得分寸。</strong>
+            <strong>采集与操作，由你掌握。</strong>
             <span>
-              采集范围可以管理，原始记录在整理后按策略清理。重要操作保留你的决定权。
+              采集范围可管理，原始记录在整理成功后按策略清理。重要操作由你确认。
             </span>
           </p>
           <span className="trust-end">YOUR LIFE. YOUR CHOICE.</span>
@@ -501,31 +473,35 @@ const roadmap = [
     step: "01",
     phase: "此刻",
     status: "正在构建",
-    title: "一位桌面伙伴",
-    text: "让对话、活动记忆和任务执行形成协作，先在每天的实际工作中帮上忙。",
+    title: "做好桌面上的事",
+    text: "把对话、活动记忆和任务执行用顺，先在实际工作中帮上忙。",
     tags: ["侧边协作", "活动记忆", "工具与文件"],
   },
   {
     step: "02",
     phase: "下一步",
     status: "体验演进",
-    title: "一份跨场景默契",
-    text: "把画面、声音与长期上下文连接起来，从工作延伸到学习和娱乐。",
+    title: "看懂更多场景",
+    text: "探索画面理解和连续语音交流，从工作延伸到学习与娱乐。",
     tags: ["多模态交互", "场景理解", "连续协作"],
   },
   {
     step: "03",
     phase: "更远处",
     status: "长期愿景",
-    title: "属于你的个人 AI",
-    text: "跨越设备，理解长期目标，在你允许的范围内连接服务、主动提供帮助。",
+    title: "跨设备的个人 AI",
+    text: "在你的授权下记住长期目标，连接所需服务，主动帮忙。",
     tags: ["跨设备陪伴", "长期目标", "服务生态"],
   },
 ];
 
 function Vision() {
   return (
-    <section className="vision" id="vision" aria-labelledby="vision-title">
+    <section
+      className="vision chapter"
+      id="vision"
+      aria-labelledby="vision-title"
+    >
       <div className="vision-opening">
         <div className="vision-image">
           <img
@@ -538,23 +514,16 @@ function Vision() {
         </div>
         <div className="vision-shade" />
         <div className="container vision-manifesto" data-reveal>
-          <span className="eyebrow">OUR NORTH STAR</span>
+          <span className="eyebrow">04 / OUR NORTH STAR · 长期愿景</span>
           <h2 id="vision-title">
-            让智能，
+            每个人，都有
             <br />
-            跟得上生活。
+            自己的 AI 伙伴。
           </h2>
           <p>
-            一个人的生活是连续的。
-            <br />
-            上午未完成的思考，下午偶然出现的灵感，
-            <br />
-            晚上随口问出的好奇，都属于同一个人。
-          </p>
-          <p>
-            我们希望 Mirally 理解这份连续。
-            <br />
-            随着相处，更懂得怎样帮上你的忙。
+            我们想让它知道你正在做什么，也记得你为什么开始。
+            换一台设备、进入一个新场景，你们可以接着聊、接着做。 向 Mirally
+            求助，能像问身边的朋友一样自然。
           </p>
           <span className="vision-signature">
             A life in motion. An ally alongside.
@@ -569,7 +538,7 @@ function Vision() {
       <div className="vision-roadmap container">
         <div className="roadmap-intro">
           <span className="eyebrow">THE ROAD AHEAD</span>
-          <p>从一个任务，到你的每一天。</p>
+          <p>从今天的基础，走向全天候的陪伴。</p>
         </div>
         <div className="roadmap-grid">
           {roadmap.map((item) => (
@@ -582,11 +551,6 @@ function Vision() {
               <span className="roadmap-phase">{item.phase}</span>
               <h3>{item.title}</h3>
               <p>{item.text}</p>
-              <div className="roadmap-tags">
-                {item.tags.map((tag) => (
-                  <span key={tag}>{tag}</span>
-                ))}
-              </div>
             </article>
           ))}
         </div>
@@ -599,25 +563,25 @@ const businessPaths = [
   {
     number: "01",
     title: "个人订阅",
-    subtitle: "从每天帮得上忙开始",
+    subtitle: "为持续的帮助付费",
     content:
-      "围绕高频工作与生活场景，提供更完整的模型、记忆与执行能力。用持续可感知的帮助，验证长期付费价值。",
+      "围绕高频任务提供更完整的模型、记忆与执行能力，用实际节省的时间和交付质量验证订阅价值。",
     tags: "日常使用 · 持续价值",
   },
   {
     number: "02",
     title: "专业与团队",
-    subtitle: "把默契带进更复杂的工作",
+    subtitle: "把个人效率带进协作",
     content:
-      "面向专业用户与团队，探索工作流程、共享知识与协作能力。让个人积累的经验，成为更高效协作的起点。",
+      "从个人工作延伸到共享资料、团队流程和专业任务，探索按席位或能力付费。",
     tags: "专业工作 · 团队协作",
   },
   {
     number: "03",
     title: "技能与服务生态",
-    subtitle: "让需要，连接到合适的服务",
+    subtitle: "从问一句，到办成一件事",
     content:
-      "当个人 AI 能理解具体情境，就有机会连接第三方技能和服务。围绕用户授权，探索从发现需求到完成行动的服务网络。",
+      "在用户授权下接入第三方技能和服务，探索服务分成等商业模式。具体情境里的需求，有机会直接带来交易。",
     tags: "开放能力 · 服务连接",
   },
 ];
@@ -625,94 +589,67 @@ const businessPaths = [
 function Opportunity() {
   return (
     <section
-      className="opportunity container"
+      className="opportunity chapter"
+      id="opportunity"
       aria-labelledby="opportunity-title"
     >
-      <div className="opportunity-copy" data-reveal>
-        <span className="eyebrow">A BIGGER POSSIBILITY</span>
-        <h2 id="opportunity-title">
-          成为个人 AI 的<br />
-          <span>日常入口。</span>
-        </h2>
-        <p>
-          更广的场景，带来更多相处的时刻。
-          <br />
-          持续的上下文，让每一次帮助更有意义。
-          <br />
-          真正的行动，让价值落在生活里。
-        </p>
-        <div className="growth-loop">
-          <span>日常使用</span>
-          <ArrowRight size={16} />
-          <span>持续理解</span>
-          <ArrowRight size={16} />
-          <span>长期价值</span>
+      <div className="container opportunity-grid">
+        <div className="opportunity-copy" data-reveal>
+          <span className="eyebrow">05 / THE BUSINESS AHEAD</span>
+          <h2 id="opportunity-title">
+            成为人们每天
+            <br />
+            <span>都会打开的 AI。</span>
+          </h2>
+          <p>
+            我们的判断是：能接着昨天的事继续帮忙，用户就有理由明天再打开它。
+            先验证日常使用，再发展订阅、专业协作与服务连接。
+          </p>
+          <div className="growth-loop">
+            <span>日常使用</span>
+            <ArrowRight size={16} />
+            <span>愿意留下</span>
+            <ArrowRight size={16} />
+            <span>持续付费</span>
+          </div>
+          <span className="opportunity-caption">
+            商业路径展望 · 随产品验证逐步推进
+          </span>
         </div>
-        <span className="opportunity-caption">
-          商业路径展望 · 随产品验证逐步推进
-        </span>
+        <div className="business-paths">
+          {businessPaths.map((item, index) => (
+            <details
+              className="business-path"
+              key={item.number}
+              open={index === 0 ? true : undefined}
+              name="business-paths"
+            >
+              <summary>
+                <span className="path-number">{item.number}</span>
+                <span>
+                  <strong>{item.title}</strong>
+                  <small>{item.subtitle}</small>
+                </span>
+                <Plus className="path-plus" size={20} />
+              </summary>
+              <div className="path-content">
+                <p>{item.content}</p>
+                <span>{item.tags}</span>
+              </div>
+            </details>
+          ))}
+        </div>
       </div>
-      <div className="business-paths">
-        {businessPaths.map((item, index) => (
-          <details
-            className="business-path"
-            key={item.number}
-            open={index === 0 ? true : undefined}
-            name="business-paths"
-          >
-            <summary>
-              <span className="path-number">{item.number}</span>
-              <span>
-                <strong>{item.title}</strong>
-                <small>{item.subtitle}</small>
-              </span>
-              <Plus className="path-plus" size={20} />
-            </summary>
-            <div className="path-content">
-              <p>{item.content}</p>
-              <span>{item.tags}</span>
-            </div>
-          </details>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function Closing() {
-  return (
-    <section className="closing" aria-labelledby="closing-title">
-      <div className="closing-glow" aria-hidden="true" />
-      <div className="container closing-inner" data-reveal>
-        <img
-          className="closing-mark"
-          src="./mirally-large.png"
-          width="96"
-          height="96"
-          alt="Mirally 相伴 M 标识"
-          loading="lazy"
-        />
-        <span className="eyebrow">YOUR EVERYDAY ALLY</span>
-        <h2 id="closing-title">
-          你的每一天，
-          <br />
-          值得一个好伙伴。
-        </h2>
+      <div className="container closing-strip">
         <p>
-          我们期待的未来，是每个人都有一份长期相伴的智能。
-          <br />
-          这段旅程，从今天开始。
+          <strong>Mirally · Your Everyday Ally</strong>
+          <span>先成为每天帮得上忙的伙伴。</span>
         </p>
-        <a className="button button-dark" href="#a-day">
-          和 Mirally，开始一天 <ArrowUpRight size={19} />
-        </a>
-        <a className="back-to-top" href="#top">
-          回到故事起点 <ArrowUpRight size={14} />
+        <a className="text-link" href="#a-day">
+          再体验一次 <ArrowUpRight size={17} />
         </a>
       </div>
-      <div className="closing-wordmark" aria-hidden="true">
-        mirally
-      </div>
+      <Footer />
     </section>
   );
 }
@@ -769,7 +706,7 @@ function Footer() {
           <X size={20} />
         </button>
         <span className="eyebrow">ABOUT THIS SHOWCASE</span>
-        <h2 id="credits-title">一份关于未来的邀请。</h2>
+        <h2 id="credits-title">关于这份展示</h2>
         <p>
           这是 Mirally
           的产品与愿景展示。场景交互使用预设演示资料，未来体验不代表当前全部可用能力；不会访问你的活动记录、桌面或模型服务。
@@ -802,18 +739,14 @@ export default function App() {
       <a className="skip-link" href="#main">
         跳到主要内容
       </a>
-      <div id="top" />
       <Header />
       <main id="main">
         <Hero />
-        <Meaning />
         <DayExperience />
         <Foundations />
         <Vision />
         <Opportunity />
-        <Closing />
       </main>
-      <Footer />
     </>
   );
 }
