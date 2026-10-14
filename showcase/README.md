@@ -15,6 +15,18 @@ npm run dev
 
 ## 构建与展示
 
+需要发给别人、在另一台电脑上直接双击打开时，导出单文件离线版：
+
+```powershell
+npm run export:html
+```
+
+输出为 `exports/Mirally.html`。只需复制这一个文件，用 Edge、Chrome、Firefox 或 Safari 等现代浏览器打开；无需安装 Node.js、启动服务或连接网络。图片、字体、样式和脚本均已内嵌，保留场景切换、预设问答、来源展开和摘要下载。“关于这份展示”中可下载随文件内嵌的素材说明与完整许可。
+
+源码或图片修改后重新运行导出命令。`exports/` 是可再生成的交付产物，不纳入 Git。
+
+需要部署网站时，仍使用常规构建：
+
 ```powershell
 npm run build
 npm run preview
