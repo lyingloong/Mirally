@@ -26,9 +26,6 @@ html {
 .hero-copy {
   padding-bottom: 0;
 }
-.hero-footnote {
-  margin-top: 26px;
-}
 .hero .hero-art-caption {
   display: none;
 }
@@ -47,9 +44,6 @@ html {
 .trust-note {
   padding: 22px 0 0;
   margin-top: 30px;
-}
-.trust-end {
-  display: none;
 }
 .vision {
   display: flex;
@@ -70,9 +64,6 @@ html {
   font-size: 14px;
   line-height: 2;
 }
-.vision-signature {
-  margin-top: 20px;
-}
 .vision-orbit {
   left: 77%;
   width: 250px;
@@ -80,10 +71,6 @@ html {
 }
 .vision-roadmap {
   padding: 20px 0 40px;
-}
-.roadmap-intro {
-  margin-bottom: 20px;
-  padding-bottom: 16px;
 }
 .roadmap-phase {
   margin-top: 15px;
@@ -118,9 +105,6 @@ html {
 .business-paths {
   padding: 0;
 }
-.business-path > summary {
-  padding: 22px 0;
-}
 .closing-strip {
   display: flex;
   justify-content: space-between;
@@ -154,6 +138,270 @@ html {
   gap: 28px;
 }
 
+/* Functional sections use large labels, simple visuals and one supporting line. */
+.feature-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #bdd3cc;
+  border-radius: 30px;
+  padding: 8px 14px;
+  font-size: 14px;
+  color: #426a64;
+}
+.foundations .section-heading {
+  align-items: center;
+  margin-bottom: 34px;
+}
+.foundations h2,
+.opportunity h2 {
+  font-size: clamp(34px, 3.8vw, 52px);
+  font-weight: 500;
+  letter-spacing: -1.5px;
+}
+.capability-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
+}
+.capability-card {
+  background: #ffffffa8;
+  border: 1px solid #dae6e0;
+  border-radius: 16px;
+  padding: 22px;
+}
+.capability-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 24px 0 12px;
+  font-size: 26px;
+  font-weight: 500;
+}
+.capability-card h3 svg {
+  color: #39869a;
+}
+.capability-card > p {
+  font-size: 15px;
+  line-height: 1.8;
+  color: #526f74;
+}
+.capability-visual {
+  height: clamp(150px, 21svh, 230px);
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #e5f1e9, #eaf4f4);
+  padding: 20px;
+  color: #307686;
+}
+.mini-conversation {
+  width: 100%;
+  max-width: 255px;
+  font-size: 14px;
+}
+.mini-user {
+  width: max-content;
+  margin: 0 0 18px auto;
+  border-radius: 12px 12px 2px 12px;
+  background: #fff;
+  padding: 10px 13px;
+  box-shadow: 0 5px 20px #24494e08;
+}
+.mini-ally {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mini-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 16px;
+  border: 1px solid #cddfda;
+  border-radius: 12px;
+  background: #ffffffc9;
+  font-size: 15px;
+  box-shadow: 0 12px 24px #24494e09;
+}
+.mini-file > svg:last-child {
+  color: #509683;
+}
+.mini-memory {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  padding: 18px 0;
+}
+.trust-note {
+  color: #3c7064;
+}
+.trust-note strong {
+  font-size: 15px;
+}
+.trust-note p > span {
+  font-size: 13px;
+  color: #617c76;
+}
+.hero .hero-question,
+.hero .hero-answer {
+  font-size: 14px;
+}
+.hero .demo-label {
+  font-size: 11px;
+}
+.hero .hero-bottom a {
+  font-size: 13px;
+}
+.hero .hero-description {
+  font-size: 16px;
+}
+.vision .eyebrow {
+  font-size: 15px;
+  letter-spacing: 1px;
+}
+.vision-manifesto p {
+  font-size: 17px;
+  max-width: 470px;
+  line-height: 1.9;
+}
+.vision-roadmap {
+  border-top: 1px solid #ffffff26;
+}
+.roadmap-phase {
+  font-size: 14px;
+  margin: 0 0 14px;
+}
+.roadmap-item h3 {
+  font-size: 26px;
+}
+.roadmap-item > p {
+  font-size: 15px;
+  color: #b3cbd1;
+}
+.business-option {
+  padding: 30px 0;
+  border-bottom: 1px solid #d6e2de;
+}
+.business-option:first-child {
+  border-top: 1px solid #d6e2de;
+}
+.business-option h3 {
+  font-size: 26px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+.business-option p {
+  font-size: 16px;
+  line-height: 1.8;
+  color: #526f74;
+}
+.opportunity-copy > p {
+  font-size: 17px;
+  color: #526f74;
+}
+.opportunity .closing-strip {
+  padding-block: 24px;
+}
+.opportunity .footer-inner {
+  padding-bottom: 22px;
+}
+
+@media (max-width: 1100px) {
+  .capability-card {
+    padding: 17px;
+  }
+  .capability-card h3 {
+    font-size: 24px;
+  }
+  .capability-visual {
+    padding: 12px;
+  }
+  .mini-file {
+    padding: 16px 11px;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .mini-memory {
+    gap: 8px;
+    font-size: 13px;
+  }
+}
+@media (max-width: 700px) {
+  .foundations .section-heading {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .foundations h2 {
+    font-size: 32px;
+  }
+  .feature-status {
+    font-size: 12px;
+    padding: 7px 10px;
+  }
+  .capability-cards {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .capability-card {
+    padding: 19px 22px;
+  }
+  .capability-card h3 {
+    margin: 0 0 8px;
+    font-size: 23px;
+  }
+  .capability-card > p {
+    font-size: 14px;
+  }
+  .capability-visual {
+    display: none;
+  }
+  .foundations .trust-note p {
+    display: block;
+  }
+  .foundations .trust-note strong {
+    font-size: 13px;
+  }
+  .foundations .trust-note p > span {
+    font-size: 12px;
+  }
+  .hero .hero-description {
+    font-size: 14px;
+  }
+  .hero .hero-question,
+  .hero .hero-answer {
+    font-size: 12px;
+  }
+  .vision-manifesto p {
+    font-size: 15px;
+  }
+  .vision .roadmap-item h3 {
+    font-size: 22px;
+  }
+  .vision .roadmap-item > p {
+    font-size: 13px;
+  }
+  .vision .roadmap-phase {
+    margin-top: 3px;
+    font-size: 13px;
+  }
+  .business-option {
+    padding: 20px 0;
+  }
+  .business-option h3 {
+    font-size: 23px;
+    margin-bottom: 8px;
+  }
+  .business-option p {
+    font-size: 14px;
+  }
+  .opportunity-copy > p {
+    font-size: 15px;
+  }
+}
+
 @media (min-width: 480px) and (min-height: 700px) {
   html {
     scroll-snap-type: y mandatory;
@@ -182,9 +430,6 @@ html {
   .hero-switch {
     bottom: 65px;
   }
-  .hero-time {
-    bottom: 235px;
-  }
   .hero-bottom {
     padding: 22px 0;
   }
@@ -198,22 +443,6 @@ html {
   }
   .section-heading .eyebrow {
     margin-bottom: 12px;
-  }
-  .capability {
-    padding: 17px 0;
-  }
-  .capability h3 {
-    margin-bottom: 7px;
-  }
-  .capability-tag {
-    margin-bottom: 7px;
-  }
-  .foundation-visual {
-    padding: 18px;
-  }
-  .product-illustration {
-    margin-top: 18px;
-    margin-bottom: 18px;
   }
   .trust-note {
     margin-top: 24px;
@@ -248,58 +477,18 @@ html {
   .hero-actions {
     margin-top: 22px;
   }
-  .hero-footnote {
-    margin-top: 23px;
-  }
   .hero-art {
     height: 500px;
     max-height: 70svh;
   }
-  .product-body {
-    min-height: 250px;
-  }
-  .foundation-visual {
-    padding: 14px;
-  }
-  .foundation-visual .pill {
-    padding: 6px 10px;
-  }
-  .product-illustration {
-    margin-top: 12px;
-    margin-bottom: 12px;
-  }
-  .product-companion > p,
-  .product-document .document-icon {
-    display: none;
-  }
-  .product-document {
-    padding: 18px;
-  }
-  .product-companion {
-    padding-top: 18px;
-    padding-bottom: 16px;
-  }
-  .document-lines {
-    display: none;
-  }
   .vision h2 {
     font-size: 43px;
-  }
-  .vision-signature {
-    display: none;
-  }
-  .roadmap-intro {
-    margin-bottom: 15px;
-    padding-bottom: 12px;
   }
   .roadmap-item h3 {
     font-size: 21px;
   }
   .roadmap-item > p {
     font-size: 12px;
-  }
-  .roadmap-step > span {
-    font-size: 23px;
   }
   .opportunity h2 {
     font-size: 41px;
@@ -365,33 +554,6 @@ html {
   .section-heading > p br {
     display: none;
   }
-  .foundation-grid {
-    grid-template-columns: 1fr;
-    gap: 26px;
-  }
-  .foundation-visual {
-    max-width: 580px;
-    width: 100%;
-    margin: auto;
-  }
-  .capability-list {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
-  }
-  .capability,
-  .capability:first-child,
-  .capability:last-child {
-    padding: 0;
-    border: 0;
-  }
-  .capability-number {
-    display: none;
-  }
-  .capability h3 {
-    font-size: 17px;
-    line-height: 1.6;
-  }
   .vision-orbit {
     width: 180px;
     height: 180px;
@@ -414,17 +576,6 @@ html {
   }
 }
 @media (min-width: 701px) and (max-width: 999px) and (min-height: 700px) {
-  .foundation-visual {
-    display: none;
-  }
-  .capability-list {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-  }
-  .capability p {
-    max-width: none;
-  }
   .vision-manifesto p {
     max-width: 70%;
   }
@@ -445,17 +596,11 @@ html {
   .hero-grid {
     gap: 28px;
   }
-  .hero-footnote {
-    display: none;
-  }
   .hero-art {
     margin-left: 0;
   }
   .hero-image-wrap {
     border-radius: 60px 12px 12px 12px;
-  }
-  .hero-art-caption {
-    display: none;
   }
   .hero-bottom > span {
     display: none;
@@ -467,25 +612,6 @@ html {
     font-size: 29px;
     line-height: 1.45;
     letter-spacing: -1px;
-  }
-  .foundation-visual {
-    display: none;
-  }
-  .capability-list {
-    display: flex;
-    flex-direction: column;
-    gap: 22px;
-  }
-  .capability h3 {
-    font-size: 18px;
-    margin-bottom: 5px;
-  }
-  .capability p {
-    max-width: none;
-    line-height: 1.85;
-  }
-  .capability-tag {
-    margin-bottom: 5px;
   }
   .trust-note {
     align-items: flex-start;
@@ -500,8 +626,7 @@ html {
   .vision-manifesto p {
     max-width: 100%;
   }
-  .vision-orbit,
-  .vision-signature {
+  .vision-orbit {
     display: none;
   }
   .vision-manifesto {
@@ -509,12 +634,6 @@ html {
   }
   .vision-roadmap {
     padding: 0 0 35px;
-  }
-  .roadmap-intro {
-    margin-bottom: 18px;
-  }
-  .roadmap-intro p {
-    display: none;
   }
   .roadmap-grid {
     display: flex;
@@ -525,9 +644,6 @@ html {
     display: grid;
     grid-template-columns: 64px 1fr;
     column-gap: 14px;
-  }
-  .roadmap-step {
-    display: none;
   }
   .roadmap-phase {
     grid-row: 1 / 3;
@@ -555,24 +671,6 @@ html {
   .opportunity-copy > p {
     max-width: none;
     line-height: 1.9;
-  }
-  .growth-loop {
-    margin: 18px 0 12px;
-  }
-  .business-path > summary {
-    padding: 16px 0;
-  }
-  .business-path > summary strong {
-    font-size: 17px;
-  }
-  .business-path > summary small {
-    margin-top: 6px;
-  }
-  .path-content {
-    padding: 0 0 16px 29px;
-  }
-  .path-content > span {
-    display: none;
   }
   .closing-strip {
     padding: 20px 0;
@@ -630,10 +728,6 @@ html {
   }
   .hero-image-wrap {
     height: 100%;
-  }
-  .hero-time,
-  .hero-vertical-note {
-    display: none;
   }
   .hero-conversation {
     left: 16px;
@@ -694,20 +788,6 @@ html {
   }
   .opportunity-copy > p {
     font-size: 12px;
-  }
-  .growth-loop {
-    display: none;
-  }
-  .opportunity-caption {
-    display: block;
-    margin-top: 10px;
-  }
-  .business-path > summary {
-    padding: 12px 0;
-  }
-  .path-content p {
-    font-size: 12px;
-    line-height: 1.8;
   }
   .closing-strip {
     padding: 15px 0;

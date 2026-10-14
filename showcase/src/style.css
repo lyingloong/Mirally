@@ -314,20 +314,6 @@ summary:focus-visible {
   gap: 26px;
   margin-top: 32px;
 }
-.hero-footnote {
-  margin-top: 54px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 10px;
-  letter-spacing: 1px;
-  color: #839398;
-}
-.mini-line {
-  width: 25px;
-  height: 1px;
-  background: #a9c3c7;
-}
 .hero-art {
   position: relative;
   height: 580px;
@@ -368,50 +354,6 @@ summary:focus-visible {
 }
 .hero-at-night .hero-photo-shade {
   background: linear-gradient(180deg, #101d3a20, #162d5240 60%, #0d1c35bb);
-}
-.hero-scene-label {
-  position: absolute;
-  top: 27px;
-  right: 24px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #fff;
-  font-size: 8px;
-  letter-spacing: 1.8px;
-  text-shadow: 0 1px 5px #122d36;
-}
-.scene-label-dot {
-  background: #cde8df;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-}
-.hero-vertical-note {
-  position: absolute;
-  right: 20px;
-  top: 160px;
-  writing-mode: vertical-rl;
-  color: #fff9;
-  font-size: 8px;
-  letter-spacing: 2.5px;
-}
-.hero-time {
-  position: absolute;
-  left: 31px;
-  bottom: 140px;
-  font-size: 51px;
-  letter-spacing: -2px;
-  line-height: 1;
-  color: #fff;
-  font-weight: 400;
-}
-.hero-time > span {
-  display: block;
-  font-size: 11px;
-  letter-spacing: 2px;
-  margin-top: 11px;
-  color: #ffffffe5;
 }
 .hero-conversation {
   position: absolute;
@@ -515,14 +457,6 @@ summary:focus-visible {
   background: #214d55;
   color: #fff;
 }
-.hero-art-caption {
-  position: absolute;
-  right: 0;
-  bottom: 11px;
-  font-size: 8px;
-  letter-spacing: 1.9px;
-  color: #81999d;
-}
 .hero-bottom {
   padding: 31px 0 26px;
   display: flex;
@@ -579,282 +513,6 @@ summary:focus-visible {
   padding-bottom: 5px;
   margin-right: 12px;
 }
-.foundation-grid {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 57px;
-  align-items: center;
-}
-.foundation-visual {
-  position: relative;
-  border: 1px solid #d8e4df;
-  border-radius: 13px;
-  background: linear-gradient(145deg, #e2ece5, #e1eeef);
-  padding: 25px 25px 20px;
-  overflow: hidden;
-}
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 10px;
-  border-radius: 20px;
-  padding: 8px 12px;
-}
-.pill-light {
-  background: #ffffff9e;
-  border: 1px solid #fff9;
-  color: #54716e;
-}
-.product-illustration {
-  margin: 25px -53px 26px 12px;
-  background: #fff;
-  border: 1px solid #d1dfdd;
-  border-radius: 8px;
-  box-shadow: 0 15px 30px #416d6520;
-  position: relative;
-  transform: perspective(1600px) rotateY(-6deg) rotateX(3deg);
-  transform-origin: left center;
-}
-.product-topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #e9efee;
-  height: 31px;
-  padding: 0 13px;
-  color: #8ba09f;
-  font-size: 8px;
-}
-.window-dots {
-  display: flex;
-  gap: 4px;
-}
-.window-dots i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #d6e0df;
-}
-.product-body {
-  display: flex;
-  min-height: 312px;
-}
-.product-sidebar {
-  width: 42px;
-  background: #f5f8f7;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  padding: 17px 0;
-  color: #859c9c;
-  flex-shrink: 0;
-}
-.product-sidebar > div {
-  flex: 1;
-}
-.product-sidebar .selected {
-  background: #e4f0ee;
-  padding: 7px;
-  border-radius: 4px;
-  color: #368f94;
-  line-height: 0;
-}
-.product-document {
-  padding: 23px 24px;
-  flex: 1;
-  min-width: 0;
-}
-.document-breadcrumb {
-  display: block;
-  font-size: 7px;
-  letter-spacing: 0.7px;
-  color: #9aabaa;
-  margin-bottom: 18px;
-}
-.document-icon {
-  display: flex;
-  color: #97b8ac;
-  margin-bottom: 8px;
-}
-.product-document h4 {
-  font-size: 15px;
-  letter-spacing: -0.5px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-.product-document > p {
-  font-size: 8px;
-  color: #8ca19e;
-  margin-top: 7px;
-}
-.document-rule {
-  height: 1px;
-  background: #edf1ef;
-  margin: 17px 0;
-}
-.document-task {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 8px;
-  color: #74938c;
-  margin: 11px 0;
-  white-space: nowrap;
-}
-.document-task.pending {
-  color: #a0aca8;
-}
-.document-lines {
-  margin-top: 20px;
-}
-.document-lines i {
-  display: block;
-  background: #eef2f0;
-  height: 4px;
-  border-radius: 3px;
-  margin: 7px 0;
-}
-.document-lines i:nth-child(2) {
-  width: 90%;
-}
-.document-lines i:nth-child(3) {
-  width: 65%;
-}
-.document-tags {
-  display: flex;
-  gap: 5px;
-  margin-top: 18px;
-}
-.document-tags span {
-  font-size: 6px;
-  background: #f2f5f1;
-  padding: 4px 6px;
-  color: #93a69b;
-  border-radius: 2px;
-}
-.product-companion {
-  border-left: 1px solid #e4eae7;
-  width: 179px;
-  padding: 18px 16px;
-  background: #fbfdfc;
-  flex-shrink: 0;
-}
-.product-companion > img {
-  margin-bottom: 9px;
-}
-.product-companion > strong {
-  font-size: 9px;
-  font-weight: 500;
-  display: block;
-}
-.product-companion > p {
-  font-size: 8px;
-  color: #8b9f9d;
-  line-height: 1.8;
-  margin-top: 8px;
-}
-.product-message {
-  font-size: 8px;
-  line-height: 1.8;
-  background: #edf4f0;
-  padding: 9px;
-  margin-top: 18px;
-  border-radius: 6px;
-  color: #69877c;
-}
-.product-delivery {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid #dceae5;
-  border-radius: 5px;
-  margin-top: 12px;
-  padding: 9px;
-  color: #709a8d;
-  font-size: 8px;
-  background: #fff;
-}
-.product-delivery small {
-  display: block;
-  font-size: 6px;
-  color: #98aaa4;
-  margin-top: 4px;
-}
-.product-input {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 6px;
-  color: #a4b6b0;
-  border-top: 1px solid #eaf0ed;
-  padding-top: 12px;
-  margin-top: 15px;
-}
-.illustration-caption {
-  position: absolute;
-  right: 7px;
-  bottom: 5px;
-  color: #a4b6ae;
-  font-size: 6px;
-}
-.foundation-visual-bottom {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: #78968c;
-}
-.foundation-visual-bottom > span:first-child {
-  font-size: 9px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-.foundation-visual-bottom > span:last-child {
-  font-size: 7px;
-  letter-spacing: 1.2px;
-}
-.capability {
-  display: flex;
-  gap: 20px;
-  padding: 23px 0;
-  border-bottom: 1px solid #dbe5df;
-}
-.capability:first-child {
-  padding-top: 0;
-}
-.capability:last-child {
-  border-bottom: 0;
-  padding-bottom: 0;
-}
-.capability-number {
-  font-size: 10px;
-  font-family: Georgia, serif;
-  color: #8da7a2;
-  padding-top: 4px;
-}
-.capability-tag {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 9px;
-  letter-spacing: 0.6px;
-  color: #719c92;
-  margin-bottom: 9px;
-}
-.capability h3 {
-  font-size: 19px;
-  font-weight: 500;
-  letter-spacing: -0.4px;
-  margin-bottom: 10px;
-}
-.capability p {
-  font-size: 11px;
-  line-height: 1.95;
-  color: #748c88;
-  max-width: 330px;
-}
 .trust-note {
   display: flex;
   align-items: center;
@@ -877,11 +535,6 @@ summary:focus-visible {
 .trust-note p > span {
   font-size: 10px;
   color: #7d948a;
-}
-.trust-end {
-  margin-left: auto;
-  font-size: 7px;
-  letter-spacing: 1.4px;
 }
 .vision {
   background: #102f3b;
@@ -931,15 +584,6 @@ summary:focus-visible {
   line-height: 2.15;
   margin-top: 15px;
 }
-.vision-signature {
-  display: block;
-  font-family: Georgia, serif;
-  font-style: italic;
-  letter-spacing: 0.5px;
-  color: #7eabb7;
-  font-size: 15px;
-  margin-top: 30px;
-}
 .vision-orbit {
   position: absolute;
   left: 66%;
@@ -983,43 +627,10 @@ summary:focus-visible {
 .vision-roadmap {
   padding: 12px 0 70px;
 }
-.roadmap-intro {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 42px;
-  border-bottom: 1px solid #cbe6eb24;
-  padding-bottom: 22px;
-}
-.roadmap-intro > p {
-  font-size: 12px;
-  color: #8faeb5;
-}
 .roadmap-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 55px;
-}
-.roadmap-step {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.roadmap-step > span {
-  font-size: 28px;
-  font-family: Georgia, serif;
-  color: #6b98a5;
-}
-.roadmap-line {
-  height: 1px;
-  background: #54818d;
-  flex: 1;
-  opacity: 0.4;
-}
-.roadmap-step > small {
-  font-size: 8px;
-  color: #87a7b0;
-  letter-spacing: 1px;
 }
 .roadmap-phase {
   display: block;
@@ -1039,19 +650,6 @@ summary:focus-visible {
   line-height: 2;
   color: #8faeb5;
   max-width: 310px;
-}
-.roadmap-tags {
-  display: flex;
-  gap: 7px;
-  margin-top: 23px;
-  flex-wrap: wrap;
-}
-.roadmap-tags > span {
-  font-size: 8px;
-  color: #8cacb4;
-  padding: 5px 9px;
-  border: 1px solid #82b2c02b;
-  border-radius: 3px;
 }
 .opportunity {
   padding: 108px 0;
@@ -1077,79 +675,11 @@ summary:focus-visible {
   line-height: 2.2;
   color: #7b9095;
 }
-.growth-loop {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 30px 0 17px;
-  font-size: 10px;
-  color: #507a81;
-}
-.growth-loop svg {
-  color: #a0babd;
-}
-.opportunity-caption {
-  font-size: 8px;
-  color: #96a8aa;
-  letter-spacing: 0.5px;
-}
 .business-paths {
   padding-top: 15px;
 }
-.business-path {
-  border-top: 1px solid var(--line);
-}
-.business-path:last-child {
-  border-bottom: 1px solid var(--line);
-}
-.business-path > summary {
-  display: flex;
-  align-items: center;
-  gap: 23px;
-  list-style: none;
-  cursor: pointer;
-  padding: 27px 0;
-}
-.business-path > summary::-webkit-details-marker {
-  display: none;
-}
-.path-number {
-  font-size: 12px;
-  font-family: Georgia, serif;
-  color: #87a4a7;
-}
-.business-path > summary strong {
-  font-size: 18px;
-  font-weight: 500;
-}
-.business-path > summary small {
-  display: block;
-  font-size: 10px;
-  color: #8a9fa2;
-  margin-top: 8px;
-}
-.path-plus {
-  margin-left: auto;
-  color: #7e9fa3;
-  transition: transform 0.2s;
-}
 .business-path[open] .path-plus {
   transform: rotate(45deg);
-}
-.path-content {
-  padding: 0 38px 27px;
-}
-.path-content p {
-  font-size: 11px;
-  line-height: 2;
-  color: #768f94;
-}
-.path-content > span {
-  display: block;
-  font-size: 8px;
-  letter-spacing: 1px;
-  color: #3a8999;
-  margin-top: 17px;
 }
 .site-footer {
   background: #f6f8f7;
@@ -1302,30 +832,11 @@ summary:focus-visible {
     right: 9px;
     bottom: 100px;
   }
-  .hero-time {
-    bottom: 180px;
-    font-size: 43px;
-  }
   .hero-lede {
     font-size: 18px;
   }
-  .hero-footnote {
-    margin-top: 34px;
-    font-size: 9px;
-  }
   .hero-description {
     font-size: 12px;
-  }
-  .foundation-grid {
-    gap: 34px;
-    grid-template-columns: 1.1fr 1fr;
-  }
-  .product-companion {
-    width: 155px;
-    padding: 17px 10px;
-  }
-  .product-document {
-    padding: 22px 17px;
   }
   .trust-note p {
     display: block;
@@ -1339,9 +850,6 @@ summary:focus-visible {
   }
   .opportunity {
     gap: 50px;
-  }
-  .hero-art-caption {
-    font-size: 7px;
   }
   .main-nav {
     gap: 25px;
@@ -1379,9 +887,6 @@ summary:focus-visible {
     bottom: 206px;
     right: 10px;
   }
-  .hero-time {
-    bottom: 200px;
-  }
   .hero-actions {
     align-items: flex-start;
     gap: 5px;
@@ -1390,9 +895,6 @@ summary:focus-visible {
   }
   .hero-actions .text-link {
     padding: 13px 0 0;
-  }
-  .hero-footnote {
-    font-size: 8px;
   }
   .hero-description {
     font-size: 11px;
@@ -1418,49 +920,6 @@ summary:focus-visible {
   .brand img {
     width: 38px;
     height: 38px;
-  }
-  .foundation-grid {
-    grid-template-columns: 1fr;
-    gap: 35px;
-  }
-  .foundation-visual {
-    max-width: 600px;
-    width: 100%;
-    margin: auto;
-  }
-  .product-illustration {
-    margin-right: 0;
-  }
-  .product-document {
-    padding: 25px 30px;
-  }
-  .product-companion {
-    width: 200px;
-  }
-  .capability-list {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 22px;
-  }
-  .capability,
-  .capability:first-child,
-  .capability:last-child {
-    padding: 0;
-    border: 0;
-    gap: 12px;
-    flex-direction: column;
-  }
-  .capability-number {
-    display: none;
-  }
-  .capability h3 {
-    font-size: 16px;
-  }
-  .capability p {
-    font-size: 10px;
-  }
-  .trust-end {
-    display: none;
   }
   .section-heading h2 {
     font-size: 36px;
@@ -1502,13 +961,6 @@ summary:focus-visible {
   .roadmap-item > p {
     font-size: 10px;
   }
-  .roadmap-tags > span {
-    font-size: 7px;
-    padding: 4px 6px;
-  }
-  .roadmap-step > small {
-    font-size: 7px;
-  }
   .opportunity {
     gap: 35px;
   }
@@ -1517,23 +969,6 @@ summary:focus-visible {
   }
   .opportunity-copy > p {
     font-size: 11px;
-  }
-  .growth-loop {
-    gap: 8px;
-    font-size: 9px;
-  }
-  .business-path > summary {
-    gap: 15px;
-  }
-  .business-path > summary strong {
-    font-size: 16px;
-  }
-  .business-path > summary small {
-    font-size: 9px;
-  }
-  .path-content {
-    padding-left: 30px;
-    padding-right: 10px;
   }
   .footer-inner > p {
     display: none;
@@ -1642,10 +1077,6 @@ summary:focus-visible {
     font-size: 12px;
     padding: 12px 0;
   }
-  .hero-footnote {
-    font-size: 8px;
-    margin-top: 23px;
-  }
   .hero-art {
     margin: 0 0 0 17px;
     height: 475px;
@@ -1670,31 +1101,9 @@ summary:focus-visible {
   .hero-answer {
     font-size: 11px;
   }
-  .hero-time {
-    bottom: 175px;
-    left: 25px;
-    font-size: 43px;
-  }
   .hero-switch {
     bottom: 205px;
     right: 15px;
-  }
-  .hero-scene-label {
-    font-size: 6px;
-    right: 17px;
-    top: 22px;
-    letter-spacing: 1.2px;
-  }
-  .hero-vertical-note {
-    font-size: 6px;
-    right: 14px;
-    top: 118px;
-  }
-  .hero-art-caption {
-    bottom: 16px;
-    right: -18px;
-    writing-mode: vertical-rl;
-    font-size: 6px;
   }
   .hero-bottom {
     padding-top: 27px;
@@ -1726,76 +1135,6 @@ summary:focus-visible {
     font-size: 11px;
     margin-top: 16px;
   }
-  .foundation-visual {
-    padding: 17px 14px;
-  }
-  .product-illustration {
-    margin: 21px -40px 23px 0;
-    transform: perspective(1600px) rotateY(-6deg);
-  }
-  .product-companion {
-    width: 140px;
-    padding: 15px 10px;
-  }
-  .product-document {
-    padding: 22px 14px;
-  }
-  .product-document h4 {
-    font-size: 13px;
-  }
-  .product-body {
-    min-height: 293px;
-  }
-  .product-sidebar {
-    width: 32px;
-  }
-  .product-sidebar svg {
-    width: 13px;
-  }
-  .product-topbar {
-    font-size: 7px;
-  }
-  .document-task {
-    font-size: 7px;
-  }
-  .foundation-visual-bottom > span:first-child {
-    font-size: 8px;
-  }
-  .foundation-visual-bottom > span:last-child {
-    font-size: 6px;
-  }
-  .capability-list {
-    display: block;
-  }
-  .capability,
-  .capability:first-child,
-  .capability:last-child {
-    display: flex;
-    flex-direction: row;
-    padding: 21px 0;
-    border-bottom: 1px solid #dbe5df;
-    gap: 17px;
-  }
-  .capability:first-child {
-    padding-top: 0;
-  }
-  .capability:last-child {
-    border: 0;
-    padding-bottom: 0;
-  }
-  .capability-number {
-    display: block;
-  }
-  .capability h3 {
-    font-size: 19px;
-  }
-  .capability p {
-    font-size: 11px;
-    max-width: 100%;
-  }
-  .capability-tag {
-    font-size: 9px;
-  }
   .trust-note {
     margin-top: 32px;
     align-items: flex-start;
@@ -1819,9 +1158,6 @@ summary:focus-visible {
   }
   .vision-manifesto p {
     font-size: 11px;
-  }
-  .vision-signature {
-    font-size: 12px;
   }
   .vision-image img {
     object-position: 65% 50%;
@@ -1854,15 +1190,6 @@ summary:focus-visible {
   .vision-roadmap {
     padding-bottom: 56px;
   }
-  .roadmap-intro {
-    display: block;
-    padding-bottom: 22px;
-    margin-bottom: 29px;
-  }
-  .roadmap-intro > p {
-    margin-top: 11px;
-    font-size: 11px;
-  }
   .roadmap-grid {
     grid-template-columns: 1fr;
     gap: 35px;
@@ -1870,28 +1197,6 @@ summary:focus-visible {
   .roadmap-item {
     position: relative;
     padding-left: 53px;
-  }
-  .roadmap-step {
-    position: absolute;
-    left: 0;
-    top: 0;
-    display: block;
-    bottom: 0;
-  }
-  .roadmap-step > span {
-    font-size: 26px;
-  }
-  .roadmap-step > small {
-    display: none;
-  }
-  .roadmap-line {
-    position: absolute;
-    top: 43px;
-    bottom: -30px;
-    left: 14px;
-    width: 1px;
-    height: auto;
-    background: #355c68;
   }
   .roadmap-item:last-child .roadmap-line {
     bottom: 0;
@@ -1908,12 +1213,6 @@ summary:focus-visible {
     font-size: 11px;
     max-width: 100%;
   }
-  .roadmap-tags {
-    margin-top: 15px;
-  }
-  .roadmap-tags > span {
-    font-size: 8px;
-  }
   .opportunity {
     padding: 65px 0;
     grid-template-columns: 1fr;
@@ -1928,26 +1227,8 @@ summary:focus-visible {
   .opportunity .eyebrow {
     font-size: 8px;
   }
-  .growth-loop {
-    font-size: 10px;
-    gap: 12px;
-    margin-top: 23px;
-  }
   .business-paths {
     padding-top: 0;
-  }
-  .business-path > summary {
-    padding: 23px 0;
-    gap: 20px;
-  }
-  .business-path > summary strong {
-    font-size: 18px;
-  }
-  .business-path > summary small {
-    font-size: 10px;
-  }
-  .path-content {
-    padding-left: 36px;
   }
   .footer-inner {
     padding: 22px 0;
@@ -2003,43 +1284,10 @@ summary:focus-visible {
   }
 }
 /* Keep the fictional actor visible beside the HTML conversation. */
-.scene-film-info {
-  left: auto;
-  right: 28px;
-  text-align: right;
-}
-.scene-character-card {
-  top: auto;
-  bottom: 95px;
-  max-width: 300px;
-}
 .hero-at-night .hero-image {
   filter: brightness(0.88) saturate(0.9);
 }
-@media (max-width: 580px) {
-  .scene-film-info {
-    right: 22px;
-    top: 24px;
-  }
-  .scene-film-info > span {
-    font-size: 7px;
-  }
-  .scene-film-info h4 {
-    font-size: 26px;
-  }
-  .scene-character-card {
-    bottom: 53px;
-    top: auto;
-    max-width: none;
-  }
-  .scene-character-card p {
-    font-size: 9px;
-  }
-}
 /* Comfortable reading and interaction sizes, including touch screens. */
-.hero-time {
-  bottom: 238px;
-}
 .main-nav {
   font-size: 13px;
 }
@@ -2049,20 +1297,11 @@ summary:focus-visible {
 .hero-description {
   font-size: 15px;
 }
-.hero-footnote {
-  font-size: 11px;
-}
 .hero-bottom a {
   font-size: 11px;
 }
 .section-heading > p {
   font-size: 14px;
-}
-.capability p {
-  font-size: 13px;
-}
-.capability-tag {
-  font-size: 11px;
 }
 .trust-note strong {
   font-size: 12px;
@@ -2076,32 +1315,11 @@ summary:focus-visible {
 .roadmap-item > p {
   font-size: 13px;
 }
-.roadmap-tags > span {
-  font-size: 10px;
-}
-.roadmap-step > small {
-  font-size: 10px;
-}
 .roadmap-phase {
   font-size: 11px;
 }
 .opportunity-copy > p {
   font-size: 14px;
-}
-.growth-loop {
-  font-size: 12px;
-}
-.opportunity-caption {
-  font-size: 10px;
-}
-.business-path > summary small {
-  font-size: 12px;
-}
-.path-content p {
-  font-size: 13px;
-}
-.path-content > span {
-  font-size: 10px;
 }
 .footer-inner > p {
   font-size: 11px;
@@ -2113,53 +1331,9 @@ summary:focus-visible {
   font-size: 11px;
   min-height: 40px;
 }
-.day-section {
-  scroll-margin-top: 0;
-}
-.day-container {
-  width: min(1240px, calc(100% - 112px));
-}
-.day-section-heading h2 {
-  font-size: 46px;
-  font-weight: 500;
-  line-height: 1.4;
-  letter-spacing: -1.6px;
-}
-.scene-icon-button {
-  min-width: 34px;
-  min-height: 34px;
-}
-.scene-question {
-  font-size: 12px;
-  min-height: 40px;
-}
-.scene-chat-answer {
-  font-size: 12px;
-}
-.scene-chat-user {
-  font-size: 11px;
-}
-.scene-download {
-  font-size: 11px;
-  min-height: 40px;
-}
-.scene-chat-source {
-  font-size: 11px;
-  min-height: 38px;
-}
-.scene-source-toggle {
-  font-size: 11px;
-  min-height: 38px;
-}
 @media (max-width: 1150px) {
   .hero-description {
     font-size: 13px;
-  }
-  .hero-footnote {
-    font-size: 10px;
-  }
-  .day-container {
-    width: calc(100% - 72px);
   }
   .trust-note p > span {
     font-size: 11px;
@@ -2172,20 +1346,11 @@ summary:focus-visible {
   .hero-description {
     font-size: 12px;
   }
-  .hero-footnote {
-    font-size: 9px;
-  }
-  .hero-time {
-    bottom: 235px;
-  }
   .main-nav {
     font-size: 11px;
   }
   .header-cta {
     font-size: 10px;
-  }
-  .capability p {
-    font-size: 12px;
   }
   .section-heading > p {
     font-size: 12px;
@@ -2196,50 +1361,23 @@ summary:focus-visible {
   .roadmap-item > p {
     font-size: 12px;
   }
-  .roadmap-tags > span {
-    font-size: 9px;
-  }
-  .roadmap-step > small {
-    font-size: 8px;
-  }
   .opportunity-copy > p {
     font-size: 12px;
-  }
-  .growth-loop {
-    font-size: 10px;
-  }
-  .day-section-heading h2 {
-    font-size: 38px;
-  }
-  .business-path > summary small {
-    font-size: 10px;
   }
 }
 @media (max-width: 700px) {
   .hero h1 {
     font-size: clamp(36px, 9.5vw, 60px);
   }
-  .hero-time {
-    bottom: 200px;
-  }
   .hero-description {
     font-size: 14px;
     line-height: 1.9;
-  }
-  .hero-footnote {
-    font-size: 10px;
   }
   .hero-bottom a {
     font-size: 9px;
   }
   .section-heading > p {
     font-size: 13px;
-  }
-  .capability p {
-    font-size: 13px;
-  }
-  .capability-tag {
-    font-size: 11px;
   }
   .trust-note p > span {
     font-size: 11px;
@@ -2253,58 +1391,11 @@ summary:focus-visible {
   .opportunity-copy > p {
     font-size: 13px;
   }
-  .growth-loop {
-    font-size: 11px;
-  }
-  .business-path > summary small {
-    font-size: 11px;
-  }
   .footer-inner > div {
     font-size: 9px;
   }
   .footer-inner button {
     font-size: 11px;
-  }
-  .day-container {
-    width: calc(100% - 40px);
-  }
-  .day-section-heading h2 {
-    font-size: 34px;
-  }
-  .scene-icon-button {
-    min-width: 40px;
-    min-height: 40px;
-  }
-  .scene-question {
-    min-height: 44px;
-    font-size: 12px;
-  }
-  .scene-chat-answer {
-    font-size: 13px;
-  }
-  .scene-chat-user {
-    font-size: 12px;
-  }
-  .scene-chat-top strong {
-    font-size: 13px;
-  }
-  .scene-chat-top small {
-    font-size: 9px;
-  }
-  .scene-download {
-    min-height: 44px;
-    font-size: 11px;
-  }
-  .scene-source-detail,
-  .scene-source-detail strong {
-    font-size: 11px;
-  }
-  .scene-chat-reopen {
-    min-height: 44px;
-    font-size: 12px;
-  }
-  .scene-demo-caption {
-    font-size: 9px;
   }
   .hero-switch button {
     min-height: 36px;

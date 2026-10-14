@@ -3,9 +3,7 @@ import {
   ArrowDownToLine,
   ArrowUpRight,
   ChevronDown,
-  Clock3,
   FileText,
-  FolderOpen,
   MessageCircle,
   Play,
   RotateCcw,
@@ -17,68 +15,35 @@ import "./day-experience.css";
 const scenes = [
   {
     id: "work",
-    time: "09:30",
-    label: "专注工作",
-    kicker: "周末市集 · 筹备会议",
-    title: (
-      <>
-        会开完了，
-        <br />
-        谁来做下一步？
-      </>
-    ),
-    description:
-      "周末要办一场咖啡市集。场地、摊位、宣传都谈到了，让 Mirally 整理会议笔记，列出负责人和截止时间。",
-    detail: "对话协作 · 任务推进 · 文件产出",
-    questions: ["把这次会议整理成行动清单", "给我一份能直接用的会议摘要"],
-    intro: "市集筹备会议结束了。要整理行动项，还是导出摘要？",
+    label: "工作场景",
+    title: "会议整理与文件产出",
+    questions: ["整理会议待办", "导出会议摘要"],
+    intro: "选择一个问题，查看整理结果。",
     answers: [
-      "三项待办：小林周二确认场地，阿哲周四收齐摊位资料，小陈周五发布宣传。雨天方案还需要确认。",
-      "摘要包含市集安排、三项待办和雨天预案问题，可以下载后发给同事。",
+      "已整理 3 项待办，负责人和截止时间见清单。",
+      "会议摘要已生成，可以下载。",
     ],
   },
   {
     id: "memory",
-    time: "15:00",
-    label: "接上思路",
-    kicker: "周末市集 · 找回讨论",
-    title: (
-      <>
-        上午怎么定的，
-        <br />
-        下午还能找到。
-      </>
-    ),
-    description:
-      "继续做市集海报，却忘了上午为什么选河边广场。问一句，找回相关记录，也能查看答案来自哪里。",
-    detail: "活动记录 · 记忆整理 · 历史回顾",
-    questions: ["上午定的市集方案是什么？", "为什么选河边广场？"],
-    intro: "上午的筹备记录已整理。你想找回哪一段？",
+    label: "活动记忆",
+    title: "找回活动记录",
+    questions: ["上午定了什么方案？", "为什么选河边广场？"],
+    intro: "试着问问上午的记录。",
     answers: [
-      "周六下午在河边广场办咖啡市集，计划安排 12 个摊位。小林确认场地，阿哲收齐摊位资料，小陈负责宣传。",
-      "筹备记录里写着：广场靠近地铁，附近有周末散步的人群。团队想先办一场小市集，看看大家是否愿意停下来喝杯咖啡。",
+      "周六下午，河边广场，12 个摊位。来源：09:25 会议记录。",
+      "靠近地铁，周末人流多。来源：10:10 场地资料。",
     ],
   },
   {
     id: "life",
-    time: "21:30",
-    label: "尽兴生活",
-    kicker: "下班以后 · 看剧",
-    title: (
-      <>
-        “这个人是谁？”
-        <br />
-        看剧时也能问。
-      </>
-    ),
-    description:
-      "晚上打开一部新剧，突然认不出画面里的角色。我们想让 Mirally 看懂你正在看的内容，回答当下的问题，并尊重你的观看进度。",
-    detail: "未来愿景 · 画面理解 · 即时陪伴",
-    questions: ["这个角色是谁？", "他和女主是什么关系？别剧透"],
-    intro: "今晚，我们只聊到你看到的第三集。",
+    label: "生活陪伴",
+    title: "画面问答",
+    questions: ["这个角色是谁？", "他和女主什么关系？"],
+    intro: "根据当前画面提问，回答只到第三集。",
     answers: [
-      "他是《潮汐之间》里的许舟，由虚构演员林序饰演。到第三集为止，他是一名回到海边故乡的摄影师。放心，没有后续剧透。",
-      "截至第三集，许舟和陈澄是多年未见的旧友，正在一起寻找一卷遗失的胶片。后面的故事，就留给你慢慢看。",
+      "许舟，摄影师，由林序饰演。",
+      "许舟和陈澄是旧友。截至第三集，两人在寻找遗失的胶片。",
     ],
   },
 ];
@@ -99,29 +64,10 @@ function downloadSummary() {
 function WorkSurface({ answered }) {
   return (
     <div className="scene-work-surface">
-      <aside className="scene-doc-sidebar" aria-hidden="true">
-        <span className="scene-sidebar-title">
-          <FolderOpen size={16} /> 我的工作空间
-        </span>
-        <span className="scene-sidebar-item scene-sidebar-active">
-          <FileText size={14} /> 咖啡市集筹备
-        </span>
-        <span className="scene-sidebar-item">
-          <FileText size={14} /> 本周计划
-        </span>
-        <span className="scene-sidebar-item">
-          <FileText size={14} /> 灵感收集
-        </span>
-        <span className="scene-sidebar-bottom">周末市集 · 项目资料</span>
-      </aside>
       <div className="scene-document">
-        <span className="scene-document-meta">团队笔记 / 市集筹备</span>
-        <h4>周六，河边见。</h4>
-        <p className="scene-document-date">周一 · 09:00 — 09:25 · 演示会议</p>
-        <div className="scene-document-rule" />
-        <h5>我们达成的共识</h5>
-        <p>周六 14:00，在河边广场举办咖啡市集，计划安排 12 个摊位。</p>
-        <h5>接下来，做三件事</h5>
+        <h4>市集会议笔记</h4>
+        <p>周六下午 · 河边广场 · 12 个摊位</p>
+        <h5>行动清单</h5>
         {["小林：确认场地", "阿哲：收齐摊位资料", "小陈：发布宣传"].map(
           (item, i) => (
             <div className="scene-task" key={item}>
@@ -131,50 +77,37 @@ function WorkSurface({ answered }) {
             </div>
           ),
         )}
-        <div className="scene-document-note">
-          <Sparkles size={14} />{" "}
-          {answered
-            ? "三项待办已整理；雨天预案待确认。"
-            : "会议笔记 · 演示资料"}
-        </div>
+        {answered && (
+          <div className="scene-document-note">
+            <FileText size={16} /> 会议摘要.md · 可下载
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function MemorySurface({ answered, sourceOpen, setSourceOpen }) {
+function MemorySurface({ answered, question, sourceOpen, setSourceOpen }) {
   return (
     <div
       className={`scene-memory-surface ${sourceOpen ? "scene-memory-expanded" : ""}`}
     >
       <div className="scene-memory-heading">
-        <span>YOUR DAY, CONNECTED</span>
-        <h4>
-          上午的讨论，
-          <br />
-          有记录可查。
-        </h4>
-        <p>同一个市集项目，继续往下做。</p>
+        <h4>今天的活动记录</h4>
       </div>
       <div className="scene-timeline">
         {[
-          [
-            "09:25",
-            "咖啡市集筹备",
-            "周六下午，河边广场，12 个摊位。",
-            "会议笔记",
-          ],
-          ["10:10", "场地资料", "靠近地铁，周末散步的人群多。", "场地备选"],
-          ["11:40", "宣传草稿", "海报主题：周六，河边见。", "海报文案"],
-        ].map(([time, title, text, tag], index) => (
+          ["09:25", "会议记录", "周六下午 · 河边广场 · 12 个摊位"],
+          ["10:10", "场地资料", "靠近地铁 · 周末人流多"],
+          ["11:40", "宣传草稿", "市集海报 · 第一版"],
+        ].map(([time, title, text], index) => (
           <div
-            className={`scene-timeline-item ${answered && index === 0 ? "scene-timeline-found" : ""}`}
+            className={`scene-timeline-item ${answered && index === question ? "scene-timeline-found" : ""} ${index === (answered ? question : 0) ? "scene-source-selected" : ""}`}
             key={time}
           >
             <div className="scene-timeline-time">{time}</div>
             <div className="scene-timeline-dot" />
             <div className="scene-timeline-content">
-              <small>{tag}</small>
               <h5>{title}</h5>
               <p>{text}</p>
             </div>
@@ -188,7 +121,7 @@ function MemorySurface({ answered, sourceOpen, setSourceOpen }) {
         aria-controls="scene-source-detail"
       >
         <FileText size={14} />
-        <span>查看来源摘要 · 演示资料</span>
+        <span>查看来源摘要</span>
         <ChevronDown
           size={14}
           className={sourceOpen ? "scene-chevron-open" : ""}
@@ -196,12 +129,8 @@ function MemorySurface({ answered, sourceOpen, setSourceOpen }) {
       </button>
       {sourceOpen && (
         <div id="scene-source-detail" className="scene-source-detail">
-          <strong>09:25 · 咖啡市集筹备</strong>
-          <p>
-            河边广场靠近地铁，周末人流稳定。会议决定周六 14:00 开始，安排 12
-            个摊位；雨天是否改期，周二确认场地时一起决定。
-          </p>
-          <small>本段为页面内预置的演示资料。</small>
+          <strong>09:25 会议记录 / 10:10 场地资料</strong>
+          <p>河边广场靠近地铁，周末人流多。周六下午开办，安排 12 个摊位。</p>
         </div>
       )}
     </div>
@@ -217,16 +146,6 @@ function LifeSurface({ answered, question }) {
         className="scene-coast"
       />
       <div className="scene-film-shade" />
-      <div className="scene-film-info">
-        <span>一部关于重逢与记忆的虚构剧集</span>
-        <h4>潮汐之间</h4>
-        <p>第三集 · 故乡的来信</p>
-      </div>
-      {!answered && (
-        <div className="scene-film-subtitle">
-          “海风会替我们，记住那些夏天。”
-        </div>
-      )}
       <div className="scene-player-controls" aria-hidden="true">
         <Play size={13} fill="currentColor" />
         <span>18:42 / 42:00</span>
@@ -245,11 +164,7 @@ function LifeSurface({ answered, question }) {
             <strong>
               {question === 0 ? "许舟 / 林序 饰" : "许舟 ↔ 陈澄"}
             </strong>
-            <p>
-              {question === 0
-                ? "摄影师 · 回到故乡的旧友"
-                : "多年未见的旧友 · 共同寻找旧胶片"}
-            </p>
+            <p>{question === 0 ? "摄影师" : "旧友 · 寻找遗失的胶片"}</p>
           </div>
           <span className="scene-fiction-tag">虚构</span>
         </div>
@@ -327,15 +242,12 @@ export default function DayExperience() {
     <section className="day-section chapter" id="a-day">
       <div className="day-container">
         <header className="day-section-heading">
-          <span className="day-eyebrow">02 / A DAY, WITH MIRALLY</span>
-          <h2>和 Mirally 过一天。</h2>
-          <p>上午推进工作，晚上放松一下。点击时间切换场景。</p>
+          <h2>应用场景</h2>
+          <span className="day-concept-badge" title="交互使用预设演示资料">
+            {active === 2 ? "未来概念" : "交互演示"}
+          </span>
         </header>
-        <div
-          className="day-tabs"
-          role="tablist"
-          aria-label="体验和 Mirally 的一天"
-        >
+        <div className="day-tabs" role="tablist" aria-label="Mirally 应用场景">
           {scenes.map((item, index) => (
             <button
               key={item.id}
@@ -351,7 +263,6 @@ export default function DayExperience() {
               onKeyDown={(event) => tabKey(event, index)}
               className={`day-tab ${active === index ? "day-tab-selected" : ""}`}
             >
-              <span className="day-tab-time">{item.time}</span>
               <span>{item.label}</span>
               <span className="day-tab-dot" />
             </button>
@@ -364,16 +275,6 @@ export default function DayExperience() {
           aria-labelledby={`day-tab-${scene.id}`}
           tabIndex={0}
         >
-          <div className="day-story">
-            <span className="day-story-kicker">{scene.kicker}</span>
-            <h3>{scene.title}</h3>
-            <p>{scene.description}</p>
-            <span className="day-story-detail">{scene.detail}</span>
-            <div className="day-try-hint">
-              <ArrowUpRight size={17} />
-              <span>点击右侧问题，体验一段对话</span>
-            </div>
-          </div>
           <div className={`scene-desktop scene-desktop-${scene.id}`}>
             <div className="scene-window-bar">
               <span className="scene-window-dots" aria-hidden="true">
@@ -381,17 +282,8 @@ export default function DayExperience() {
                 <i />
                 <i />
               </span>
-              <span>
-                {active === 0
-                  ? "工作空间"
-                  : active === 1
-                    ? "我的一天"
-                    : "剧集播放"}
-              </span>
-              <span className="scene-window-time">
-                <Clock3 size={12} />
-                {scene.time}
-              </span>
+              <strong>{scene.title}</strong>
+              <span className="scene-window-spacer" aria-hidden="true" />
             </div>
             <div className="scene-stage">
               {active === 0 ? (
@@ -399,6 +291,7 @@ export default function DayExperience() {
               ) : active === 1 ? (
                 <MemorySurface
                   answered={answered}
+                  question={question}
                   sourceOpen={sourceOpen}
                   setSourceOpen={setSourceOpen}
                 />
@@ -413,7 +306,6 @@ export default function DayExperience() {
                     </span>
                     <div>
                       <strong>Mirally</strong>
-                      <small>Your Everyday Ally</small>
                     </div>
                     <button
                       ref={replayButton}
@@ -508,15 +400,6 @@ export default function DayExperience() {
                   <MessageCircle size={17} /> 和 Mirally 聊聊
                 </button>
               )}
-            </div>
-            <div className="scene-demo-caption">
-              <span>
-                <i />
-                交互概念演示
-              </span>
-              <span>
-                {active === 2 ? "未来体验 · 虚构剧集" : "脚本互动 · 演示资料"}
-              </span>
             </div>
           </div>
         </div>
