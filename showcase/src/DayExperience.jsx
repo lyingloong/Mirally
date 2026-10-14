@@ -63,23 +63,26 @@ function downloadSummary() {
 
 function WorkSurface({ answered }) {
   return (
-    <div className="scene-work-surface">
+    <div
+      className={`scene-work-surface ${answered ? "scene-work-organized" : ""}`}
+    >
       <div className="scene-document">
-        <h4>市集会议笔记</h4>
+        <h4>
+          <FileText size={19} aria-hidden="true" />
+          市集会议笔记
+        </h4>
         <p>周六下午 · 河边广场 · 12 个摊位</p>
-        <h5>行动清单</h5>
-        {["小林：确认场地", "阿哲：收齐摊位资料", "小陈：发布宣传"].map(
-          (item, i) => (
-            <div className="scene-task" key={item}>
-              <span className="scene-task-check" aria-hidden="true" />
-              <span>{item}</span>
-              <small>{["周二", "周四", "周五"][i]} · 待办</small>
-            </div>
-          ),
-        )}
         {answered && (
-          <div className="scene-document-note">
-            <FileText size={16} /> 会议摘要.md · 可下载
+          <div className="scene-work-tasks" aria-label="整理后的行动清单">
+            {["小林：确认场地", "阿哲：收齐摊位资料", "小陈：发布宣传"].map(
+              (item, i) => (
+                <div className="scene-task" key={item}>
+                  <span className="scene-task-check" aria-hidden="true" />
+                  <span>{item}</span>
+                  <small>{["周二", "周四", "周五"][i]} · 待办</small>
+                </div>
+              ),
+            )}
           </div>
         )}
       </div>
@@ -286,6 +289,15 @@ export default function DayExperience() {
               <span className="scene-window-spacer" aria-hidden="true" />
             </div>
             <div className="scene-stage">
+              {active === 0 && (
+                <img
+                  className="scene-work-backdrop"
+                  src="./images/work-desktop-ai.webp"
+                  alt="虚构电脑工作界面：浏览器中打开咖啡市集与河边广场的参考照片，旁边是日历和笔记窗口"
+                  width="1672"
+                  height="823"
+                />
+              )}
               {active === 0 ? (
                 <WorkSurface answered={answered} />
               ) : active === 1 ? (

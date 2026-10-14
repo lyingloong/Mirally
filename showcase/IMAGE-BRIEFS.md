@@ -1,6 +1,6 @@
 # Mirally campaign imagery
 
-The campaign images were generated on 2026-10-15 through the imagegen skill's bundled API/CLI fallback, explicitly authorized by the user, using the current Codex API provider and `gpt-image-2`. Preserve the existing Companion M logo; all copy and interface elements are rendered in HTML. All four displayed campaign scenes use AI-generated imagery; temporary editorial photography was removed from the deliverable.
+The campaign images were generated on 2026-10-15 through the imagegen skill's bundled API/CLI fallback, explicitly authorized by the user, using the current Codex API provider and `gpt-image-2`. Preserve the existing Companion M logo; product copy and interactive interface elements are rendered in HTML. The work desktop background includes fictional, non-interactive browser chrome and reference material. All five displayed campaign scenes use AI-generated imagery; temporary editorial photography was removed from the deliverable.
 
 ## 01 — A quieter kind of intelligence
 
@@ -36,6 +36,7 @@ Constraints: no lettering, no brand, no watermark, no futuristic city or robots.
 
 ## Actual generated assets
 
+- `public/images/work-desktop-ai.webp`: 1672 × 823, fictional work desktop with a coffee-market moodboard, riverside reference photos, calendar and notes. Generated with `gpt-image-2`, high quality, requested 2048 × 1152; provider returned 1672 × 941. Cropped 27px from the top and 91px from the bottom to omit the generated OS menu and app dock. Original: `.artifacts/work-desktop-ai.png`. Exact final prompt: `image-prompts/work-desktop-prompt.txt`. Browser/reference content is illustrative; Mirally chat, meeting notes, extracted task list and downloads remain live HTML. WebP is approximately 257 KiB, quality 90.
 - `public/images/hero-ai.webp`: 1536 × 1024, high quality generation, warm daylight home workspace. Original: `.artifacts/hero-ai.png`. Exact prompt: `image-prompts/hero-prompt.txt`.
 - `public/images/evening-ai.webp`: 1536 × 1024, high quality image edit using the hero image as the visual reference, preserving the same person and home atmosphere. Original: `.artifacts/evening-ai.png`. Exact prompt: `image-prompts/evening-prompt.txt`.
 - `public/images/vision-ai.webp`: high quality coastal dawn generation; requested 2048 × 1152 and the provider returned 1672 × 941. Original and exact prompt: `.artifacts/vision-ai.png`, `image-prompts/vision-prompt.txt`.
