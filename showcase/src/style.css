@@ -584,46 +584,6 @@ summary:focus-visible {
   line-height: 2.15;
   margin-top: 15px;
 }
-.vision-orbit {
-  position: absolute;
-  left: 66%;
-  top: 50%;
-  width: 340px;
-  height: 340px;
-  transform: translate(-50%, -50%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.vision-orbit > div {
-  width: 100%;
-  height: 100%;
-  border: 1px solid #cee2e831;
-  border-radius: 50%;
-  position: absolute;
-}
-.vision-orbit > div:before,
-.vision-orbit > div:after {
-  content: "";
-  position: absolute;
-  border: 1px solid #cee2e81a;
-  border-radius: 50%;
-  inset: -45px;
-}
-.vision-orbit > div:after {
-  inset: 45px;
-}
-.vision-orbit > img {
-  opacity: 0.82;
-  filter: drop-shadow(0 0 30px #84e4f177);
-}
-.vision-orbit > span {
-  position: absolute;
-  bottom: 57px;
-  font-size: 8px;
-  letter-spacing: 2.5px;
-  color: #bddce1;
-}
 .vision-roadmap {
   padding: 12px 0 70px;
 }
@@ -927,22 +887,6 @@ summary:focus-visible {
   .section-heading > p {
     font-size: 10px;
   }
-  .vision-orbit {
-    left: 75%;
-    width: 250px;
-    height: 250px;
-  }
-  .vision-orbit > img {
-    width: 120px;
-    height: 120px;
-  }
-  .vision-orbit > span {
-    bottom: 35px;
-    font-size: 6px;
-  }
-  .vision-orbit > div:before {
-    inset: -30px;
-  }
   .vision h2 {
     font-size: 50px;
   }
@@ -1167,25 +1111,6 @@ summary:focus-visible {
     background:
       linear-gradient(90deg, #102f3bdd, #102f3b75),
       linear-gradient(0deg, #102f3b, transparent 50%);
-  }
-  .vision-orbit {
-    width: 180px;
-    height: 180px;
-    left: auto;
-    right: -45px;
-    top: 200px;
-    transform: none;
-    opacity: 0.45;
-  }
-  .vision-orbit > img {
-    width: 95px;
-    height: 95px;
-  }
-  .vision-orbit > span {
-    display: none;
-  }
-  .vision-orbit > div:after {
-    inset: 25px;
   }
   .vision-roadmap {
     padding-bottom: 56px;

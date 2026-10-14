@@ -281,49 +281,60 @@ const capabilities = [
     title: "侧边对话",
     text: "随时展开，会话与工作台同步。",
     kind: "chat",
+    image: "./images/capability-chat-ai.webp",
+    alt: "自然光中的电脑工作台，一位用户正使用笔记本处理手边的工作",
   },
   {
     icon: MousePointer2,
     title: "任务执行",
     text: "生成文件，可接入桌面操作。",
     kind: "task",
+    image: "./images/capability-task-ai.webp",
+    alt: "整理完毕的工作台，电脑上的文档与桌面的资料相互对应",
   },
   {
     icon: Layers3,
     title: "活动记忆",
     text: "整理活动摘要，按问题找回相关记录。",
     kind: "memory",
+    image: "./images/capability-memory-ai.webp",
+    alt: "电脑上按时间排列的文档与照片资料，呈现可回顾的工作记录",
   },
 ];
 
-function CapabilityVisual({ kind }) {
+function CapabilityVisual({ kind, image, alt }) {
   return (
-    <div
-      className={`capability-visual capability-visual-${kind}`}
-      aria-hidden="true"
-    >
-      {kind === "chat" ? (
-        <div className="mini-conversation">
-          <div className="mini-user">继续刚才的任务</div>
-          <div className="mini-ally">
-            <img src="./mirally.png" alt="" width="28" height="28" />
-            <span>接着聊，接着做。</span>
+    <div className={`capability-visual capability-visual-${kind}`}>
+      <img
+        className="capability-photo"
+        src={image}
+        alt={alt}
+        loading="lazy"
+        width="1536"
+        height="1024"
+      />
+      <div className="capability-result" aria-hidden="true">
+        {kind === "chat" ? (
+          <div className="mini-conversation">
+            <div className="mini-ally">
+              <img src="./mirally.png" alt="" width="28" height="28" />
+              <span>继续刚才的任务</span>
+            </div>
           </div>
-        </div>
-      ) : kind === "task" ? (
-        <div className="mini-file">
-          <FileText size={35} strokeWidth={1.4} />
-          <span>会议摘要.md</span>
-          <Check size={18} />
-        </div>
-      ) : (
-        <div className="mini-memory">
-          <Clock3 size={23} />
-          <span>上午的记录</span>
-          <ArrowRight size={18} />
-          <Search size={25} />
-        </div>
-      )}
+        ) : kind === "task" ? (
+          <div className="mini-file">
+            <FileText size={22} strokeWidth={1.5} />
+            <span>会议摘要.md</span>
+            <Check size={18} />
+          </div>
+        ) : (
+          <div className="mini-memory">
+            <Clock3 size={21} />
+            <span>上午的记录</span>
+            <Search size={18} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -343,14 +354,16 @@ function Foundations() {
           </span>
         </div>
         <div className="capability-cards">
-          {capabilities.map(({ icon: Icon, title, text, kind }) => (
+          {capabilities.map(({ icon: Icon, title, text, kind, image, alt }) => (
             <article key={kind} className="capability-card" data-reveal>
-              <CapabilityVisual kind={kind} />
-              <h3>
-                <Icon size={23} />
-                {title}
-              </h3>
-              <p>{text}</p>
+              <CapabilityVisual kind={kind} image={image} alt={alt} />
+              <div className="capability-copy">
+                <h3>
+                  <Icon size={23} />
+                  {title}
+                </h3>
+                <p>{text}</p>
+              </div>
             </article>
           ))}
         </div>
@@ -414,10 +427,6 @@ function Vision() {
           </h2>
           <p>从工作到生活，随时提供帮助；换一台设备，也能延续对话和记忆。</p>
         </div>
-        <div className="vision-orbit" aria-hidden="true">
-          <div />
-          <img src="./mirally-large.png" alt="" width="170" height="170" />
-        </div>
       </div>
       <div className="vision-roadmap container">
         <div className="roadmap-grid">
@@ -452,6 +461,15 @@ function Opportunity() {
           <span className="feature-status">商业规划</span>
           <h2 id="opportunity-title">商业路径</h2>
           <p>先验证日常使用与付费意愿。</p>
+          <div className="opportunity-image">
+            <img
+              src="./images/business-studio-ai.webp"
+              alt="一位独立工作者和两位协作的同事，正在明亮的创意工作室处理各自的项目"
+              loading="lazy"
+              width="1536"
+              height="1024"
+            />
+          </div>
         </div>
         <div className="business-paths">
           {businessPaths.map((item) => (

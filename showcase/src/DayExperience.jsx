@@ -93,7 +93,7 @@ function WorkSurface({ answered }) {
 function MemorySurface({ answered, question, sourceOpen, setSourceOpen }) {
   return (
     <div
-      className={`scene-memory-surface ${sourceOpen ? "scene-memory-expanded" : ""}`}
+      className={`scene-memory-surface ${answered ? "scene-memory-answered" : ""} ${sourceOpen ? "scene-memory-expanded" : ""}`}
     >
       <div className="scene-memory-heading">
         <h4>今天的活动记录</h4>
@@ -111,8 +111,32 @@ function MemorySurface({ answered, question, sourceOpen, setSourceOpen }) {
             <div className="scene-timeline-time">{time}</div>
             <div className="scene-timeline-dot" />
             <div className="scene-timeline-content">
-              <h5>{title}</h5>
-              <p>{text}</p>
+              <span
+                className={`scene-record-preview scene-record-preview-${index}`}
+                aria-hidden="true"
+              >
+                {index === 0 ? (
+                  <span className="scene-record-paper">
+                    <i />
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                ) : (
+                  <img
+                    src={
+                      index === 1
+                        ? "./images/market-reference-thumb.webp"
+                        : "./images/market-poster-thumb.webp"
+                    }
+                    alt=""
+                  />
+                )}
+              </span>
+              <div className="scene-record-copy">
+                <h5>{title}</h5>
+                <p>{text}</p>
+              </div>
             </div>
           </div>
         ))}

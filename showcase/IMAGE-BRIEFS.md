@@ -1,6 +1,6 @@
 # Mirally campaign imagery
 
-The campaign images were generated on 2026-10-15 through the imagegen skill's bundled API/CLI fallback, explicitly authorized by the user, using the current Codex API provider and `gpt-image-2`. Preserve the existing Companion M logo; product copy and interactive interface elements are rendered in HTML. The work desktop background includes fictional, non-interactive browser chrome and reference material. All five displayed campaign scenes use AI-generated imagery; temporary editorial photography was removed from the deliverable.
+The campaign images were generated on 2026-10-15 through the imagegen skill's bundled API/CLI fallback, explicitly authorized by the user, using the current Codex API provider and `gpt-image-2`. Preserve the existing Companion M logo; product copy and interactive interface elements are rendered in HTML. The work desktop background and capability images include fictional, non-interactive screen content. All nine campaign images use AI-generated imagery; temporary editorial photography was removed from the deliverable. Imagery illustrates use settings, not actual customer endorsements or unimplemented product interfaces.
 
 ## 01 — A quieter kind of intelligence
 
@@ -36,6 +36,12 @@ Constraints: no lettering, no brand, no watermark, no futuristic city or robots.
 
 ## Actual generated assets
 
+- `public/images/capability-chat-ai.webp`: 1536 × 1024, a person using a laptop beside a sunlit window, with a document and reference material. 177,538 bytes. Exact prompt: `image-prompts/capability-chat-prompt.txt`.
+- `public/images/capability-task-ai.webp`: 1536 × 1024, completed documents and charts on a laptop and an organized desk. 132,620 bytes. Exact prompt: `image-prompts/capability-task-prompt.txt`.
+- `public/images/capability-memory-ai.webp`: 1536 × 1024, document and photo thumbnails arranged by time on a laptop. 176,294 bytes. Exact prompt: `image-prompts/capability-memory-prompt.txt`.
+- These three capability images were generated together with the bundled CLI's `generate-batch`, concurrency 2, `gpt-image-2`, high quality, using the authorized current API. All three were visually checked and exported as WebP quality 90. Originals: `.artifacts/capability-{chat,task,memory}-ai.png`. Functional status strips remain HTML.
+- `public/images/business-studio-ai.webp`: 1536 × 1024, an independent worker and two colleagues in a shared creative studio, 187,480 bytes. Exact prompt: `image-prompts/business-studio-prompt.txt`. Bundled CLI `generate`, `gpt-image-2`, high quality; original `.artifacts/business-studio-ai.png`, visually checked, WebP quality 90. Fictional people and setting, no customer or partnership claim.
+- `public/images/market-reference-thumb.webp` and `market-poster-thumb.webp`: local crops of `work-desktop-ai.webp`, 200 × 161 and 160 × 200. Used in the memory timeline so the thumbnails match the market venue and poster discussed in the example. No additional API generation.
 - `public/images/work-desktop-ai.webp`: 1672 × 823, fictional work desktop with a coffee-market moodboard, riverside reference photos, calendar and notes. Generated with `gpt-image-2`, high quality, requested 2048 × 1152; provider returned 1672 × 941. Cropped 27px from the top and 91px from the bottom to omit the generated OS menu and app dock. Original: `.artifacts/work-desktop-ai.png`. Exact final prompt: `image-prompts/work-desktop-prompt.txt`. Browser/reference content is illustrative; Mirally chat, meeting notes, extracted task list and downloads remain live HTML. WebP is approximately 257 KiB, quality 90.
 - `public/images/hero-ai.webp`: 1536 × 1024, high quality generation, warm daylight home workspace. Original: `.artifacts/hero-ai.png`. Exact prompt: `image-prompts/hero-prompt.txt`.
 - `public/images/evening-ai.webp`: 1536 × 1024, high quality image edit using the hero image as the visual reference, preserving the same person and home atmosphere. Original: `.artifacts/evening-ai.png`. Exact prompt: `image-prompts/evening-prompt.txt`.
