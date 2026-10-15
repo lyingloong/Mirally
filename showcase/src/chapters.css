@@ -204,68 +204,6 @@ html {
   line-height: 1.8;
   color: #526f74;
 }
-.capability-visual {
-  height: clamp(190px, 28svh, 300px);
-  position: relative;
-  overflow: hidden;
-  background: #d9e6e1;
-  color: #307686;
-}
-.capability-photo {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center 40%;
-  transition: transform 0.55s ease;
-}
-.capability-result {
-  position: absolute;
-  bottom: 16px;
-  left: 16px;
-  right: 16px;
-  min-height: 53px;
-  display: flex;
-  align-items: center;
-  padding: 12px 15px;
-  background: #fffffff2;
-  border: 1px solid #ffffffd9;
-  box-shadow: 0 6px 24px #102f3b16;
-  border-radius: 10px;
-  font-size: 14px;
-  color: #214e59;
-}
-.mini-conversation {
-  width: 100%;
-}
-.mini-ally {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.mini-file {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-}
-.mini-file > svg:last-child {
-  color: #509683;
-  margin-left: auto;
-}
-.mini-memory {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-}
-.mini-memory > svg:last-child {
-  margin-left: auto;
-}
-@media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .capability-card:hover .capability-photo {
-    transform: scale(1.035);
-  }
-}
 .trust-note {
   color: #3c7064;
 }
@@ -408,17 +346,6 @@ html {
   .capability-card h3 {
     font-size: 24px;
   }
-  .capability-result {
-    left: 12px;
-    right: 12px;
-    bottom: 12px;
-    padding: 10px;
-    font-size: 13px;
-  }
-  .mini-memory {
-    gap: 8px;
-    font-size: 13px;
-  }
 }
 @media (max-width: 700px) {
   .hero .hero-image {
@@ -459,19 +386,6 @@ html {
   }
   .capability-copy > p {
     font-size: 14px;
-  }
-  .capability-visual {
-    height: 100%;
-    min-height: 132px;
-    display: block;
-    align-self: stretch;
-  }
-  .capability-photo {
-    position: absolute;
-    object-position: 52% center;
-  }
-  .capability-result {
-    display: none;
   }
   .foundations .trust-note p {
     display: block;

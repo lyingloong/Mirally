@@ -7,18 +7,15 @@ import {
   Moon,
   Menu,
   X,
-  Check,
   Layers3,
-  Clock3,
   Sparkles,
   MousePointer2,
   PanelRight,
   ShieldCheck,
-  FileText,
-  Search,
   Monitor,
 } from "lucide-react";
 import DayExperience from "./DayExperience.jsx";
+import CapabilityVisual from "./CapabilityVisual.jsx";
 
 const imageFiles = {
   day: "./images/hero-ai.webp",
@@ -281,63 +278,23 @@ const capabilities = [
     title: "侧边对话",
     text: "随时展开，会话与工作台同步。",
     kind: "chat",
-    image: "./images/capability-chat-ai.webp",
-    alt: "自然光中的电脑工作台，一位用户正使用笔记本处理手边的工作",
+    alt: "侧边对话界面示意：左侧是市集会议笔记，右侧 Mirally 将笔记整理成待办。",
   },
   {
     icon: MousePointer2,
     title: "任务执行",
     text: "生成文件，可接入桌面操作。",
     kind: "task",
-    image: "./images/capability-task-ai.webp",
-    alt: "整理完毕的工作台，电脑上的文档与桌面的资料相互对应",
+    alt: "任务执行界面示意：读取资料、整理内容、生成会议摘要文件。",
   },
   {
     icon: Layers3,
     title: "活动记忆",
     text: "整理活动摘要，按问题找回相关记录。",
     kind: "memory",
-    image: "./images/capability-memory-ai.webp",
-    alt: "电脑上按时间排列的文档与照片资料，呈现可回顾的工作记录",
+    alt: "活动记忆界面示意：询问场地选择原因，时间线中找到上午十点十分的活动摘要。",
   },
 ];
-
-function CapabilityVisual({ kind, image, alt }) {
-  return (
-    <div className={`capability-visual capability-visual-${kind}`}>
-      <img
-        className="capability-photo"
-        src={image}
-        alt={alt}
-        loading="lazy"
-        width="1536"
-        height="1024"
-      />
-      <div className="capability-result" aria-hidden="true">
-        {kind === "chat" ? (
-          <div className="mini-conversation">
-            <div className="mini-ally">
-              <img src="./mirally.png" alt="" width="28" height="28" />
-              <span>继续刚才的任务</span>
-            </div>
-          </div>
-        ) : kind === "task" ? (
-          <div className="mini-file">
-            <FileText size={22} strokeWidth={1.5} />
-            <span>会议摘要.md</span>
-            <Check size={18} />
-          </div>
-        ) : (
-          <div className="mini-memory">
-            <Clock3 size={21} />
-            <span>上午的记录</span>
-            <Search size={18} />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function Foundations() {
   return (
@@ -354,9 +311,9 @@ function Foundations() {
           </span>
         </div>
         <div className="capability-cards">
-          {capabilities.map(({ icon: Icon, title, text, kind, image, alt }) => (
+          {capabilities.map(({ icon: Icon, title, text, kind, alt }) => (
             <article key={kind} className="capability-card" data-reveal>
-              <CapabilityVisual kind={kind} image={image} alt={alt} />
+              <CapabilityVisual kind={kind} alt={alt} />
               <div className="capability-copy">
                 <h3>
                   <Icon size={23} />
