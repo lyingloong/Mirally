@@ -3,12 +3,9 @@ import {
   ArrowUpRight,
   ArrowRight,
   ArrowDown,
-  Sun,
-  Moon,
   Menu,
   X,
   Layers3,
-  Sparkles,
   MousePointer2,
   PanelRight,
   ShieldCheck,
@@ -17,6 +14,8 @@ import {
 import DayExperience from "./DayExperience.jsx";
 import CapabilityVisual from "./CapabilityVisual.jsx";
 import NextCapabilities from "./NextCapabilities.jsx";
+import HeroExperience from "./HeroExperience.jsx";
+import BusinessVisual from "./BusinessVisual.jsx";
 
 const chapters = [
   ["top", "认识 Mirally"],
@@ -28,8 +27,6 @@ const chapters = [
 ];
 
 const imageFiles = {
-  day: "./images/hero-ai.webp",
-  night: "./images/evening-ai.webp",
   vision: "./images/vision-ai.webp",
 };
 
@@ -170,10 +167,9 @@ function Header() {
 }
 
 function Hero() {
-  const [night, setNight] = useState(false);
   return (
     <section
-      className={`hero chapter ${night ? "hero-at-night" : ""}`}
+      className="hero chapter"
       id="top"
       aria-labelledby="hero-title"
     >
@@ -201,66 +197,7 @@ function Hero() {
             </a>
           </div>
         </div>
-        <div className="hero-art">
-          <div className="hero-image-wrap">
-            <img
-              className="hero-image"
-              src={night ? imageFiles.night : imageFiles.day}
-              alt={
-                night
-                  ? "蓝调夜晚，温暖的客厅与放松时光"
-                  : "自然光洒进温暖的生活与工作空间"
-              }
-              fetchPriority="high"
-              width="1536"
-              height="1024"
-            />
-            <div className="hero-photo-shade" />
-          </div>
-          <div
-            className="hero-conversation"
-            key={night ? "night" : "day"}
-            aria-live="polite"
-          >
-            <div className="conversation-top">
-              <div className="conversation-brand">
-                <img src="./mirally.png" width="30" height="30" alt="" />
-                <strong>Mirally</strong>
-              </div>
-              <span className="demo-label">概念演示</span>
-            </div>
-            <div className="hero-question">
-              {night ? "这个角色是谁？" : "把会议整理成待办。"}
-            </div>
-            <div className="hero-answer">
-              {night
-                ? "许舟，一名摄影师。只聊到第三集。"
-                : "已生成会议摘要和待办清单。"}
-              <span className="answer-spark">
-                <Sparkles size={15} />
-              </span>
-            </div>
-            <a href="#a-day" className="hero-conversation-link">
-              打开场景演示 <ArrowRight size={14} />
-            </a>
-          </div>
-          <div className="hero-switch" aria-label="切换首屏场景">
-            <button
-              className={!night ? "selected" : ""}
-              aria-pressed={!night}
-              onClick={() => setNight(false)}
-            >
-              <Sun size={15} /> 日间
-            </button>
-            <button
-              className={night ? "selected" : ""}
-              aria-pressed={night}
-              onClick={() => setNight(true)}
-            >
-              <Moon size={15} /> 夜晚
-            </button>
-          </div>
-        </div>
+        <HeroExperience />
       </div>
       <div className="container hero-bottom">
         <a href="#a-day">
@@ -416,15 +353,9 @@ function Opportunity() {
         <div className="opportunity-copy" data-reveal>
           <span className="feature-status">商业规划</span>
           <h2 id="opportunity-title">商业路径</h2>
-          <p>先验证日常使用与付费意愿。</p>
-          <div className="opportunity-image">
-            <img
-              src="./images/business-studio-ai.webp"
-              alt="一位独立工作者和两位协作的同事，正在明亮的创意工作室处理各自的项目"
-              loading="lazy"
-              width="1536"
-              height="1024"
-            />
+          <p>从个人订阅，扩展到团队与服务。</p>
+          <div className="business-diagram">
+            <BusinessVisual />
           </div>
         </div>
         <div className="business-paths">

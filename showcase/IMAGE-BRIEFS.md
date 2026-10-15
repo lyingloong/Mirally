@@ -1,5 +1,9 @@
 # Mirally campaign imagery
 
+## Current hero and commercial visuals
+
+The homepage now uses a product window built in HTML/CSS, switching between work material and a fictional drama still with Mirally alongside. `hero-market-detail.webp` is a 697 × 394 crop of `work-desktop-ai.webp` at `(74, 141, 771, 535)`, exported as WebP quality 92; the life view reuses `story-ai.webp`. The commercial page uses a local HTML/CSS diagram connecting Mirally to personal workspaces, teams and services. No new image-generation or product API calls were made for this revision. The earlier home-workspace, evening and studio photographs remain historical assets and are no longer used on these two pages.
+
 The campaign images were generated on 2026-10-15 through the imagegen skill's bundled API/CLI fallback, explicitly authorized by the user, using the current Codex API provider and `gpt-image-2`. Preserve the existing Companion M logo; product copy and interactive interface elements are rendered in HTML. The work desktop background and capability images include fictional, non-interactive screen content. All nine campaign images use AI-generated imagery; temporary editorial photography was removed from the deliverable. Imagery illustrates use settings, not actual customer endorsements or unimplemented product interfaces.
 
 ## 01 — A quieter kind of intelligence
