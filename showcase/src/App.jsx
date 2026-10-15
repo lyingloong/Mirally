@@ -16,6 +16,16 @@ import {
 } from "lucide-react";
 import DayExperience from "./DayExperience.jsx";
 import CapabilityVisual from "./CapabilityVisual.jsx";
+import NextCapabilities from "./NextCapabilities.jsx";
+
+const chapters = [
+  ["top", "认识 Mirally"],
+  ["a-day", "场景演示"],
+  ["already-here", "当前能力"],
+  ["next-up", "下一步能力"],
+  ["vision", "我们的愿景"],
+  ["opportunity", "商业路径"],
+];
 
 const imageFiles = {
   day: "./images/hero-ai.webp",
@@ -87,7 +97,7 @@ function Header() {
       },
       { rootMargin: "-20% 0px -55% 0px" },
     );
-    ["top", "a-day", "already-here", "vision", "opportunity"].forEach((id) => {
+    chapters.forEach(([id]) => {
       const el = document.getElementById(id);
       if (el) observer.observe(el);
     });
@@ -117,12 +127,7 @@ function Header() {
           id="main-navigation"
           aria-label="主导航"
         >
-          {[
-            ["a-day", "场景演示"],
-            ["already-here", "当前能力"],
-            ["vision", "我们的愿景"],
-            ["opportunity", "商业路径"],
-          ].map(([id, title]) => (
+          {chapters.slice(1).map(([id, title]) => (
             <a
               href={`#${id}`}
               className={active === id ? "nav-active" : ""}
@@ -148,13 +153,7 @@ function Header() {
       </div>
       <div className="reading-progress" ref={progress} />
       <nav className="chapter-nav" aria-label="章节导航">
-        {[
-          ["top", "认识 Mirally"],
-          ["a-day", "场景演示"],
-          ["already-here", "当前能力"],
-          ["vision", "我们的愿景"],
-          ["opportunity", "商业路径"],
-        ].map(([id, label], index) => (
+        {chapters.map(([id, label], index) => (
           <a
             key={id}
             href={`#${id}`}
@@ -276,7 +275,7 @@ const capabilities = [
   {
     icon: PanelRight,
     title: "侧边对话",
-    text: "随时展开，会话与工作台同步。",
+    text: "随时对话、截图提问，会话同步。",
     kind: "chat",
     alt: "侧边对话界面示意：左侧是市集会议笔记，右侧 Mirally 将笔记整理成待办。",
   },
@@ -341,13 +340,13 @@ const roadmap = [
     step: "01",
     phase: "当前",
     title: "桌面协作",
-    text: "对话、文件产出与活动记忆。",
+    text: "对话、画面理解、任务与活动记忆。",
   },
   {
     step: "02",
     phase: "下一步",
-    title: "画面与语音交互",
-    text: "探索画面理解和连续语音交流。",
+    title: "自然交流与主动协作",
+    text: "语音交流、主动协助与个人偏好。",
   },
   {
     step: "03",
@@ -528,6 +527,23 @@ function Footer() {
 
 export default function App() {
   usePageMotion();
+  useEffect(() => {
+    const id = window.location.hash.slice(1);
+    if (!chapters.some(([chapterId]) => chapterId === id)) return;
+    // Wait for the first layout before locating an anchor mounted by React.
+    let frame;
+    const alignChapter = () => {
+      frame = requestAnimationFrame(() => {
+        document.getElementById(id)?.scrollIntoView({ behavior: "instant", block: "start" });
+      });
+    };
+    if (document.readyState === "complete") alignChapter();
+    else window.addEventListener("load", alignChapter, { once: true });
+    return () => {
+      window.removeEventListener("load", alignChapter);
+      cancelAnimationFrame(frame);
+    };
+  }, []);
   return (
     <>
       <a className="skip-link" href="#main">
@@ -538,6 +554,7 @@ export default function App() {
         <Hero />
         <DayExperience />
         <Foundations />
+        <NextCapabilities />
         <Vision />
         <Opportunity />
       </main>

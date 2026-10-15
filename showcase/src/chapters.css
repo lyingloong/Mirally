@@ -1,4 +1,4 @@
-/* The story is five chapters. Native scroll snap keeps normal wheel,
+/* The story is six chapters. Native scroll snap keeps normal wheel,
    touch and keyboard behavior; content can still grow at larger text sizes. */
 :root {
   --header-height: 72px;
