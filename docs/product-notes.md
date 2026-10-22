@@ -132,3 +132,12 @@
 - 要点：原 OpenClaw 路线在 `feat/mirally-openclaw-desktop` 的 `2eeb778a` 保存并推送，作为可运行对照。新分支 `codex/mirally-framework-refactor` 以自有产品框架和 DSH 接入为实施起点，保留基于证据调整细节的空间，原有“唯一 OpenClaw UI”不再限制目标架构。
 - 要点：先验证宿主接缝、领域状态与控制，再接生态和完整体验；备份、数据迁移与回退验收后替换默认入口并移除目标主链中的 OpenClaw。保存 Git 不等于备份私有数据；切回分支也不等于恢复数据。
 - 相关：[重构实施计划](framework-refactor-plan.md)、[目标方案 v0.8](personal-agent-framework.md)、[AGENTS.md](../AGENTS.md)。更新 PN-0013 的实施状态，不将研究建议或建分支当作能力交付。
+
+## PN-0015 · 2026-10-22 18:04 +08:00 · DSH 上游依赖与自有产品代码分开维护
+
+- 类型：依赖管理建议
+- 来源：用户询问是否将 DSH 仓库 clone 进本仓库并自行维护；Agent 核对官方 npm、Profile/Bundle 及现有研究基线后提出建议。
+- 状态：建议待原型验证，尚未安装、锁定、fork 或新增 submodule。
+- 要点：优先固定官方发行包与匹配依赖，由 Mirally 管理本地运行入口、独立 home、自有领域代码及薄扩展适配；升级通过兼容测试后显式进行。源码可另作调试/构建，临时研究缓存不能成为产品依赖。
+- 要点：正式接口存在必要缺口时再评估独立 fork，记录 upstream、提交、小补丁与升级责任。最终分发可携带运行产物，用户无需 clone 或构建上游；具体包可用性和打包方式仍须验收。
+- 相关：[依赖取得与维护](personal-agent-framework.md#72-dsh-依赖的取得与维护)、[重构实施计划](framework-refactor-plan.md)。细化 PN-0013、PN-0014 的依赖边界，不将自有产品架构等同于已维护自有内核。

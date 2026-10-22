@@ -216,6 +216,22 @@ Mirally 启动与配置
 
 产品入口的目标形式可使用 `dsh --profile mirally`，但该 Profile、Bundle 和启动链本轮尚未创建；现有启动脚本仍运行 OpenClaw。新接入需先在独立临时 home 中验证，尤其是公开控制入口、客户端打包、worker 生命周期与模型桥。
 
+### 7.2 DSH 依赖的取得与维护
+
+当前建议：优先使用固定版本的官方 npm 发行包，将 Mirally 产品代码、组合插件和运行配置独立维护。官方支持 [npm 安装与源码构建](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.1-rc.2/README.md)，以及通过 [Profile 与外部 Bundle](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.1-rc.2/packages/boot/app-boot/README.md#profiles)组合产品；采用这些入口不要求 fork 内核。
+
+| 组成 | 建议管理方式 |
+| --- | --- |
+| 上游 DSH 运行时及配套包 | 在产品管理的项目内安装，记录精确版本与 lockfile；由产品启动器解析本地入口，版本组合经过测试后显式升级 |
+| Mirally 产品与扩展代码 | 在本仓库维护领域模块、DSH adapter、Bundle/Preset 和客户端扩展；依赖宿主共享实例的包按官方 peer 约定声明，避免装出两套运行时 |
+| 产品 Profile 与私有配置 | 安装时由受版本管理的模板生成到 Mirally 专用 home，保留用户已有值，与用户普通 DSH 环境分离 |
+| 上游源码 | 可以单独 clone 或下载固定提交作研究、调试和构建；当前 `.artifacts/framework-research/` 仅是忽略的研究缓存，不属于可复现产品依赖 |
+| 必要内核改动 | 先证明正式接口无法满足，再评估独立 fork，保留 upstream、固定提交和小补丁，并承担构建、测试及合并上游的责任 |
+
+起步不把整棵 DSH 源码复制成产品代码，也不新增 DSH submodule。若选定发行版的包、导出或客户端资源不能支持正式接入，可按固定上游提交构建原样产物作为依赖；这仍需记录来源、构建步骤与校验信息。若最终需要源码依赖，再明确选择外部 checkout 或 submodule，不能让机器上的临时 clone 成为隐含前提。
+
+源码取得方式和产品分发方式分别决策：最终安装包可携带经过验证的 DSH 与 Node 运行产物，让用户直接启动 Mirally；具体打包、更新与许可清单需在原型验证后落实。默认启动不在线拉取 `latest`，不修改 `node_modules/`，也不依赖全局 `dsh` 的偶然版本。目前尚未安装并锁定产品 DSH 依赖，`dsh-v0.2.1-rc.2` 仍仅是研究基线。
+
 ## 8. 宿主、资源与恢复
 
 启用后台能力时，产品 Host 可独立于窗口可见性存活；关闭窗口、退出产品、暂停来源与禁用背景模型有不同语义。按需启动 Activity / Memory / UFO worker，不为框图数量增加进程。若选择全部退出，停机期间不能承诺主动到达；本地定时器也不保证设备睡眠/关机期间准点。
