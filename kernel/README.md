@@ -19,16 +19,17 @@
 ```powershell
 Push-Location kernel/dsh
 try {
+    $env:LEFTHOOK = "0"
     pnpm --version  # 应为 11.28.5
     pnpm install --frozen-lockfile
     pnpm run build
 } finally { Pop-Location }
 ```
 
-安装会联网下载依赖并运行 workspace 已审查的依赖构建脚本；生成的 `node_modules/`、`lib/`、Web 构建、缓存和二进制不提交，换机器后重新安装和构建。首次导入仅验证源码完整性与本地集成改动，尚未执行完整依赖安装或构建；构建成功后仍需验证实际运行。
+安装会联网下载依赖并运行 workspace 已审查的依赖构建脚本；生成的 `node_modules/`、`lib/`、Web 构建、缓存和二进制不提交，换机器后重新安装和构建。第一版已完成精确版本依赖安装和 9 项完整构建检查，原生会话与产品链路另经回环端到端验证。
 
 原上游 `postinstall` 的 hooks 安装行为已加以限制：只有内核本身是 Git 根时才可安装，嵌入 Mirally 时保持外层 hooks 配置。上游部分 Git gate 假定自己处于仓库根，后续应在需要时改为识别内核目录，不能将它们未适配视为已通过。
 
 ## 当前实施状态
 
-源码内核已纳入开发结构。Mirally 启动脚本、产品私有数据和可运行 UI 仍使用已保存的 OpenClaw 基线；新内核接入、领域模块迁移、完整构建与端到端运行属于后续[重构阶段](../docs/framework-refactor-plan.md)。
+默认入口已切到 `packages/mirally/` 的产品组合与自有 UI；领域状态由 Python owner 管理，内核保留单一 Session/Agent loop。安装、接入与验收边界见 [框架第一版](../docs/framework-v1.md)，旧 OpenClaw 仅保留显式维护入口。

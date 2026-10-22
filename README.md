@@ -1,6 +1,22 @@
 # Mirally
 
-> 当前分支 `codex/mirally-framework-refactor` 用于完整重构自有 personal agent 框架，DSH 源码作为可直接修改的内核纳入 [`kernel/dsh/`](kernel/README.md)，实施顺序和验收见[重构计划](docs/framework-refactor-plan.md)。下文描述仍可运行的 OpenClaw 基线；新宿主尚未接入。原维护分支 `feat/mirally-openclaw-desktop` 已保存并推送至 `2eeb778a`。
+本分支默认运行自有 personal agent 框架：以同仓 DSH 源码内核承载会话与模型执行，Mirally 拥有产品状态、自有界面、活动与记忆、提醒、受控行动及扩展接口。OpenClaw 不参与新主链，旧维护基线保留在 `feat/mirally-openclaw-desktop` 的 `2eeb778a`。
+
+```powershell
+py -3.10 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-framework.txt
+.\.venv\Scripts\python.exe tools\setup_framework.py
+.\run.ps1
+```
+
+需要 Windows、Node 22.19+（22.x）或 24+ 和 WebView2；模型服务由你配置。活动采集、后台模型与一般主动联系默认关闭。安装、模块关系、生态兼容、迁移回退和验证边界见[第一版使用与开发说明](docs/framework-v1.md)，长期方向见[产品框架方案](docs/personal-agent-framework.md)。
+
+已接通原生流式对话与历史、停止和重启恢复、记忆与明确偏好、提醒和持久收件箱、可选主动检查、Skill/MCP/可信插件及独立确认的桌面任务入口。第一版仍需真实外部模型、桌面任务效果和长期成本验收；未交付签名安装包、跨设备推送或完整长期陪伴能力。
+
+<details>
+<summary>OpenClaw 维护基线说明（仅适用于显式 --openclaw 入口）</summary>
+
+以下旧入口、配置与默认行为仅用于维护对照，不是新框架的运行说明。使用 `run.ps1 --openclaw` 显式打开，迁移前先停止另一宿主及共享数据 owner。
 
 ![Mirally 相伴 M 图标](mirally/assets/mirally-128.png)
 
@@ -216,3 +232,6 @@ WGC 现在复用常驻会话，避免周期截图反复开关捕获描边，并�
 [文档导航](docs/README.md) · [更新记录](CHANGELOG.md) · [迁移路线](docs/openclaw-integration-roadmap.md) · [图标资源](mirally/assets/README.md)
 
 OpenClaw 与 UFO 的上游许可证和版权声明保留。当前使用未修改的官方 OpenClaw 发行包；UFO 作为只读 submodule 使用主仓库锁定的版本，产品适配位于 `mirally/runtime/ufo/`。
+
+
+</details>

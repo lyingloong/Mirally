@@ -1,6 +1,6 @@
 # Mirally 扩展接口与组合设计
 
-状态：重构接口草案 v0.4，2026-10-22。用户已明确采用同仓 DSH 源码内核并允许直接修改 API、loop、Session、宿主与 UI；本文产品扩展契约仍须实现和验收。Profile/Bundle/Slots 可选复用，不再限制必须通过外部插件接入。当前 OpenClaw 是迁移基线；源码导入不代表新宿主已运行。实施见[重构计划](framework-refactor-plan.md)，来源见[内核说明](../kernel/README.md)与[上游记录](../kernel/dsh/UPSTREAM.md)；UFO 子模块仍只读，私有配置保留。
+状态：重构接口草案 v0.4，2026-10-22。用户已明确采用同仓 DSH 源码内核并允许直接修改 API、loop、Session、宿主与 UI；本文保留长期扩展契约；第一版已实现的范围与协议验收见[第一版说明](framework-v1.md)。Profile/Bundle/Slots 可选复用，不再限制必须通过外部插件接入。OpenClaw 仅保留显式维护与迁移对照入口。实施见[重构计划](framework-refactor-plan.md)，来源见[内核说明](../kernel/README.md)与[上游记录](../kernel/dsh/UPSTREAM.md)；UFO 子模块仍只读，私有配置保留。
 
 目标是让新来源、服务、交互入口、模型、策略和执行器能通过明确接口加入产品。扩展机制从第一版进入结构；接口数量和具体形状随真实接入验证演进。内置实现也使用对应的公开契约，避免外部扩展永远处于能力不足的第二条路径。
 

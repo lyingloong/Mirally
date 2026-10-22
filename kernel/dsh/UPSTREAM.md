@@ -22,6 +22,14 @@
 
 初始导入提交是后续内核改动的本地对照。普通源码修改直接提交到 Mirally；显著的上游移植、构建或格式兼容变化在此补充记录。无需为本项目另建 DSH Git 仓库或维护自动跟随 master 的同步分支。
 
+## 第一版源码变更
+
+- 新增 `packages/mirally/mirally-product` 与 `mirally-extensions` 两个源码直接运行的 MJS workspace，组合已有 Agent/Session/LLM、持久化、Skill 与工具服务；产品 Host 和 UI 由 Mirally 拥有。
+- `llm-pi-ai/src/index.ts` 导出已有配置解析与宿主凭据适配，产品使用原生 PiAI provider；没有另写模型主循环。
+- MCP client 导出受监督连接，并补齐共享连接上的 prompts、取消/代次检查和工具调用前授权回调；资源、工具与提示模板使用同一传输，相关协议测试同步维护。
+- `tsdown.config.ts` 按 `dsh.sourceOnly` 跳过源码 MJS workspace 的 TypeScript `lib/types` 输出假设。`pnpm-lock.yaml` 记录新增 workspace 接缝。
+- `pnpm-workspace.yaml` 禁止 lefthook 依赖自身的构建/安装钩子，补足工作区自有 postinstall 保护，防止嵌入安装修改外层 Git hooks；准备脚本同时设置 `LEFTHOOK=0`。
+
 ## 验证范围
 
-首次导入核验固定 archive、普通文件内容、workspace 本地依赖完整性、可执行文件模式及安装 hooks 的集成保护。尚未安装完整 Node 依赖、编译内核或启动新的 Agent；现有产品仍运行 OpenClaw。后续构建与运行步骤见 [内核维护说明](../README.md)和[重构实施计划](../../docs/framework-refactor-plan.md)。
+固定源码来源与许可证保留。第一版已完成 9 项完整源码构建检查、MCP 协议单测、原生模型/会话和产品领域的回环端到端联调，自有 UI 经离线 Edge 验证。没有验证全部上游 workspace 的所有测试，未调用真实外部模型或执行真实桌面动作。当前范围与命令见 [框架第一版](../../docs/framework-v1.md)和[重构实施计划](../../docs/framework-refactor-plan.md)。

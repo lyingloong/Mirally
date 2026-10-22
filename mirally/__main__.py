@@ -1,4 +1,4 @@
-"""Start the Mirally desktop session window."""
+"""Start the owned Mirally framework, with an explicit legacy comparison entry."""
 
 from __future__ import annotations
 
@@ -12,11 +12,15 @@ def main() -> None:
         raise SystemExit("Mirally currently runs on Windows only.")
 
     product_root = Path(__file__).resolve().parents[1]
-    parser = argparse.ArgumentParser(description="Mirally desktop host for the official OpenClaw Control UI")
-    parser.add_argument("--openclaw", action="store_true", help="Open the complete official OpenClaw UI in the Mirally desktop host")
-    parser.parse_args()
-    from mirally.control_ui_shell import ControlUIShell
-    ControlUIShell(product_root).run()
+    if "--openclaw" in sys.argv[1:]:
+        parser = argparse.ArgumentParser(description="Mirally legacy OpenClaw maintenance entry")
+        parser.add_argument("--openclaw", action="store_true")
+        parser.parse_args()
+        from mirally.control_ui_shell import ControlUIShell
+        ControlUIShell(product_root).run()
+    else:
+        from mirally.framework_host import main as framework_main
+        raise SystemExit(framework_main())
 
 
 if __name__ == "__main__":

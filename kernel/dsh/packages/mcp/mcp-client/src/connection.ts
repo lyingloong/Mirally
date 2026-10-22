@@ -24,6 +24,18 @@ import { createTransport } from './transport.ts'
 import { syncTools } from './tools.ts'
 import type { ToolBridgeOptions, ToolDisposers } from './tools.ts'
 import type { Config } from './index.ts'
+import type { ToolExecution } from '@deepseek-ai/dsh-tools'
+
+/** Optional product authorization applied to every tool generation. */
+export interface McpConnectionOptions {
+  /** Runs at the final remote invocation, including calls after a list refresh. */
+  beforeToolCall?: (execution: ToolExecution) => Promise<void>
+}
+
+/** Explicit prompt discovery and retrieval on a configured server. */
+export type McpPromptRequest =
+  | { method: 'prompts/list'; cursor?: string }
+  | { method: 'prompts/get'; name: string; arguments?: Record<string, string> }
 
 /** Automatic reconnect policy for one MCP server connection. */
 export interface ReconnectConfig {
@@ -101,6 +113,11 @@ export interface ConnectionOutcome {
 
 /** Handle for one plugin instance's supervised connection. */
 export interface ConnectionHandle extends ServerContext {
+  /** Prompt templates share the same supervised transport as tools and resources. */
+  prompts: {
+    /** Run prompt discovery or retrieval with the caller's cancellation. */
+    request(request: McpPromptRequest, exec: Pick<ToolExecution, 'signal'>): Promise<JsonValue>
+  }
   /**
    * Settles when the first connection attempt completes (success or failure).
    * The supervisor enters its reconnect loop regardless; the caller decides
@@ -124,13 +141,14 @@ export interface ConnectionHandle extends ServerContext {
  * @param policy - Resolved reconnect policy from {@link resolveReconnectPolicy}.
  * @returns Handle with a `ready` promise for startup-await and a `dispose` for teardown.
  */
-export function startConnection(ctx: Context, config: Config, policy: ResolvedReconnectPolicy): ConnectionHandle {
+export function startConnection(ctx: Context, config: Config, policy: ResolvedReconnectPolicy, options: McpConnectionOptions = {}): ConnectionHandle {
   const label = `mcp-client(${config.serverName})`
   const incompleteDisposalMessage = `${label}: transport closure could not be confirmed during disposal — server shutdown may be incomplete`
   const opts: ToolBridgeOptions = {
     registrationFailure: 'contain',
     serverName: config.serverName,
     toolCallTimeoutMs: config.toolCallTimeoutMs,
+    ...options.beforeToolCall === undefined ? {} : { beforeToolCall: options.beforeToolCall },
   }
   // The initial sync uses 'throw' when failOnStartupError is configured, so
   // a registration conflict propagates to the startup-await path. Re-syncs
@@ -363,6 +381,22 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
   return {
     ready,
     instructions: () => serverInstructions,
+    prompts: {
+      async request(request, exec): Promise<JsonValue> {
+        const generation = client
+        if (!generation || connectedAt === undefined) throw new Error(`${label}: server is disconnected`)
+        exec.signal.throwIfAborted()
+        const options = { signal: exec.signal, timeout: config.toolCallTimeoutMs }
+        switch (request.method) {
+          case 'prompts/list':
+            return await generation.listPrompts(request.cursor === undefined ? undefined : { cursor: request.cursor }, options) as JsonValue
+          case 'prompts/get':
+            return await generation.getPrompt({ name: request.name, ...request.arguments === undefined ? {} : { arguments: request.arguments } }, options) as JsonValue
+          default:
+            return assertNever(request)
+        }
+      },
+    },
     resources: {
       async request(request, exec): Promise<JsonValue> {
         const generation = client

@@ -477,14 +477,22 @@ class OpenClawHostTests(unittest.TestCase):
         self.assertNotIn("__MIRALLY_LOGO__", html)
         self.assertNotIn("pywebview.api", html)
 
-    def test_default_and_explicit_launch_choose_full_official_ui(self):
-        for arguments in ([], ["--openclaw"]):
+    def test_explicit_launch_keeps_full_official_ui(self):
+        for arguments in (["--openclaw"],):
             with self.subTest(arguments=arguments), \
                  patch.object(sys, "argv", ["mirally", *arguments]), \
                  patch.object(sys, "platform", "win32"), \
                  patch("mirally.control_ui_shell.ControlUIShell") as shell:
                 main()
                 shell.return_value.run.assert_called_once()
+
+    def test_default_launch_chooses_owned_framework(self):
+        with patch.object(sys, "argv", ["mirally"]), patch.object(sys, "platform", "win32"), \
+             patch("mirally.framework_host.main", return_value=0) as framework:
+            with self.assertRaises(SystemExit) as caught:
+                main()
+            self.assertEqual(caught.exception.code, 0)
+            framework.assert_called_once_with()
 
     def test_incompatible_launch_modes_are_rejected_before_starting(self):
         for arguments in (["--ufo"], ["--legacy"], ["--demo"], ["--companion"], ["--openclaw", "--ufo"]):

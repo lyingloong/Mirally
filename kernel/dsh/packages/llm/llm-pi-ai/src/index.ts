@@ -77,6 +77,8 @@ import { providerDefaultsOf } from './provider-data.ts'
 export { PiAiAdapter } from './adapter.ts'
 export type { PiAiAdapterOptions } from './adapter.ts'
 export { Config } from './config.ts'
+export { resolveProfiles } from './config.ts'
+export { credentialStoreFrom, authContextFrom } from './auth.ts'
 export type {
   Options,
   PiAiCompatProfile,

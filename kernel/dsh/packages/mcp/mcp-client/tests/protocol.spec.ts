@@ -11,7 +11,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import McpResources from '@deepseek-ai/dsh-mcp-resources'
 import { startConnection, resolveReconnectPolicy } from '../src/connection.ts'
-import type { Config } from '../src/index.ts'
+import type { Config, ConnectionHandle, McpConnectionOptions } from '../src/index.ts'
 
 const { mockTransport } = vi.hoisted(() => ({ mockTransport: vi.fn<() => Transport>() }))
 vi.mock('../src/transport.ts', () => ({ createTransport: mockTransport }))
@@ -21,14 +21,15 @@ const config: Config = {
   toolCallTimeoutMs: 60_000, failOnStartupError: true,
 }
 
-async function connect(server: McpServer, options?: { resources: true }): Promise<Context> {
+async function connect(server: McpServer, options?: { resources?: true; connection?: McpConnectionOptions; observe?: (connection: ConnectionHandle) => void }): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
   const serving = serveStdio(() => server, { transport: serverTransport })
   mockTransport.mockReturnValue(clientTransport)
-  const connection = startConnection(ctx, config, resolveReconnectPolicy({ enabled: false }, 'fixture'))
+  const connection = startConnection(ctx, config, resolveReconnectPolicy({ enabled: false }, 'fixture'), options?.connection)
+  options?.observe?.(connection)
   onTestFinished(async () => {
     await connection.dispose()
     await serving.close()
@@ -43,6 +44,52 @@ async function connect(server: McpServer, options?: { resources: true }): Promis
 }
 
 describe('modern MCP connections', () => {
+  it('lists and retrieves prompt templates on the existing connection and rejects use after disposal', async () => {
+    const server = new McpServer({ name: 'prompts', version: '1' }, { capabilities: { prompts: {} } })
+    server.server.setRequestHandler('prompts/list', async request => ({
+      prompts: [{ name: 'welcome', description: request.params?.cursor ?? 'first page' }],
+    }))
+    server.server.setRequestHandler('prompts/get', async request => ({
+      messages: [{ role: 'user' as const, content: { type: 'text' as const, text: `Hello ${request.params.arguments?.person ?? 'friend'}` } }],
+    }))
+    let connection: ConnectionHandle | undefined
+    await connect(server, { observe: value => { connection = value } })
+    const active = connection!
+    const exec = { signal: new AbortController().signal }
+    expect(await active.prompts.request({ method: 'prompts/list', cursor: 'page-2' }, exec)).toMatchObject({
+      prompts: [{ name: 'welcome', description: 'page-2' }],
+    })
+    expect(await active.prompts.request({ method: 'prompts/get', name: 'welcome', arguments: { person: 'Mirally' } }, exec)).toMatchObject({
+      messages: [{ role: 'user', content: { type: 'text', text: 'Hello Mirally' } }],
+    })
+    const stopped = new AbortController()
+    stopped.abort(new Error('cancelled prompt'))
+    await expect(active.prompts.request({ method: 'prompts/list' }, { signal: stopped.signal })).rejects.toThrow('cancelled prompt')
+    await active.dispose()
+    await expect(active.prompts.request({ method: 'prompts/list' }, exec)).rejects.toThrow('disconnected')
+  })
+
+  it('checks product authorization immediately before tools from every discovered generation', async () => {
+    const server = new McpServer({ name: 'guarded', version: '1' })
+    let calls = 0
+    server.registerTool('change', { inputSchema: z.object({}) }, async () => {
+      calls += 1
+      return { content: [] }
+    })
+    let allowed = false
+    const ctx = await connect(server, { connection: { beforeToolCall: async () => {
+      if (!allowed) throw new Error('requires explicit product authorization')
+    } } })
+    const execute = () => ctx.tools.execute({
+      callId: ToolCallId('guarded'), name: 'mcp__fixture__change', arguments: {}, signal: new AbortController().signal,
+    })
+    expect((await execute()).isError).toBe(true)
+    expect(calls).toBe(0)
+    allowed = true
+    expect((await execute()).isError).toBe(false)
+    expect(calls).toBe(1)
+  })
+
   it('keeps a resource-only server connected without requesting tools', async () => {
     const server = new McpServer({ name: 'resources', version: '1' })
     server.registerResource('memo', 'memo://readme', {}, async () => ({

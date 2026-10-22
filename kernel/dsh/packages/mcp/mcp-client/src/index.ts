@@ -19,6 +19,7 @@ import { scopeOf } from '@deepseek-ai/dsh-scope'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { DEFAULT_MAX_INSTRUCTION_BYTES, RECONNECT_DEFAULTS, resolveReconnectPolicy, startConnection } from './connection.ts'
 import type { ReconnectConfig } from './connection.ts'
+import type { ConnectionHandle, McpConnectionOptions } from './connection.ts'
 import { registerServerContext } from './server-context.ts'
 // Side-effect type import: declaration-merges `ctx.tools` onto Context.
 import type {} from '@deepseek-ai/dsh-tools'
@@ -26,6 +27,7 @@ import type {} from '@deepseek-ai/dsh-tools'
 export { createMcpToolDefinition } from './tools.ts'
 export type { McpResult, McpToolDefinitionOptions } from './tools.ts'
 export type { ReconnectConfig, ResolvedReconnectPolicy } from './connection.ts'
+export type { ConnectionHandle, McpConnectionOptions, McpPromptRequest } from './connection.ts'
 
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'mcp-client'
@@ -151,7 +153,7 @@ export const Config = z.union([
  * @param config - resolved transport and server namespace configuration.
  * @returns startup readiness after connection and initial tool discovery settle.
  */
-export async function apply(ctx: Context, config: Config): Promise<void> {
+export function createMcpConnection(ctx: Context, config: Config, options: McpConnectionOptions = {}): ConnectionHandle {
   // Fail loud at load: reconnect misconfiguration (including programmatic
   // construction that bypassed Schemastery) rejects THIS instance before any
   // effect registers.
@@ -178,7 +180,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   // The supervisor owns the client/transport generations, the reconnect
   // loop, and the live tool registrations; disposal stops reconnection,
   // quiesces in-flight work, and unregisters the current generation.
-  const connection = startConnection(ctx, config, reconnect)
+  const connection = startConnection(ctx, config, reconnect, options)
   registerServerContext(ctx, config.serverName, connection)
   let stopping: Promise<void> | undefined
   const dispose = (): Promise<void> => stopping ??= connection.dispose()
@@ -190,6 +192,18 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     return dispose()
   }, { global: true })
   ctx.effect(() => dispose, 'mcp-client.connection')
+
+  return connection
+}
+
+/**
+ * Activate one MCP connection, awaiting its initial discovery.
+ * @param ctx - plugin registration owner.
+ * @param config - resolved server connection settings.
+ * @returns readiness after initial connection and discovery.
+ */
+export async function apply(ctx: Context, config: Config): Promise<void> {
+  const connection = createMcpConnection(ctx, config)
 
   // Block plugin activation on the initial connection + tool discovery so
   // Cordis consumers observe the tools immediately after the fiber activates.

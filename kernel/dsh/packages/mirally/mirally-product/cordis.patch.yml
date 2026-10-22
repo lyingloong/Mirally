@@ -1,0 +1,69 @@
+# The Mirally product owns this complete native composition; no upstream shell tools are mounted.
+- insert:
+    - id: mirally-timer
+      name: '@deepseek-ai/cordis-plugin-timer'
+    - id: llm
+      name: '@deepseek-ai/dsh-llm'
+    - id: session
+      name: '@deepseek-ai/dsh-session'
+    - id: session-projection
+      name: '@deepseek-ai/dsh-session-projection'
+    - id: filesystem
+      name: '@deepseek-ai/dsh-fs-local'
+      config:
+        cwd: !!js process.env.MIRALLY_ROOT
+    - id: attachments
+      name: '@deepseek-ai/dsh-attachment-local'
+      config:
+        dshHome: !!js process.env.MIRALLY_HOME
+    - id: working-directory
+      name: '@deepseek-ai/dsh-working-directory'
+      config:
+        defaultDirectory: !!js process.env.MIRALLY_WORKSPACE
+    - id: system-prompt
+      name: '@deepseek-ai/dsh-system-prompt'
+      config:
+        includeHarnessIdentity: false
+        includeRuntimeContext: false
+        personaPrefix: |-
+          You are Mirally, a personal agent supporting the user's life and work.
+          Use available context with its sources and gaps; do not invent experiences or memories.
+          Respect explicit preferences, stopped work and source withdrawal. Ordinary conversation does not perform desktop actions.
+          Use product tools for relevant memories, preferences and explicit reminders. Tool success and actual external effects differ.
+    - id: tools
+      name: '@deepseek-ai/dsh-tools'
+    - id: skills
+      name: '@deepseek-ai/dsh-skill'
+    - id: tool-skill
+      name: '@deepseek-ai/dsh-tool-skill'
+    - id: mcp-resources
+      name: '@deepseek-ai/dsh-mcp-resources'
+    - id: agent
+      name: '@deepseek-ai/dsh-agent'
+    - id: agent-loop
+      name: '@deepseek-ai/dsh-agent-loop'
+      config:
+        agents: []
+        maxParallelToolCalls: 1
+    - id: session-persistence
+      name: '@deepseek-ai/dsh-session-persistence-jsonl'
+      config:
+        root: !!js dshHomePath('sessions')
+        compression: none
+    - id: session-checkpoint-policy
+      name: '@deepseek-ai/dsh-session-checkpoint-policy'
+    - id: mirally-product
+      name: '@mirally/dsh-product'
+      config:
+        root: !!js process.env.MIRALLY_ROOT
+        home: !!js process.env.MIRALLY_HOME
+        python: !!js process.env.MIRALLY_PYTHON
+        uiDirectory: !!js process.env.MIRALLY_UI_DIRECTORY
+        port: !!js Number(process.env.MIRALLY_PORT ?? 0)
+        token: !!js process.env.MIRALLY_AUTH_TOKEN
+        testMode: !!js process.env.MIRALLY_TEST_MODE === '1'
+    - id: mirally-extensions
+      name: '@mirally/dsh-extensions'
+      config:
+        root: !!js process.env.MIRALLY_ROOT
+        home: !!js process.env.MIRALLY_HOME

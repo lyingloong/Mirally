@@ -1,3 +1,17 @@
+# Mirally 运行结构
+
+当前默认入口 `python -m mirally` → `framework_host.py` → 同仓 `kernel/dsh/packages/mirally/mirally-product/start.mjs`。新主链不依赖 OpenClaw；显式 `--openclaw` 保留旧维护路线。
+
+- `framework/`：产品业务 owner 与 SQLite，持久设置、会话代次引用、命令和来源回执、偏好、提醒、主动候选及收件箱；不复制原生 transcript。
+- `framework/context.py`：按需只读组合现有 Activity 与 Memory owner，保留来源版本和缺口。
+- `framework_workers.py`：有开关和预算的采集、维护和语义任务生命周期；完成请求经同一原生模型桥。
+- `framework_ui/`：自有交互界面，无独立模型循环或浏览器凭据存储。
+- `kernel/dsh/packages/mirally/mirally-product/`：本机鉴权 Host、DSH Session/Agent loop/LLM 适配、取消与恢复、受控桌面子任务。
+- `kernel/dsh/packages/mirally/mirally-extensions/`：Skill、脚本、MCP 与原生可信插件的版本、授权和生命周期组合。
+- 既有 `core/activity`、`core/memory`、`runtime/activity`、`runtime/memory` 与平台适配继续负责原有领域数据。`runtime/ufo` 是只读 UFO 内核的内部任务适配。
+
+接口、数据路径、迁移和实际验收见 [框架第一版](../docs/framework-v1.md)。下面保留旧模块的细节参考，其中 OpenClaw 专用宿主仅由维护入口使用。
+
 # Mirally product layout
 
 This describes the current Python/OpenClaw baseline. The refactor target and

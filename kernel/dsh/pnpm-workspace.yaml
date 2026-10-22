@@ -30,7 +30,9 @@ peerDependencyRules:
 # (git hooks) genuinely need theirs.
 allowBuilds:
   esbuild: true
-  lefthook: true
+  # Mirally owns its outer Git hooks. The package's own postinstall would
+  # install into the parent repo before our guarded root postinstall runs.
+  lefthook: false
   # Cross-platform boundary for the persistent PTY backend, including ConPTY on Windows.
   node-pty: true
   # Pulled in by @earendil-works/pi-ai (optional LLM API backend). pnpm lists
