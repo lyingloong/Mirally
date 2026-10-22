@@ -1,0 +1,92 @@
+{
+  "repository": "https://github.com/deepseek-ai/deepseek-harness",
+  "tag": "dsh-v0.2.1-rc.2",
+  "commit": "687f282e8625c6b8d11ff58211a90524be2e4317",
+  "archive_url": "https://github.com/deepseek-ai/deepseek-harness/archive/refs/tags/dsh-v0.2.1-rc.2.tar.gz",
+  "archive_sha256": "dec9f36f9b25028ca8de2a7520e16029ad36e8328078fb33b85b1b9b338d5690",
+  "upstream_regular_files": 16283,
+  "materialized_links": [
+    {
+      "path": ".agents/notes/implemented/CLAUDE.md",
+      "target": "AGENTS.md",
+      "materialization": "file-copy"
+    },
+    {
+      "path": ".agents/skills/agent-experience/SKILL.md",
+      "target": "../../../packages/preset/agent-preset/skills/agent-experience/SKILL.md",
+      "materialization": "file-copy"
+    },
+    {
+      "path": ".claude/skills",
+      "target": "../.agents/skills",
+      "materialization": "directory-copy"
+    },
+    {
+      "path": "CLAUDE.md",
+      "target": "AGENTS.md",
+      "materialization": "file-copy"
+    },
+    {
+      "path": "apps/cli/tests/profiles/acp/cordis.yml",
+      "target": "../../../../../snapshots/acp/escalation-approved/cordis.yml",
+      "materialization": "file-copy"
+    },
+    {
+      "path": "packages/CLAUDE.md",
+      "target": "AGENTS.md",
+      "materialization": "file-copy"
+    },
+    {
+      "path": "snapshots/acp/escalation-approved/system-prompt.expected.md",
+      "target": "../../session/text-turn/system-prompt.expected.md",
+      "materialization": "file-copy"
+    },
+    {
+      "path": "snapshots/acp/escalation-approved/tool-schemas.expected.json",
+      "target": "../../session/text-turn/tool-schemas.expected.json",
+      "materialization": "file-copy"
+    },
+    {
+      "path": "snapshots/acp/image-compaction/system-prompt.expected.md",
+      "target": "../../session/read-image/system-prompt.expected.md",
+      "materialization": "file-copy"
+    },
+    {
+      "path": "snapshots/sdk/account-provider-signout/system-prompt.expected.md",
+      "target": "../text-turn/system-prompt.expected.md",
+      "materialization": "file-copy"
+    },
+    {
+      "path": "snapshots/sdk/account-provider-signout/tool-schemas.expected.json",
+      "target": "../text-turn/tool-schemas.expected.json",
+      "materialization": "file-copy"
+    },
+    {
+      "path": "snapshots/session/agent-instructions/workspace/AGENTS.md",
+      "target": "AGENTS.canonical.md",
+      "materialization": "file-copy"
+    },
+    {
+      "path": "snapshots/session/agent-instructions/workspace/nested/AGENTS.md",
+      "target": "AGENTS.canonical.md",
+      "materialization": "file-copy"
+    },
+    {
+      "path": "vendor/CLAUDE.md",
+      "target": "AGENTS.md",
+      "materialization": "file-copy"
+    }
+  ],
+  "upstream_executable_files": [
+    ".agents/skills/record-browser-gif/scripts/encode_gif.py",
+    "apps/desktop/scripts/logged-notarytool.mjs",
+    "apps/desktop/scripts/node-bin/node",
+    "packages/experimental/webworker-packer/bin.js",
+    "scripts/check-expected-filenames.sh",
+    "scripts/check-vendor-manifest.sh",
+    "scripts/prepare-ci-bubblewrap.sh",
+    "scripts/wine-windows-gates.sh",
+    "snapshots/session/cua-native/workspace/native-helper.mjs",
+    "vendor/cordis/bin.js"
+  ]
+}

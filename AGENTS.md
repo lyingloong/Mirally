@@ -3,13 +3,14 @@
 ## 项目边界
 
 - 产品展示名为 Mirally；Python 包和配置目录统一使用 `mirally`，产品环境变量使用 `MIRALLY_` 前缀。模块职责见 `mirally/ARCHITECTURE.md`。
-- 本分支 `codex/mirally-framework-refactor` 的目标是完整重构为自有 personal agent 产品框架，以 [产品框架方案](docs/personal-agent-framework.md)、[扩展接口与生态兼容](docs/framework-extensions.md) 和 [重构实施计划](docs/framework-refactor-plan.md) 为实施起点。DSH 提供原生会话与推理基础，Mirally 拥有产品状态、交互规则及能力边界；具体接口与接入形态须由原型验证，文档不代表已实现。
+- 本分支 `codex/mirally-framework-refactor` 的目标是完整重构为自有 personal agent 产品框架，以 [产品框架方案](docs/personal-agent-framework.md)、[扩展接口与生态兼容](docs/framework-extensions.md) 和 [重构实施计划](docs/framework-refactor-plan.md) 为实施起点。用户已授权将 DSH 源码直接纳入 `kernel/dsh/` 作为可侵入修改的内核；Mirally 拥有产品状态、交互规则及能力边界，源码导入不代表新宿主已运行。
 - 长期产品框架面向覆盖生活与工作的 personal agent，整体考虑活动理解、记忆与个性化、主动联系、陪伴交互和行动等方向，不以单一场景限定架构；以整体体验和结构质量作取舍，允许有依据地调整、延后或舍弃个别目标，不为凑齐功能增加核心复杂度。扩展性是核心设计要求，通过明确接口接入和组合来源、服务、模型、执行与交互等能力；借鉴 DSH 插件思想，接口围绕 Mirally 职责设计。
 - 长期框架应正式兼容 Skill、MCP 和版本化插件接入；保留生态格式与协议，通过明确适配组合。区分 Skill 说明/资源/脚本、MCP 工具/资源/提示模板，以及不同宿主插件的兼容范围，按实际能力与版本验收；设计见 [扩展接口与生态兼容](docs/framework-extensions.md)。
 - 原分支 `feat/mirally-openclaw-desktop` 在 `2eeb778a` 保存并推送了 OpenClaw 维护基线。当前代码仍使用 OpenClaw Control UI，Activity 经其管理的本地 MCP 接入；这是迁移对照，不限制新框架采用自有界面和 DSH。按阶段保留可运行入口，完成替代链路、数据与回退验收后移除目标主链中的 OpenClaw，不将两个宿主叠成同一推理链。
 - UFO 仅作内部桌面子任务执行器，通过产品执行接口接入，不提供独立对话或界面，也不直接消费 Activity；不恢复旧 Activity native plugin 或接入 Galaxy。
 - `UFO/` 是只读 Git submodule。UFO 产品适配放在 `mirally/runtime/`，Python 测试放在根目录 `tests/`；未经明确授权，不修改内核、gitlink 或 `.gitmodules`。确需内核变更时，说明原因并取得授权，按 fork 流程维护。
-- 不编辑 `node_modules/` 或上游发行包，优先使用正式扩展接口。现存 OpenClaw 配置通过官方定向补丁维护，保留已有设置；UFO worker 使用宿主模型路由，产品 UFO YAML 只维护在 `config/mirally/ufo/`。
+- `kernel/dsh/` 是本仓库直接管理的源码，不是只读 vendor 或 submodule；允许直接调整 Agent loop、Session、Host、模型/工具链和 UI，无需为内核修改再次取得授权。保留 [上游基线与改动说明](kernel/dsh/UPSTREAM.md)、许可证和第三方声明；新增内核行为须同步相关调用方、文档和针对性验证。上游插件优先等策略仅作为参考，不能阻止本分支已授权的侵入式设计；产品领域仍保持清晰职责与可扩展接口。
+- 不编辑 `node_modules/` 或未纳入源码管理的上游发行包。现存 OpenClaw 配置通过官方定向补丁维护，保留已有设置；UFO worker 使用宿主模型路由，产品 UFO YAML 只维护在 `config/mirally/ufo/`。
 
 ## 可迁移性
 

@@ -14,6 +14,7 @@ Mirally 是面向 Windows 的对话与桌面助手，名称取自 MIRA + ally。
 | 按时间追踪产品发现、想法、设计原则、方向和文案 | [产品思考记录](product-notes.md) |
 | 面向长期 personal agent 的目标、模块归属、依赖方向与整体运行 | [产品框架目标方案](personal-agent-framework.md) |
 | 完整重构的基线、实施阶段、验收与回退条件 | [重构实施计划](framework-refactor-plan.md) |
+| 可直接修改的 DSH 内核、来源与构建准备 | [内核维护说明](../kernel/README.md) |
 | Skill、MCP、插件及新来源、服务、执行器和交互入口的接入与组合 | [扩展接口与生态兼容设计](framework-extensions.md) |
 | 为什么这样选、其他架构、固定源码证据、反例与迁移门槛 | [架构调研与取舍](research/personal-agent-architecture-2026-10-22.md) |
 | 对照检查累计功能、界面表现与待修复问题 | [Mirally 功能与体验验收清单](mirally-feature-checklist.md) |

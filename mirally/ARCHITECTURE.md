@@ -2,7 +2,8 @@
 
 This describes the current Python/OpenClaw baseline. The refactor target and
 stage gates live in [the framework plan](../docs/framework-refactor-plan.md).
-The DSH host and new product contracts have not been implemented yet.
+The editable DSH source lives in `../kernel/dsh/`; it has not been connected
+to the product launcher or the new product contracts yet.
 
 The product package is split by responsibility:
 
