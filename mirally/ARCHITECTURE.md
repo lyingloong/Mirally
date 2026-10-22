@@ -1,5 +1,9 @@
 # Mirally product layout
 
+This describes the current Python/OpenClaw baseline. The refactor target and
+stage gates live in [the framework plan](../docs/framework-refactor-plan.md).
+The DSH host and new product contracts have not been implemented yet.
+
 The product package is split by responsibility:
 
 - `core/` owns conversation state, intent handoff, and task lifecycle. It does

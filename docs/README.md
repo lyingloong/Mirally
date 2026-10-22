@@ -1,5 +1,7 @@
 # Mirally 文档导航
 
+当前重构分支的目标和验收见[重构实施计划](framework-refactor-plan.md)。下列运行文档仍描述 OpenClaw 基线；产品框架与扩展文档描述待实现的目标，阶段通过后再更新对应运行说明。
+
 Mirally 是面向 Windows 的对话与桌面助手，名称取自 MIRA + ally。当前正式图标为蓝青渐变的「相伴 M」。Python 包统一使用 `mirally`，产品配置位于 `config/mirally/`，产品环境变量使用 `MIRALLY_` 前缀。
 
 ## 按目的阅读
@@ -10,7 +12,8 @@ Mirally 是面向 Windows 的对话与桌面助手，名称取自 MIRA + ally。
 | 从旧包名迁移本机配置、会话和启动路径 | [Mirally 名称迁移](mirally-name-migration.md) |
 | 用户可见功能与版本变化 | [更新记录](../CHANGELOG.md) |
 | 按时间追踪产品发现、想法、设计原则、方向和文案 | [产品思考记录](product-notes.md) |
-| 面向长期 personal agent 的目标、模块归属、依赖方向与整体运行 | [产品框架方案（调研后推荐案）](personal-agent-framework.md) |
+| 面向长期 personal agent 的目标、模块归属、依赖方向与整体运行 | [产品框架目标方案](personal-agent-framework.md) |
+| 完整重构的基线、实施阶段、验收与回退条件 | [重构实施计划](framework-refactor-plan.md) |
 | Skill、MCP、插件及新来源、服务、执行器和交互入口的接入与组合 | [扩展接口与生态兼容设计](framework-extensions.md) |
 | 为什么这样选、其他架构、固定源码证据、反例与迁移门槛 | [架构调研与取舍](research/personal-agent-architecture-2026-10-22.md) |
 | 对照检查累计功能、界面表现与待修复问题 | [Mirally 功能与体验验收清单](mirally-feature-checklist.md) |

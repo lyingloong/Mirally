@@ -1,5 +1,7 @@
 # Mirally
 
+> 当前分支 `codex/mirally-framework-refactor` 用于完整重构自有 personal agent 框架，实施顺序和验收见[重构计划](docs/framework-refactor-plan.md)。下文描述仍可运行的 OpenClaw 基线；新 DSH 宿主尚未实现。原维护分支 `feat/mirally-openclaw-desktop` 已保存并推送至 `2eeb778a`。
+
 ![Mirally 相伴 M 图标](mirally/assets/mirally-128.png)
 
 产品与愿景展示网页见 [Everyday Ally 展示站](showcase/README.md)，可独立运行，包含 AI 主视觉及工作、记忆、娱乐场景演示。

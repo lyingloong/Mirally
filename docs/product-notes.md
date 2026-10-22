@@ -123,3 +123,12 @@
 - 要点：首选目标为一个 DSH 主宿主，通过 Mirally Profile、Bundle/组合插件、产品 Preset 和正式客户端扩展装配自有产品模块；Cordis 随 DSH 配套，不再独立组框架。Python Activity/Memory、SQLite、Windows、薄窗口、用户模型服务及按需 UFO/Skill/MCP 仍有自己的依赖，不能宣传为唯一依赖 DSH。
 - 要点：本地查询可走 MCP，持续采集、维护、模型桥和停止由明确生命周期接口连接；OpenClaw 专用适配需替换，现有 Python 数据/平台资产优先复用。OpenClaw 目前仍是正式系统与对照，目标切换后不叠加到 DSH 主链；采用 DSH 也不绑定 DeepSeek 模型服务。
 - 相关：[运行依赖与接入形态](personal-agent-framework.md#71-运行依赖与接入形态)。
+
+## PN-0014 · 2026-10-22 17:57 +08:00 · 在独立分支完整重构自有框架
+
+- 类型：实施方向 / 迁移原则
+- 来源：用户要求先维护当前分支并 push，再开分支完整重构至新的设计方案。
+- 状态：完整重构方向已确认，分支和计划已建立；目标宿主、产品契约与迁移尚未实现。
+- 要点：原 OpenClaw 路线在 `feat/mirally-openclaw-desktop` 的 `2eeb778a` 保存并推送，作为可运行对照。新分支 `codex/mirally-framework-refactor` 以自有产品框架和 DSH 接入为实施起点，保留基于证据调整细节的空间，原有“唯一 OpenClaw UI”不再限制目标架构。
+- 要点：先验证宿主接缝、领域状态与控制，再接生态和完整体验；备份、数据迁移与回退验收后替换默认入口并移除目标主链中的 OpenClaw。保存 Git 不等于备份私有数据；切回分支也不等于恢复数据。
+- 相关：[重构实施计划](framework-refactor-plan.md)、[目标方案 v0.8](personal-agent-framework.md)、[AGENTS.md](../AGENTS.md)。更新 PN-0013 的实施状态，不将研究建议或建分支当作能力交付。
