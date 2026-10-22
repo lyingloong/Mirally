@@ -22,7 +22,7 @@
     "type": "object",
     "additionalProperties": false,
     "properties": {
-      "root": { "type": "string", "description": "OpenAssist repository root." },
+      "root": { "type": "string", "description": "Mirally repository root." },
       "configPath": { "type": "string", "description": "Optional activity.yaml path." },
       "timeoutMs": { "type": "integer", "minimum": 1000, "maximum": 120000, "default": 30000 }
     }

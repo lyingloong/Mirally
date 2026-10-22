@@ -15,25 +15,25 @@ from unittest.mock import patch
 
 from PIL import Image
 
-from openassist.core.activity.input_text import InputTextTracker
-from openassist.core.activity.models import CollectionLevel, Observation
-from openassist.core.activity.policy import ActivityPolicy
-from openassist.core.activity.store import ObservationStore
-from openassist.platform.activity.foreground import ForegroundSnapshot
-from openassist.platform.activity.input_metadata import InputBatch, InputMetadataAggregator
-from openassist.platform.activity.clipboard import WindowsClipboardSource
-from openassist.platform.activity.monitors import (
+from mirally.core.activity.input_text import InputTextTracker
+from mirally.core.activity.models import CollectionLevel, Observation
+from mirally.core.activity.policy import ActivityPolicy
+from mirally.core.activity.store import ObservationStore
+from mirally.platform.activity.foreground import ForegroundSnapshot
+from mirally.platform.activity.input_metadata import InputBatch, InputMetadataAggregator
+from mirally.platform.activity.clipboard import WindowsClipboardSource
+from mirally.platform.activity.monitors import (
     MonitorSnapshot, WindowRegion, image_black_fraction, mask_image, opaque_client_candidate,
     visible_exclusion_masks,
 )
-from openassist.platform.activity.ocr import OCRResult, WindowsNativeOCRSource
-from openassist.platform.activity.uia_worker import content_fields, inspect_tree
-from openassist.platform.activity.uia_structure import UIAStructureResult, WindowsUIASource
-from openassist.platform.activity.wgc_capture import CaptureResult, VisualSignatureGate, WindowsWindowCaptureSource
-from openassist.runtime.activity.config import load_activity_config
-from openassist.runtime.activity.monitor import _safe_observation, build_test_config
-from openassist.runtime.activity.scheduler import CaptureJob, CaptureQueue
-from openassist.runtime.activity.service import ActivitySensor
+from mirally.platform.activity.ocr import OCRResult, WindowsNativeOCRSource
+from mirally.platform.activity.uia_worker import content_fields, inspect_tree
+from mirally.platform.activity.uia_structure import UIAStructureResult, WindowsUIASource
+from mirally.platform.activity.wgc_capture import CaptureResult, VisualSignatureGate, WindowsWindowCaptureSource
+from mirally.runtime.activity.config import load_activity_config
+from mirally.runtime.activity.monitor import _safe_observation, build_test_config
+from mirally.runtime.activity.scheduler import CaptureJob, CaptureQueue
+from mirally.runtime.activity.service import ActivitySensor
 
 
 def focus(text="", **fields):
@@ -304,7 +304,7 @@ class RichCaptureTests(unittest.TestCase):
         self.assertFalse(small_legacy_budget["truncated"])
 
     def test_native_uia_integer_password_state_and_raw_mouse_abi(self):
-        from openassist.platform.activity.input_worker import RawMouse
+        from mirally.platform.activity.input_worker import RawMouse
         import ctypes
         ordinary = Control()
         ordinary.IsPassword = 0
@@ -361,6 +361,61 @@ class RichCaptureTests(unittest.TestCase):
                 self.assertEqual(text.collection_level, CollectionLevel.CONTENT)
             finally:
                 sensor.close()
+
+    def test_click_and_scroll_without_readable_editor_do_not_report_failed_input_text(self):
+        results = (
+            UIAStructureResult("ok", focused_control={"role": "ButtonControl", "text_status": "unsupported"}),
+            UIAStructureResult("ok", focus_status="focus_outside_scope"),
+            UIAStructureResult("unavailable", missing_reasons=("uia_property_error",)),
+        )
+        for result in results:
+            with self.subTest(status=result.status, focus=result.focused_control), tempfile.TemporaryDirectory() as directory:
+                source = RichSources()
+                sensor = self.sensor(Path(directory), source)
+                try:
+                    with patch.object(source, "inspect", return_value=result) as inspect:
+                        sensor.record_foreground(source.snapshot)
+                        for clicks, scrolls in ((1, 0), (0, 1)):
+                            event = sensor.record_input_metadata(InputBatch(0, clicks, scrolls, False, 1, 2, 1500, 101, 201))
+                            self.assertIsNotNone(event)
+                        self.assertEqual(inspect.call_count, 3)
+                    self.assertFalse(sensor.store.query(kinds=["input_text"]))
+                    self.assertTrue(sensor.store.query(kinds=["context_snapshot"]))
+                finally:
+                    sensor.close()
+
+    def test_click_and_scroll_still_discover_committed_text_changes(self):
+        for clicks, scrolls in ((1, 0), (0, 1)):
+            with self.subTest(clicks=clicks, scrolls=scrolls), tempfile.TemporaryDirectory() as directory:
+                source = RichSources()
+                sensor = self.sensor(Path(directory), source)
+                try:
+                    sensor.record_foreground(source.snapshot)
+                    source.text = "committed text after pointer activity"
+                    event = sensor.record_input_metadata(InputBatch(0, clicks, scrolls, False, 1, 2, 1500, 101, 201))
+                    rows = sensor.store.query(kinds=["input_text"])
+                    self.assertEqual(len(rows), 1)
+                    self.assertEqual(rows[0].payload["inserted_text"], source.text)
+                    self.assertEqual(rows[0].caused_by, (event.observation_id,))
+                finally:
+                    sensor.close()
+
+    def test_typing_and_paste_preserve_uia_provider_failure_reasons(self):
+        for trigger in ("typing_pause", "paste"):
+            for reasons in (("uia_property_error",), ("uia_text_error",), ()):
+                with self.subTest(trigger=trigger, reasons=reasons), tempfile.TemporaryDirectory() as directory:
+                    source = RichSources()
+                    sensor = self.sensor(Path(directory), source)
+                    try:
+                        result = UIAStructureResult("unavailable", missing_reasons=reasons)
+                        with patch.object(source, "inspect", return_value=result):
+                            sensor._capture_evidence(source.snapshot, (), trigger)
+                        rows = sensor.store.query(kinds=["input_text"])
+                        self.assertEqual(len(rows), 1)
+                        self.assertEqual(rows[0].quality, "unavailable")
+                        self.assertEqual(rows[0].missing_reasons, reasons or ("uia_unavailable",))
+                    finally:
+                        sensor.close()
 
     def test_other_window_input_is_not_misattributed(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -540,7 +595,7 @@ class RichCaptureTests(unittest.TestCase):
             self.assertAlmostEqual(image_black_fraction(path), 0.5)
 
     def test_ocr_worker_unicode_output_under_ascii_environment(self):
-        command = [sys.executable, "-c", "import sys; from openassist.platform.activity import ocr_worker as w; "
+        command = [sys.executable, "-c", "import sys; from mirally.platform.activity import ocr_worker as w; "
                    "sys.argv=['fixture','--image','unused.png']; "
                    "w.run=lambda *args: {'status':'ok','text':'\\u4e2d\\u6587 \\U0001f600'}; w.main()"]
         completed = subprocess.run(command, capture_output=True, text=True, encoding="utf-8",
@@ -555,8 +610,8 @@ class RichCaptureTests(unittest.TestCase):
             Image.new("RGB", (10, 10)).save(path)
             source = WindowsNativeOCRSource()
             source.available = True
-            with patch("openassist.platform.activity.ocr.sys.platform", "win32"), \
-                 patch("openassist.platform.activity.ocr.subprocess.run") as run:
+            with patch("mirally.platform.activity.ocr.sys.platform", "win32"), \
+                 patch("mirally.platform.activity.ocr.subprocess.run") as run:
                 run.return_value = subprocess.CompletedProcess([], 0, '{"status":"ok","text":"\\u4e2d"}', "")
                 self.assertEqual(source.recognize(path).text, "\u4e2d")
                 self.assertEqual(run.call_args.kwargs["env"]["PYTHONIOENCODING"], "utf-8")
@@ -778,8 +833,25 @@ class RichCaptureTests(unittest.TestCase):
                 self.assertEqual(store.asset(first.asset_id)["status"],"expired")
                 self.assertEqual(store.asset(second.asset_id)["status"],"ready")
 
+    def test_collector_quota_pauses_instead_of_deleting_pending_semantic_images(self):
+        with tempfile.TemporaryDirectory() as directory:
+            visual = FakeCapture()
+            sensor = self.sensor(Path(directory), visual_source=visual)
+            sensor.config = replace(sensor.config, visual_enabled=True, image_quota_mib=1)
+            try:
+                with patch.object(sensor.store, "asset_bytes", return_value=1024 * 1024), \
+                        patch.object(sensor.store, "cleanup", wraps=sensor.store.cleanup) as cleanup:
+                    sensor.record_foreground(sensor.source.snapshot)
+                self.assertTrue(sensor.metrics_snapshot()["paused"])
+                self.assertEqual(sensor.store.get_state("collector_pause")["reason"],
+                                 "semantic_memory_pending_storage_quota")
+                self.assertFalse(sensor.store.query(kinds=["content_snapshot"]))
+                cleanup.assert_not_called()
+            finally:
+                sensor.close()
+
     def test_isolated_clipboard_timeout_is_bounded(self):
-        with patch("openassist.platform.activity.clipboard.subprocess.run", side_effect=subprocess.TimeoutExpired("fixture", 1)):
+        with patch("mirally.platform.activity.clipboard.subprocess.run", side_effect=subprocess.TimeoutExpired("fixture", 1)):
             source = WindowsClipboardSource()
             source.available = True
             self.assertEqual(source.read()["status"],"timeout")

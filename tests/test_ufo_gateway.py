@@ -1,7 +1,8 @@
-"""Opt-in Gateway -> UFO desktop worker test with a synthetic model API.
+"""Opt-in Gateway -> UFO subagent harness test with a synthetic model API.
 
-The current selected UFO route can capture the real interactive desktop even
-for a text-only request. It must not run in the default no-desktop suite.
+The fixture uses a native subagent session key and can capture the real
+interactive desktop. It tests the harness, not native sessions_spawn admission.
+It must not run in the default no-desktop suite.
 It never reads the developer's OpenClaw/UFO model credentials.
 """
 import json
@@ -23,10 +24,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @unittest.skipUnless(sys.platform == "win32" and (ROOT / ".artifacts/openclaw-runtime.json").is_file()
-                     and os.environ.get("OPENASSIST_TEST_DESKTOP") == "1",
-                     "Real desktop observation requires explicit OPENASSIST_TEST_DESKTOP=1")
+                     and os.environ.get("MIRALLY_TEST_DESKTOP") == "1",
+                     "Real desktop observation requires explicit MIRALLY_TEST_DESKTOP=1")
 class GatewayUfoTests(unittest.TestCase):
-    def test_real_gateway_loads_ufo_and_preserves_reply_history(self):
+    def test_real_gateway_loads_ufo_child_harness_and_preserves_reply_history(self):
         prompts = []
         class API(BaseHTTPRequestHandler):
             def log_message(self, *args):
@@ -36,8 +37,8 @@ class GatewayUfoTests(unittest.TestCase):
                 data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 prompts.append(data)
                 marker = "合成正文：保持段落\n\n第二段全部保留。"
-                # The selected UFO agent enters the native desktop subtask
-                # path directly. Its model contract is HostAgentResponse,
+                # The UFO child harness enters the desktop subtask path.
+                # Its model contract is HostAgentResponse,
                 # not the product conversation AssistantDecision envelope.
                 content = json.dumps({
                     "observation": "当前请求只需要文本回复，无需桌面操作。",
@@ -125,7 +126,7 @@ class GatewayUfoTests(unittest.TestCase):
                     listed = cli("gateway", "call", "agents.list", "--json")
                     self.assertIn('"ufo"', listed)
                     for text in ("仅在聊天里起草一段合成文字，不操作电脑。", "复述刚才那段文字，不操作电脑。"):
-                        answer = cli("agent", "--agent", "ufo", "--session-key", "agent:ufo:synthetic-chat",
+                        answer = cli("agent", "--agent", "ufo", "--session-key", "agent:ufo:subagent:synthetic-child",
                                      "--message", text, "--json", "--timeout", "45")
                         self.assertIn("合成正文", answer)
                     self.assertEqual(len(prompts), 2)

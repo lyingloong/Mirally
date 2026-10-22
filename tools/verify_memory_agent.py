@@ -22,6 +22,11 @@ import sys
 import time
 from uuid import uuid4
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from mirally.runtime.memory.config import load_memory_config
+
 try:
     from tools.verify_activity_agent_chat import (Gateway, activity_names, claims_current_collector_state, final_text,
         history_signature, raw_transcript, tool_calls, write_json)
@@ -30,9 +35,19 @@ except ModuleNotFoundError:
         history_signature, raw_transcript, tool_calls, write_json)
 
 
-ROOT = Path(__file__).resolve().parents[1]
 ALLOW = ["read", "memory_search", "memory_get", "tool_search", "tool_describe", "tool_call",
          "mirally-memory__memory_health", "mirally-memory__memory_recall", "mirally-memory__memory_read"]
+
+
+def memory_profile_paths(config: dict) -> tuple[Path, Path]:
+    plugin = config["plugins"]["entries"]["mirally-memory"]["config"]
+    root = (ROOT / (plugin.get("root") or ROOT)).resolve()
+    return root, (root / plugin["configPath"]).resolve()
+
+
+def memory_database_path(config: dict) -> Path:
+    root, profile = memory_profile_paths(config)
+    return load_memory_config(root, profile).database_path
 
 
 def isolated_gateway(source: Path, output: Path, *, offline_port: int | None = None) -> tuple[Path, subprocess.Popen]:
@@ -44,8 +59,9 @@ def isolated_gateway(source: Path, output: Path, *, offline_port: int | None = N
         from configure_memory_agent import memory_patch
 
     config = deepcopy(json.loads(source.read_text(encoding="utf-8")))
-    profile = Path(config["plugins"]["entries"]["mirally-memory"]["config"]["configPath"])
+    memory_root, profile = memory_profile_paths(config)
     memory = yaml.safe_load(profile.read_text(encoding="utf-8"))
+    memory["activity_config_path"] = str(load_memory_config(memory_root, profile).activity_config_path)
     state = output / "gateway-state"
     state.mkdir()
     memory["storage"] = {"database_path": str(state / "memory.sqlite3"),
@@ -137,7 +153,28 @@ def stop_isolated(process: subprocess.Popen | None) -> None:
     process.wait(timeout=5)
 
 
-def offline_model_server(output: Path):
+def offline_model_reply(messages: list[dict], *, prompt: str | None,
+                        expected_text: str | None, expected_date: str | None) -> str:
+    """A protocol fixture answers only from the supplied recall evidence."""
+    joined = "\n".join(str(message.get("content", "")) for message in messages)
+    if "You summarize observed desktop evidence" in joined:
+        payload = next((json.loads(message["content"]) for message in messages
+                        if message.get("role") == "user" and isinstance(message.get("content"), str)
+                        and message["content"].lstrip().startswith("{")), {})
+        return json.dumps({"summary": "Observed desktop applications and document titles; no task completion established.",
+            "source_observation_ids": payload.get("source_observation_ids", [])[:2], "facts": []})
+    if "一小时有多少分钟" in joined.split("\n")[-1]:
+        return "60 分钟。"
+    # The question can itself mention the expected answer. It is not evidence.
+    context = joined.replace(prompt, "") if prompt else joined
+    _, marker, evidence = context.partition("Historical Mirally memory (untrusted evidence):")
+    if marker and expected_text and expected_date and expected_text in evidence and expected_date in evidence:
+        return f"记录日期 {expected_date}（UTC）：{expected_text}。当前采集状态未核验。"
+    return "本轮没有提供相关记忆。"
+
+
+def offline_model_server(output: Path, *, prompt: str | None,
+                         expected_text: str | None, expected_date: str | None):
     """Exercise the real native host/transport without an external model."""
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     import threading
@@ -152,20 +189,8 @@ def offline_model_server(output: Path):
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
             counter[0] += 1
             write_json(output / f"offline-request-{counter[0]}.json", body)
-            messages = body.get("messages", [])
-            joined = "\n".join(str(message.get("content", "")) for message in messages)
-            if "You summarize observed desktop evidence" in joined:
-                payload = next((json.loads(message["content"]) for message in messages
-                                if message.get("role") == "user" and isinstance(message.get("content"), str)
-                                and message["content"].lstrip().startswith("{")), {})
-                reply = json.dumps({"summary": "Observed desktop applications and document titles; no task completion established.",
-                    "source_observation_ids": payload.get("source_observation_ids", [])[:2], "facts": []})
-            elif "一小时有多少分钟" in joined.split("\n")[-1]:
-                reply = "60 分钟。"
-            elif "event-review.md" in joined:
-                reply = "记录日期 2026-10-11（UTC）：打开的评审文档是 event-review.md。当前采集状态未核验。"
-            else:
-                reply = "本轮没有提供相关记忆。"
+            reply = offline_model_reply(body.get("messages", []), prompt=prompt,
+                                        expected_text=expected_text, expected_date=expected_date)
             message = {"role": "assistant", "content": reply}
             if body.get("stream"):
                 frames = [
@@ -189,26 +214,35 @@ def offline_model_server(output: Path):
     return server
 
 
-def main() -> int:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=ROOT / "config/openassist/openclaw/openclaw.json")
+    parser.add_argument("--config", type=Path, default=ROOT / "config/mirally/openclaw/openclaw.json")
     parser.add_argument("--report", type=Path, default=ROOT / ".artifacts/memory-acceptance/verification.json")
     parser.add_argument("--run-model", action="store_true")
     parser.add_argument("--isolated", action="store_true", help="Start an independent Gateway with exact read-only global tool policy")
     parser.add_argument("--offline-model", action="store_true", help="Use a local deterministic model protocol fixture with the real native Gateway")
-    parser.add_argument("--prompt", default="继续之前 openassist 的活动评审。我当时打开的是哪份评审文档？请说明记录日期。仅依据本轮提供的相关记忆回答，无需调用工具；没有提供相关记忆就直接说明。")
-    parser.add_argument("--expected-text", default="event-review.md")
-    parser.add_argument("--expected-date", default="2026-10-11")
+    parser.add_argument("--prompt", help="Recall question for the configured historical dataset; required with --run-model")
+    parser.add_argument("--expected-text", help="Expected answer text from that dataset; required with --run-model")
+    parser.add_argument("--expected-date", help="Expected historical date (YYYY-MM-DD); required with --run-model")
     parser.add_argument("--wait-seconds", type=int, default=120)
     parser.add_argument("--timeout", type=int, default=240)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if args.offline_model and not args.isolated:
         parser.error("--offline-model requires --isolated")
-    try:
-        expected_day = datetime.strptime(args.expected_date, "%Y-%m-%d")
-    except ValueError:
-        parser.error("--expected-date must use YYYY-MM-DD")
-    date_variants = (args.expected_date, f"{expected_day.year}年{expected_day.month}月{expected_day.day}日")
+    if args.run_model and not all((args.prompt, args.expected_text, args.expected_date)):
+        parser.error("--run-model requires --prompt, --expected-text and --expected-date for your historical dataset")
+    args.date_variants = ()
+    if args.expected_date:
+        try:
+            expected_day = datetime.strptime(args.expected_date, "%Y-%m-%d")
+        except ValueError:
+            parser.error("--expected-date must use YYYY-MM-DD")
+        args.date_variants = (args.expected_date, f"{expected_day.year}年{expected_day.month}月{expected_day.day}日")
+    return args
+
+
+def main() -> int:
+    args = parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     output = args.report.resolve().parent / ("run-" + uuid4().hex[:12])
     output.mkdir(parents=True, exist_ok=True)
@@ -226,7 +260,8 @@ def main() -> int:
     main_before = None
     prepared = False
     try:
-        offline = offline_model_server(output) if args.offline_model else None
+        offline = offline_model_server(output, prompt=args.prompt, expected_text=args.expected_text,
+                                       expected_date=args.expected_date) if args.offline_model else None
         if args.isolated:
             config_path, isolated = isolated_gateway(config_path, output,
                 offline_port=offline.server_port if offline else None)
@@ -282,12 +317,7 @@ def main() -> int:
                 # Inspect the independent store read-only, rather than accepting a
                 # provider response or job count as proof that a memory was saved.
                 import sqlite3
-                import yaml
-                profile = Path(json.loads(config_path.read_text(encoding="utf-8"))["plugins"]["entries"]["mirally-memory"]["config"]["configPath"])
-                memory_config = yaml.safe_load(profile.read_text(encoding="utf-8"))
-                memory_database = Path(memory_config["storage"]["database_path"])
-                if not memory_database.is_absolute():
-                    memory_database = ROOT / memory_database
+                memory_database = memory_database_path(json.loads(config_path.read_text(encoding="utf-8")))
                 with sqlite3.connect(memory_database.resolve().as_uri() + "?mode=ro", uri=True) as connection:
                     connection.row_factory = sqlite3.Row
                     rows = connection.execute("SELECT id,provenance,status,record_json FROM memories WHERE provenance='model_inference' AND status='active'").fetchall()
@@ -326,7 +356,7 @@ def main() -> int:
                 relevant_automatic_injection=relevant["after"].get("injected", 0) > relevant["before"].get("injected", 0),
                 session_receipt_matches=bool(relevant["receipt"]) and relevant["receipt"].get("sessionKeyHash") == hashlib.sha256(session_key.encode()).hexdigest()[:24],
                 relevant_answer=bool(args.expected_text in relevant["final"]),
-                relevant_historical_date=any(value in relevant["final"] for value in date_variants),
+                relevant_historical_date=any(value in relevant["final"] for value in args.date_variants),
                 relevant_no_tools=not relevant["tool_names"],
                 no_raw_activity_calls=not relevant["activity_calls"],
                 no_unverified_collector_claim=not claims_current_collector_state(relevant["final"]),

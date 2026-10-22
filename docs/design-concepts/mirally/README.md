@@ -2,9 +2,9 @@
 
 ## 当前正式方案
 
-当前名称为 **Mirally**，正式图标为 [相伴 M](companion-m/README.md)。两个蓝青渐变的人形通过柔和流线相连，形成 M，呼应 Mirally 与 MIRA，同时表达伙伴和协作。窗口、浮窗、开屏及任务栏共用 [生产资源](../../../openassist/assets/README.md)。
+当前名称为 **Mirally**，正式图标为 [相伴 M](companion-m/README.md)。两个蓝青渐变的人形通过柔和流线相连，形成 M，呼应 Mirally 与 MIRA，同时表达伙伴和协作。窗口、浮窗、开屏及任务栏共用 [生产资源](../../../mirally/assets/README.md)。
 
-![相伴 M](../../../openassist/assets/mirally-128.png)
+![相伴 M](../../../mirally/assets/mirally-128.png)
 
 | 设计阶段 | 结果与状态 |
 | --- | --- |
@@ -31,7 +31,7 @@ MIRA 的完整名称由用户确认：**Machine Intelligence Research and Applic
 
 这是已获用户认可的命名方向，并非商标或域名可用性结论。公开搜索尝试遇到超时、脚本访问限制及不相关结果，未获得足以判断重名情况的证据。商标、域名、同类产品和应用商店名称仍待有效查重。
 
-应用显示名称已统一为 Mirally；Python 包、配置目录与环境变量继续使用 `openassist`，以兼容原有环境。
+应用显示名称为 Mirally；Python 包统一为 `mirally`，配置目录为 `config/mirally/`，产品环境变量使用 `MIRALLY_` 前缀。旧环境迁移见[名称迁移说明](../../mirally-name-migration.md)。
 
 ## 图标设计原则
 

@@ -9,8 +9,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from openassist.core.activity import Observation, ObservationStore
-from openassist.runtime.activity.agent_bridge import ActivityAgentBridge
+from mirally.core.activity import Observation, ObservationStore
+from mirally.runtime.activity.agent_bridge import ActivityAgentBridge
 from tools.verify_activity_agent import decode_tool_response, gateway_caller, source_fingerprint
 
 
@@ -40,7 +40,7 @@ class ActivityAgentVerifierTests(unittest.TestCase):
         saved = root / "openclaw.json"
         saved.write_text(json.dumps({"mcp": {"servers": {"mirally-activity": {
             "command": sys.executable,
-            "args": ["-m", "openassist.runtime.activity.mcp_server", "--root", str(root),
+            "args": ["-m", "mirally.runtime.activity.mcp_server", "--root", str(root),
                      "--config", str(activity_config)],
             "cwd": str(ROOT), "requestTimeoutMs": 15000, "connectionTimeoutMs": 15000,
         }}}}), encoding="utf-8")

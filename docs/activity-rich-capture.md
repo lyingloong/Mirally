@@ -4,19 +4,22 @@
 
 ## 启动与查看
 
-本机已构建 WGC helper，直接运行：
+新机器先安装项目 Python 依赖，以及 Visual Studio / Build Tools 的「使用 C++ 的桌面开发」组件（含 MSVC x64/x86 和 Windows SDK），在仓库根目录构建截图程序，再启动监控：
 
 ```powershell
-.\.venv\Scripts\python.exe -m openassist.runtime.activity.cli monitor --test
+.\tools\build-activity-wgc.ps1
+.\.venv\Scripts\python.exe -m mirally.runtime.activity.cli monitor --test
 ```
+
+构建脚本通过 `vswhere`、开发环境和 Windows SDK 注册表发现完整工具链，自动选择已安装的版本；可用 `-VisualStudioPath`、`-MsvcVersion`、`-WindowsSdkRoot`、`-WindowsSdkVersion` 显式选择。产物 `tools/bin/desktop_wgc.exe` 不提交 Git，运行时相对仓库定位；通常无需 `MIRALLY_WGC_HELPER`。旧 SDK 没有 Session5 的帧间隔接口时只跳过该可选设置，常驻捕获会话照常工作。
 
 无需正式配置或模型凭据。默认保存多显示器变化帧、OCR、UIA 正文、输入文本和剪贴板内容到 `.artifacts/activity-monitor/`。运行几分钟浏览、滚动、编辑和复制粘贴，回监控页勾选「显示内容」；筛选 `content_snapshot`、`context_snapshot`、`input_text`、`clipboard_content`。选中内容帧可预览截图。显示开关不停止正文采集，暂停按钮才暂停采集。
 
-`--metadata-only` 只采集元数据和 UIA 结构；旧 `--content`、`--persist-images` 仍接受，但完整内容已是默认。正式运行使用 `activity.yaml`，不覆盖已有配置；改配置后重启采集器。采集器不随 Mirally 默认启动。
+`--metadata-only` 只采集元数据和 UIA 结构；旧 `--content`、`--persist-images` 仍接受，但完整内容已是默认。正式运行使用 `activity.yaml`，不覆盖已有配置；改配置后重启采集器。Mirally 桌面默认按已保存的启用偏好启动采集，已有显式关闭保持关闭；监控命令使用独立测试配置。
 
-编码、遮罩、去重和常驻 WGC 修复需要重启采集器，不需要重启 Gateway。本机 helper 已重新构建；其他机器更新代码后需重新运行构建脚本。已有事件保持不变，不自动回填 OCR；此前被遮黑的图片无法恢复原始画面，应重新采集。
+编码、遮罩、去重和常驻 WGC 修复需要重启采集器，不需要重启 Gateway。迁移到新机器或更新 helper 源码后重新运行构建脚本。已有事件保持不变，不自动回填 OCR；此前未采到或被遮黑的图片无法恢复原始画面，应重新采集。
 
-新机器需先运行 `tools/build-activity-wgc.ps1`，安装项目依赖和 Windows OCR 语言包。helper 不存在时，元数据和 UIA 可继续，WGC 显示 `helper_missing`，不会改用其他截图方案。
+识别语言需要相应 Windows OCR 语言包。helper 不存在时，元数据和 UIA 可继续；终端会提示构建命令，监控页显示降级和 `helper_missing`，该原因也保存在停止后的 `collector_diagnostics`。已设置 `MIRALLY_WGC_HELPER` 时检查该路径是否仍有效，避免迁移后继续引用旧机器位置。
 
 ## 数据与链路
 
@@ -64,7 +67,9 @@
 - OCR：父子进程固定 UTF-8，不依赖 Windows 控制台代码页。图片去重只看 PNG SHA-256，不看遮罩计数；OCR 失败仍保留首帧并单独有界重试。`ocr_result.caused_by` 指向原始 `content_snapshot`，后续消费者应沿此关系读取最新 OCR 结果，不覆盖原始事件。
 - 输入／剪贴板：完整保留获准的控件文本、编辑差分及 Unicode 剪贴板正文；旧 max_chars 不截原文。剪贴板继续检查序号、Unicode 和终止符，读取失败保留诊断。此前被截断的输入基线保持未知。窗口标题及合法地址栏值也不再按旧 2048／4096 字符裁剪或拒绝。
 - Worker deadline：UIA 5 秒、WGC 2.5 秒、OCR 2.5 秒、地址栏 1.2 秒、剪贴板 1.5 秒。原生 fixture 的 UIA 约 4 秒，较原结构采集需要更宽的隔离预算。
-- 图片：默认最长边 1920、每分钟最多 120 次采集检查，保留 24 小时、上限 1024 MiB、至少 2048 MiB 剩余空间。达到配额先通过资产 tombstone 删除最老图像；超大单图不保存，低磁盘跳过截图并保留原因。观察默认保留 14 天。
+- 图片：默认最长边 1920、每分钟最多 120 次采集检查，图片配额 1024 MiB、至少 2048 MiB 剩余空间。新图片会超过配额时暂停整个活动采集，不删除旧图片腾位置；低磁盘跳过截图并保留原因。
+- 原始资料清理：配置仍有图片 24 小时、观察 14 天的年龄参数，但当前采集器保护原始资料，不按年龄或配额直接淘汰；这些值不保证到期删除。Memory 默认每小时检查，只有稳定窗口的模型总结和匹配完成回执持久提交后才清理对应原始资料。本地规则摘要、失败或预算等待不授权删除；模型整理默认关闭，此前成功且回执仍匹配的窗口不因关闭开关而失去清理资格。
+- 积压与恢复：启用模型只自动补处理最近一小时，尚无全历史自动补处理；更早已规则整理但未建立模型任务的资料可能持续占用配额。合格批次清理释放空间后，在设置中手动「继续」；仅开启模型或继续采集不保证清空旧积压。磁盘允许时可调大当前 `activity.yaml` 的 `storage.image_quota_mib`，停止本次并重新开始以加载配置，仍暂停时再点「继续」。调大配额只增加容量，不删除或重新整理旧资料；详见 [Activity Memory](activity-memory.md#hourly-raw-cleanup)。
 - 监控：loopback/token 访问，默认脱敏 OCR、UIA 属性、输入和剪贴板正文；授权查看后提供文字和图片。暂停与关闭内容查看含义不同。
 
 ## 验证与限制
@@ -90,5 +95,5 @@ Chromium 不透明主窗口的 no-redirection 兼容依据：[窗口样式计算
 The collector monitor is for live capture diagnostics. To inspect an existing run across every data layer without starting collection, use the historical developer browser described in [Activity developer browser](activity-browser.md):
 
 ```powershell
-.\.venv\Scripts\python.exe -m openassist.runtime.activity.cli browse --config path\to\activity.yaml
+.\.venv\Scripts\python.exe -m mirally.runtime.activity.cli browse --config path\to\activity.yaml
 ```

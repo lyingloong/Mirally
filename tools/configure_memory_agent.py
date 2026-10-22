@@ -18,8 +18,8 @@ TOOLS = ["memory_health", "memory_recall", "memory_read", "memory_propose", "mem
 
 def memory_revision(root: Path) -> str:
     revision = hashlib.sha256()
-    for directory, pattern in (("openassist/core/memory", "*.py"),
-                               ("openassist/runtime/memory", "*.py"),
+    for directory, pattern in (("mirally/core/memory", "*.py"),
+                               ("mirally/runtime/memory", "*.py"),
                                ("integrations/openclaw/memory", "*.mjs")):
         for source in sorted((root / directory).rglob(pattern)):
             revision.update(source.relative_to(root).as_posix().encode("utf-8"))
@@ -31,7 +31,7 @@ def memory_revision(root: Path) -> str:
 def memory_patch(config: dict, root: Path, memory_config: Path | None = None) -> dict:
     """Preserve authored agents, memory slot, credentials and explicit denials."""
     root = root.resolve()
-    profile = (memory_config or root / "config/openassist/memory.yaml").resolve()
+    profile = (memory_config or root / "config/mirally/memory.yaml").resolve()
     plugins = config.get("plugins", {})
     tools = config.get("tools", {})
     denied = tools.get("deny", [])
@@ -74,11 +74,11 @@ def memory_patch(config: dict, root: Path, memory_config: Path | None = None) ->
     patch["skills"] = {"load": {"extraDirs": extra_dirs}}
     patch["mcp"] = {"servers": {PLUGIN_ID: {
         "enabled": True, "command": str(interpreter),
-        "args": ["-m", "openassist.runtime.memory.mcp_server", "--root", str(root), "--config", str(profile)],
+        "args": ["-m", "mirally.runtime.memory.mcp_server", "--root", str(root), "--config", str(profile)],
         "cwd": str(root), "connectionTimeoutMs": 15000, "requestTimeoutMs": 30000,
         "supportsParallelToolCalls": False, "toolFilter": {"include": TOOLS},
         "env": {"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8",
-                "OPENASSIST_MEMORY_CODE_REVISION": memory_revision(root)},
+                "MIRALLY_MEMORY_CODE_REVISION": memory_revision(root)},
     }}}
     return patch
 
@@ -90,8 +90,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.memory_config is not None and not args.memory_config.is_file():
         raise SystemExit("Memory profile does not exist")
-    state = Path(os.environ.get("OPENCLAW_STATE_DIR", ROOT / "config/openassist/openclaw"))
-    config_path = Path(os.environ.get("OPENCLAW_CONFIG_PATH", state / "openclaw.json"))
+    state = Path(os.environ.get("OPENCLAW_STATE_DIR", ROOT / "config/mirally/openclaw")).expanduser().resolve()
+    config_path = Path(os.environ.get("OPENCLAW_CONFIG_PATH", state / "openclaw.json")).expanduser().resolve()
     try:
         config = json.loads(config_path.read_text(encoding="utf-8"))
         patch = memory_patch(config, ROOT, args.memory_config)

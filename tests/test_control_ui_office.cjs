@@ -1,6 +1,6 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const office = require('../openassist/assets/control-ui-office.js');
+const office = require('../mirally/assets/control-ui-office.js');
 
 const replyFrame = overrides => ({scope:'pane:session',turn:'user:1',reply:null,completion:null,
   working:false,waiting:false,error:null,loading:false,...overrides});

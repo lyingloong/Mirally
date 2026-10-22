@@ -11,11 +11,11 @@ from types import SimpleNamespace
 
 from PIL import Image
 
-from openassist.platform.activity.foreground import ForegroundSnapshot
-from openassist.platform.activity.ocr import OCRResult
-from openassist.platform.activity.wgc_capture import CaptureResult
-from openassist.runtime.activity.monitor import build_test_config
-from openassist.runtime.activity.service import ActivitySensor
+from mirally.platform.activity.foreground import ForegroundSnapshot
+from mirally.platform.activity.ocr import OCRResult
+from mirally.platform.activity.wgc_capture import CaptureResult
+from mirally.runtime.activity.monitor import build_test_config
+from mirally.runtime.activity.service import ActivitySensor
 
 
 class FixtureForeground:

@@ -1,0 +1,2 @@
+/* Only owned native menu options carry this marker. */
+wa-dropdown-item[data-mirally-subagent-hidden] { display: none !important; }

@@ -11,14 +11,15 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from openassist.core.activity.models import CollectionLevel
-from openassist.core.activity.policy import ActivityPolicy
-from openassist.core.activity.store import ObservationStore
-from openassist.platform.activity.input_metadata import InputBatch
-from openassist.platform.activity.input_pump import InputPumpStatus, WindowsInputMetadataSource
-from openassist.runtime.activity.config import ActivityConfig
-from openassist.runtime.activity.service import ActivitySensor
-from openassist.runtime.activity import cli
+from mirally.core.activity.models import CollectionLevel
+from mirally.core.activity.policy import ActivityPolicy
+from mirally.core.activity.store import ObservationStore
+from mirally.platform.activity.input_metadata import InputBatch
+from mirally.platform.activity.input_pump import InputPumpStatus, WindowsInputMetadataSource
+from mirally.platform.activity.wgc_capture import WindowsWindowCaptureSource
+from mirally.runtime.activity.config import ActivityConfig
+from mirally.runtime.activity.service import ActivitySensor
+from mirally.runtime.activity import cli
 
 
 class FakeForeground:
@@ -88,6 +89,27 @@ class CollectionDiagnosticsTests(unittest.TestCase):
                               uia_source=SimpleNamespace(available=True),
                               clipboard_source=SimpleNamespace(available=True),
                               monitor_source=SimpleNamespace(available=True))
+
+    def test_missing_capture_helper_is_reported_at_start_and_retained_after_stop(self):
+        with tempfile.TemporaryDirectory() as directory, patch(
+                "mirally.platform.activity.wgc_capture.sys.platform", "win32"):
+            root = Path(directory)
+            sensor = self.make_sensor(root, visual_enabled=True, ui_structure_enabled=True)
+            sensor.visual_source.close()
+            sensor.visual_source = WindowsWindowCaptureSource(root / "missing" / "desktop_wgc.exe")
+            try:
+                with self.assertLogs("mirally.runtime.activity.service", level="WARNING") as logs:
+                    sensor.start()
+                self.assertIn("build-activity-wgc.ps1", logs.output[0])
+                diagnostics = sensor.store.get_state("collector_diagnostics")
+                self.assertEqual(diagnostics["status"], "degraded")
+                self.assertEqual(diagnostics["sources"]["visual"]["reason"], "helper_missing")
+                self.assertFalse(diagnostics["sources"]["visual"]["available"])
+                sensor.stop()
+                self.assertEqual(sensor.store.get_state("collector_diagnostics")["sources"]["visual"]["reason"],
+                                 "helper_missing")
+            finally:
+                sensor.close()
 
     def test_worker_failure_is_retained_after_source_stop_and_store_reopen(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -14,12 +14,12 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from PIL import Image, ImageStat
-from openassist.core.activity.models import CollectionLevel
-from openassist.core.activity.policy import ActivityPolicy
-from openassist.platform.activity.monitors import WindowsMonitorSource
-from openassist.platform.activity.ocr import WindowsNativeOCRSource
-from openassist.platform.activity.uia_structure import WindowsUIASource
-from openassist.platform.activity.wgc_capture import WindowsWindowCaptureSource
+from mirally.core.activity.models import CollectionLevel
+from mirally.core.activity.policy import ActivityPolicy
+from mirally.platform.activity.monitors import WindowsMonitorSource
+from mirally.platform.activity.ocr import WindowsNativeOCRSource
+from mirally.platform.activity.uia_structure import WindowsUIASource
+from mirally.platform.activity.wgc_capture import WindowsWindowCaptureSource
 
 
 def main() -> int:

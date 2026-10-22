@@ -6,10 +6,11 @@ import sqlite3
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
-from openassist.core.memory import MemoryStore
+from mirally.core.memory import MemoryStore
 
 
 class MemoryStoreTests(unittest.TestCase):
@@ -24,6 +25,37 @@ class MemoryStoreTests(unittest.TestCase):
 
     def memory(self, identifier: str = "m1", **kwargs: object) -> dict:
         return {"id": identifier, "kind": "episodic", "title": "Activity memory", "content": "Worked on a project", "source_observation_ids": ["obs1"], "observed_start_utc_ms": 100, "observed_end_utc_ms": 200, **kwargs}
+
+    def test_durable_coverage_excludes_unrecallable_records_and_survives_raw_archival(self) -> None:
+        self.store.put_memory(self.memory("old", observed_start_utc_ms=100, observed_end_utc_ms=200))
+        self.store.put_memory(self.memory("new", observed_start_utc_ms=800, observed_end_utc_ms=900, expires_at_utc_ms=2000))
+        for identifier, fields in [("candidate", {"status": "candidate"}),
+                                   ("retracted", {"status": "retracted"}),
+                                   ("superseded", {"status": "superseded"}),
+                                   ("expired", {"expires_at_utc_ms": 1000})]:
+            self.store.put_memory(self.memory(identifier, observed_start_utc_ms=1, observed_end_utc_ms=9999, **fields))
+        self.store.set_state("memory_archival:old", {"source_retention_status": "archived"})
+        with MemoryStore(self.path, read_only=True) as reader:
+            health = reader.health(now_utc_ms=1000)
+            coverage = health["durable_coverage"]
+            self.assertEqual(health["active_count"], 2)
+            self.assertEqual(coverage["active_count"], 2)
+            self.assertEqual((coverage["observed_start_utc_ms"], coverage["observed_end_utc_ms"]), (100, 900))
+            for field, value in [("observed_start_local", 100), ("observed_end_local", 900)]:
+                date = datetime.fromisoformat(coverage[field])
+                self.assertIsNotNone(date.utcoffset())
+                self.assertAlmostEqual(date.timestamp() * 1000, value)
+            self.assertIn("separate", coverage["note"])
+
+    def test_durable_coverage_empty_and_undated_records_keep_unknown_bounds(self) -> None:
+        coverage = self.store.durable_coverage(now_utc_ms=1000)
+        self.assertEqual(coverage["active_count"], 0)
+        self.assertIsNone(coverage["observed_start_local"])
+        self.store.put_memory(self.memory("undated", observed_start_utc_ms=None, observed_end_utc_ms=None))
+        coverage = self.store.durable_coverage(now_utc_ms=1000)
+        self.assertEqual(coverage["active_count"], 1)
+        self.assertIsNone(coverage["observed_start_utc_ms"])
+        self.assertIsNone(coverage["observed_end_utc_ms"])
 
     def test_noop_versions_and_restart_preserve_memories_and_checkpoint(self) -> None:
         first = self.store.put_memory(self.memory())
@@ -46,6 +78,36 @@ class MemoryStoreTests(unittest.TestCase):
                 self.store.put_memory(self.memory("invalid", confidence=2))
         self.assertIsNone(self.store.get_memory("m1"))
         self.assertIsNone(self.store.get_state("checkpoint"))
+
+    def test_cleanup_journal_commits_with_full_sync_and_restores_normal_mode(self) -> None:
+        self.store.put_memory(self.memory())
+        trace = []
+        self.store._connection.set_trace_callback(trace.append)
+        try:
+            with self.store.durable_transaction():
+                self.assertEqual(self.store._connection.execute("PRAGMA synchronous").fetchone()[0], 2)
+                self.store.set_state("cleanup_journal", {"sources": ["obs1"]})
+        finally:
+            self.store._connection.set_trace_callback(None)
+        self.assertLess(trace.index("PRAGMA synchronous=FULL"), trace.index("COMMIT"))
+        self.assertLess(trace.index("COMMIT"), trace.index("PRAGMA synchronous=1"))
+        self.assertEqual(self.store._connection.execute("PRAGMA synchronous").fetchone()[0], 1)
+        self.store.close()
+        self.store = MemoryStore(self.path)
+        self.assertEqual(self.store.get_state("cleanup_journal"), {"sources": ["obs1"]})
+        self.assertIsNotNone(self.store.get_memory("m1"))
+
+    def test_failed_durable_journal_rolls_back_and_cannot_be_nested(self) -> None:
+        with self.assertRaisesRegex(ValueError, "barrier failed"):
+            with self.store.durable_transaction():
+                self.store.set_state("cleanup_journal", {"sources": ["obs1"]})
+                raise ValueError("barrier failed")
+        self.assertIsNone(self.store.get_state("cleanup_journal"))
+        self.assertEqual(self.store._connection.execute("PRAGMA synchronous").fetchone()[0], 1)
+        with self.store.transaction():
+            with self.assertRaisesRegex(RuntimeError, "outermost"):
+                with self.store.durable_transaction():
+                    pass
 
     def test_read_only_reader_never_creates_database_and_sees_wal_commits(self) -> None:
         missing = self.path.parent / "absent" / "missing.sqlite3"
@@ -99,6 +161,37 @@ class MemoryStoreTests(unittest.TestCase):
         self.assertEqual(len(self.store.search("记忆")), 2)
         self.assertEqual(len(self.store.search('" OR *')), 0)
         self.assertEqual(len(self.store.search("project", start_utc_ms=201)), 0)
+
+    def test_provenance_filter_precedes_sql_pagination_and_combines_with_existing_filters(self) -> None:
+        for index in range(25):
+            self.store.put_memory(self.memory(f"observed-{index}", title="shared term",
+                observed_start_utc_ms=1000 + index, observed_end_utc_ms=1001 + index))
+        for index in range(3):
+            self.store.put_memory(self.memory(f"model-{index}", title="shared term", provenance="model_inference",
+                observed_start_utc_ms=100 + index * 100, observed_end_utc_ms=150 + index * 100))
+        self.store.put_memory(self.memory("confirmed", title="shared term", provenance="user_confirmed"))
+        self.store.put_memory(self.memory("other-scope", title="shared term", provenance="model_inference",
+            scope="other", observed_start_utc_ms=500, observed_end_utc_ms=600))
+        for query in ("", "shared term"):
+            first = self.store.search_page(query, provenances=("model_inference",), scope="user/local", limit=2)
+            self.assertEqual([row["id"] for row in first["items"]], ["model-2", "model-1"])
+            second = self.store.search_page(query, provenances=("model_inference",), scope="user/local",
+                                            limit=2, offset=first["next_offset"])
+            self.assertEqual([row["id"] for row in second["items"]], ["model-0"])
+            self.assertIsNone(second["next_offset"])
+        rows = self.store.search(provenances=("model_inference",), kinds=("episodic",), scope="user/local",
+                                 start_utc_ms=200, end_utc_ms=400)
+        self.assertEqual([row["id"] for row in rows], ["model-2", "model-1"])
+        self.assertTrue(any(row["provenance"] == "observed" for row in self.store.search(limit=100)))
+        self.assertEqual([row["id"] for row in self.store.search(provenances=("user_confirmed",))], ["confirmed"])
+
+    def test_provenance_filter_rejects_unknown_types_and_sql_injection(self) -> None:
+        self.store.put_memory(self.memory())
+        for values in (None, "observed", [True], ["unknown"], ["observed') OR 1=1--"],
+                       ["observed"] * 4, [[]]):
+            with self.subTest(values=values), self.assertRaises(ValueError):
+                self.store.search(provenances=values)
+        self.assertEqual(len(self.store.search()), 1)
         self.assertTrue(self.store.health()["fts_available"])
 
     def test_candidates_expiry_and_superseded_are_excluded(self) -> None:
@@ -219,11 +312,11 @@ class MemoryStoreTests(unittest.TestCase):
         self.assertEqual(self.store.put_memory(self.memory("new-b", source_observation_ids=["b"]))["status"], "active")
 
     def test_job_deduplication_fenced_leases_and_atomic_completion(self) -> None:
-        with patch("openassist.core.memory.store._now", return_value=1000):
+        with patch("mirally.core.memory.store._now", return_value=1000):
             self.assertTrue(self.store.enqueue_job("j1", {"input": "first"}))
             self.assertFalse(self.store.enqueue_job("j1", {"input": "changed"}))
             first = self.store.claim_job(lease_ms=10)
-        with patch("openassist.core.memory.store._now", return_value=1011):
+        with patch("mirally.core.memory.store._now", return_value=1011):
             second = self.store.claim_job(lease_ms=100)
             self.assertNotEqual(first["lease_token"], second["lease_token"])
             self.assertEqual(second["attempt"], 2)
@@ -243,17 +336,17 @@ class MemoryStoreTests(unittest.TestCase):
         self.assertTrue(self.store.complete_job("j1", job["lease_token"], {}))
 
     def test_retries_fail_persistently_and_expired_last_attempt_is_terminal(self) -> None:
-        with patch("openassist.core.memory.store._now", return_value=1000):
+        with patch("mirally.core.memory.store._now", return_value=1000):
             self.store.enqueue_job("j1", {}, max_attempts=2)
             first = self.store.claim_job(10)
             self.assertTrue(self.store.fail_job("j1", first["lease_token"], "timeout", retry_delay_ms=5))
             self.assertIsNone(self.store.claim_job())
         self.store.close()
         self.store = MemoryStore(self.path)
-        with patch("openassist.core.memory.store._now", return_value=1006):
+        with patch("mirally.core.memory.store._now", return_value=1006):
             second = self.store.claim_job(10)
             self.assertEqual(second["attempt"], 2)
-        with patch("openassist.core.memory.store._now", return_value=1017):
+        with patch("mirally.core.memory.store._now", return_value=1017):
             self.assertIsNone(self.store.claim_job())
             self.assertEqual(self.store.get_job("j1")["status"], "failed")
             self.assertFalse(self.store.finish_job("j1", second["lease_token"], {}))
@@ -286,14 +379,14 @@ class MemoryStoreTests(unittest.TestCase):
         self.assertEqual(self.store.usage_summary()["tokens"], 90)
 
     def test_budget_deferral_does_not_exhaust_model_retries(self) -> None:
-        with patch("openassist.core.memory.store._now", return_value=1000):
+        with patch("mirally.core.memory.store._now", return_value=1000):
             self.store.enqueue_job("j1", {}, max_attempts=1)
             job = self.store.claim_job()
             self.assertFalse(self.store.reserve_usage("j1", job["lease_token"], {"tokens": 20}, {"tokens_daily": 10}))
             self.assertTrue(self.store.defer_job("j1", job["lease_token"], delay_ms=10))
             self.assertEqual(self.store.get_job("j1")["attempt"], 0)
             self.assertIsNone(self.store.claim_job())
-        with patch("openassist.core.memory.store._now", return_value=1011):
+        with patch("mirally.core.memory.store._now", return_value=1011):
             reclaimed = self.store.claim_job()
             self.assertEqual(reclaimed["attempt"], 1)
             self.assertTrue(self.store.reserve_usage("j1", reclaimed["lease_token"], {"tokens": 20}, {"tokens_daily": 100}))
@@ -311,17 +404,144 @@ class MemoryStoreTests(unittest.TestCase):
                 leases = list(pool.map(lambda store: store.claim_job(), [self.store, other]))
             self.assertEqual(sum(lease is not None for lease in leases), 1)
 
-    def test_recent_jobs_precede_historical_backlog_and_replace_pending_revisions(self) -> None:
+    def test_oldest_jobs_precede_recent_work_and_replace_pending_revisions(self) -> None:
         self.store.enqueue_job("historical", {"memory_id": "old", "observed_end_utc_ms": 100})
         self.store.enqueue_job("recent-old-revision", {"memory_id": "current", "observed_end_utc_ms": 500})
         self.store.enqueue_job("recent-new-revision", {"memory_id": "current", "observed_end_utc_ms": 501})
         self.assertEqual(self.store.get_job("recent-old-revision")["status"], "cancelled")
+        historical = self.store.claim_job()
+        self.assertEqual(historical["job_id"], "historical")
+        self.assertTrue(self.store.complete_job(historical["job_id"], historical["lease_token"], {}))
         recent = self.store.claim_job()
         self.assertEqual(recent["job_id"], "recent-new-revision")
         self.store.enqueue_job("recent-next-revision", {"memory_id": "current", "observed_end_utc_ms": 502})
         self.assertEqual(self.store.get_job("recent-new-revision")["status"], "running")
         self.assertTrue(self.store.complete_job(recent["job_id"], recent["lease_token"], {}))
         self.assertEqual(self.store.claim_job()["job_id"], "recent-next-revision")
+
+    def test_completion_receipt_is_atomic_and_survives_restart(self) -> None:
+        self.store.enqueue_job("j", {})
+        job = self.store.claim_job()
+        receipt = {"job_id": "j", "memory_ids": ["m1"], "source_observation_ids": ["obs1"]}
+        with self.store.durable_transaction():
+            self.assertTrue(self.store.finish_job("j", job["lease_token"], {}, [self.memory()], states={"semantic_receipt:j": receipt}))
+        self.store.close()
+        self.store = MemoryStore(self.path)
+        self.assertEqual(self.store.get_state("semantic_receipt:j"), receipt)
+        self.assertIsNotNone(self.store.get_memory("m1"))
+        self.assertEqual(self.store.get_job("j")["status"], "complete")
+        self.assertFalse(self.store.finish_job("j", job["lease_token"], {}, states={"late": True}))
+        self.assertIsNone(self.store.get_state("late"))
+
+    def test_completion_without_memories_can_commit_receipt(self) -> None:
+        self.store.enqueue_job("empty", {})
+        job = self.store.claim_job()
+        self.assertTrue(self.store.finish_job("empty", job["lease_token"], {}, states={"receipt:empty": {"empty": True}}))
+        self.assertEqual(self.store.get_state("receipt:empty"), {"empty": True})
+
+    def test_protected_memory_rejection_does_not_commit_success_receipt(self) -> None:
+        self.store.put_memory(self.memory(provenance="user_confirmed", content="User fact"))
+        self.store.enqueue_job("j", {})
+        job = self.store.claim_job()
+        self.assertTrue(self.store.finish_job("j", job["lease_token"], {}, [self.memory(content="Model replacement")], states={"receipt:j": {"ok": True}}))
+        self.assertEqual(self.store.get_memory("m1")["content"], "User fact")
+        self.assertIsNone(self.store.get_state("receipt:j"))
+
+    def test_invalid_completion_state_rolls_back_memories_usage_and_earlier_states(self) -> None:
+        self.store.enqueue_job("j", {})
+        job = self.store.claim_job()
+        self.store.reserve_usage("j", job["lease_token"], {"tokens": 80}, {})
+        with self.assertRaises(ValueError):
+            self.store.finish_job("j", job["lease_token"], {}, [self.memory()], usage={"tokens": 10}, states={"receipt": {"ok": True}, "bad": float("nan")})
+        self.assertIsNone(self.store.get_memory("m1"))
+        self.assertIsNone(self.store.get_state("receipt"))
+        self.assertEqual(self.store.usage_summary()["tokens"], 80)
+        self.assertEqual(self.store.get_job("j")["status"], "running")
+
+    def test_budget_deferral_targets_the_latest_exhausted_utc_boundary(self) -> None:
+        hour, day = 3_600_000, 86_400_000
+        with patch("mirally.core.memory.store._now", return_value=hour + 1000):
+            self.store.enqueue_job("spent", {})
+            spent = self.store.claim_job()
+            self.store.reserve_usage("spent", spent["lease_token"], {"requests": 1, "tokens": 80}, {})
+            self.store.complete_job("spent", spent["lease_token"], {})
+            reservation = {"requests": 1, "tokens": 30}
+            self.assertEqual(self.store.next_budget_at(reservation, {"requests_hourly": 1}), 2 * hour)
+            self.assertEqual(self.store.next_budget_at(reservation, {"requests_hourly": 1, "tokens_daily": 100}), day)
+            self.assertEqual(self.store.next_budget_at(reservation, {}), hour + 1000)
+            with self.assertRaises(ValueError):
+                self.store.next_budget_at(reservation, {"tokens_daily": 20})
+            self.store.enqueue_job("waiting", {})
+            job = self.store.claim_job()
+            self.assertTrue(self.store.defer_job("waiting", job["lease_token"], available_at_utc_ms=day))
+            self.assertEqual(self.store.get_job("waiting")["attempt"], 0)
+        with patch("mirally.core.memory.store._now", return_value=day - 1):
+            self.assertIsNone(self.store.claim_job())
+        with patch("mirally.core.memory.store._now", return_value=day):
+            job = self.store.claim_job()
+            self.assertTrue(self.store.reserve_usage("waiting", job["lease_token"], reservation, {"requests_hourly": 1, "tokens_daily": 100}))
+
+    def test_multiwindow_merge_can_refresh_only_matching_parent_revision(self) -> None:
+        parent = self.store.put_memory(self.memory("parent", metadata={"input_hash": "current-hash", "source_generation": "g"}))
+        previous = self.memory("synthesis_parent", status="superseded", provenance="model_inference",
+            metadata={"derived_from_memory_id": "parent", "source_generation": "g", "superseded_reason": "source_revision_changed"})
+        self.store.put_memory(previous)
+        manifest = {"memory_id": "parent", "input_hash": "current-hash", "source_generation": "g"}
+        self.store.enqueue_job("merge", {"memory_id": "unique-merge-part", "windows": [manifest]})
+        job = self.store.claim_job()
+        replacement = self.memory("synthesis_parent", status="active", provenance="model_inference", content="New summary",
+            metadata={"derived_from_memory_id": "parent", "source_generation": "g", "job_id": "merge"})
+        self.assertTrue(self.store.finish_job("merge", job["lease_token"], {}, [replacement], states={"receipt": {"ok": True}}))
+        self.assertEqual(self.store.get_memory("synthesis_parent")["content"], "New summary")
+        self.assertEqual(self.store.get_state("receipt"), {"ok": True})
+
+    def test_completed_request_scrub_keeps_manifest_and_retry_evidence(self) -> None:
+        payload = {"prompt": "raw captured content", "system_prompt": "instructions", "windows": [{"memory_id": "m1"}]}
+        self.store.enqueue_job("j", payload)
+        job = self.store.claim_job()
+        self.assertFalse(self.store.scrub_completed_job("j"))
+        self.assertEqual(self.store.get_job("j")["payload"]["prompt"], payload["prompt"])
+        self.store.complete_job("j", job["lease_token"], {"summary": "durable result"})
+        self.assertTrue(self.store.scrub_completed_job("j"))
+        self.assertEqual(self.store.get_job("j")["payload"], {"windows": payload["windows"]})
+        self.assertEqual(self.store.get_job("j")["result"], {"summary": "durable result"})
+
+    def test_explicit_retry_preserves_failed_call_charges_and_other_lifecycles(self) -> None:
+        self.store.enqueue_job("failed", {}, max_attempts=1)
+        job = self.store.claim_job()
+        self.store.reserve_usage("failed", job["lease_token"], {"requests": 1, "tokens": 80}, {})
+        self.store.fail_job("failed", job["lease_token"], "bad model configuration")
+        self.store.health()
+        self.assertEqual(self.store.get_job("failed")["status"], "failed")
+        self.store.enqueue_job("running", {})
+        running = self.store.claim_job()
+        self.store.enqueue_job("complete", {})
+        complete = self.store.claim_job()
+        self.store.complete_job("complete", complete["lease_token"], {})
+        self.assertEqual(self.store.retry_failed_jobs(), 1)
+        retried = self.store.get_job("failed")
+        self.assertEqual(retried["status"], "pending")
+        self.assertEqual(retried["attempt"], 0)
+        self.assertIsNone(retried["error"])
+        self.assertEqual(self.store.get_job("running")["lease_token"], running["lease_token"])
+        self.assertEqual(self.store.get_job("complete")["status"], "complete")
+        self.assertEqual(self.store.usage_summary()["tokens"], 80)
+        self.assertEqual(self.store.usage_summary()["requests"], 1)
+        reservations = self.store._connection.execute("SELECT count(*) FROM memory_reservations WHERE job_id='failed'").fetchone()[0]
+        self.assertEqual(reservations, 1)
+        self.assertEqual(self.store.retry_failed_jobs(), 0)
+
+    def test_limit_change_wakes_only_budget_deferrals(self) -> None:
+        for name, reason in (("budget", "budget_exhausted"), ("provider", "model timeout")):
+            self.store.enqueue_job(name, {})
+            job = self.store.claim_job()
+            if name == "budget":
+                self.store.defer_job(name, job["lease_token"], delay_ms=100000, reason=reason)
+            else:
+                self.store.fail_job(name, job["lease_token"], reason, retry_delay_ms=100000)
+        self.assertEqual(self.store.wake_deferred_jobs(), 1)
+        self.assertEqual(self.store.claim_job()["job_id"], "budget")
+        self.assertEqual(self.store.get_job("provider")["status"], "pending")
 
     def test_provider_retry_reserves_another_request_for_its_new_lease(self) -> None:
         self.store.enqueue_job("j1", {})

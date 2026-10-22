@@ -8,8 +8,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock
 
-from openassist.core.execution import ExecutionCancelled, ExecutionRequest, Reobserve, Supplement
-from openassist.runtime.ufo.controls import ExecutionBudgetExceeded, GuardedExecutor, NativeRuntime
+from mirally.core.execution import ExecutionCancelled, ExecutionRequest, Reobserve, Supplement
+from mirally.runtime.ufo.controls import ExecutionBudgetExceeded, GuardedExecutor, NativeRuntime
 
 
 class Events:

@@ -106,11 +106,12 @@ try {
         self.assertTrue(self.discovery["shouldRefresh"])
         self.assertTrue(self.discovery["snapshotVersionChanged"])
 
-    def test_native_prompt_advertises_activity_and_user_triggers(self):
+    def test_native_prompt_advertises_raw_activity_and_memory_first_history(self):
         prompt = self.discovery["prompt"]
         self.assertIn("<name>mirally-activity</name>", prompt)
-        self.assertIn("你能看到我之前做了什么吗", prompt)
-        self.assertIn("能看到我使用电脑的 activity 吗", prompt)
+        self.assertIn("原始电脑 Activity", prompt)
+        self.assertIn("先查 mirally-memory", prompt)
+        self.assertIn("历史可能仍有持久记忆", prompt)
         self.assertIn("普通问答不调用", prompt)
 
     def test_disabled_mcp_does_not_advertise_activity(self):

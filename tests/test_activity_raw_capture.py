@@ -10,11 +10,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, PropertyMock, patch
 
-from openassist.platform.activity import clipboard_worker
-from openassist.platform.activity.clipboard import WindowsClipboardSource
-from openassist.platform.activity.ocr import WindowsNativeOCRSource
-from openassist.platform.activity.uia_structure import WindowsUIASource
-from openassist.platform.activity.uia_worker import content_fields, inspect_tree
+from mirally.platform.activity import clipboard_worker
+from mirally.platform.activity.clipboard import WindowsClipboardSource
+from mirally.platform.activity.ocr import WindowsNativeOCRSource
+from mirally.platform.activity.uia_structure import WindowsUIASource
+from mirally.platform.activity.uia_worker import content_fields, inspect_tree
 
 
 class RawControl:
@@ -192,7 +192,7 @@ class RawCaptureTests(unittest.TestCase):
         process.communicate.return_value = (json.dumps(envelope, ensure_ascii=False), None)
         source = WindowsUIASource()
         source.available = True
-        with patch("openassist.platform.activity.uia_structure.subprocess.Popen", return_value=process):
+        with patch("mirally.platform.activity.uia_structure.subprocess.Popen", return_value=process):
             result = source.inspect(1, include_content=True, max_text_chars=3, max_depth=0, max_nodes=1)
         self.assertEqual(result.status, "ok")
         self.assertEqual(result.nodes[0]["value"], body)
@@ -206,7 +206,7 @@ class RawCaptureTests(unittest.TestCase):
                                           ("partial content", None)]
         source = WindowsUIASource()
         source.available = True
-        with patch("openassist.platform.activity.uia_structure.subprocess.Popen", return_value=process):
+        with patch("mirally.platform.activity.uia_structure.subprocess.Popen", return_value=process):
             result = source.inspect(1, timeout_ms=100, include_content=True)
         process.kill.assert_called_once()
         self.assertEqual(result.status, "timeout")
@@ -219,7 +219,7 @@ class RawCaptureTests(unittest.TestCase):
         process.communicate.return_value = ('{"status":"ok","nodes":[{"value":"prefix"}]}', None)
         source = WindowsUIASource()
         source.available = True
-        with patch("openassist.platform.activity.uia_structure.subprocess.Popen", return_value=process):
+        with patch("mirally.platform.activity.uia_structure.subprocess.Popen", return_value=process):
             result = source.inspect(1, include_content=True)
         self.assertEqual(result.missing_reasons, ("worker_exit",))
         self.assertEqual(result.nodes, ())
@@ -233,8 +233,8 @@ class RawCaptureTests(unittest.TestCase):
             path.write_bytes(b"fixture only; provider process is mocked")
             source = WindowsNativeOCRSource()
             source.available = True
-            with patch("openassist.platform.activity.ocr.sys.platform", "win32"), \
-                 patch("openassist.platform.activity.ocr.subprocess.run", return_value=
+            with patch("mirally.platform.activity.ocr.sys.platform", "win32"), \
+                 patch("mirally.platform.activity.ocr.subprocess.run", return_value=
                        subprocess.CompletedProcess([], 0, json.dumps(envelope, ensure_ascii=False), "")):
                 result = source.recognize(path)
         self.assertEqual(result.status, "ok")
@@ -248,8 +248,8 @@ class RawCaptureTests(unittest.TestCase):
             path.write_bytes(b"fixture")
             source = WindowsNativeOCRSource()
             source.available = True
-            with patch("openassist.platform.activity.ocr.sys.platform", "win32"), \
-                 patch("openassist.platform.activity.ocr.subprocess.run", side_effect=
+            with patch("mirally.platform.activity.ocr.sys.platform", "win32"), \
+                 patch("mirally.platform.activity.ocr.subprocess.run", side_effect=
                        subprocess.TimeoutExpired("fixture", 0.1, output='{"text":"prefix"}')):
                 result = source.recognize(path, timeout_ms=100)
         self.assertEqual(result.status, "timeout")
@@ -309,7 +309,7 @@ class RawCaptureTests(unittest.TestCase):
         self.assertGreater(len(output), 160_000)
         source = WindowsClipboardSource()
         source.available = True
-        with patch("openassist.platform.activity.clipboard.subprocess.run", return_value=
+        with patch("mirally.platform.activity.clipboard.subprocess.run", return_value=
                    subprocess.CompletedProcess([], 0, output, "")):
             result = source.read(sequence=11, max_chars=3)
         self.assertEqual(result["text"], body)
@@ -318,7 +318,7 @@ class RawCaptureTests(unittest.TestCase):
     def test_clipboard_parent_deadline_never_publishes_partial_text(self):
         source = WindowsClipboardSource()
         source.available = True
-        with patch("openassist.platform.activity.clipboard.subprocess.run", side_effect=
+        with patch("mirally.platform.activity.clipboard.subprocess.run", side_effect=
                    subprocess.TimeoutExpired("fixture", 0.1, output='{"text":"prefix"}')):
             result = source.read(timeout_ms=100)
         self.assertEqual(result["status"], "timeout")

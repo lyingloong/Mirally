@@ -12,17 +12,19 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from openassist.core.activity.models import Actor, CollectionLevel, Observation
-from openassist.core.activity.policy import ActivityPolicy
-from openassist.platform.activity.foreground import ForegroundSnapshot
-from openassist.platform.activity.ocr import _normalized_worker_reasons
-from openassist.runtime.activity.monitor import (
+from mirally.core.activity.models import Actor, CollectionLevel, Observation
+from mirally.core.activity.policy import ActivityPolicy
+from mirally.platform.activity.foreground import ForegroundSnapshot
+from mirally.platform.activity.ocr import _normalized_worker_reasons
+from mirally.platform.activity.wgc_capture import WindowsWindowCaptureSource
+from mirally.runtime.activity.monitor import (
     ActivityMonitorRuntime,
     MONITOR_HTML,
     _safe_observation,
     build_test_config,
 )
-from openassist.runtime.activity.service import ActivitySensor
+from mirally.runtime.activity.service import ActivitySensor
+from mirally.runtime.activity.lock import ActivityProcessLock
 
 
 class _FakeForeground:
@@ -58,6 +60,24 @@ class _TrackingLock:
 
 
 class ActivityMonitorTests(unittest.TestCase):
+    def test_status_reports_visual_gap_and_degraded_collector_without_capture(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, patch(
+                "mirally.platform.activity.wgc_capture.sys.platform", "win32"):
+            root = Path(directory)
+            runtime = ActivityMonitorRuntime(build_test_config(root), root=root)
+            runtime.sensor.visual_source.close()
+            runtime.sensor.visual_source = WindowsWindowCaptureSource(root / "missing" / "desktop_wgc.exe")
+            runtime.store.set_state("collector", {"status": "running"})
+            runtime.store.set_state("collector_diagnostics", {"status": "degraded"})
+            try:
+                status = runtime.status()
+                self.assertEqual(status["collector"]["status"], "degraded")
+                self.assertEqual(status["sources"]["visual"]["reason"], "helper_missing")
+                self.assertFalse(status["sources"]["visual"]["available"])
+                self.assertFalse(status["sources"]["visual"]["running"])
+            finally:
+                runtime.close()
+
     def test_close_retains_resources_until_monitor_thread_stops(self) -> None:
         for attribute in ("http_thread", "sensor_thread", "organizer_thread"):
             with self.subTest(thread=attribute), tempfile.TemporaryDirectory() as directory:
@@ -83,8 +103,8 @@ class ActivityMonitorTests(unittest.TestCase):
                 setattr(runtime, attribute, worker)
                 worker.start()
                 try:
-                    with patch("openassist.runtime.activity.monitor._THREAD_JOIN_TIMEOUT_SECONDS", 0.01), \
-                            patch("openassist.runtime.activity.monitor._HTTP_THREAD_JOIN_TIMEOUT_SECONDS", 0.01):
+                    with patch("mirally.runtime.activity.monitor._THREAD_JOIN_TIMEOUT_SECONDS", 0.01), \
+                            patch("mirally.runtime.activity.monitor._HTTP_THREAD_JOIN_TIMEOUT_SECONDS", 0.01):
                         with self.assertRaisesRegex(RuntimeError, f"{attribute} did not stop"):
                             runtime.close()
                     self.assertIs(getattr(runtime, attribute), worker)
@@ -113,7 +133,7 @@ class ActivityMonitorTests(unittest.TestCase):
                 self.assertEqual(runtime.sensor.close_calls, 1)
                 runtime.close()
                 self.assertEqual(lock.release_calls, 1)
-                from openassist.core.activity.knowledge import KnowledgeStore
+                from mirally.core.activity.knowledge import KnowledgeStore
                 with KnowledgeStore(config.database_path.with_name("activity-knowledge.sqlite3")) as knowledge:
                     health = knowledge.health("activity-knowledge")
                     self.assertEqual(health.item_count, 1)
@@ -161,7 +181,7 @@ class ActivityMonitorTests(unittest.TestCase):
             self.assertTrue(runtime._closed)
             self.assertFalse(lock.held)
             self.assertEqual(lock.release_calls, 1)
-            from openassist.core.activity.knowledge import KnowledgeStore
+            from mirally.core.activity.knowledge import KnowledgeStore
             with KnowledgeStore(config.database_path.with_name("activity-knowledge.sqlite3")) as knowledge:
                 health = knowledge.health("activity-knowledge")
                 self.assertEqual(health.item_count, 1)
@@ -188,7 +208,7 @@ class ActivityMonitorTests(unittest.TestCase):
             runtime.sensor = FinalFlushSensor()
             runtime.close()
             runtime.close()
-            from openassist.core.activity.knowledge import KnowledgeStore
+            from mirally.core.activity.knowledge import KnowledgeStore
             with KnowledgeStore(config.database_path.with_name("activity-knowledge.sqlite3")) as knowledge:
                 health = knowledge.health("activity-knowledge")
                 self.assertEqual(health.item_count, 1)
@@ -231,8 +251,8 @@ class ActivityMonitorTests(unittest.TestCase):
             self.assertEqual(lock.release_calls, 1)
             runtime.close()
             self.assertEqual(lock.release_calls, 1)
-            from openassist.core.activity.knowledge import KnowledgeStore
-            from openassist.core.activity.store import ObservationStore
+            from mirally.core.activity.knowledge import KnowledgeStore
+            from mirally.core.activity.store import ObservationStore
             with ObservationStore(config.database_path, read_only=True) as source:
                 self.assertIsNotNone(source.get(flushed[0].observation_id))
             with KnowledgeStore(config.database_path.with_name("activity-knowledge.sqlite3")) as knowledge:
@@ -257,7 +277,7 @@ class ActivityMonitorTests(unittest.TestCase):
                 runtime.knowledge_store.record_projection_error("old-unavailable-observation", 0, "old terminal failure")
             runtime.close()
             self.assertTrue(runtime._closed)
-            from openassist.core.activity.knowledge import KnowledgeStore
+            from mirally.core.activity.knowledge import KnowledgeStore
             with KnowledgeStore(config.database_path.with_name("activity-knowledge.sqlite3")) as knowledge:
                 errors = knowledge.list_projection_errors()
                 self.assertEqual(len(errors), 1)
@@ -305,8 +325,16 @@ class ActivityMonitorTests(unittest.TestCase):
                 asset_directory=root / "db" / "assets",
                 input_enabled=False,
                 ui_structure_enabled=False,
+                window_titles_enabled=False,
+                browser_urls_enabled=False,
             )
             runtime = ActivityMonitorRuntime(config, root=root)
+            # Exercise a real process lock without contending with the user's
+            # automatically running collector; the fixture has its own store.
+            runtime.lock = ActivityProcessLock(
+                name=f"Local\\MirallyActivityMonitorTest-{root.name}",
+                fallback_path=config.database_path.with_suffix(".lock"),
+            )
             runtime.sensor = ActivitySensor(config, store=runtime.store, source=_FakeForeground(), input_source=None, uia_source=None)
             try:
                 url = runtime.start(port=0)

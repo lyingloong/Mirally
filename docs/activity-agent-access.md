@@ -84,7 +84,9 @@ The optional
 version without managed MCP; an existing Mirally native plugin entry is
 disabled during migration so the two surfaces are not registered twice.
 Activity collection stays separate in
-`config/openassist/activity.yaml`, and the template is disabled by default.
+`config/mirally/activity.yaml`. The desktop starts capture by default; an
+explicit `enabled: false` or the Activity settings switch disables automatic
+capture. MCP discovery and queries do not start the collector.
 To query an existing historical monitor dataset without starting a collector,
 pass a dedicated YAML with explicit storage paths using `--activity-config`.
 

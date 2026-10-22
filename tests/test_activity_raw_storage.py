@@ -5,10 +5,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from openassist.core.activity.input_text import InputTextTracker
-from openassist.core.activity.knowledge import ActivityOrganizer, ContextQuery, KnowledgeStore
-from openassist.core.activity.models import Observation
-from openassist.core.activity.store import ObservationStore
+from mirally.core.activity.input_text import InputTextTracker
+from mirally.core.activity.knowledge import ActivityOrganizer, ContextQuery, KnowledgeStore
+from mirally.core.activity.models import Observation
+from mirally.core.activity.store import ObservationStore
 
 
 def _observation(**fields) -> Observation:

@@ -227,7 +227,7 @@ def date_mentioned(text: str, timestamp: int) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-model", action="store_true", help="Enable four real configured-model API turns")
-    parser.add_argument("--config", type=Path, default=ROOT / "config/openassist/openclaw/openclaw.json")
+    parser.add_argument("--config", type=Path, default=ROOT / "config/mirally/openclaw/openclaw.json")
     parser.add_argument("--report", type=Path, default=ROOT / ".artifacts/activity-agent-chat/verification.json")
     parser.add_argument("--timeout", type=int, default=240, help="Per-turn Gateway deadline in seconds")
     args = parser.parse_args()
@@ -280,7 +280,7 @@ def main() -> int:
             raise RuntimeError("Test session tool policy is unsuitable; real model calls were prevented")
         if args.run_model:
             sys.path.insert(0, str(ROOT))
-            from openassist.runtime.activity.agent_bridge import ActivityAgentBridge
+            from mirally.runtime.activity.agent_bridge import ActivityAgentBridge
             server_args = server.get("args", [])
             activity_config = Path(server_args[server_args.index("--config") + 1]) if "--config" in server_args else None
             bridge = ActivityAgentBridge(ROOT, config_path=activity_config)

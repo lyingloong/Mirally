@@ -16,9 +16,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from PIL import Image, ImageDraw
 from playwright.sync_api import sync_playwright
 
-from openassist.core.activity import Actor, CollectionLevel, Observation, ObservationStore
-from openassist.runtime.activity.browser import ActivityBrowserRuntime
-from openassist.runtime.activity.monitor import build_test_config
+from mirally.core.activity import Actor, CollectionLevel, Observation, ObservationStore
+from mirally.runtime.activity.browser import ActivityBrowserRuntime
+from mirally.runtime.activity.monitor import build_test_config
 
 
 def main() -> int:

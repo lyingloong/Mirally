@@ -1,0 +1,49 @@
+{
+  "gateway": {
+    "mode": "local",
+    "bind": "loopback",
+    "port": 18789,
+    "auth": { "mode": "token", "token": "GENERATED_LOCALLY" }
+  },
+  "agents": {
+    "list": [{ "id": "main", "identity": { "name": "Mirally", "avatar": "avatars/mirally.png" } }],
+    "defaults": {
+      "workspace": "LOCAL_WORKSPACE",
+      "thinkingDefault": "off",
+      "model": { "primary": "mirally/YOUR_VISION_MODEL" }
+    }
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "mirally": {
+        "baseUrl": "https://your-provider.example/v1",
+        "apiKey": "${MIRALLY_PROVIDER_API_KEY}",
+        "api": "openai-completions",
+        "models": [{
+          "id": "YOUR_VISION_MODEL",
+          "name": "Your configured vision model",
+          "input": ["text", "image"],
+          "reasoning": false
+        }]
+      }
+    }
+  },
+  "browser": {
+    "enabled": true,
+    "headless": true,
+    "defaultProfile": "openclaw",
+    "ssrfPolicy": {
+      "allowedHostnames": ["localhost", "127.0.0.1", "::1"]
+    }
+  },
+  "tools": {
+    "web": {
+      "fetch": {
+        "ssrfPolicy": {
+          "allowedHostnames": ["localhost", "127.0.0.1", "::1"]
+        }
+      }
+    }
+  }
+}

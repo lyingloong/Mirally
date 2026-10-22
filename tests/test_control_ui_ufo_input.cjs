@@ -11,7 +11,7 @@ function fixture(origin='http://127.0.0.1:18789') {
     addEventListener:(name,fn)=>handlers[name]=fn};
   const window={chrome:{webview:{postMessage:message=>messages.push(message)}},
     addEventListener:(name,fn)=>handlers[name]=fn};
-  vm.runInNewContext(fs.readFileSync('openassist/assets/control-ui-ufo-input.js','utf8')
+  vm.runInNewContext(fs.readFileSync('mirally/assets/control-ui-ufo-input.js','utf8')
     .replace('__MIRALLY_ORIGIN__',JSON.stringify('http://127.0.0.1:18789')), {
       window, document, location:{origin}, setInterval:fn=>{handlers.tick=fn;}});
   return {messages,field,handlers,blur:()=>{focused=false;handlers.blur();}};

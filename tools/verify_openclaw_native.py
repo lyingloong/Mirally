@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def main() -> None:
     sys.stdout.reconfigure(encoding='utf-8')
     runtime = json.loads((ROOT/'.artifacts/openclaw-runtime.json').read_text())
-    state = ROOT/'config/openassist/openclaw'
+    state = ROOT/'config/mirally/openclaw'
     config = json.loads((state/'openclaw.json').read_text(encoding='utf-8'))
     workspace = Path(config['agents']['defaults']['workspace'])
     output = ROOT/'output/openclaw-native-verification'

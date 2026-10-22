@@ -3,8 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from openassist.conversation import ConversationStore
-from openassist.core.execution import TaskResult
+from mirally.conversation import ConversationStore
+from mirally.core.execution import TaskResult
 
 
 class ConversationTests(unittest.TestCase):
@@ -88,13 +88,13 @@ class ConversationTests(unittest.TestCase):
             memory.begin("task", "生成文件")
             result = TaskResult("partial", "第一份已保存。", (
                 {"path": "D:/reports/one.txt", "source": "native_report", "verified": "exists"},
-            ), "native_error", {"event_log": "D:/logs/openassist-events.jsonl",
+            ), "native_error", {"event_log": "D:/logs/mirally-events.jsonl",
                                 "prompt": "PRIVATE_DIAGNOSTIC"})
             memory.finish("task", result.status, result.message, execution_result=result)
             restored = ConversationStore(Path(directory))
             record = restored.snapshot()["tasks"][-1]
             self.assertEqual(record["reason"], "native_error")
-            self.assertEqual(record["event_log"], "D:/logs/openassist-events.jsonl")
+            self.assertEqual(record["event_log"], "D:/logs/mirally-events.jsonl")
             self.assertEqual(restored.context()["previous_tasks"][-1]["artifacts"], list(result.artifacts))
             self.assertNotIn("PRIVATE_DIAGNOSTIC", json.dumps(restored.snapshot()))
 

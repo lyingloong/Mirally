@@ -52,7 +52,7 @@ flowchart LR
 
 ## 2. 当前基础和设计依据
 
-当前 `openassist/core/activity/` 已提供版本化的 `Observation`、单写入 SQLite Store、资产引用、游标、保留清理和质量字段。`openassist/runtime/activity/` 与 `openassist/platform/activity/` 负责采集服务、Windows worker、OCR、WGC、UIA、输入和诊断界面。
+当前 `mirally/core/activity/` 已提供版本化的 `Observation`、单写入 SQLite Store、资产引用、游标、保留清理和质量字段。`mirally/runtime/activity/` 与 `mirally/platform/activity/` 负责采集服务、Windows worker、OCR、WGC、UIA、输入和诊断界面。
 
 设计参考了本地 `tmp/screenpipe/` 快照及其 MCP/API 文档。Screenpipe 的核心做法包括事件驱动采集、屏幕内容和可访问性树配对、SQLite FTS5 搜索、活动摘要、紧凑的 outline/automation 输出和独立的 MCP 转发层。[Screenpipe 项目说明](https://github.com/screenpipe/screenpipe/blob/main/README.md)、[Screenpipe MCP 接口](https://github.com/screenpipe/screenpipe/blob/main/packages/screenpipe-mcp/README.md)
 
@@ -498,7 +498,7 @@ Agent     -> API
 在现有代码上增加以下产品层模块：
 
 ```text
-openassist/core/activity/
+mirally/core/activity/
   models.py                  # 已有 Observation
   store.py                   # 已有原始存储
   knowledge/
@@ -512,7 +512,7 @@ openassist/core/activity/
     memory_bridge.py         # Candidate/Fact 适配
     repository.py            # KnowledgeStore 读写
 
-openassist/runtime/activity/
+mirally/runtime/activity/
   organizer_service.py       # 生命周期、checkpoint、队列、健康状态
   organizer_config.py        # 配置桥接
   organizer_api.py           # loopback REST/SDK/MCP 适配

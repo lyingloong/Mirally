@@ -26,7 +26,7 @@ UIA 缺口包含预算、字节、文本和深度限制；浏览器地址有 1 �
 
 ## 2. 本轮实现的采集诊断
 
-`openassist/runtime/activity/service.py` 新增独立的 `collector_diagnostics` 状态，不修改原始 Observation。它保存有效通道开关、来源是否可用、输入与剪贴板通知所依赖的 worker 状态和原因，以及无正文的调用、事件、错误和丢弃计数。剪贴板通知与正文分开报告：metadata／structure 级别仍可启用通知，正文通道另需 content 级别授权。已启用来源不可用、输入 worker 退出或基础能力不足时，运行诊断保留 `degraded`，不因采集循环仍在运行而改写为健康。
+`mirally/runtime/activity/service.py` 新增独立的 `collector_diagnostics` 状态，不修改原始 Observation。它保存有效通道开关、来源是否可用、输入与剪贴板通知所依赖的 worker 状态和原因，以及无正文的调用、事件、错误和丢弃计数。剪贴板通知与正文分开报告：metadata／structure 级别仍可启用通知，正文通道另需 content 级别授权。已启用来源不可用、输入 worker 退出或基础能力不足时，运行诊断保留 `degraded`，不因采集循环仍在运行而改写为健康。
 
 诊断同时记录采集起止时间、最多 64 个暂停区间、调度队列合并／过期／丢弃计数，以及未能归属的输入、剪贴板信号、过期结果、黑帧等已知缺口计数。监控操作和外部 CLI 的暂停／恢复在实际被采集器应用时同步记录区间；只保留允许的原因代码，其他值标为 `unspecified`，不保存调用方正文。运行时每 10 秒保存一次采样健康；停止前捕获来源状态，停止后保留 `running_before_stop` 和原失败原因，并在内容 worker 结束后更新最终计数。
 
@@ -75,9 +75,9 @@ UIA 缺口包含预算、字节、文本和深度限制；浏览器地址有 1 �
 本机只读复核命令如下。这里的专用配置仅指定已有数据路径，`enabled: false`；命令不会启动采集器：
 
 ```powershell
-.\.venv\Scripts\python.exe -m openassist.runtime.activity.cli --config .artifacts/activity-fresh-review/activity-review.yaml knowledge-status
-.\.venv\Scripts\python.exe -m openassist.runtime.activity.cli --config .artifacts/activity-fresh-review/activity-review.yaml knowledge-timeline --limit 500 --tokens 100000 --include-uia
-.\.venv\Scripts\python.exe -m openassist.runtime.activity.cli --config .artifacts/activity-fresh-review/activity-review.yaml status
+.\.venv\Scripts\python.exe -m mirally.runtime.activity.cli --config .artifacts/activity-fresh-review/activity-review.yaml knowledge-status
+.\.venv\Scripts\python.exe -m mirally.runtime.activity.cli --config .artifacts/activity-fresh-review/activity-review.yaml knowledge-timeline --limit 500 --tokens 100000 --include-uia
+.\.venv\Scripts\python.exe -m mirally.runtime.activity.cli --config .artifacts/activity-fresh-review/activity-review.yaml status
 ```
 
 `knowledge-process --rebuild` 用于版本重建，当前会清空指定知识库的派生表和记忆表；有人工记忆时须先备份并安排迁移。本轮的实际目标库不含人工记忆，已完成备份及重建。普通查询无需再次重建。

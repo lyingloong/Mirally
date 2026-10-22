@@ -16,8 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--source', type=Path, default=ROOT/'openassist/assets/mirally.svg')
-    parser.add_argument('--out', type=Path, default=ROOT/'openassist/assets')
+    parser.add_argument('--source', type=Path, default=ROOT/'mirally/assets/mirally.svg')
+    parser.add_argument('--out', type=Path, default=ROOT/'mirally/assets')
     parser.add_argument('--browser', type=Path)
     args = parser.parse_args()
     browser = args.browser

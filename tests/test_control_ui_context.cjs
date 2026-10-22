@@ -9,7 +9,7 @@ function fixture() {
   const window = {__mirallyIntake: {active: () => pane}, chrome: {webview: {
     postMessage: value => messages.push(value)}}, addEventListener(){}};
   window.top=window;window.location={origin:'http://127.0.0.1:18789'};
-  vm.runInNewContext(fs.readFileSync('openassist/assets/control-ui-context.js', 'utf8').replace('__MIRALLY_ORIGIN__','"http://127.0.0.1:18789"'), {
+  vm.runInNewContext(fs.readFileSync('mirally/assets/control-ui-context.js', 'utf8').replace('__MIRALLY_ORIGIN__','"http://127.0.0.1:18789"'), {
     window, location:window.location, crypto: {randomUUID: () => 'nonce'}, setTimeout: () => 1, clearTimeout() {},
     File, atob, Uint8Array, Promise, Error,
   });

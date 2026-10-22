@@ -8,13 +8,14 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from fastmcp import Client
 from fastmcp.client.transports import StdioTransport
 from fastmcp.exceptions import ToolError
 
-from openassist.core.activity import Observation, ObservationStore
-from openassist.runtime.activity.mcp_server import create_server
+from mirally.core.activity import Observation, ObservationStore
+from mirally.runtime.activity.mcp_server import create_server
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,8 +24,10 @@ ROOT = Path(__file__).resolve().parents[1]
 class ActivityMcpServerTests(unittest.TestCase):
     def test_exposes_bounded_read_only_activity_surface(self) -> None:
         async def run() -> None:
-            with tempfile.TemporaryDirectory() as directory:
+            with tempfile.TemporaryDirectory() as directory, patch(
+                    "mirally.runtime.activity.config.default_data_directory") as data_directory:
                 root = Path(directory)
+                data_directory.return_value = root / "data"
                 async with Client(create_server(root)) as client:
                     tools = await client.list_tools()
                     names = [tool.name for tool in tools]
@@ -43,8 +46,10 @@ class ActivityMcpServerTests(unittest.TestCase):
                     )
                     self.assertTrue(all(tool.annotations.readOnlyHint for tool in tools))
                     health = await client.call_tool("activity_health", {})
-                    self.assertFalse(health.data["enabled"])
-                    self.assertEqual(health.data["data_status"], "disabled")
+                    self.assertTrue(health.data["enabled"])
+                    self.assertFalse(health.data["bridge_starts_collector"])
+                    self.assertEqual(health.data["data_status"], "not_ready")
+                    self.assertEqual(list(root.iterdir()), [])
 
         asyncio.run(run())
 
@@ -107,7 +112,7 @@ class ActivityMcpServerTests(unittest.TestCase):
                 before = hashlib.sha256(database.read_bytes()).hexdigest()
                 transport = StdioTransport(
                     command=sys.executable,
-                    args=["-m", "openassist.runtime.activity.mcp_server", "--root", str(root), "--config", str(config)],
+                    args=["-m", "mirally.runtime.activity.mcp_server", "--root", str(root), "--config", str(config)],
                     cwd=str(ROOT),
                     env={"PYTHONUTF8": "1"},
                     keep_alive=False,

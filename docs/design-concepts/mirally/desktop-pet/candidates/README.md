@@ -11,14 +11,14 @@
 
 ## 生成记录
 
-使用 imagegen 技能的原版 `scripts/image_gen.py`，CLI/API 模式，模型 `gpt-image-2.5-sunburst`，`--quality high --size auto --background opaque --prompt-file … --no-augment`。相伴精灵通过 `edit --image openassist/assets/mirally-512.png` 携带当前标志作为轮廓与色调参考，生成全新的角色提案；小海獭通过 `generate` 生成。
+使用 imagegen 技能的原版 `scripts/image_gen.py`，CLI/API 模式，模型 `gpt-image-2.5-sunburst`，`--quality high --size auto --background opaque --prompt-file … --no-augment`。相伴精灵通过 `edit --image mirally/assets/mirally-512.png` 携带当前标志作为轮廓与色调参考，生成全新的角色提案；小海獭通过 `generate` 生成。
 
 - [相伴精灵提示词](brand-prompt.txt) → [Sunburst 参考](../../../../../output/imagegen/mirally-ally-pets/brand-concept.png)
 - [小海獭提示词](otter-prompt.txt) → [Sunburst 参考](../../../../../output/imagegen/mirally-ally-pets/otter-concept.png)
 
 复用独立生图环境，openai、Pillow、socksio 可用。当前 provider 的地址与凭据仅设置到生图进程环境；配置文件生成前后字节一致。两张图片已逐张打开检查，完整性与参数记录在本机 `output/imagegen/mirally-ally-pets/generation.json`。
 
-SVG 按参考重新绘制，保留角色识别特征，简化毛发和材质；不是逐像素复刻。候选与生成参考保留独立文件，应用正式相伴 M 标志不替换。运行时使用[小海獭生产 SVG](../../../../../openassist/assets/mirally-pet-otter.svg)，另保留[小飞狐生产 SVG](../../../../../openassist/assets/mirally-pet.svg)。伙伴右键菜单或显式详情中可切换形态与「小海獭/小飞狐」造型，偏好只保存在当前桌面来源的 WebView 配置档，不写 Gateway 设置或助手记忆。详情保留约 240 ms 尺寸过渡；小输入、菜单和回复气泡只做约 160 ms 淡入，立即使用最终位置，避免原生裁剪越界。普通移出保留 100 ms 容错，回复气泡不随移出自动关闭。现行交互与检查范围见[伙伴设计记录](../README.md)。
+SVG 按参考重新绘制，保留角色识别特征，简化毛发和材质；不是逐像素复刻。候选与生成参考保留独立文件，应用正式相伴 M 标志不替换。运行时使用[小海獭生产 SVG](../../../../../mirally/assets/mirally-pet-otter.svg)，另保留[小飞狐生产 SVG](../../../../../mirally/assets/mirally-pet.svg)。伙伴右键菜单或显式详情中可切换形态与「小海獭/小飞狐」造型，偏好只保存在当前桌面来源的 WebView 配置档，不写 Gateway 设置或助手记忆。详情保留约 240 ms 尺寸过渡；小输入、菜单和回复气泡只做约 160 ms 淡入，立即使用最终位置，避免原生裁剪越界。普通移出保留 100 ms 容错，回复气泡不随移出自动关闭。现行交互与检查范围见[伙伴设计记录](../README.md)。
 
 ## 预览检查
 

@@ -1,5 +1,7 @@
 # 侧边助手概念 · 2026-10-03
 
+本目录的原始提示词和生成图保留当时的旧名 OpenAssist；当前产品与代码包已统一为 Mirally / `mirally`。
+
 后续配色已按用户要求更新为 [晴空蓝](sky-blue/README.md)。本页保留早期侧边形态探索，窗口交互形态继续沿用。
 
 ![侧边助手概念](../../../output/imagegen/2026-10-03-sunburst-edge-assistant.png)

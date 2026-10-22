@@ -9,10 +9,10 @@ from types import ModuleType, SimpleNamespace
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from openassist.assistant import Assistant, AssistantDecision
-from openassist.conversation import ConversationStore
-from openassist.task_controller import TaskController
-from openassist.runtime.completion import ufo_completion
+from mirally.assistant import Assistant, AssistantDecision
+from mirally.conversation import ConversationStore
+from mirally.task_controller import TaskController
+from mirally.runtime.completion import ufo_completion
 
 
 class AssistantProtocolTests(unittest.TestCase):
@@ -26,7 +26,7 @@ class AssistantProtocolTests(unittest.TestCase):
         ufo.llm = llm
 
         with patch.dict(sys.modules, {"ufo": ufo, "ufo.llm": llm}), patch(
-            "openassist.runtime.completion.bounded_model_services"
+            "mirally.runtime.completion.bounded_model_services"
         ) as bounded:
             result = ufo_completion([{"role": "user", "content": "hello"}])
 
@@ -184,7 +184,7 @@ class AssistantLifecycleTests(unittest.TestCase):
     def test_malformed_model_output_fails_without_desktop_fallback(self):
         factory = Mock(side_effect=AssertionError("No fallback to desktop"))
         c = self.controller(Assistant(lambda _: "invalid"), runner_factory=factory)
-        with self.assertLogs("openassist.task_controller", level="ERROR"):
+        with self.assertLogs("mirally.task_controller", level="ERROR"):
             c.start("你好")
             events = self.pump(c, lambda: not c.active)
         self.assertEqual(c.phase, "failed")

@@ -12,10 +12,10 @@ import time
 import unittest
 from pathlib import Path
 
-from openassist.core.activity import Observation, ObservationStore
-from openassist.core.memory import MemoryStore
-from openassist.runtime.memory import MemoryConfig, MemoryService
-from openassist.runtime.memory.worker import serve
+from mirally.core.activity import Observation, ObservationStore
+from mirally.core.memory import MemoryStore
+from mirally.runtime.memory import MemoryConfig, MemoryService
+from mirally.runtime.memory.worker import serve
 
 
 class MemoryWorkerTests(unittest.TestCase):
@@ -49,7 +49,7 @@ class MemoryWorkerTests(unittest.TestCase):
                 "\n  projection_database_path: " + (root / "projection.sqlite3").as_posix() + "\n", encoding="utf-8")
             product_root = Path(__file__).resolve().parents[1]
             environment = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
-            process = subprocess.Popen([sys.executable, "-m", "openassist.runtime.memory.worker", "--root", str(product_root),
+            process = subprocess.Popen([sys.executable, "-m", "mirally.runtime.memory.worker", "--root", str(product_root),
                 "--config", str(config)], cwd=product_root, env=environment,
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
             try:

@@ -14,7 +14,7 @@
 - 面向 Agent 的本地查询：CLI 已支持 `knowledge-process`、`knowledge-query`、`knowledge-summary`、`knowledge-status`、`knowledge-candidates`、`knowledge-facts`；监控服务提供 `/api/knowledge/context`、`/api/knowledge/summary`、`/api/knowledge/health`、Episode/Evidence 只读查询。
 - Agent 控制租约原语：可标记 agent 控制和混合输入，避免把输入计数直接解释成用户事实；尚未自动贯穿默认宿主和 UFO worker。
 
-标题和 URL 是陪伴层的上下文元数据，模板和 `monitor --test` 默认启用；部署方可以在 `config/openassist/activity.yaml` 的 `collection.window_titles` 和 `collection.browser_urls` 中分别关闭。URL 接受明确的协议，也保留浏览器隐藏协议时的域名地址原值，不猜测 HTTPS；不把普通搜索词当作 URL。Chrome、Edge、Firefox、Brave、Opera 和 Vivaldi 的常见进程名已纳入候选，但不表示每个版本/语言都经过实机验证。只读可见浏览器地址栏，不遍历网页正文；常规每 3 秒采样一次，窗口/标题变化触发更新，失败后退避。无法读取时保留 `not_found`、`timeout` 或 `unavailable` 状态，而不是伪造地址。尚未确认导航时输入框里的值仍只是地址栏观察，不是已加载网页的证明。
+标题和 URL 是陪伴层的上下文元数据，模板和 `monitor --test` 默认启用；部署方可以在 `config/mirally/activity.yaml` 的 `collection.window_titles` 和 `collection.browser_urls` 中分别关闭。URL 接受明确的协议，也保留浏览器隐藏协议时的域名地址原值，不猜测 HTTPS；不把普通搜索词当作 URL。Chrome、Edge、Firefox、Brave、Opera 和 Vivaldi 的常见进程名已纳入候选，但不表示每个版本/语言都经过实机验证。只读可见浏览器地址栏，不遍历网页正文；常规每 3 秒采样一次，窗口/标题变化触发更新，失败后退避。无法读取时保留 `not_found`、`timeout` 或 `unavailable` 状态，而不是伪造地址。尚未确认导航时输入框里的值仍只是地址栏观察，不是已加载网页的证明。
 
 ## 与 Screenpipe 的差距
 

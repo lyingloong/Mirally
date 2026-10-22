@@ -12,9 +12,9 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from openassist.core.activity import Observation, ObservationStore
-from openassist.core.memory import MemoryStore
-from openassist.runtime.memory import MemoryConfig, MemoryReader, MemoryService, SemanticsConfig, load_memory_config
+from mirally.core.activity import Observation, ObservationStore
+from mirally.core.memory import MemoryStore
+from mirally.runtime.memory import MemoryConfig, MemoryReader, MemoryService, SemanticsConfig, load_memory_config
 
 
 class MemoryServiceTests(unittest.TestCase):
@@ -50,7 +50,7 @@ class MemoryServiceTests(unittest.TestCase):
         row = Observation.create(kind=kind, source_id="test", source_epoch="epoch",
             source_seq=self.sequence, boot_id="boot", observed_at_utc_ms=observed,
             app_id=app, window_instance_id=window,
-            payload=payload if payload is not None else {"window_title": "openassist memory.py"}, **kwargs)
+            payload=payload if payload is not None else {"window_title": "mirally memory.py"}, **kwargs)
         return self.writer().append(row)
 
     def service(self, config: MemoryConfig | None = None, **kwargs) -> MemoryService:
@@ -58,10 +58,24 @@ class MemoryServiceTests(unittest.TestCase):
         self.services.append(service)
         return service
 
-    def test_missing_default_config_disabled_and_boolean_strings_rejected(self) -> None:
-        default = load_memory_config(self.root)
-        self.assertFalse(default.enabled)
+    def test_local_memory_defaults_on_but_model_calls_remain_opt_in(self) -> None:
+        with patch("mirally.runtime.memory.config.default_data_directory",
+                   return_value=self.root / "user/activity"):
+            default = load_memory_config(self.root)
+        self.assertTrue(default.enabled)
         self.assertFalse(default.semantics.enabled)
+        self.assertTrue(default.raw_retention.enabled)
+        self.assertEqual(default.raw_retention.interval_seconds, 3600)
+        profile = self.root / "profile.yaml"
+        profile.write_text("context_token_budget: 512\n", encoding="utf-8")
+        self.assertTrue(load_memory_config(self.root, profile).enabled)
+        profile.write_text("enabled: false\n", encoding="utf-8")
+        self.assertFalse(load_memory_config(self.root, profile).enabled)
+        # Configuration reads never start maintenance or create stores.
+        self.assertFalse(default.database_path.exists())
+        self.assertFalse(default.projection_database_path.exists())
+
+    def test_config_boolean_strings_and_storage_aliases_rejected(self) -> None:
         bad = self.root / "bad.yaml"
         bad.write_text('enabled: "false"\n', encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "boolean"):
@@ -78,8 +92,31 @@ class MemoryServiceTests(unittest.TestCase):
         self.assertFalse(self.config.projection_database_path.exists())
         self.assertFalse(self.source_path.exists())
 
+    def test_all_reader_operations_separate_durable_history_from_remaining_raw_source(self) -> None:
+        with MemoryStore(self.config.database_path) as store:
+            store.put_memory({"id": "old", "kind": "episodic", "title": "Old activity",
+                "content": "Historical project", "observed_start_utc_ms": 100,
+                "observed_end_utc_ms": 200})
+            store.set_state("coverage", {"source_oldest_utc_ms": 800, "source_newest_utc_ms": 900})
+            store.set_state("memory_archival:old", {"source_retention_status": "archived"})
+        reader = MemoryReader(self.root, config=self.config, clock=lambda: 1000)
+        for operation, args in [("health", {}), ("read", {"memory_id": "old"}),
+                                ("search", {}), ("context", {})]:
+            with self.subTest(operation=operation):
+                result = reader.handle(operation, args)
+                coverage = result["coverage"]
+                self.assertEqual(coverage["source_oldest_utc_ms"], 800)
+                self.assertEqual(coverage["durable_coverage"]["observed_start_utc_ms"], 100)
+                self.assertEqual(coverage["durable_coverage"]["observed_end_utc_ms"], 200)
+                self.assertIn("raw Activity only", coverage["source_coverage_note"])
+                self.assertFalse(coverage["maintenance_on_query"])
+                if operation == "health":
+                    self.assertEqual(result["store"]["durable_coverage"], coverage["durable_coverage"])
+        self.assertFalse(self.source_path.exists())
+        self.assertFalse(self.config.projection_database_path.exists())
+
     def test_background_generates_meaningful_memory_without_dialogue_or_collector(self) -> None:
-        first = self.observe(payload={"window_title": "openassist memory.py"})
+        first = self.observe(payload={"window_title": "mirally memory.py"})
         second = self.observe(observed=2000, app="msedge.exe", window="browser",
                               payload={"window_title": "SQLite indexing docs", "browser_url": "https://sqlite.org/fts5.html"})
         service = self.service()
@@ -218,7 +255,7 @@ class MemoryServiceTests(unittest.TestCase):
         self.assertEqual(claimed["status"], "ready")
         job = claimed["job"]
         refs = [original.observation_id]
-        result = {"summary": "An editor displayed openassist memory.py", "source_observation_ids": refs,
+        result = {"summary": "An editor displayed mirally memory.py", "source_observation_ids": refs,
                   "facts": [{"statement": "Possible project memory module", "source_observation_ids": refs, "confidence": 0.6}]}
         invalid = {**result, "source_observation_ids": ["unseen-observation"]}
         with self.assertRaisesRegex(ValueError, "subset"):
@@ -249,6 +286,47 @@ class MemoryServiceTests(unittest.TestCase):
         service.close()
         resumed = self.service(config)
         self.assertEqual(resumed.handle("claim_job")["status"], "budget_exhausted")
+
+    def test_legacy_queued_synthesis_clears_source_prompt_after_completion(self) -> None:
+        original = self.observe()
+        service = self.service()
+        service.process_once()
+        record = service._writer.search(kinds=("episodic",))[0]
+        service.config = replace(self.config, semantics=SemanticsConfig(enabled=True))
+        payload = {"system_prompt": "legacy instructions", "prompt": "legacy original text",
+                   "memory_id": record["id"], "input_hash": record["metadata"]["input_hash"],
+                   "source_observation_ids": [original.observation_id], "scope": record["scope"],
+                   "source_generation": record["metadata"]["source_generation"],
+                   "observed_start_utc_ms": record["observed_start_utc_ms"],
+                   "observed_end_utc_ms": record["observed_end_utc_ms"], "max_tokens": 1500}
+        service._writer.enqueue_job("legacy-job", payload)
+        job = service.handle("claim_job")["job"]
+        completed = service.handle("complete_job", {"job_id": job["job_id"], "lease_token": job["lease_token"],
+            "result": {"summary": "Observed editor context", "source_observation_ids": [original.observation_id], "facts": []},
+            "usage": {"tokens": 10}})
+        self.assertEqual(completed["status"], "completed")
+        stored = service._writer.get_job("legacy-job")["payload"]
+        self.assertNotIn("prompt", stored)
+        self.assertNotIn("system_prompt", stored)
+        self.assertIsNone(service._writer.get_state("semantic_receipt:" + record["metadata"]["window_id"]))
+
+    def test_upgrade_rebuilds_pending_window_before_full_evidence_synthesis(self) -> None:
+        self.observe()
+        service = self.service()
+        service.process_once()
+        record = service._writer.search(kinds=("episodic",))[0]
+        window_id = record["metadata"]["window_id"]
+        old_metadata = {key: value for key, value in record["metadata"].items() if key not in {"input_hash", "window_id"}}
+        service._writer.put_memory({**record, "metadata": old_metadata})
+        state = service._writer.get_state("window:" + window_id)
+        service._writer.set_state("dirty_windows", [window_id])
+        service._writer.set_state("dirty_window_priorities", {window_id: state["window"]})
+        service.config = replace(self.config, semantics=SemanticsConfig(enabled=True))
+        self.assertEqual(service.process_once()["status"], "ready")
+        job = service.handle("claim_job")["job"]
+        current = service._writer.get_memory(record["id"])
+        self.assertEqual(job["payload"]["windows"][0]["input_hash"], current["metadata"]["input_hash"])
+        self.assertEqual(current["metadata"]["window_id"], window_id)
 
     def test_expired_source_marks_references_unavailable_without_deleting_memory(self) -> None:
         self.observe()
@@ -355,7 +433,7 @@ class MemoryServiceTests(unittest.TestCase):
         self.assertEqual(service._writer.usage_summary()["input_tokens"], 30)
         self.assertEqual(MemoryService._usage({"inputTokens": 30}), {"requests": 1, "input_tokens": 30})
 
-    def test_recent_window_settles_before_more_than_100_historical_windows(self) -> None:
+    def test_oldest_window_settles_before_more_than_100_historical_windows(self) -> None:
         for index in range(100):
             self.observe(observed=index * 300_000 + 1000)
         recent = int(time.time() * 1000) - 600_000
@@ -364,9 +442,9 @@ class MemoryServiceTests(unittest.TestCase):
         service = self.service(config)
         service.process_once()
         job = service.handle("claim_job")["job"]
-        self.assertEqual(job["payload"]["observed_end_utc_ms"], recent)
+        self.assertEqual(job["payload"]["observed_end_utc_ms"], 1000)
         assert service._writer is not None
-        # Exactly 100 pending windows settle; the old remainder stays durable.
+        # Exactly 100 pending windows settle; the recent remainder stays durable.
         self.assertEqual(len(service._writer.get_state("dirty_windows")), 1)
         self.assertEqual(len(service._writer.get_state("dirty_window_priorities")), 1)
         service.close()

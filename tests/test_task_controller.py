@@ -4,9 +4,9 @@ import threading
 import time
 import unittest
 
-from openassist.presentation import public_text
-from openassist.task_controller import TaskController, TaskStopped
-from openassist.assistant import AssistantDecision
+from mirally.core.text import public_text
+from mirally.task_controller import TaskController, TaskStopped
+from mirally.assistant import AssistantDecision
 from unittest.mock import Mock
 
 

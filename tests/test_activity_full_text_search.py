@@ -7,9 +7,9 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from openassist.core.activity.knowledge import ActivityOrganizer, KnowledgeStore
-from openassist.core.activity.models import Observation
-from openassist.core.activity.store import ObservationStore
+from mirally.core.activity.knowledge import ActivityOrganizer, KnowledgeStore
+from mirally.core.activity.models import Observation
+from mirally.core.activity.store import ObservationStore
 
 
 class ActivityFullTextSearchTests(unittest.TestCase):

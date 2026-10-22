@@ -14,14 +14,18 @@
 **/.env.local
 **/.env.*.local
 
-# OpenAssist product-layer credentials
-/config/openassist/speech.yaml
-/config/openassist/ufo/agents.yaml
-/config/openassist/interface.json
-/config/openassist/interface.json.tmp
-/config/openassist/conversations/
-/config/openassist/openclaw/
-/config/openassist/memory.yaml
+# Mirally product-layer credentials
+/config/mirally/speech.yaml
+/config/mirally/ufo/agents.yaml
+/config/mirally/interface.json
+/config/mirally/interface.json.tmp
+/config/mirally/conversations/
+/config/mirally/openclaw/
+/config/mirally/memory.yaml
+/config/mirally/activity.yaml
+
+# Legacy private state can remain while the name migration is pending.
+/config/openassist/
 
 # OS and editor files
 **/.DS_Store

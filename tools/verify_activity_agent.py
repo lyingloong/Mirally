@@ -23,8 +23,8 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from openassist.core.activity.knowledge.repository import deterministic_id
-from openassist.runtime.activity.agent_bridge import ActivityAgentBridge
+from mirally.core.activity.knowledge.repository import deterministic_id
+from mirally.runtime.activity.agent_bridge import ActivityAgentBridge
 
 
 def source_fingerprint(database: Path) -> dict[str, str | None]:
@@ -276,7 +276,7 @@ def main() -> int:
     transport = parser.add_mutually_exclusive_group()
     transport.add_argument("--mcp", action="store_true", help="Invoke tools through the saved Activity stdio MCP definition")
     transport.add_argument("--gateway", action="store_true", help="Verify the legacy native plugin through loopback Gateway HTTP")
-    parser.add_argument("--gateway-config", type=Path, default=ROOT / "config/openassist/openclaw/openclaw.json")
+    parser.add_argument("--gateway-config", type=Path, default=ROOT / "config/mirally/openclaw/openclaw.json")
     args = parser.parse_args()
     try:
         report = verify(args)

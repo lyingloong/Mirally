@@ -1,5 +1,7 @@
 # Windows 活动观察数据层：Screenpipe 源码研究与 Mirally 方案
 
+当前行为（2026-10-15）：Mirally 桌面连接就绪后默认启动活动记录，设置页开关持久保存关闭偏好；本地 Memory 整理默认开启，模型总结默认关闭。下文保留研究时的默认关闭方案，实际配置见 [Activity Memory](activity-memory.md)。
+
 日期：2026-10-08。状态：**基础观察契约、窗口标题/浏览器 URL 和监控界面已实现；可选 HWND WGC + Windows 原生 OCR 内容层已接入，默认关闭**。本轮完成源码阅读并实现产品拥有的 Observation Store、策略门、资产发布、游标、CLI、前台只读适配器、输入元数据聚合、Raw Input helper、受限 UIA worker、HWND WGC helper、Windows OCR worker 和单实例控制；没有默认启动后台采集、运行 Screenpipe、调用模型或新增桌面实验。
 
 启用 Activity Sensor 后，基础观察契约包含前台元数据、输入聚合和 UIA 结构，缺失源时显示 `degraded`。2026-10-08 已扩展为丰富内容默认配置：标题/URL、持续多显示器截图和 OCR、UIA 正文与属性、已提交输入文本变化和 Unicode 剪贴板。整体仍需显式启动，独立配置开关保留；音频未接入。最新实现、配置和测试以 [丰富内容采集](activity-rich-capture.md) 为准，对照见 [Activity 与 Screenpipe](activity-screenpipe-gap.md)。下文研究建议中的保守基线、阶段划分和默认配置是历史设计，不覆盖最新实现说明。
@@ -147,7 +149,7 @@ Sensor 是独立后台进程，运行在普通权限的当前用户交互会话�
 ### 4.2 已实现与待接入目录
 
 ```text
-openassist/
+mirally/
   core/activity/
     models.py           # Observation、质量、actor、身份和版本
     contracts.py        # ObservationSource、查询、游标与错误
@@ -170,7 +172,7 @@ openassist/
     cli.py              # run/status/query/tail/pause/resume/stop/doctor/monitor/browse/knowledge-*
 
     agent_activity.py   # 桌面执行租约桥接
-config/openassist/activity.yaml.template  # 已实现模板，默认关闭
+config/mirally/activity.yaml.template  # 已实现模板，默认关闭
 tests/test_activity_*.py
 tests/windows_activity/ # 受控 provider / 图像 / 输入测试入口
 ```
@@ -459,7 +461,7 @@ health() -> component status, watermark, gaps, backlog, resource metrics
 
 由产品宿主在配置允许时启动/复用每用户每交互 session 的单例 Sensor，用原生 mutex + PID/start time 校验避免重复服务。后台进程启动不弹终端；提供明确的运行/暂停指示和状态入口。可独立诊断，不要求先导入 UFO 或连接模型。
 
-CLI 为 `python -m openassist.runtime.activity.cli`，提供 `run / status / query / tail / pause / resume / stop / doctor / monitor`。其中 `monitor --test` 会使用 `.artifacts/activity-monitor/` 下的隔离数据库启动 loopback 诊断界面；界面轮询状态、指标和事件游标，默认隐藏 OCR 文本与资产路径，显式 reveal 后才返回内容。正式 CLI 和 HTTP API 都默认脱敏，查询内容时按 scope 显式授权。Monitor 暴露 `GET /api/health`、`/api/status`、`/api/metrics`、`/api/events?after=`、`/api/events/{id}` 和 `GET /api/assets/{id}`，以及受 token 保护的 `POST /api/control/pause|resume|stop`；只监听 `127.0.0.1`，不提供任意 SQL 或跨机器访问。
+CLI 为 `python -m mirally.runtime.activity.cli`，提供 `run / status / query / tail / pause / resume / stop / doctor / monitor`。其中 `monitor --test` 会使用 `.artifacts/activity-monitor/` 下的隔离数据库启动 loopback 诊断界面；界面轮询状态、指标和事件游标，默认隐藏 OCR 文本与资产路径，显式 reveal 后才返回内容。正式 CLI 和 HTTP API 都默认脱敏，查询内容时按 scope 显式授权。Monitor 暴露 `GET /api/health`、`/api/status`、`/api/metrics`、`/api/events?after=`、`/api/events/{id}` 和 `GET /api/assets/{id}`，以及受 token 保护的 `POST /api/control/pause|resume|stop`；只监听 `127.0.0.1`，不提供任意 SQL 或跨机器访问。
 
 `monitor --test` 现在默认完整采集内容并保留截图，`--metadata-only` 才只验证元数据和 UIA 结构；旧 `--content/--persist-images` 保留兼容，不改变正式 `activity.yaml`。监控默认隐藏所有正文，勾选「显示内容」查看，采集授权与查看开关分离。
 
@@ -489,7 +491,7 @@ worker 最大并发初始为一个 UIA + 一个 WGC，native event helper 常驻
 
 ## 11. 配置与资源预算
 
-使用独立 `config/openassist/activity.yaml.template`。不改语音和 UFO 配置，不将任何开发者服务商或凭据写入模板。完整启用时，三类基础观察能力应同时打开；旧配置缺失能力时服务会进入 `degraded` 并保留缺口状态。下面是可用配置接口的最小结构：
+使用独立 `config/mirally/activity.yaml.template`。不改语音和 UFO 配置，不将任何开发者服务商或凭据写入模板。完整启用时，三类基础观察能力应同时打开；旧配置缺失能力时服务会进入 `degraded` 并保留缺口状态。下面是可用配置接口的最小结构：
 
 ```yaml
 enabled: false
@@ -541,10 +543,10 @@ storage:
 
 ```powershell
 .\tools\build-activity-wgc.ps1
-$env:OPENASSIST_WGC_HELPER = "$PWD\tools\bin\desktop_wgc.exe"
+$env:MIRALLY_WGC_HELPER = "$PWD\tools\bin\desktop_wgc.exe"
 ```
 
-以上 YAML 是历史保守基线；当前完整默认配置以 `config/openassist/activity.yaml.template` 为准：`default_level: content`，正文、剪贴板、持续图像与图片持久化默认 true，UIA deadline 为 5000 ms。WGC 在 `scope: monitors` 下显式捕获多显示器，在 `foreground` 下仅捕获前台；没有失败 fallback。
+以上 YAML 是历史保守基线；当前完整默认配置以 `config/mirally/activity.yaml.template` 为准：`default_level: content`，正文、剪贴板、持续图像与图片持久化默认 true，UIA deadline 为 5000 ms。WGC 在 `scope: monitors` 下显式捕获多显示器，在 `foreground` 下仅捕获前台；没有失败 fallback。
 
 存储量先按公式估算，再由 soak test 校准。例如八小时、每分钟最多 6 次，稳态预算约 2880 次图像采样，外加少量 burst 边界。假设经过合并实际有 2740 次证据机会，30% 保存新图像、平均 200 KiB，图像约 160.5 MiB；若 8500 条元数据平均 5 KiB，则约 41.5 MiB，不含索引/WAL。**这些全是假设，既不是 Screenpipe benchmark，也不是本产品测量。** 大窗口图片可能显著更大，所以必须同时有次数与字节配额。
 

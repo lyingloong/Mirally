@@ -8,9 +8,9 @@ import sys
 import tempfile
 import threading
 
-from openassist.runtime.ufo.diagnostics import startup_diagnostics
-from openassist.runtime.ufo.worker import prepare_worker_config
-from openassist.runtime.ufo.config import configure_ufo_config_root
+from mirally.runtime.ufo.diagnostics import startup_diagnostics
+from mirally.runtime.ufo.worker import prepare_worker_config
+from mirally.runtime.ufo.config import configure_ufo_config_root
 
 root = Path(sys.argv[1])
 sink = sys.stdout
@@ -21,7 +21,7 @@ def emit(event):
 channel = None
 if "--worker-shape" in sys.argv[2:]:
     # Match the production cwd and its concurrent, blocking stdio reader.
-    from openassist.runtime.ufo.worker import stdio_channel
+    from mirally.runtime.ufo.worker import stdio_channel
     channel = stdio_channel(sys.stdin, sink)
     threading.Thread(target=channel.listen, daemon=True).start()
     os.chdir(root / "UFO")
@@ -32,7 +32,7 @@ async def native_imports(mark, scopes):
     from ufo.module.sessions.session import Session
     assert Session is not None
     mark("native_compatibility")
-    from openassist.runtime.ufo.compat import native_compatibility
+    from mirally.runtime.ufo.compat import native_compatibility
     scopes.enter_context(native_compatibility())
     mark("initialized")
 
@@ -41,7 +41,7 @@ with tempfile.TemporaryDirectory() as directory, ExitStack() as scopes:
         mark("configuring")
         configure_ufo_config_root(prepare_worker_config(root, Path(directory)), ufo_root=root / "UFO")
         mark("model_binding")
-        from openassist.runtime.ufo.model_bridge import selected_model
+        from mirally.runtime.ufo.model_bridge import selected_model
         scopes.enter_context(selected_model({"api":"openai-completions", "model":"synthetic",
             "base_url":"http://127.0.0.1:1/v1", "key":"synthetic-test-only"}))
         asyncio.run(native_imports(mark, scopes))

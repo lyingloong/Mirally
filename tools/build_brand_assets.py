@@ -16,7 +16,7 @@ SIZES = (16, 20, 24, 32, 40, 48, 64, 96, 128, 256, 512)
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, required=True)
-    parser.add_argument("--out", type=Path, default=ROOT / "openassist" / "assets")
+    parser.add_argument("--out", type=Path, default=ROOT / "mirally" / "assets")
     args = parser.parse_args()
     source = args.source.resolve()
     destination = args.out.resolve()

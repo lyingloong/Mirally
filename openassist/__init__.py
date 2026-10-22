@@ -1,2 +1,0 @@
-"""OpenAssist Windows desktop application."""
-

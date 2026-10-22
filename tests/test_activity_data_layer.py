@@ -9,24 +9,24 @@ import sqlite3
 from dataclasses import replace
 from pathlib import Path
 
-from openassist.core.activity import (
+from mirally.core.activity import (
     ActivityPolicy,
     Actor,
     CollectionLevel,
     Observation,
     ObservationStore,
 )
-from openassist.core.activity.store import CursorExpiredError
-from openassist.platform.activity.foreground import ForegroundSnapshot
-from openassist.platform.activity.browser_url import BrowserURLResult, normalize_browser_url
-from openassist.platform.activity.input_metadata import InputMetadataAggregator
-from openassist.platform.activity.input_pump import InputPumpStatus, WindowsInputMetadataSource
-from openassist.platform.activity.uia_structure import UIAStructureResult
-from openassist.platform.activity.ocr import OCRResult
-from openassist.platform.activity.wgc_capture import CaptureResult, VisualSignatureGate
-from openassist.runtime.activity.config import ActivityConfig, load_activity_config
-from openassist.runtime.activity.lock import ActivityProcessLock
-from openassist.runtime.activity.service import ActivitySensor
+from mirally.core.activity.store import CursorExpiredError
+from mirally.platform.activity.foreground import ForegroundSnapshot
+from mirally.platform.activity.browser_url import BrowserURLResult, normalize_browser_url
+from mirally.platform.activity.input_metadata import InputMetadataAggregator
+from mirally.platform.activity.input_pump import InputPumpStatus, WindowsInputMetadataSource
+from mirally.platform.activity.uia_structure import UIAStructureResult
+from mirally.platform.activity.ocr import OCRResult
+from mirally.platform.activity.wgc_capture import CaptureResult, VisualSignatureGate
+from mirally.runtime.activity.config import ActivityConfig, load_activity_config
+from mirally.runtime.activity.lock import ActivityProcessLock
+from mirally.runtime.activity.service import ActivitySensor
 
 
 class _FakeSource:
@@ -89,7 +89,7 @@ class _FakeOCR:
 
     def __init__(self, result=None):
         self.result = result or OCRResult(
-            "ok", text="OpenAssist test", lines=({"text": "OpenAssist test", "words": []},), language="en-US"
+            "ok", text="Mirally test", lines=({"text": "Mirally test", "words": []},), language="en-US"
         )
         self.calls = []
 
@@ -337,11 +337,16 @@ class ActivityLockTests(unittest.TestCase):
     def test_two_process_locks_cannot_share_the_same_file(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "sensor.lock"
-            first = ActivityProcessLock(fallback_path=path)
-            second = ActivityProcessLock(fallback_path=path)
+            # Windows uses a named mutex instead of the fallback file. Isolate
+            # this pair from any real collector already running on the machine.
+            name = "Local\\MirallyActivitySensorTest-" + Path(directory).name
+            first = ActivityProcessLock(name=name, fallback_path=path)
+            second = ActivityProcessLock(name=name, fallback_path=path)
             try:
                 self.assertTrue(first.acquire())
                 self.assertFalse(second.acquire())
+                first.release()
+                self.assertTrue(second.acquire())
             finally:
                 second.release()
                 first.release()
@@ -620,7 +625,7 @@ class ActivitySensorTests(unittest.TestCase):
                 rows = sensor.store.query()
                 content = rows[-1]
                 self.assertEqual(content.kind, "content_snapshot")
-                self.assertEqual(content.ocr_summary["text"], "OpenAssist test")
+                self.assertEqual(content.ocr_summary["text"], "Mirally test")
                 self.assertEqual(content.visual_summary["status"], "ok")
                 self.assertEqual(len(capture.calls), 1)
                 self.assertEqual(len(ocr.calls), 1)

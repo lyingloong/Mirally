@@ -1,6 +1,6 @@
 # UFO 仓库架构与源码导读
 
-本文解释当前 UFO 子模块中各主要部分的职责，以及一个桌面任务怎样从自然语言走到 Windows 操作。Mirally 如何接入这些部分，见 [OpenAssist 与 UFO 接入详解](ufo-integration.md)。
+本文解释当前 UFO 子模块中各主要部分的职责，以及一个桌面任务怎样从自然语言走到 Windows 操作。Mirally 如何接入这些部分，见 [Mirally 与 UFO 接入详解](ufo-integration.md)。
 
 核对日期：2026-10-04。源码快照为 `UFO@a795552d976c4c019d7c2f778a0effb5cef7de6b`。这只是本文核对的 commit，不代表产品永久固定在某个 UFO 发布版本；实际版本由主仓库的 gitlink 决定。本文以该快照的实现为准，上游 README 中的产品愿景不等于每条代码路径都已验证。
 
@@ -404,4 +404,4 @@ Mirally 当前没有跨设备任务需求，使用本地 Windows Session 即可�
 7. `config/config_loader.py`、`config/config_schemas.py`：核对有效配置，尤其是同名键覆盖和缓存。
 8. 需要远程部署时再看 `server/`、`client/ufo_client.py` 与 `aip/`；需要跨设备任务编排时再看 `galaxy/session/ → agents/ → constellation/ → client/`。
 
-回到产品开发时，应先读 [OpenAssist 与 UFO 接入详解](ufo-integration.md) 和根目录 [AGENTS.md](../AGENTS.md)，确认修改应落在哪个仓库边界内。
+回到产品开发时，应先读 [Mirally 与 UFO 接入详解](ufo-integration.md) 和根目录 [AGENTS.md](../AGENTS.md)，确认修改应落在哪个仓库边界内。

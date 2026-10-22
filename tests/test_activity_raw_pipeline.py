@@ -6,11 +6,11 @@ from types import SimpleNamespace
 import tempfile
 import unittest
 
-from openassist.core.activity import ActivityPolicy, CollectionLevel, ObservationStore
-from openassist.core.activity.knowledge import ActivityOrganizer, ContextQuery, KnowledgeStore
-from openassist.platform.activity.ocr import OCRResult
-from openassist.runtime.activity.config import ActivityConfig
-from openassist.runtime.activity.service import ActivitySensor
+from mirally.core.activity import ActivityPolicy, CollectionLevel, ObservationStore
+from mirally.core.activity.knowledge import ActivityOrganizer, ContextQuery, KnowledgeStore
+from mirally.platform.activity.ocr import OCRResult
+from mirally.runtime.activity.config import ActivityConfig
+from mirally.runtime.activity.service import ActivitySensor
 
 
 class ActivityRawPipelineTests(unittest.TestCase):

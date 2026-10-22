@@ -11,8 +11,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from openassist.platform.activity.wgc_capture import WindowsWindowCaptureSource, VisualSignatureGate
-from openassist.platform.activity.wgc_worker import WGCWorker, WorkerFailure
+from mirally.platform.activity.wgc_capture import WindowsWindowCaptureSource, VisualSignatureGate
+from mirally.platform.activity.wgc_worker import WGCWorker, WorkerFailure
 
 
 HELPER = r'''
@@ -62,7 +62,7 @@ class WGCWorkerTests(unittest.TestCase):
             self.processes.append(process)
             return process
 
-        self.mock = patch("openassist.platform.activity.wgc_worker.subprocess.Popen", side_effect=launch)
+        self.mock = patch("mirally.platform.activity.wgc_worker.subprocess.Popen", side_effect=launch)
         self.mock.start()
         self.addCleanup(self.mock.stop)
         self.worker = WGCWorker(self.helper)
@@ -174,7 +174,7 @@ class WGCWorkerTests(unittest.TestCase):
             self.assertEqual(source.capture(101, path, timeout_ms=2000).status, "ok")
 
     def test_native_session_implementation_uses_border_request_before_start(self):
-        source = (Path(__file__).resolve().parents[1]/"openassist/platform/activity/native/desktop_wgc.cpp").read_text()
+        source = (Path(__file__).resolve().parents[1]/"mirally/platform/activity/native/desktop_wgc.cpp").read_text()
         self.assertLess(source.index("border.IsBorderRequired(false)"), source.index("session.StartCapture()"))
         self.assertIn("sender.Recreate(", source)
         self.assertNotIn("RequestAccessAsync", source)  # No unexpected system consent prompt.

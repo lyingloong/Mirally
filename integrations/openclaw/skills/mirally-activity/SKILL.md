@@ -1,6 +1,6 @@
 ---
 name: mirally-activity
-description: 回看用户使用电脑的历史 Activity。用于“你能看到我之前做了什么吗”“能看到我使用电脑的 activity 吗”、使用轨迹、打开过的网页或输入记录。先发现 Activity MCP 并核查历史覆盖，再按需检索；普通问答不调用。
+description: 核查仍保留的原始电脑 Activity、采集状态及具体操作证据。回忆之前看过的视频、页面或工作先查 mirally-memory；原始记录清理后的历史可能仍有持久记忆。普通问答不调用。
 user-invocable: false
 metadata: {"openclaw":{"requires":{"config":["mcp.servers.mirally-activity.enabled"]}}}
 ---
@@ -8,9 +8,18 @@ metadata: {"openclaw":{"requires":{"config":["mcp.servers.mirally-activity.enabl
 # Mirally Activity
 
 Use this skill when the user asks about their observed computer activity or
-whether Mirally can recall it. Activity is a separate source from conversation
-memory. Explicit questions about previous chats, decisions or preferences use
-the normal memory/session tools; those tools do not establish desktop history.
+whether Mirally can recall it. Activity holds retained raw evidence; Mirally
+Memory separately preserves durable desktop memories after raw cleanup.
+For a historical recall question (a video/page/file or previous work), first
+use the mirally-memory skill and its durable corpus. Native `memory_search`
+must select `corpus: "all"` or `"wiki"` to include those desktop memories;
+the default workspace/chat corpus does not establish that desktop history is
+empty. Read supplement paths using `memory_get(corpus: "wiki")`.
+Use raw Activity for additional detail only when its dates cover the request.
+An empty/cleaned raw range does not mean durable memories or earlier activity
+do not exist. Do not substitute a different day's or afternoon's video for a
+missing requested period. Explicit questions about previous chats use the
+normal memory/session tools rather than raw Activity.
 
 ## Discover the capability before describing it
 

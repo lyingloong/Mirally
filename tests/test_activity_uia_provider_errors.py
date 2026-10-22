@@ -8,7 +8,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from openassist.platform.activity.uia_worker import inspect_tree
+from mirally.platform.activity.uia_worker import inspect_tree
 
 
 if sys.platform == "win32":

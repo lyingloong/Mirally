@@ -4,9 +4,9 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock, patch
 
-from openassist.runtime.completion import ufo_completion
-from openassist.runtime.ufo.config import ExecutionLimits
-from openassist.runtime.ufo.locking import UFO_RUNTIME_LOCK
+from mirally.runtime.completion import ufo_completion
+from mirally.runtime.ufo.config import ExecutionLimits
+from mirally.runtime.ufo.locking import UFO_RUNTIME_LOCK
 
 
 class RuntimeCompletionTests(unittest.TestCase):
@@ -22,8 +22,8 @@ class RuntimeCompletionTests(unittest.TestCase):
             self.assertTrue(UFO_RUNTIME_LOCK.locked())
             return "answer", 0
         with patch.dict(sys.modules, {"ufo.llm": self.fake_llm(complete)}), patch(
-            "openassist.runtime.completion.bounded_model_services"
-        ) as bounded, patch("openassist.runtime.completion.load_execution_limits", return_value=limits) as load:
+            "mirally.runtime.completion.bounded_model_services"
+        ) as bounded, patch("mirally.runtime.completion.load_execution_limits", return_value=limits) as load:
             self.assertEqual(ufo_completion([], product_root=Path("product")), "answer")
         load.assert_called_once_with(Path("product"))
         bounded.assert_called_once_with(limits)
@@ -31,7 +31,7 @@ class RuntimeCompletionTests(unittest.TestCase):
 
     def test_completion_exception_restores_scope_and_releases_lock(self):
         with patch.dict(sys.modules, {"ufo.llm": self.fake_llm(Mock(side_effect=RuntimeError("network")))}), patch(
-            "openassist.runtime.completion.bounded_model_services"
+            "mirally.runtime.completion.bounded_model_services"
         ) as bounded:
             with self.assertRaisesRegex(RuntimeError, "network"):
                 ufo_completion([], limits=ExecutionLimits())

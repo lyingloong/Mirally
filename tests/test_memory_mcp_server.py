@@ -10,7 +10,7 @@ import unittest
 from fastmcp import Client
 from fastmcp.client.transports import StdioTransport
 
-from openassist.runtime.memory.mcp_server import create_server
+from mirally.runtime.memory.mcp_server import create_server
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,7 +36,7 @@ class MemoryMcpTests(unittest.TestCase):
         asyncio.run(run())
 
     def test_stdio_reads_independent_memory_without_processing_or_mutating_source(self):
-        from openassist.core.memory import MemoryStore
+        from mirally.core.memory import MemoryStore
 
         async def run():
             with tempfile.TemporaryDirectory() as temporary:
@@ -52,7 +52,7 @@ class MemoryMcpTests(unittest.TestCase):
                                       "observed_start_utc_ms": 1000, "observed_end_utc_ms": 2000})
                 before = hashlib.sha256(database.read_bytes()).hexdigest()
                 transport = StdioTransport(command=sys.executable,
-                    args=["-m", "openassist.runtime.memory.mcp_server", "--root", str(root), "--config", str(config)],
+                    args=["-m", "mirally.runtime.memory.mcp_server", "--root", str(root), "--config", str(config)],
                     cwd=str(ROOT), env={"PYTHONUTF8": "1"}, keep_alive=False)
                 async with Client(transport) as client:
                     recalled = (await client.call_tool("memory_recall", {"query": "项目会议"})).data
@@ -65,7 +65,7 @@ class MemoryMcpTests(unittest.TestCase):
         asyncio.run(run())
 
     def test_forget_suppresses_regeneration_and_proposals_need_review(self):
-        from openassist.core.memory import MemoryStore
+        from mirally.core.memory import MemoryStore
 
         async def run():
             with tempfile.TemporaryDirectory() as temporary:

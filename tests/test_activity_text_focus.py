@@ -7,9 +7,9 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from openassist.core.activity.input_text import InputTextTracker
-from openassist.platform.activity.uia_structure import WindowsUIASource
-from openassist.platform.activity.uia_worker import inspect_tree
+from mirally.core.activity.input_text import InputTextTracker
+from mirally.platform.activity.uia_structure import WindowsUIASource
+from mirally.platform.activity.uia_worker import inspect_tree
 
 
 class Control:
@@ -172,7 +172,7 @@ class ActivityTextFocusTests(unittest.TestCase):
         source.available = True
         process = Mock(returncode=0)
         process.communicate.return_value = (json.dumps({"status": "ok", "focus_status": "focus_ambiguous"}), None)
-        with patch("openassist.platform.activity.uia_structure.subprocess.Popen", return_value=process):
+        with patch("mirally.platform.activity.uia_structure.subprocess.Popen", return_value=process):
             result = source.inspect(1, include_content=True)
         self.assertEqual(result.focus_status, "focus_ambiguous")
         self.assertEqual(result.as_dict()["focus_status"], "focus_ambiguous")

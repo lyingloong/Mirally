@@ -42,19 +42,19 @@
 在仓库根目录使用正式配置查询已组织的数据：
 
 ```powershell
-.\.venv\Scripts\python.exe -m openassist.runtime.activity.cli knowledge-events
+.\.venv\Scripts\python.exe -m mirally.runtime.activity.cli knowledge-events
 ```
 
 `monitor --test` 的隔离库需要通过 `--config` 指定指向该库的 Activity 配置。配置选项放在子命令前：
 
 ```powershell
-.\.venv\Scripts\python.exe -m openassist.runtime.activity.cli --config path\to\activity.yaml knowledge-events --limit 100 --episodes 30 --tokens 8000
+.\.venv\Scripts\python.exe -m mirally.runtime.activity.cli --config path\to\activity.yaml knowledge-events --limit 100 --episodes 30 --tokens 8000
 ```
 
 For the browser view of all layers, use `browse`; it is separate from the live `monitor` page and does not start collection:
 
 ```powershell
-.\.venv\Scripts\python.exe -m openassist.runtime.activity.cli browse --config path\to\activity.yaml
+.\.venv\Scripts\python.exe -m mirally.runtime.activity.cli browse --config path\to\activity.yaml
 ```
 
 命令默认包含 UIA 和 OCR 文字，使用 `--no-uia` 或 `--no-ocr` 排除对应文字证据，使用 `--include-assets` 请求资产引用。这些选项只控制查询视图，不改变采集设置。
@@ -72,7 +72,7 @@ For the browser view of all layers, use `browse`; it is separate from the live `
 Python 调用复用 `ActivityOrganizer.activity_events(ContextQuery(...))`。`ContextQuery` 的通用默认值仍是 `include_uia=False`，需要窗口文字时显式设置为 true；CLI `knowledge-events` 为此视图单独启用了 UIA 默认值。
 
 ```python
-from openassist.core.activity.knowledge import ContextQuery
+from mirally.core.activity.knowledge import ContextQuery
 
 result = organizer.activity_events(ContextQuery(
     purpose="diagnostics",

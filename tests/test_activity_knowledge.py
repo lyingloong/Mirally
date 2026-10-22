@@ -14,10 +14,10 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from openassist.core.activity import Observation, ObservationStore
-from openassist.core.activity.knowledge import ActivityContextPolicy, ActivityOrganizer, ContextQuery, KnowledgeStore
-from openassist.runtime.activity.config import ActivityConfig
-from openassist.runtime.activity.organizer_service import ActivityOrganizerService
+from mirally.core.activity import Observation, ObservationStore
+from mirally.core.activity.knowledge import ActivityContextPolicy, ActivityOrganizer, ContextQuery, KnowledgeStore
+from mirally.runtime.activity.config import ActivityConfig
+from mirally.runtime.activity.organizer_service import ActivityOrganizerService
 
 
 def _observation(seq: int, kind: str, payload: dict, *, observed: int, app: str = "msedge.exe", window: str = "window-1") -> Observation:
@@ -275,7 +275,7 @@ class ActivityKnowledgeTests(unittest.TestCase):
                           f"  knowledge_database_path: {(root / 'cli-knowledge.sqlite3').as_posix()}\n", encoding="utf-8")
         before = hashlib.sha256(self.source.path.read_bytes()).digest()
         result = subprocess.run(
-            [sys.executable, "-m", "openassist.runtime.activity.cli", "--config", str(config), "knowledge-summary", "--sync"],
+            [sys.executable, "-m", "mirally.runtime.activity.cli", "--config", str(config), "knowledge-summary", "--sync"],
             cwd=Path(__file__).resolve().parents[1], env={**os.environ, "PYTHONIOENCODING": "ascii"},
             capture_output=True, encoding="utf-8", timeout=20,
         )

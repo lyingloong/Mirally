@@ -1,12 +1,12 @@
 # Mirally 原生界面桌面套壳
 
-当前主入口承载 OpenClaw 官方 Control UI，并在独立 Windows 窗口中应用 Mirally 品牌、默认晴空蓝主题、相伴 M 图标和启动动画。业务交互、模型配置、工具策略、权限、会话、记忆和调度继续由原生实现管理。先前的 Tk Gateway 客户端转为 [实验客户端](openclaw-desktop-client.md)。
+当前主入口承载 OpenClaw 官方 Control UI，并在独立 Windows 窗口中应用 Mirally 品牌、默认晴空蓝主题、相伴 M 图标和启动动画。业务交互、模型配置、工具策略、权限、会话、记忆和调度继续由原生实现管理。旧专用 UFO 界面与独立 Tk Gateway 客户端已移除。
 
-现有智能体选择器可按 [UFO 智能体接入](ufo-openclaw-agent.md) 启用可选桌面助手。其 worker 使用当前交互桌面；WebView 宿主登记进程和草稿编辑状态，供截图隔离与新动作准入使用。外部浏览器入口没有此登记。默认 OpenClaw 智能体仍沿用下文的后台执行方式。
+主 Agent 可按 [UFO 子代理接入](ufo-openclaw-agent.md) 委派桌面任务，UFO 不作为用户直接选择的对话助手。其 worker 使用当前交互桌面；WebView 宿主登记进程和草稿编辑状态，供截图隔离与新动作准入使用。外部浏览器入口没有此登记。默认 OpenClaw 智能体仍沿用下文的后台执行方式。
 
 关闭客户端也不会停止 UFO 回合；需要让出桌面时先使用原生停止操作，等待已发出的调用收尾。
 
-更新日期：2026-10-05。当前桌面皮肤版本为 `2026.10.05.6`，包含三种伙伴形态、小海獭/小飞狐矢量造型、透明与右键菜单修复、开屏首帧及品牌精简，以及当前会话的主动回复气泡。升级后关闭并重新打开 Mirally 窗口即可加载；已有 Gateway 不用重启。逐项体验检查见[验收清单](mirally-feature-checklist.md)，造型来源与动作见[伙伴设计记录](design-concepts/mirally/desktop-pet/README.md)。
+更新日期：2026-10-15。当前桌面皮肤版本为 `2026.10.15.6`，模型服务设置支持图片输入能力配置，侧边伙伴显示最新已发送请求及当前回合进度，三种形态及展开面板均支持右键菜单，保留活动与记忆设置、透明、开屏及主动回复气泡。升级后关闭并重新打开 Mirally 窗口即可加载更新；后台 Memory 的每小时清理需要其所属 Gateway 服务重新加载后生效。逐项体验检查见[验收清单](mirally-feature-checklist.md)，造型来源与动作见[伙伴设计记录](design-concepts/mirally/desktop-pet/README.md)。
 
 ## 使用方式
 
@@ -16,19 +16,33 @@
 
 首次启动等开屏页面完成首帧绘制后再显示窗口，避免 WebView2 初始化期间先出现整块深色底板。此门控只作用于首次显示，不额外延长动画；重连仍等待新文档加载。迟到的首帧消息不会重新显示正在关闭的窗口。
 
-主页左上角只保留页面内的 Mirally 品牌；原生标题栏不显示名称，Windows 的拖动、最小化、最大化、关闭按钮和任务栏图标保留。顶部应用菜单使用「⋯」，可进入侧边伙伴、重新连接、重启 Gateway、在浏览器中打开或关闭窗口。
+主页左上角只保留页面内的 Mirally 品牌；原生标题栏不显示名称，Windows 的拖动、最小化、最大化、关闭按钮和任务栏图标保留。标题栏下面不再单独显示「⋯」菜单行。点击标题栏左上角的窗口图标，或按 `Alt+Space`，打开原生系统菜单，可进入侧边伙伴、活动与记忆设置、活动历史、重新连接、重启 Gateway、在浏览器中打开或关闭窗口；标准 Windows 窗口菜单项保留。
 
 「重启 Gateway…」适用于更新 Harness 等需要清空进程内模块缓存的操作。确认对话框提醒先停止任务并保存草稿；确认后保留 Mirally 窗口，显示准备页，停止已核实的本机 Gateway 及其 worker，使用原配置启动新进程，重新取得官方一次性登录入口并自动连接。重启与普通连接共用互斥门禁，重复点击不会并发启动实例。「重新连接」仍只刷新客户端。
 
 重启前核对配置的本机端口、实际监听进程、Node 可执行文件、CLI 入口、`gateway run` 参数及进程的配置/状态目录；不依靠历史 PID 杀进程。端口仍被占用、身份无法核实、远程配置或 Control UI 被禁用时会显示错误，不启动第二个实例。本项目的后台进程及按 `run-openclaw.ps1 gateway run` 启动的前台进程适用；系统服务和其他部署方式由其原管理器重启。
 
-Windows 的进程终止不能保证正在执行的工具完成窗口恢复；重启前应先使用原生停止并等待收尾。其他客户端也会断线，草稿刷新恢复和任务自动恢复由原生机制决定；外壳不会重发用户任务。关闭 Mirally 仍只关闭窗口。生命周期测试覆盖模拟故障及临时端口上的真实合成 Node 父子进程替换，不重启用户的实际 Gateway；真实 WebView 菜单交互和生产 Gateway 重启仍需体验验收。
+Windows 的进程终止不能保证正在执行的工具完成窗口恢复；重启前应先使用原生停止并等待收尾。其他客户端也会断线，草稿刷新恢复和任务自动恢复由原生机制决定；外壳不会重发用户任务。关闭 Mirally 不停止 Gateway；从活动设置开启的本次采集会随窗口关闭。生命周期测试覆盖模拟故障及临时端口上的真实合成 Node 父子进程替换，不重启用户的实际 Gateway；窗口图标菜单的真实点击已通过离线宿主验证，生产 Gateway 重启仍需体验验收。
 
 首屏改动已在自有 WebView2 窗口验证：首帧就绪前窗口不可见，就绪后标志图已加载、动画与错误提示正常；同一窗口句柄、图标及任务栏入口保留，恢复不透明后没有残留分层窗口标志。记录在本机 `output/openclaw-native-verification/verify-startup-first-paint.json`，相关 20 项 Python 回归通过；真实启动体感仍按清单核对。
 
 原生导航完整显示在窗口内，常规缩放、最大化和最小化由 Windows 管理。关闭窗口只结束客户端，不结束后台 Gateway 或向 Agent 发送停止请求。浏览器入口使用同一 Gateway，其原生会话和服务状态一致；浏览器与 WebView2 各有自己的页面偏好及设备身份。
 
 「在浏览器中打开」每次申请新的官方配对链接，避免复用已消费的一次性链接。该入口仍是未应用桌面皮肤的原生控制台。上传由 WebView2 的文件选择器处理，下载显示保存对话框，外部链接在默认浏览器打开。
+
+## 模型服务商设置
+
+在「设置 → 模型」页顶部的「模型服务」区域中选择已有服务商或新增，填写 Base URL、API 格式和服务商实际接受的模型 ID，可将该模型设为默认主模型。此表单仅支持 OpenAI Chat Completions、OpenAI Responses 和 Anthropic Messages 三种协议；原生账号及 Defaults 表单保留。模型 ID 可包含 `/`；保存默认主模型时自动形成 `provider/id` 路由引用，无需重复填写所选服务商前缀。
+
+「API 基础地址（Base URL）」保留服务商的代理路径，但不包含具体操作接口。OpenAI 兼容服务可填 `https://relay.example/api/gpt/v1`，SDK 自动追加 `/responses` 或 `/chat/completions`；Anthropic 自动追加 `/v1/messages`。表单拒绝以这些操作路径结尾的地址，并提示正确基础地址，避免重复拼接导致 404；Anthropic 提示会移除完整 `/v1/messages` 后缀。
+
+已有 API Key 不回显；留空保留原值，新输入只用于本次保存，不写入浏览器存储。保存使用官方定向配置补丁，保留其他服务商及既有设置，不调用模型或自动测试连接。打开或升级页面不会改动现有私有配置；连接是否有效仍需按实际服务商验证。
+
+「支持图片输入」读取该模型已配置的能力，只有明确更改此选项才更新已有模型的 `input` 声明；仅保存连接不会改掉已有能力，新增模型默认仅文本。为实际支持图片的模型开启后，原生附件和读图工具才能把图片送入该模型请求。此选项不会自动截屏，也不声明音频、视频能力，服务商的实际支持仍需核对。
+
+修改已有模型 ID 时会保护 fallback、工具、别名等引用；若仍有配置引用旧 ID，需先处理引用或添加新模型。原条目含模型级私有设置时，也应添加新模型。
+
+本轮模型表单 29 项 Node 检查、相关 39 项 Python 检查及八组已安装 Control UI 的离线界面验证通过，可用 `tools/verify_model_settings.mjs` 复跑。界面验证覆盖浅深主题、窄窗、图片能力启禁与保留、操作地址拒绝，以及修正基础地址时保留代理路径和 API 格式；使用合成配置，阻断外部 HTTP/WebSocket，未连接真实 Gateway、模型 API 或私有配置，不代表服务商已可用。
 
 ## 品牌与主题
 
@@ -54,7 +68,11 @@ Windows 的进程终止不能保证正在执行的工具完成窗口恢复；重
 
 伙伴默认是手绘 SVG 小海獭，小飞狐可选。右键菜单与显式详情提供形态/造型选择，选择后收起；偏好仅保存在此桌面来源的 WebView 配置档，不修改 Gateway 设置或助手记忆。工作、待确认与完成动作由原生状态驱动，挥手和爱心不调用模型、不采集页面、不发送消息。系统减少动态效果时保持静态图形与可用功能。「相伴精灵」仍为未接入概念，来源见[伙伴设计记录](design-concepts/mirally/desktop-pet/README.md)。
 
-右键菜单保留浏览器菜单事件、右键松开与键盘入口，并接入 WebView2 的原生 `ContextMenuRequested` 兜底；宿主仅在收起的桌宠模式拦截请求，交给已有菜单，工作台、输入框和其他形态沿用浏览器行为。原生事件只绑定一次，导航时不会重复绑定。
+右键菜单保留浏览器菜单事件、右键松开与键盘入口，并接入 WebView2 的原生 `ContextMenuRequested` 兜底。三种伙伴形态及展开面板的非编辑区域均可打开菜单；工作台、输入框和选中文字保留浏览器复制、粘贴菜单。原生事件只绑定一次，导航时不会重复绑定，并将实际客户端坐标换算为 CSS 坐标后按当前页面命中目标。菜单打开时因原生裁剪改变而产生的离开事件不会直接关闭菜单；实际移动离开、失焦、Esc 或选择操作仍可收起。
+
+伙伴窗口大小根据 WebView 客户区与 CSS 视口的实际比例计算；不能只使用 WinForms 的 `DeviceDpi`，因为宿主可能报告 96 DPI，而 WebView 已按 150% 缩放。切换菜单时本体位置立即到位，避免详情中的位置动画使首个裁剪区域越界；窄视口中的菜单、小输入与回复气泡也会同步缩窄并保留本体间隙。
+
+本次离线原生验证使用临时 WebView2 配置档与真实产品资源，覆盖三种形态、详情标题和空白区域右键、输入框原生编辑菜单及菜单返回工作台；打开后等待 800 ms，并确认操作按钮位于窗口实际 `Region` 中。记录在本机 `.artifacts/companion-menu-verification/native-results.log`，可单独运行 `tools/verify_companion_menu.py` 复查。DOM 交互与 400/267/235 CSS px 宽度检查由 `tools/verify_companion_menu.mjs` 覆盖。验证不连接用户 Gateway、采集器或模型 API，也不移动系统鼠标；物理鼠标体感仍需在实际应用中核对。
 
 此前 14/14 项 CDP 与 6/6 项原生事件兜底检查验证了菜单事件路由，记录分别在 `pet-menu-fallback/verification.json` 与 `native-menu-fallback/verification.json`（本机 `output/openclaw-native-verification/`）。页面内部点击和截图可绕过窗口裁剪，不能凭这些检查证明菜单已实际显示。
 
@@ -62,7 +80,7 @@ Windows 的进程终止不能保证正在执行的工具完成窗口恢复；重
 
 原生验证已确认修复：旧版菜单打开后 500 ms 裁剪仍为 80×96 px；固定版首帧菜单位置稳定，首个裁剪消息被接受，区域扩展到菜单与宠物的联合范围。Windows 命中检查确认菜单中心与按钮属于自有窗口，原生左键消息成功选择狐狸并收起，图标小输入在 30 ms 时也已命中正确区域。证据在 `output/openclaw-native-verification/menu-short-trace/baseline.json` 与 `trace.json`，18 项 Python 与 JavaScript 语法检查通过。测试投递 Windows 消息，不移动系统鼠标，可能触发自动离开事件；它验证原生区域与操作路径，不替代真实物理鼠标和长时间悬停体感验收。
 
-侧栏步骤读取原生工具活动数组并按当前会话、运行 ID 过滤；正在处理与最近已处理分开显示，旧回合步骤不冒称当前工作，也不虚构百分比。无工具步骤时可显示当前运行的实际准备状态或摘要。运行中输入继续通过原生 steer 补充机制发送；草稿、附件与工作台共用，文件读取与限制由原生处理。
+侧栏任务标题取最新已发送的用户请求，未发送草稿不会替换标题；原生会话名保持不变。步骤读取原生工具活动数组并按当前会话、运行 ID 过滤；正在处理与最近已处理分开显示，旧回合步骤不冒称当前工作，也不虚构百分比。无工具步骤时可显示当前运行的实际准备状态或摘要。切换会话等待历史时隐藏残留任务，当前会话刷新则保留本轮任务与进度。运行中输入继续通过原生 steer 补充机制发送；草稿、附件与工作台共用，文件读取与限制由原生处理。离线验证工具为 `tools/verify_companion_status.mjs`。
 
 工作请求完成后用「交接」下的「已完成、待确认、下一步」标题说明结果；伙伴只将匹配这些标题的回复呈现为三段纯文本，普通回复继续展示回顾。待确认事项优先展示；「补充确认」准备普通消息草稿，有现成草稿时保留并聚焦，不自动发送。它与原生工具权限审批不同。固定的完整回复与文件入口不会随长内容滚走。展示步骤与合成材料见[办公协作演示](demo/README.md)。
 
@@ -76,7 +94,19 @@ Windows 的进程终止不能保证正在执行的工具完成窗口恢复；重
 
 其他会话的后台工作和需查看状态来自原生已加载会话，点击沿用原生会话切换。它不是新的后台监控服务，未加载的会话不保证都出现在伙伴中。
 
-这是主入口 `run-openclaw.ps1 mirally` 的视图。`run-openclaw.ps1 companion` 仍指旧的实验 Tk 客户端，两者不混用。
+这是唯一桌面入口 `run-openclaw.ps1 mirally` 的轻量视图，与完整工作台复用同一原生会话。
+
+## 活动与记忆设置
+
+从原生设置侧栏的「Mirally → 活动与记忆」进入，「窗口图标 → 活动与记忆设置」也可直达。页面区分已保存的捕获配置、本窗口的实际采集状态，以及最近一次持久诊断快照；历史快照不证明独立采集器仍在运行。后台记忆状态通过原生 `mirally.memory.status` 查询，与 MemoryStore 可读状态分开。
+
+「开始本次采集」先列出配置中的截图范围、正文来源和排除规则；确认期间配置发生变化会要求刷新后重新确认。采集沿用当前范围，不写 YAML。暂停、恢复、停止只作用于本窗口开启的会话；已存在独立采集器时会明确拒绝另开实例。关闭窗口停止本次采集，Gateway 和它管理的 Memory 服务继续运行。
+
+「查看活动历史」和「打开网页版监测」使用默认浏览器。没有本次采集时，监测页只展示已有记录和诊断，控制接口禁用；有本次采集时可查看实时诊断并控制该会话。设置入口打开历史时不更新或创建派生索引；缺索引仍可看原始记录，知识视图会提示尚未准备。
+
+持久活动记忆支持关键词搜索、待审核候选和正文分页，查看候选不会确认或晋升它。语义整理的开关和预算沿用后台配置，查看本页或查询记忆不调用模型。高级信息显示实际 Activity/Memory profile、独立记忆来源和诊断，页面不提供模型、凭据或 YAML 编辑。
+
+实现位于 `mirally/assets/control-ui-activity.css/js`、`mirally/runtime/activity/settings.py` 和 `capture_session.py`，使用固定同源 WebView 消息接入宿主，不修改 OpenClaw 发行包。原生设置内容保留在 router outlet 中，离开后恢复。离线浏览器验收脚本 `tools/verify_activity_settings.mjs` 使用锁定 Control UI、合成状态与临时浏览器，不连接实际 Gateway 或采集用户桌面。
 
 ## 工作页面
 
@@ -94,7 +124,7 @@ Windows 的进程终止不能保证正在执行的工具完成窗口恢复；重
 
 未发送的源截图不额外持久落盘，临时表单只留在当前页面；异步采集核对会话与来源，防止切换后误投。目标截图到原生附件及工作台/伙伴双预览的链路已在合成窗口验证，11 项检查通过：480×320 尺寸、像素与标题正确，未发送无工作回合，前台焦点不变。证据在 `output/openclaw-native-verification/context-handoff/verification.json`。真实不同应用兼容性留待用户验收。
 
-当前 Qwen3.8-flash 的原生图片理解已有独立的 6 项实测通过：发送单张自绘图片后，模型正确识别数字、颜色与几何形状。问题来自原生模型条目缺少图片输入能力声明；仅补齐 `input: ["text", "image"]` 即可走当前主模型的原生视觉流程，不需要增加另一套识图服务或模型线路。公开模板同步修正，现有环境由原生 CLI 更新该项，其他配置保留，Gateway PID 未变化。证据在本机 `output/openclaw-native-verification/vision/verification.json`。音视频转写、其他模型与复杂图片仍需分别验收。
+本次图片问题来自当前默认模型条目缺少图片输入声明：会话工具结果明确记录图片被 OpenClaw 省略，并未证明服务商拒绝图片。使用原生 CLI 定向补齐 `input: ["text", "image"]` 后，有效模型目录已显示 `text+image`；校验除该字段与配置更新时间外其他配置保持一致，未重启 Gateway。记录在本机 `.artifacts/model-vision-verification/repair.json`。本次未调用外部模型 API，服务商实际识图效果需以带图片的请求验证。
 
 浮窗白底来自宿主窗口的桌面合成背景，已修复并完成真实 Windows 桌面检查：侧栏、图标、伙伴和展开面板的外部区域均透出测试背景，外部点击命中下方窗口，前台焦点未改变。窗口返回工作台后，同一窗口句柄的原始样式、合成设置与背景恢复通过验证。证据为本机 `output/openclaw-native-verification/desktop-clip/result-*.json`，恢复检查见 `verify-initial-companion-clip.py`。这是实际桌面像素与点击检查，不以页面内部截图代替；不同显示环境与用户自然操作体感仍待验收。
 
@@ -102,17 +132,17 @@ Windows 的进程终止不能保证正在执行的工具完成窗口恢复；重
 
 该测试的焦点保持检查未通过：自有测试窗口首次显示时成为前台窗口。本轮未修改生产焦点逻辑，这一项不计为通过，实际应用切换仍待验收。
 
-- `openassist/control_ui_shell.py`：pywebview `6.1` + WebView2、启动页切换、图标与窗口菜单。
-- `openassist/openclaw_host.py`：调用官方命令检查与启动、取得原生 `browserUrl`；桌面启动通过轻入口调用上游 dashboard 函数，版本不兼容时回退完整 CLI，不建立自制 Gateway 客户端。
+- `mirally/control_ui_shell.py`：pywebview `6.1` + WebView2、启动页切换、图标与窗口菜单。
+- `mirally/openclaw_host.py`：调用官方命令检查与启动、取得原生 `browserUrl`；桌面启动通过轻入口调用上游 dashboard 函数，版本不兼容时回退完整 CLI，不建立自制 Gateway 客户端。
 - `integrations/openclaw/dashboard.mjs`：固定版本的官方 dashboard JSON 入口，保留原生就绪检查和一次性登录。
-- `openassist/assets/control-ui-startup.html`：本地启动页，使用正式矢量图标的 512 px 导出；运行时不依赖设计输出目录。
-- `openassist/control_ui_brand.py` 与 `assets/control-ui-mirally.css/js`：锁定版本的品牌展示层，来源隔离、默认主题、图标和界面文案。
-- `openassist/assets/control-ui-companion.css/js`：侧边伙伴的状态投影与原生交互适配。
-- `openassist/assets/mirally-pet-otter.svg` 与 `mirally-pet.svg`：默认小海獭与可选小飞狐的独立矢量源文件，内联到伙伴视图；CSS 驱动已有状态动作，不额外请求图片或建立动画服务。
-- `openassist/assets/control-ui-office.js`：工作类型与交付选项、明确交接标题的纯文本投影及最终回复过滤。
-- `openassist/assets/control-ui-work.css/js`：工作准备页面、会话内表单与原生附件/发送适配。
-- `openassist/assets/control-ui-intake.js` 与 `control-ui-context.js`：共用材料拖入与明确的窗口采集手势，返回结果核对原会话。
-- `openassist/desktop_context.py`：按用户拖动位置采集目标窗口画面，临时保存在内存，返回原生附件流程。
+- `mirally/assets/control-ui-startup.html`：本地启动页，使用正式矢量图标的 512 px 导出；运行时不依赖设计输出目录。
+- `mirally/control_ui_brand.py` 与 `assets/control-ui-mirally.css/js`：锁定版本的品牌展示层，来源隔离、默认主题、图标和界面文案。
+- `mirally/assets/control-ui-companion.css/js`：侧边伙伴的状态投影与原生交互适配。
+- `mirally/assets/mirally-pet-otter.svg` 与 `mirally-pet.svg`：默认小海獭与可选小飞狐的独立矢量源文件，内联到伙伴视图；CSS 驱动已有状态动作，不额外请求图片或建立动画服务。
+- `mirally/assets/control-ui-office.js`：工作类型与交付选项、明确交接标题的纯文本投影及最终回复过滤。
+- `mirally/assets/control-ui-work.css/js`：工作准备页面、会话内表单与原生附件/发送适配。
+- `mirally/assets/control-ui-intake.js` 与 `control-ui-context.js`：共用材料拖入与明确的窗口采集手势，返回结果核对原会话。
+- `mirally/desktop_context.py`：按用户拖动位置采集目标窗口画面，临时保存在内存，返回原生附件流程。
 - 入口先于 UFO 初始化，不载入旧控制器、会话摘要、热键、截图或鼠标协调。
 
 Control UI 通过 Gateway 的原始 URL 加载，资源、CSP、WebSocket、原生认证和服务工作线程保持正常同源关系。WebView2 在页面创建时加载品牌展示脚本，避免先显示红色原生外观再切换；它只作用于该 Gateway 的顶层页面，不作用于外部网站或嵌入工具内容，不进入请求、会话和认证协议。
@@ -125,7 +155,7 @@ Control UI 通过 Gateway 的原始 URL 加载，资源、CSP、WebSocket、原�
 
 浮窗保持 WebView 宿主尺寸固定，以 CSS 连续伸展内容，并用 Windows Region 跟随裁剪；不会逐帧重建截图或调整 WebView 尺寸。窗口消息限于配置 Gateway 的同源页面，用于明确的窗口显示/位置操作，以及由专用拖动手势触发的目标画面采集，不执行页面任意命令。返回工作台或重新连接时恢复原窗口尺寸、边框和置顶状态；异步文件打开与画面返回核对原会话及连接范围。
 
-进入浮窗时隐藏 pywebview 实际添加的原生 MenuStrip 控件，返回工作台时按原可见状态恢复。裁剪以 WebView 的实际大小和窗口内位置映射页面坐标，避免残留菜单形成顶部黑带或可点击区域偏移。此前无菜单合成窗口的透明检查未覆盖这个原因。本轮带真实菜单的自有测试宿主通过 10 项检查：图标、伙伴与展开面板的外部透明和点击正确，顶部没有黑带，最小化恢复、任务栏、同一窗口句柄及菜单恢复正常，前台焦点未改变。证据在本机 `output/openclaw-native-verification/native-menu-clip/verification.json`；测试未使用用户应用内容。
+此前使用 pywebview MenuStrip 的版本，进入浮窗时隐藏原生菜单控件，返回工作台时恢复；当前桌面菜单已迁入标题栏图标，不再占用独立菜单行。裁剪仍以 WebView 的实际大小和窗口内位置映射页面坐标，避免顶部黑带或可点击区域偏移。旧版带真实菜单的自有测试宿主通过 10 项检查：图标、伙伴与展开面板的外部透明和点击正确，顶部没有黑带，最小化恢复、任务栏、同一窗口句柄及菜单恢复正常，前台焦点未改变。历史证据在本机 `output/openclaw-native-verification/native-menu-clip/verification.json`；测试未使用用户应用内容，该记录只验证旧 MenuStrip 路径，当前系统菜单验证见下文。
 
 配置解析交给原生 CLI，兼容其 JSON5、引用及环境变量机制。套壳不会覆盖已禁用的 Control UI，也不会把远程部署改成本地部署。当前围绕项目内本地 Gateway 验收；远程部署、自定义 TLS 和认证方案需按原生部署要求另行验证。
 
@@ -133,13 +163,15 @@ Control UI 通过 Gateway 的原始 URL 加载，资源、CSP、WebSocket、原�
 
 ## 数据与进程生命周期
 
-WebView2 数据保存在被 Git 忽略的 `config/openassist/openclaw/mirally-webview/`，用于原生浏览器身份、缓存、页面设置及 Cookie。它与后台工具的独立浏览器配置档分开，不会取得用户默认浏览器的登录态。
+WebView2 数据保存在被 Git 忽略的 `config/mirally/openclaw/mirally-webview/`，用于原生浏览器身份、缓存、页面设置及 Cookie。它与后台工具的独立浏览器配置档分开，不会取得用户默认浏览器的登录态。
 
 原生 CLI 的认证输出只在内存中用于加载，不写入公开日志或错误提示。自动启动的 Gateway 标准输出存入私有 `mirally-host/gateway.log`，启动 PID 与时间存入同目录的 `process.json`；这些诊断可能含本地路径，应作为私有状态处理。
 
 后台启动不会安装 Windows 服务或开机启动项。窗口关闭后，原生进程继续运行；可以重新打开窗口连接。若已有自己管理的 Gateway，优先启动它再打开套壳。手动终端运行的 Gateway 可用 Ctrl+C 停止；套壳启动的独立进程可通过本地 PID 记录核对后在任务管理器结束。结束 Gateway 会影响该实例的所有客户端，且不保证独立工具子进程都已退出。
 
 ## 验证
+
+2026-10-15 的窗口菜单验证使用临时浏览器配置和离线 WebView2 宿主。真实左键点击标题栏 M 图标后，截图及 UIA 确认六项产品入口与全部标准 Windows 窗口控制；点击「活动与记忆设置」触发合成回调，原生关闭按钮正常关闭宿主。51 项相关 Python 回归通过，其中五项使用真实隐藏 HWND；`tools/verify_window_menu.py` 还核对原生系统菜单、没有 MenuStrip，以及伙伴往返保留同一 HWND。本次未连接 Gateway、采集活动或调用模型，验证范围是菜单显示与回调路由，没有实测六项入口各自的生产操作。
 
 回复提醒通过 20 组无窗口浏览器检查、23 项办公投影 JavaScript 回归和 20 项品牌/宿主 Python 回归：覆盖实际小输入发送、普通问答无终态事件、结束后正文延迟、历史刷新、重复回答、关闭去重、草稿保留与当前会话隔离。另在自有 Windows/WebView2 宿主验证浅深主题 × 三种形态共六个组合：首帧原生裁剪接受气泡、按钮命中正确、间隙点击穿透，气泡淡入位置稳定，鼠标离开仍保留，全文入口恢复工作台，窗口句柄与前台焦点不变。短提示更新为长正文时，三种形态的气泡裁剪都会更新，包括外框高度不变的侧栏；关闭后晚到正文不重新弹出。记录在本机 `output/openclaw-native-verification/reply-ui/verification.json` 与 `reply-native/verification.json`。这些使用原生契约的模拟消息，不发起模型请求、不操作系统鼠标或用户窗口，也不替代真实模型和日常应用切换的体验验收。
 

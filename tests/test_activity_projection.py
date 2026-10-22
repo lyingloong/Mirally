@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import unittest
 
-from openassist.core.activity.models import Observation
-from openassist.core.activity.knowledge.projection import build_projection
+from mirally.core.activity.models import Observation
+from mirally.core.activity.knowledge.projection import build_projection
 
 
 def observation(kind: str, **values) -> Observation:

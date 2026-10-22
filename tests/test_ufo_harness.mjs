@@ -73,15 +73,17 @@ test("JSON framing handles split UTF-8 and rejects partial shutdown", async () =
   await assert.rejects(async () => {for await (const frame of readFrames(Readable.from(['{"broken":']))) {}});
 });
 
-test("direct UFO and host-created child sessions select the desktop subtask mode", () => {
-  assert.equal(workerMode({}), WORKER_MODES.desktopSubtask);
-  assert.equal(workerMode({spawnedBy: "agent:main:session:123"}), WORKER_MODES.desktopSubtask);
-  assert.equal(workerMode({spawnedBy: ""}), WORKER_MODES.desktopSubtask);
+test("only native subagent session keys select desktop execution, including continuations", () => {
+  assert.equal(workerMode({sessionKey: "agent:ufo:subagent:123", spawnedBy: "agent:main:main"}), WORKER_MODES.desktopSubtask);
+  assert.equal(workerMode({sessionKey: "agent:ufo:subagent:123"}), WORKER_MODES.desktopSubtask);
+  for (const input of [{}, {sessionKey: "agent:ufo:main"},
+    {sessionKey: "agent:ufo:chat", spawnedBy: "agent:main:main"}])
+    assert.throws(() => workerMode(input), /仅供.*子任务/);
 });
 
 function params(overrides = {}) {
   const id = randomUUID();
-  return {...{sessionId: id, sessionKey: "agent:ufo:test-" + id, sessionFile: "unused", agentId: "ufo",
+  return {...{sessionId: id, sessionKey: "agent:ufo:subagent:" + id, sessionFile: "unused", agentId: "ufo",
     runId: randomUUID(), prompt: "合成测试", provider: "test", modelId: "vision", timeoutMs: 3000,
     modelRegistry: {find: () => model}, resolvedApiKey: "test-only", thinkLevel: "off",
     hostCapabilities: {assertActive() {}, runBeforeToolCall: async () => ({blocked: false})},
@@ -101,6 +103,20 @@ function harness(program, extra = {}) {
   return createUfoHarness({}, {root:testRoot, spawnWorker: () => child(program), contextFor: async () => ({}),
     persistAssistant: async () => ({kind: "result"}), ...extra});
 }
+
+test("top-level UFO chats fail before auth, context, transcript or desktop worker effects", async () => {
+  let effects = 0;
+  const unexpected = () => { effects++; throw new Error("unexpected preparation"); };
+  const executor = createUfoHarness({}, {root: testRoot, spawnWorker: unexpected,
+    contextFor: unexpected, persistAssistant: unexpected});
+  for (const sessionKey of ["agent:ufo:main", "agent:ufo:chat", undefined]) {
+    await assert.rejects(executor.runAttempt(params({sessionKey,
+      spawnedBy: "agent:main:main", modelRegistry: {find: unexpected},
+      hostCapabilities: {assertActive: unexpected},
+      userTurnTranscriptRecorder: {persistApproved: unexpected}})), /仅供.*子任务/);
+  }
+  assert.equal(effects, 0);
+});
 
 test("diagnostics follow startup, model and terminal events without private content", async () => {
   const root = mkdtempSync(path.join(tmpdir(), "mirally-ufo-diagnostics-"));

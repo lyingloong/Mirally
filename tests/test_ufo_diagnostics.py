@@ -9,7 +9,7 @@ import unittest
 
 import psutil
 
-from openassist.runtime.ufo.diagnostics import startup_diagnostics
+from mirally.runtime.ufo.diagnostics import startup_diagnostics
 
 
 class StartupDiagnosticsTests(unittest.TestCase):
@@ -88,7 +88,11 @@ class StartupDiagnosticsTests(unittest.TestCase):
                 try:
                     # Crucially, keep stdin open and idle during DLL imports.
                     # subprocess.run/communicate would close it and mask the bug.
-                    self.assertTrue(initialized.wait(20), "Native imports blocked with an idle control pipe")
+                    self.assertTrue(initialized.wait(20),
+                        "Native imports did not initialize with an idle control pipe; "
+                        f"executable={executable}, exit={process.poll()}, "
+                        f"last_events={json.dumps(events[-4:], ensure_ascii=False)}, "
+                        f"stderr={''.join(errors)[-2000:]}")
                     process.stdin.write('{"type":"cancel"}\n')
                     process.stdin.flush()
                     self.assertEqual(process.wait(timeout=10), 0, "".join(errors)[-2000:])

@@ -180,7 +180,7 @@ flowchart TB
 保持已有 `core / runtime / platform / ui` 四层。建议的职责布局如下，文件按实际复杂度拆分，不一次创建大量空壳：
 
 ```text
-openassist/
+mirally/
   application.py              # 组装控制器、模型服务、执行器和平台服务
   core/
     execution.py              # 最小任务协议、能力、事件、结果与控制语义
@@ -287,13 +287,13 @@ Skill 可以在此后增加产品技能目录、选择和上下文加载；其�
 
 | 目的 | 当前入口 |
 | --- | --- |
-| 控制、补充、默认/测试路径差异 | [TaskController](../openassist/core/task_controller.py) |
-| Session 启动、控制与结果封装 | [ufo adapter](../openassist/runtime/ufo/adapter.py)、[controls](../openassist/runtime/ufo/controls.py)、[events](../openassist/runtime/ufo/events.py) |
-| 现有配置和兼容修复 | [runtime/ufo/config](../openassist/runtime/ufo/config.py)、[compat](../openassist/runtime/ufo/compat.py) |
+| 控制、补充、默认/测试路径差异 | [TaskController](../mirally/core/task_controller.py) |
+| Session 启动、控制与结果封装 | [ufo adapter](../mirally/runtime/ufo/adapter.py)、[controls](../mirally/runtime/ufo/controls.py)、[events](../mirally/runtime/ufo/events.py) |
+| 现有配置和兼容修复 | [runtime/ufo/config](../mirally/runtime/ufo/config.py)、[compat](../mirally/runtime/ufo/compat.py) |
 | 原生命令分发与线程池执行 | [dispatcher](../UFO/ufo/module/dispatcher.py)、[Computer / CommandRouter](../UFO/ufo/client/computer.py) |
 | Host/App 原生处理阶段 | [Host 策略](../UFO/ufo/agents/processors/strategies/host_agent_processing_strategy.py)、[App 策略](../UFO/ufo/agents/processors/strategies/app_agent_processing_strategy.py) |
 | 原生确认后续跑的具体语义 | [AppAgentProcessor.resume](../UFO/ufo/agents/processors/app_agent_processor.py) |
 | 真实 UI 工具与截图路径 | [UI MCP server](../UFO/ufo/client/mcp/local_servers/ui_mcp_server.py) |
-| 产品窗口隔离和焦点恢复 | [WindowSession](../openassist/platform/window_session.py) |
+| 产品窗口隔离和焦点恢复 | [WindowSession](../mirally/platform/window_session.py) |
 | 回合与 Session 结果 | [原生 basic](../UFO/ufo/module/basic.py)、[Session](../UFO/ufo/module/sessions/session.py) |
 | 当前真实初始化验证 | [test_ufo_native_initialization](../tests/test_ufo_native_initialization.py) |

@@ -12,8 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
-from openassist.core.activity import Observation, ObservationStore
-from openassist.runtime.activity.agent_bridge import ActivityAgentBridge, run_jsonl
+from mirally.core.activity import Observation, ObservationStore
+from mirally.runtime.activity.agent_bridge import ActivityAgentBridge, run_jsonl
 
 
 class ActivityAgentBridgeTests(unittest.TestCase):
@@ -118,7 +118,7 @@ class ActivityAgentBridgeTests(unittest.TestCase):
                                     "running": False, "reason": "input_worker_not_running"}},
                                 "known_gap_counts": {"evidence_errors": 2},
                             })
-                        with patch("openassist.runtime.activity.agent_bridge.time.time", return_value=100):
+                        with patch("mirally.runtime.activity.agent_bridge.time.time", return_value=100):
                             response = bridge.handle({"command": "health"})
                         collector = response["result"]["collector"]
                         self.assertEqual(collector["recorded_status"], status)
@@ -260,7 +260,9 @@ class ActivityAgentBridgeTests(unittest.TestCase):
     def test_disabled_bridge_does_not_create_a_store(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            bridge = ActivityAgentBridge(root)
+            config = root / 'activity.yaml'
+            config.write_text(f'enabled: false\nstorage:\n  database_path: {(root / "observations.sqlite3").as_posix()}\n',encoding='utf-8')
+            bridge = ActivityAgentBridge(root,config)
             try:
                 response = bridge.handle({"command": "health"})
                 self.assertEqual(response["status"], "disabled")
@@ -268,10 +270,8 @@ class ActivityAgentBridgeTests(unittest.TestCase):
                 self.assertFalse(response["profile_enabled"])
                 self.assertIsNone(response["history"]["available"])
                 self.assertFalse(response["history"]["availability_checked"])
-                # The disabled configuration resolves to the platform data
-                # directory, which may already contain a user's database.
-                # The important contract is that this request never opens a
-                # service (and therefore cannot create or mutate that store).
+                # The fixture is explicitly disabled and uses isolated storage;
+                # the request cannot create or mutate any user's actual store.
                 self.assertIsNone(bridge._service)
             finally:
                 bridge.close()
@@ -325,7 +325,9 @@ class ActivityAgentBridgeTests(unittest.TestCase):
     def test_queries_are_bounded_and_invalid_protocol_is_reported_per_line(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            bridge = ActivityAgentBridge(root)
+            config = root / 'activity.yaml'
+            config.write_text(f'enabled: false\nstorage:\n  database_path: {(root / "observations.sqlite3").as_posix()}\n',encoding='utf-8')
+            bridge = ActivityAgentBridge(root,config)
             input_stream = io.StringIO(
                 "\n".join(
                     [
@@ -351,6 +353,21 @@ class ActivityAgentBridgeTests(unittest.TestCase):
             self.assertEqual(responses[1]["error"]["type"], "ValueError")
             self.assertFalse(responses[2]["ok"])
             self.assertEqual(responses[2]["error"]["type"], "JSONDecodeError")
+
+    def test_default_enabled_bridge_with_missing_store_never_starts_capture(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch('mirally.runtime.activity.config.default_data_directory', return_value=root / 'isolated data'):
+                bridge = ActivityAgentBridge(root)
+            try:
+                response = bridge.handle({'command':'health'})
+                self.assertTrue(response['enabled'])
+                self.assertEqual(response['status'],'not_ready')
+                self.assertFalse(response['bridge_starts_collector'])
+                self.assertIsNone(bridge._service)
+                self.assertEqual(list(root.iterdir()),[])
+            finally:
+                bridge.close()
 
     def test_missing_store_reports_not_ready_without_creating_database(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -11,10 +11,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from openassist.core.activity import Actor, CollectionLevel, Observation, ObservationStore
-from openassist.core.activity.knowledge.projection import build_projection
-from openassist.runtime.activity.browser import ActivityBrowserRuntime
-from openassist.runtime.activity.monitor import ActivityMonitorRuntime, build_test_config
+from mirally.core.activity import Actor, CollectionLevel, Observation, ObservationStore
+from mirally.core.activity.knowledge.projection import build_projection
+from mirally.runtime.activity.browser import ActivityBrowserRuntime
+from mirally.runtime.activity.monitor import ActivityMonitorRuntime, build_test_config
 
 
 class ActivityBrowserRuntimeTests(unittest.TestCase):

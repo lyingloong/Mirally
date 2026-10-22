@@ -41,7 +41,7 @@ def _mcp_code_revision(root: Path) -> str:
     """Let native config reload retire children after product code updates."""
 
     revision = hashlib.sha256()
-    for package in ("openassist/core/activity", "openassist/runtime/activity"):
+    for package in ("mirally/core/activity", "mirally/runtime/activity"):
         for source in sorted((root / package).rglob("*.py")):
             revision.update(source.relative_to(root).as_posix().encode("utf-8"))
             revision.update(b"\0")
@@ -51,7 +51,7 @@ def _mcp_code_revision(root: Path) -> str:
 
 def activity_mcp_server(root: Path, activity_config: Path | None = None, timeout_ms: int = 30000) -> dict:
     root = root.resolve()
-    args = ["-m", "openassist.runtime.activity.mcp_server", "--root", str(root)]
+    args = ["-m", "mirally.runtime.activity.mcp_server", "--root", str(root)]
     if activity_config is not None:
         args.extend(["--config", str(activity_config.resolve())])
     return {
@@ -60,7 +60,7 @@ def activity_mcp_server(root: Path, activity_config: Path | None = None, timeout
         "args": args,
         "cwd": str(root),
         "env": {"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8",
-                "OPENASSIST_ACTIVITY_MCP_CODE_REVISION": _mcp_code_revision(root)},
+                "MIRALLY_ACTIVITY_MCP_CODE_REVISION": _mcp_code_revision(root)},
         "connectionTimeoutMs": min(timeout_ms, 15000),
         "requestTimeoutMs": timeout_ms,
         "supportsParallelToolCalls": False,
@@ -159,8 +159,8 @@ def main() -> None:
     parser.add_argument("--apply", action="store_true", help="Apply after native validation; default validates only")
     parser.add_argument("--timeout-ms", type=int, choices=range(1000, 120001), metavar="1000..120000", help="Bridge request timeout")
     args = parser.parse_args()
-    state = Path(os.environ.get("OPENCLAW_STATE_DIR", ROOT / "config/openassist/openclaw"))
-    config_path = Path(os.environ.get("OPENCLAW_CONFIG_PATH", state / "openclaw.json"))
+    state = Path(os.environ.get("OPENCLAW_STATE_DIR", ROOT / "config/mirally/openclaw")).expanduser().resolve()
+    config_path = Path(os.environ.get("OPENCLAW_CONFIG_PATH", state / "openclaw.json")).expanduser().resolve()
     if args.activity_config is not None and not args.activity_config.is_file():
         raise SystemExit("Activity config file does not exist.")
     try:

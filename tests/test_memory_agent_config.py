@@ -52,7 +52,7 @@ class MemoryAgentConfigTests(unittest.TestCase):
     def test_runtime_revision_ignores_captured_data(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            source = root / "openassist/core/memory/store.py"
+            source = root / "mirally/core/memory/store.py"
             source.parent.mkdir(parents=True)
             source.write_text("revision = 1\n", encoding="utf-8")
             revision = memory_revision(root)

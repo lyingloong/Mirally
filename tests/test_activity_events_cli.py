@@ -13,8 +13,8 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from openassist.core.activity import Observation, ObservationStore
-from openassist.runtime.activity import cli
+from mirally.core.activity import Observation, ObservationStore
+from mirally.runtime.activity import cli
 
 
 class ActivityEventsCliTests(unittest.TestCase):
@@ -51,7 +51,7 @@ class ActivityEventsCliTests(unittest.TestCase):
 
     def run_cli(self, *arguments: str) -> dict:
         result = subprocess.run(
-            [sys.executable, "-m", "openassist.runtime.activity.cli", "--config", str(self.config),
+            [sys.executable, "-m", "mirally.runtime.activity.cli", "--config", str(self.config),
              "knowledge-events", *arguments],
             cwd=Path(__file__).resolve().parents[1], capture_output=True, encoding="utf-8", timeout=30,
         )

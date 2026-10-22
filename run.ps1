@@ -8,7 +8,7 @@ if (-not (Test-Path -LiteralPath $python)) {
 
 Push-Location $productRoot
 try {
-    & $python -m openassist @args
+    & $python -m mirally @args
     $exitCode = $LASTEXITCODE
 }
 finally {

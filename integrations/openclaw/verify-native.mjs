@@ -11,7 +11,7 @@ if (!process.argv.includes("--live")) {
   console.error("This check calls the configured model. Run with --live to proceed.");
   process.exit(2);
 }
-const config = JSON.parse(await readFile(resolve(root, "config/openassist/openclaw/openclaw.json"), "utf8"));
+const config = JSON.parse(await readFile(resolve(root, "config/mirally/openclaw/openclaw.json"), "utf8"));
 const secrets = [config.gateway.auth.token, ...Object.values(config.models.providers).map(p => p.apiKey)].filter(Boolean);
 function redact(value) {
   let text = typeof value === "string" ? value : JSON.stringify(value);

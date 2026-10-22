@@ -8,14 +8,14 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from openassist.core.activity.models import CollectionLevel
-from openassist.core.activity.policy import ActivityPolicy
-from openassist.core.activity.store import ObservationStore
-from openassist.platform.activity.foreground import ForegroundSnapshot, WindowsForegroundSource
-from openassist.platform.activity.input_metadata import InputBatch
-from openassist.platform.activity.uia_structure import UIAStructureResult
-from openassist.runtime.activity.config import ActivityConfig
-from openassist.runtime.activity.service import ActivitySensor
+from mirally.core.activity.models import CollectionLevel
+from mirally.core.activity.policy import ActivityPolicy
+from mirally.core.activity.store import ObservationStore
+from mirally.platform.activity.foreground import ForegroundSnapshot, WindowsForegroundSource
+from mirally.platform.activity.input_metadata import InputBatch
+from mirally.platform.activity.uia_structure import UIAStructureResult
+from mirally.runtime.activity.config import ActivityConfig
+from mirally.runtime.activity.service import ActivitySensor
 
 
 class ForegroundFixture:
@@ -88,7 +88,7 @@ class InputTimingTests(unittest.TestCase):
             sensor._submit = Mock()
             batch = self.batch()
             try:
-                with patch("openassist.runtime.activity.service.time.time", return_value=2_000_000):
+                with patch("mirally.runtime.activity.service.time.time", return_value=2_000_000):
                     observation = sensor.record_input_metadata(batch)
                 self.assertIsNotNone(observation)
                 self.assertEqual(observation.observed_at_utc_ms, 2_000_000_000)

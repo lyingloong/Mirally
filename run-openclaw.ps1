@@ -5,19 +5,17 @@ if (-not (Test-Path -LiteralPath $runtimeFile)) {
     throw "OpenClaw runtime missing. Run .\.venv\Scripts\python.exe tools\setup_openclaw.py first."
 }
 $runtime = Get-Content -Raw -LiteralPath $runtimeFile | ConvertFrom-Json
-if ($args.Count -gt 0 -and $args[0] -in @("mirally", "companion")) {
+if ($args.Count -gt 0 -and $args[0] -eq "companion") {
+    throw "The old companion interface has been removed. Use .\run-openclaw.ps1 mirally."
+}
+if ($args.Count -gt 0 -and $args[0] -eq "mirally") {
     $python = Join-Path $productRoot ".venv\Scripts\python.exe"
     if (-not (Test-Path -LiteralPath $python)) {
         throw "Mirally Python environment missing. See README.md."
     }
     Push-Location $productRoot
     try {
-        if ($args[0] -eq "companion") {
-            & $python -m openassist --companion
-        }
-        else {
-            & $python -m openassist --openclaw
-        }
+        & $python -m mirally --openclaw
         $exitCode = $LASTEXITCODE
     }
     finally { Pop-Location }
@@ -25,7 +23,7 @@ if ($args.Count -gt 0 -and $args[0] -in @("mirally", "companion")) {
 }
 $node = Join-Path $productRoot $runtime.node
 $entry = Join-Path $productRoot $runtime.entry
-$stateRoot = Join-Path $productRoot "config\openassist\openclaw"
+$stateRoot = Join-Path $productRoot "config\mirally\openclaw"
 $savedState = $env:OPENCLAW_STATE_DIR
 $savedConfig = $env:OPENCLAW_CONFIG_PATH
 $savedPath = $env:PATH

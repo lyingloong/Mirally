@@ -23,7 +23,7 @@ class NativeInitializationTests(unittest.TestCase):
         # other tests. All config and session logs live in a temporary root.
         with tempfile.TemporaryDirectory() as directory:
             product_root = Path(directory)
-            config_dir = product_root / "config" / "openassist" / "ufo"
+            config_dir = product_root / "config" / "mirally" / "ufo"
             config_dir.mkdir(parents=True)
 
             def absolute_prompts(value):
@@ -35,7 +35,7 @@ class NativeInitializationTests(unittest.TestCase):
                     return (UFO_ROOT / value).as_posix()
                 return value
 
-            for source in (ROOT / "config" / "openassist" / "ufo").iterdir():
+            for source in (ROOT / "config" / "mirally" / "ufo").iterdir():
                 if source.suffix != ".yaml" and source.name != "agents.yaml.template":
                     continue
                 if source.name == "agents.yaml":
@@ -61,14 +61,14 @@ class NativeInitializationTests(unittest.TestCase):
                 from unittest.mock import AsyncMock, patch
 
                 sys.path.insert(0, sys.argv[1])
-                from openassist.runtime.config import configure_ufo_config_root
+                from mirally.runtime.config import configure_ufo_config_root
                 configure_ufo_config_root(Path.cwd(), ufo_root=Path(sys.argv[2]))
 
                 with patch('config.config_loader.get_galaxy_config',
                            side_effect=AssertionError('Galaxy config must not be loaded')):
                     from ufo.module.context import Context, ContextNames
                     from ufo.automator.ui_control.inspector import UIABackendStrategy
-                    from openassist.runtime.native_compat import native_compatibility
+                    from mirally.runtime.native_compat import native_compatibility
                     from ufo.client.mcp import local_servers
                     previous_loader = local_servers.load_all_servers
                     previous_default = ContextNames.default_value
@@ -94,7 +94,7 @@ class NativeInitializationTests(unittest.TestCase):
                     assert UIABackendStrategy.find_control_elements_in_descendants is previous_find
                     assert local_servers.load_all_servers is previous_loader
                     assert 'galaxy' not in sys.modules
-                    from openassist.runtime.ufo_full import run_native_request
+                    from mirally.runtime.ufo_full import run_native_request
                     from ufo.agents.agent.basic import BasicAgent
                     previous_handle = BasicAgent.handle
                     previous_handlers = logging.getLogger().handlers[:]

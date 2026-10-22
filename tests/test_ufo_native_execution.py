@@ -26,7 +26,7 @@ class NativeExecutionTests(unittest.TestCase):
     def run_scenario(self, scenario):
         with tempfile.TemporaryDirectory() as directory:
             temporary_root = Path(directory)
-            config_dir = temporary_root / "config" / "openassist" / "ufo"
+            config_dir = temporary_root / "config" / "mirally" / "ufo"
             config_dir.mkdir(parents=True)
 
             def absolute_prompts(value):
@@ -38,7 +38,7 @@ class NativeExecutionTests(unittest.TestCase):
                     return (UFO_ROOT / value).as_posix()
                 return value
 
-            for source in (ROOT / "config" / "openassist" / "ufo").iterdir():
+            for source in (ROOT / "config" / "mirally" / "ufo").iterdir():
                 if source.name == "agents.yaml":
                     continue  # Never open local credentials.
                 if source.suffix != ".yaml" and source.name != "agents.yaml.template":

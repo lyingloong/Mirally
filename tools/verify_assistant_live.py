@@ -9,9 +9,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "UFO"))
-from openassist.config import configure_ufo_config_root
-from openassist.assistant import Assistant
-from openassist.conversation import ConversationStore
+from mirally.config import configure_ufo_config_root
+from mirally.assistant import Assistant
+from mirally.conversation import ConversationStore
 
 
 def main():

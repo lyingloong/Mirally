@@ -7,11 +7,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock
 
-from openassist.core.assistant import AssistantDecision
-from openassist.core.execution import (
+from mirally.core.assistant import AssistantDecision
+from mirally.core.execution import (
     ExecutionCancelled, ExecutionCapabilities, ExecutionRequest, Reobserve, TaskResult,
 )
-from openassist.core.task_controller import TaskController, TaskStopped
+from mirally.core.task_controller import TaskController, TaskStopped
 
 
 class ExecutionContractTests(unittest.TestCase):
@@ -98,7 +98,7 @@ class ExecutionContractTests(unittest.TestCase):
                 return {"status": "done"}  # Only the legacy wrapper accepts this.
 
         controller = self.controller(Executor())
-        with self.assertLogs("openassist.task_controller", level="ERROR"):
+        with self.assertLogs("mirally.task_controller", level="ERROR"):
             controller.start("test")
             self.pump(controller, lambda: not controller.active)
         self.assertEqual(controller.phase, "failed")
@@ -180,13 +180,13 @@ class ExecutionContractTests(unittest.TestCase):
         self.assertTrue(controller.events.empty())
 
     def test_core_has_no_ui_platform_or_engine_imports(self):
-        core = Path(__file__).resolve().parents[1] / "openassist" / "core"
+        core = Path(__file__).resolve().parents[1] / "mirally" / "core"
         for path in core.glob("*.py"):
             for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
                 names = [node.module or ""] if isinstance(node, ast.ImportFrom) else (
                     [alias.name for alias in node.names] if isinstance(node, ast.Import) else [])
                 for name in names:
-                    self.assertFalse(name.startswith(("openassist.ui", "openassist.platform", "openassist.runtime", "ufo", "tkinter")),
+                    self.assertFalse(name.startswith(("mirally.ui", "mirally.platform", "mirally.runtime", "ufo", "tkinter")),
                                      f"{path.name} depends on {name}")
 
 

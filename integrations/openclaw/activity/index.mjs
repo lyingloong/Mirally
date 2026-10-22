@@ -203,7 +203,7 @@ export default definePluginEntry({
   description: "On-demand activity knowledge lookup shared by OpenClaw agents.",
   register(api) {
     const pluginConfig = api.pluginConfig ?? {};
-    const root = pluginConfig.root ?? process.env.OPENASSIST_ROOT ?? activityPackageRoot;
+    const root = pluginConfig.root ?? process.env.MIRALLY_ROOT ?? activityPackageRoot;
     const client = createActivityClient({
       root,
       configPath: pluginConfig.configPath,

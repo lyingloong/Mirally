@@ -1,6 +1,6 @@
 # Mirally · 相伴 M
 
-当前正式母版为 [精修 SVG](../../../../openassist/assets/mirally.svg)，应用中的 PNG 与 ICO 均由它导出。[矢量制作说明](vector-redraw.md) 记录轮廓、交叠曲线与渐变的拟合方法和重建命令。下面保留生成参考图的来源记录。
+当前正式母版为 [精修 SVG](../../../../mirally/assets/mirally.svg)，应用中的 PNG 与 ICO 均由它导出。[矢量制作说明](vector-redraw.md) 记录轮廓、交叠曲线与渐变的拟合方法和重建命令。下面保留生成参考图的来源记录。
 
 用户选定新的「冰蓝双人流线」参考图，以此替代之前的合翼 A。主体是两个人彼此连接形成的 M：M 呼应 Mirally 与 MIRA，双人和连接表达伙伴、协作与相互支持。
 
@@ -19,4 +19,4 @@
 - [参考图、浅深背景及实际尺寸预览](../../../../output/imagegen/mirally-companion-m/index.html)
 - [生成参数与原图校验记录](../../../../output/imagegen/mirally-companion-m/generation-clean.json)
 
-生成参考图为 1254 × 1254 RGBA，现保存在仓库中的 [generated-reference.png](generated-reference.png)，用于复现矢量拟合。正式资源已切换为精修 SVG 的导出图，包括 16、20、24、32、40、48、64、96、128、256、512 px PNG，以及包含 16–256 px 的 Windows ICO。生产资源和重建方式见 [openassist/assets](../../../../openassist/assets/README.md)；早期探索保留为历史记录。
+生成参考图为 1254 × 1254 RGBA，现保存在仓库中的 [generated-reference.png](generated-reference.png)，用于复现矢量拟合。正式资源已切换为精修 SVG 的导出图，包括 16、20、24、32、40、48、64、96、128、256、512 px PNG，以及包含 16–256 px 的 Windows ICO。生产资源和重建方式见 [mirally/assets](../../../../mirally/assets/README.md)；早期探索保留为历史记录。

@@ -18,7 +18,9 @@ function defaultPython(root) {
   const candidates = process.platform === "win32"
     ? [path.join(root, ".venv", "Scripts", "pythonw.exe"), path.join(root, ".venv", "Scripts", "python.exe")]
     : [path.join(root, ".venv", "bin", "python")];
-  return candidates.find((candidate) => existsSync(candidate)) ?? "python";
+  const python = candidates.find((candidate) => existsSync(candidate));
+  if (!python) throw lineError("Mirally activity requires the repository virtual environment", "activity_python_missing");
+  return python;
 }
 
 function lineError(message, code = "activity_bridge_error") {
@@ -39,8 +41,8 @@ export function createActivityClient(options = {}) {
   const spawnImpl = options.spawnImpl ?? defaultSpawn;
   const logger = options.logger ?? (() => {});
   const timeoutMs = asPositiveInteger(options.timeoutMs, DEFAULT_TIMEOUT_MS, 120_000);
-  const python = options.pythonPath ?? process.env.OPENASSIST_PYTHON ?? defaultPython(root);
-  const configPath = options.configPath ?? process.env.OPENASSIST_ACTIVITY_CONFIG;
+  const python = options.pythonPath ?? process.env.MIRALLY_PYTHON;
+  const configPath = options.configPath ?? process.env.MIRALLY_ACTIVITY_CONFIG;
   const pending = new Map();
   let child = null;
   let receiveBuffer = "";
@@ -133,11 +135,12 @@ export function createActivityClient(options = {}) {
 
   function ensureProcess() {
     if (child && !child.killed && child.stdin?.writable) return child;
-    const args = ["-m", "openassist.runtime.activity.agent_bridge", "--root", root];
-    if (configPath) args.push("--config", path.resolve(configPath));
+    const args = ["-m", "mirally.runtime.activity.agent_bridge", "--root", root];
+    if (configPath) args.push("--config", path.resolve(root, configPath));
+    const executable = python ?? defaultPython(root);
     let process;
     try {
-      process = spawnImpl(python, args, {
+      process = spawnImpl(executable, args, {
         cwd: root,
         windowsHide: true,
         stdio: ["pipe", "pipe", "pipe"],

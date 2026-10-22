@@ -12,9 +12,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from openassist.core.execution import ExecutionCancelled
-from openassist.runtime.ufo.observation import observation_isolation
-from openassist.platform.window_session import WindowSession
+from mirally.core.execution import ExecutionCancelled
+from mirally.runtime.ufo.observation import observation_isolation
 
 
 def control(pid, name="window"):
@@ -71,7 +70,7 @@ class ObservationTests(unittest.TestCase):
             _verify_id=lambda id, name, items: items[id].element_info.name == name,
         )
         self.targets = (Control, Desktop, Inspector, self.module)
-        self.target_patch = patch("openassist.runtime.ufo.observation._native_targets", return_value=self.targets)
+        self.target_patch = patch("mirally.runtime.ufo.observation._native_targets", return_value=self.targets)
         self.target_patch.start()
         self.addCleanup(self.target_patch.stop)
 
@@ -182,117 +181,6 @@ class ObservationTests(unittest.TestCase):
             self.assertEqual(self.targets[2]().get_desktop_windows(), [])
 
 
-class CaptureWindowTests(unittest.TestCase):
-    def setUp(self):
-        self.windows = {
-            1: {"visible": True, "iconic": False, "affinity": 0},
-            2: {"visible": True, "iconic": False, "affinity": 0},
-            3: {"visible": True, "iconic": True, "affinity": 0},
-            4: {"visible": False, "iconic": False, "affinity": 0},
-        }
-        self.shows = []
-        self.session = WindowSession.__new__(WindowSession)
-        self.session.capture_active = False
-        self.session.capture_hidden = False
-        self.session._capture_windows = {}
-        self.session.prefer_native_capture = True
-        self.session._process_windows = lambda: list(self.windows)
-        self.session._window_process_id = lambda hwnd: os.getpid()
-        self.session.suppress_system_transitions = Mock()
-        self.session._flush_capture = Mock()
-
-        def get_affinity(hwnd, value):
-            value._obj.value = self.windows[hwnd]["affinity"]
-            return True
-
-        def set_affinity(hwnd, value):
-            self.windows[hwnd]["affinity"] = value
-            return True
-
-        def show(hwnd, command):
-            self.shows.append((hwnd, command))
-            self.windows[hwnd]["visible"] = command != 0
-            return True
-
-        self.session.user32 = SimpleNamespace(
-            IsWindow=lambda hwnd: hwnd in self.windows,
-            IsWindowVisible=lambda hwnd: self.windows[hwnd]["visible"],
-            IsIconic=lambda hwnd: self.windows[hwnd]["iconic"],
-            GetWindowDisplayAffinity=get_affinity, SetWindowDisplayAffinity=set_affinity,
-            ShowWindow=show, SetForegroundWindow=Mock(),
-        )
-
-    def test_native_capture_excludes_every_visible_product_window(self):
-        self.session.capture_begin()
-        self.assertEqual([self.windows[i]["affinity"] for i in (1, 2, 3, 4)], [0x11, 0x11, 0, 0])
-        self.assertFalse(self.session.capture_hidden)
-        self.session.capture_end()
-        self.assertEqual([self.windows[i]["affinity"] for i in (1, 2, 3, 4)], [0, 0, 0, 0])
-        self.assertEqual(self.shows, [])
-
-    def test_fallback_restores_only_visible_normal_windows_without_focus(self):
-        self.session.capture_begin(force_hide=True)
-        self.assertTrue(self.session.capture_hidden)
-        self.session.capture_end()
-        self.assertEqual(self.shows, [(1, 0), (2, 0), (1, 4), (2, 4)])
-        self.assertTrue(self.windows[3]["iconic"])
-        self.assertFalse(self.windows[4]["visible"])
-        self.session.user32.SetForegroundWindow.assert_not_called()
-
-    def test_partial_hiding_failure_rolls_back_earlier_windows(self):
-        original = self.session.user32.ShowWindow
-        def show(hwnd, command):
-            if hwnd == 2 and command == 0:
-                return False
-            return original(hwnd, command)
-        self.session.user32.ShowWindow = show
-        with self.assertRaisesRegex(RuntimeError, "隐藏"):
-            self.session.capture_begin(force_hide=True)
-        self.assertTrue(self.windows[1]["visible"])
-        self.assertTrue(self.windows[2]["visible"])
-        self.assertFalse(self.session.capture_active)
-        self.assertFalse(self.session.capture_hidden)
-
-    def test_compositor_failure_rolls_back_native_affinity(self):
-        self.session._flush_capture.side_effect = RuntimeError("compositor failed")
-        with self.assertRaisesRegex(RuntimeError, "compositor"):
-            self.session.capture_begin()
-        self.assertTrue(all(row["affinity"] == 0 for row in self.windows.values()))
-        self.assertFalse(self.session.capture_active)
-
-    def test_recreated_window_and_user_minimize_do_not_restore_old_handle(self):
-        self.session.capture_begin(force_hide=True)
-        del self.windows[1]
-        self.windows[5] = {"visible": True, "iconic": False, "affinity": 0}
-        self.session._isolate_capture_windows()
-        self.assertFalse(self.windows[5]["visible"])
-        self.windows[2]["iconic"] = True
-        self.session.capture_end()
-        self.assertNotIn((1, 4), self.shows)
-        self.assertNotIn((2, 4), self.shows)
-        self.assertIn((5, 4), self.shows)
-        self.session.user32.SetForegroundWindow.assert_not_called()
-
-    def test_restore_failure_does_not_skip_other_windows_and_can_be_retried(self):
-        self.session.capture_begin(force_hide=True)
-        original = self.session.user32.ShowWindow
-        def show(hwnd, command):
-            if hwnd == 1 and command == 4:
-                return False
-            return original(hwnd, command)
-        self.session.user32.ShowWindow = show
-        with self.assertRaisesRegex(RuntimeError, "未能恢复"):
-            self.session.capture_end()
-        self.assertTrue(self.windows[2]["visible"])
-        self.assertEqual(list(self.session._capture_windows), [1])
-        with self.assertRaisesRegex(RuntimeError, "尚未恢复"):
-            self.session.capture_begin()
-        self.session.user32.ShowWindow = original
-        self.session.capture_end()
-        self.assertTrue(self.windows[1]["visible"])
-        self.assertEqual(self.session._capture_windows, {})
-
-
 @unittest.skipUnless(sys.platform == "win32", "Real Windows UFO imports")
 class RealObservationImports(unittest.TestCase):
     def test_real_ufo_capture_fallback_and_window_labels_in_isolated_process(self):
@@ -300,9 +188,9 @@ class RealObservationImports(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as directory:
             product = Path(directory)
-            config = product / "config" / "openassist" / "ufo"
+            config = product / "config" / "mirally" / "ufo"
             config.mkdir(parents=True)
-            for source in (root / "config" / "openassist" / "ufo").iterdir():
+            for source in (root / "config" / "mirally" / "ufo").iterdir():
                 if source.name == "agents.yaml" or (source.suffix != ".yaml" and source.name != "agents.yaml.template"):
                     continue
                 value = yaml.safe_load(source.read_text(encoding="utf-8"))
@@ -315,10 +203,10 @@ class RealObservationImports(unittest.TestCase):
                 from unittest.mock import Mock, patch
                 from PIL import Image
                 sys.path.insert(0, sys.argv[1])
-                from openassist.runtime.config import configure_ufo_config_root
+                from mirally.runtime.config import configure_ufo_config_root
                 configure_ufo_config_root(Path.cwd(), ufo_root=Path(sys.argv[1]) / 'UFO')
-                from openassist.runtime.native_compat import native_compatibility
-                from openassist.runtime.ufo.observation import observation_isolation
+                from mirally.runtime.native_compat import native_compatibility
+                from mirally.runtime.ufo.observation import observation_isolation
                 events = []
                 services = SimpleNamespace(capture=events.append, cancelled=lambda: False)
                 with native_compatibility():

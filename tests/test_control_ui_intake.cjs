@@ -1,6 +1,6 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const {readDrop} = require('../openassist/assets/control-ui-intake.js');
+const {readDrop} = require('../mirally/assets/control-ui-intake.js');
 
 const drop = values => ({getData: type => values[type] ?? ''});
 

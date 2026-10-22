@@ -1,19 +1,23 @@
 """Desktop host lifecycle checks without a live model or changes to native state."""
 import json
+import io
+import queue
+import os
 from pathlib import Path
 import subprocess
 import socket
 import sys
 import time
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
 import psutil
 
-from openassist.openclaw_host import HostError, OpenClawHost
-from openassist.control_ui_shell import ControlUIShell, startup_html
-from openassist.__main__ import main
+from mirally.openclaw_host import HostError, OpenClawHost, _SettingsReader, _SettingsCommandUnavailable
+from mirally.control_ui_shell import ControlUIShell, startup_html
+from mirally.__main__ import main
 
 
 class OpenClawHostTests(unittest.TestCase):
@@ -27,13 +31,121 @@ class OpenClawHostTests(unittest.TestCase):
         (self.root / ".artifacts/openclaw-runtime.json").write_text(json.dumps({
             "node": "node.exe", "entry": "openclaw.mjs",
         }))
-        self.state = self.root / "config/openassist/openclaw"
+        self.state = self.root / "config/mirally/openclaw"
         self.state.mkdir(parents=True)
         self.config = self.state / "openclaw.json"
         # A JSON5 config must be read by OpenClaw, not by the shell.
         self.original = '// private config\n{gateway: {port: 18789}, secret: "never-print"}'
         self.config.write_text(self.original)
         self.host = OpenClawHost(self.root)
+
+    def test_settings_reads_reuse_one_adapter_and_close_only_owned_reader(self):
+        reader = Mock()
+        reader.request.side_effect = [{"servers": {}}, {"running": True}]
+        with patch("mirally.openclaw_host._SettingsReader", return_value=reader) as factory, \
+             patch.object(self.host, "_start_gateway") as start:
+            self.assertEqual(self.host.activity_profiles(), {"servers": {}})
+            self.assertEqual(self.host.memory_runtime_status(), {"running": True})
+            factory.assert_called_once_with(self.host)
+            start.assert_not_called()
+            self.host.close()
+            reader.close.assert_called_once()
+            with self.assertRaises(HostError):
+                self.host.activity_profiles()
+        self.assertEqual(self.config.read_text(), self.original)
+
+    def test_adapter_failure_retires_reader_without_cli_or_gateway_fallback(self):
+        broken, recovered = Mock(), Mock()
+        broken.request.side_effect = queue.Empty()
+        recovered.request.return_value = {"servers": {}}
+        with patch("mirally.openclaw_host._SettingsReader", side_effect=[broken, recovered]), \
+             patch.object(self.host, "_native_json") as cli, patch.object(self.host, "_start_gateway") as start:
+            with self.assertRaises(HostError):
+                self.host.activity_profiles()
+            broken.close.assert_called_once()
+            self.assertEqual(self.host.activity_profiles(), {"servers": {}})
+            cli.assert_not_called()
+            start.assert_not_called()
+            self.host.close()
+        with self.assertRaises(HostError):
+            self.host._settings_read("config.patch")
+
+    def test_native_command_failure_keeps_healthy_adapter_available_for_retry(self):
+        reader = Mock()
+        reader.request.side_effect = [_SettingsCommandUnavailable(), {"running": True}]
+        with patch("mirally.openclaw_host._SettingsReader", return_value=reader) as factory:
+            with self.assertRaises(HostError):
+                self.host.memory_runtime_status()
+            reader.close.assert_not_called()
+            self.assertEqual(self.host.memory_runtime_status(), {"running": True})
+            factory.assert_called_once()
+            self.host.close()
+
+    def test_jsonl_reader_correlates_replies_and_hides_its_console(self):
+        process = Mock(stdin=io.StringIO(), stdout=io.StringIO(
+            '{"id":1,"ok":true,"result":{"servers":{}}}\n'
+            '{"id":2,"ok":true,"result":{"running":true}}\n'))
+        process.poll.return_value = None
+        with patch("mirally.openclaw_host.subprocess.Popen", return_value=process) as popen:
+            reader = _SettingsReader(self.host)
+            try:
+                self.assertEqual(reader.request("profiles"), {"servers": {}})
+                self.assertEqual(reader.request("memory-status"), {"running": True})
+                self.assertEqual([json.loads(line)["action"] for line in process.stdin.getvalue().splitlines()],
+                                 ["profiles", "memory-status"])
+                self.assertEqual(popen.call_args.kwargs["stderr"], subprocess.DEVNULL)
+                self.assertEqual(popen.call_args.kwargs["cwd"], self.root.resolve())
+            finally:
+                reader.close()
+            process.terminate.assert_called_once()
+
+    def test_jsonl_reader_rejects_stale_reply_and_unparseable_native_stdout(self):
+        for line in ('{"id":99,"ok":true,"result":{}}\n', 'native diagnostic\n'):
+            process = Mock(stdin=io.StringIO(), stdout=io.StringIO(line))
+            process.poll.return_value = 0
+            with patch("mirally.openclaw_host.subprocess.Popen", return_value=process):
+                reader = _SettingsReader(self.host)
+                try:
+                    with self.assertRaises(ValueError):
+                        reader.request("profiles")
+                finally:
+                    reader.close()
+
+    def test_installed_settings_adapter_reads_includes_env_and_changes_without_writing_or_gateway(self):
+        repository = Path(__file__).resolve().parents[1]
+        manifest = repository / ".artifacts/openclaw-runtime.json"
+        if not manifest.is_file():
+            self.skipTest("Installed OpenClaw runtime is unavailable")
+        runtime = json.loads(manifest.read_text(encoding="utf-8"))
+        node = repository / runtime["node"]
+        if not node.is_file():
+            self.skipTest("Installed Node runtime is unavailable")
+        with TemporaryDirectory(prefix="mirally read 中文 ") as directory:
+            fixture = Path(directory).resolve()
+            config, included = fixture / "openclaw.json", fixture / "included.json5"
+            config.write_text('{$include:"included.json5"}', encoding="utf-8")
+            included.write_text(json.dumps({"mcp": {"servers": {"mirally-activity": {
+                "command": "python", "args": ["--root", "${MIRALLY_SETTINGS_READ_TEST_ROOT}"],
+                "cwd": "${MIRALLY_SETTINGS_READ_TEST_ROOT}"}}},
+                "agents": {"defaults": {"model": {"primary": "${MIRALLY_SETTINGS_READ_TEST_MODEL}"}}}}), encoding="utf-8")
+            env = dict(os.environ, OPENCLAW_STATE_DIR=str(fixture / "state"), OPENCLAW_CONFIG_PATH=str(config),
+                MIRALLY_SETTINGS_READ_TEST_ROOT=str(fixture), MIRALLY_SETTINGS_READ_TEST_MODEL="fixture/model")
+            reader = _SettingsReader(SimpleNamespace(root=repository, node=node, env=env))
+            try:
+                first = reader.request("profiles")
+                self.assertEqual(first["defaults"]["model"]["primary"], "fixture/model")
+                self.assertEqual(first["servers"]["mirally-activity"]["cwd"], str(fixture))
+                included.write_text(included.read_text(encoding="utf-8").replace(
+                    "${MIRALLY_SETTINGS_READ_TEST_MODEL}", "fixture/updated"), encoding="utf-8")
+                second = reader.request("profiles")
+                self.assertEqual(second["defaults"]["model"]["primary"], "fixture/updated")
+                included.write_text('{invalid:', encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    reader.request("profiles")
+                self.assertEqual({path.relative_to(fixture).as_posix() for path in fixture.rglob("*")},
+                                 {"openclaw.json", "included.json5"})
+            finally:
+                reader.close()
 
     def test_running_gateway_is_reused_without_reading_or_changing_config(self):
         with patch.object(self.host, "dashboard", return_value="http://127.0.0.1/#one-time-pairing"), \
@@ -55,7 +167,7 @@ class OpenClawHostTests(unittest.TestCase):
 
     @unittest.skipUnless(hasattr(subprocess, "CREATE_NO_WINDOW"), "Windows process flags required")
     def test_auto_gateway_hides_console_descendants(self):
-        with patch("openassist.openclaw_host.subprocess.Popen", return_value=Mock(pid=1234)) as popen:
+        with patch("mirally.openclaw_host.subprocess.Popen", return_value=Mock(pid=1234)) as popen:
             self.host._start_gateway()
         flags = popen.call_args.kwargs["creationflags"]
         self.assertTrue(flags & subprocess.CREATE_NO_WINDOW)
@@ -90,7 +202,7 @@ class OpenClawHostTests(unittest.TestCase):
         ]
         for failure in failures:
             with self.subTest(failure=type(failure).__name__), \
-                 patch("openassist.openclaw_host.subprocess.run", side_effect=failure if isinstance(failure, Exception) else None,
+                 patch("mirally.openclaw_host.subprocess.run", side_effect=failure if isinstance(failure, Exception) else None,
                        return_value=failure):
                 with self.assertRaises(HostError) as caught:
                     self.host.dashboard()
@@ -153,7 +265,7 @@ class OpenClawHostTests(unittest.TestCase):
              patch.object(self.host, "_listening", return_value=True), \
              patch.object(self.host, "_restart_target", return_value=Mock()), \
              patch.object(self.host, "_stop_gateway"), \
-             patch("openassist.openclaw_host.time.monotonic", side_effect=[0, 6]), \
+             patch("mirally.openclaw_host.time.monotonic", side_effect=[0, 6]), \
              patch.object(self.host, "connect") as connect:
             with self.assertRaisesRegex(HostError, "端口仍被占用"):
                 self.host.restart(Mock())
@@ -166,8 +278,8 @@ class OpenClawHostTests(unittest.TestCase):
         environment = {"OPENCLAW_STATE_DIR": str(self.state), "OPENCLAW_CONFIG_PATH": str(self.config)}
         process.environ.return_value = environment
         listener = Mock(pid=123, status=psutil.CONN_LISTEN, laddr=Mock(port=18789))
-        with patch("openassist.openclaw_host.psutil.net_connections", return_value=[listener]), \
-             patch("openassist.openclaw_host.psutil.Process", return_value=process):
+        with patch("mirally.openclaw_host.psutil.net_connections", return_value=[listener]), \
+             patch("mirally.openclaw_host.psutil.Process", return_value=process):
             self.assertIs(self.host._restart_target(18789), process)
             process.create_time.assert_called_once()
             for key in environment:
@@ -182,7 +294,7 @@ class OpenClawHostTests(unittest.TestCase):
         process.terminate.assert_not_called()
 
     def test_restart_identity_access_error_has_safe_public_message(self):
-        with patch("openassist.openclaw_host.psutil.net_connections",
+        with patch("mirally.openclaw_host.psutil.net_connections",
                    side_effect=psutil.AccessDenied(123, "PRIVATE_PROCESS_NAME")):
             with self.assertRaises(HostError) as caught:
                 self.host._restart_target(18789)
@@ -192,7 +304,7 @@ class OpenClawHostTests(unittest.TestCase):
         parent, child = Mock(), Mock()
         parent.children.return_value = [child]
         self.host._gateway = Mock()
-        with patch("openassist.openclaw_host.psutil.wait_procs", side_effect=[([], [child]), ([child], [])]) as wait:
+        with patch("mirally.openclaw_host.psutil.wait_procs", side_effect=[([], [child]), ([child], [])]) as wait:
             self.host._stop_gateway(parent)
         parent.terminate.assert_called_once()
         child.terminate.assert_called_once()
@@ -276,7 +388,7 @@ class OpenClawHostTests(unittest.TestCase):
         shell.host.restart.return_value = "http://127.0.0.1/"
         shell.window.events.loaded.wait.return_value = True
         shell._startup_visible.set()
-        with patch.object(shell, "_install_brand"), patch("openassist.control_ui_shell.time.monotonic", side_effect=[0, 2]):
+        with patch.object(shell, "_install_brand"), patch.object(shell, "_auto_start_activity"), patch("mirally.control_ui_shell.time.monotonic", side_effect=[0, 2]):
             shell._connect(reload=True, restart=True)
         shell.host.restart.assert_called_once_with(shell._status)
         shell.host.connect.assert_not_called()
@@ -317,14 +429,14 @@ class OpenClawHostTests(unittest.TestCase):
         adapter.parent.mkdir(parents=True)
         adapter.touch()
         handoff = 'http://127.0.0.1/#one-time-pairing'
-        with patch('openassist.openclaw_host.subprocess.run', side_effect=[
+        with patch('mirally.openclaw_host.subprocess.run', side_effect=[
             subprocess.CompletedProcess([], 78, '', ''),
             subprocess.CompletedProcess([], 0, json.dumps({'ok':True,'browserUrl':handoff}), ''),
         ]) as run:
             self.assertEqual(self.host.dashboard(), handoff)
             self.assertEqual(run.call_args_list[0].args[0], [str(self.host.node), str(adapter.resolve())])
             self.assertEqual(run.call_args_list[1].args[0][-2:], ['dashboard', '--json'])
-        with patch('openassist.openclaw_host.subprocess.run', return_value=
+        with patch('mirally.openclaw_host.subprocess.run', return_value=
                    subprocess.CompletedProcess([], 1, json.dumps({'ok':False,'reason':'not ready'}), '')) as run:
             with self.assertRaises(HostError): self.host.dashboard()
             self.assertEqual(run.call_count, 1)
@@ -339,7 +451,7 @@ class OpenClawHostTests(unittest.TestCase):
         shell.window.events.loaded.wait.side_effect = lambda timeout: order.append('opening document') or True
         shell._startup_visible = Mock()
         shell._startup_visible.wait.side_effect = lambda timeout: order.append('opening frame') or True
-        with patch.object(shell, '_install_brand'):
+        with patch.object(shell, '_install_brand'), patch.object(shell, '_auto_start_activity'):
             shell._connect()
         self.assertEqual(order, ['native', 'opening document', 'opening frame'])
         shell.window.load_url.assert_called_once_with('http://127.0.0.1/')
@@ -370,19 +482,21 @@ class OpenClawHostTests(unittest.TestCase):
             with self.subTest(arguments=arguments), \
                  patch.object(sys, "argv", ["mirally", *arguments]), \
                  patch.object(sys, "platform", "win32"), \
-                 patch("openassist.control_ui_shell.ControlUIShell") as shell:
+                 patch("mirally.control_ui_shell.ControlUIShell") as shell:
                 main()
                 shell.return_value.run.assert_called_once()
 
     def test_incompatible_launch_modes_are_rejected_before_starting(self):
-        with patch.object(sys, "argv", ["mirally", "--openclaw", "--ufo"]), \
+        for arguments in (["--ufo"], ["--legacy"], ["--demo"], ["--companion"], ["--openclaw", "--ufo"]):
+            with self.subTest(arguments=arguments), \
+             patch.object(sys, "argv", ["mirally", *arguments]), \
              patch.object(sys, "platform", "win32"), \
-             patch("openassist.control_ui_shell.ControlUIShell") as shell, \
+             patch("mirally.control_ui_shell.ControlUIShell") as shell, \
              patch("sys.stderr"):
-            with self.assertRaises(SystemExit) as caught:
-                main()
-            self.assertEqual(caught.exception.code, 2)
-            shell.assert_not_called()
+                with self.assertRaises(SystemExit) as caught:
+                    main()
+                self.assertEqual(caught.exception.code, 2)
+                shell.assert_not_called()
 
 
 if __name__ == "__main__":

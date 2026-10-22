@@ -1,0 +1,1 @@
+"""Mirally Windows desktop application."""

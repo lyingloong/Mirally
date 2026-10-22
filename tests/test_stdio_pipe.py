@@ -6,13 +6,13 @@ import threading
 import time
 import unittest
 
-from openassist.runtime.ufo.worker import WorkerChannel, stdio_channel
+from mirally.runtime.ufo.worker import WorkerChannel, stdio_channel
 
 
 @unittest.skipUnless(sys.platform == "win32", "Windows inherited pipe")
 class ControlPipeTests(unittest.TestCase):
     def setUp(self):
-        from openassist.platform.stdio_pipe import control_pipe_reader
+        from mirally.platform.stdio_pipe import control_pipe_reader
         descriptor, self.writer = os.pipe()
         self.original = io.FileIO(descriptor, "rb")
         self.reader = control_pipe_reader(self.original)

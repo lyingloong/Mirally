@@ -11,10 +11,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from openassist.platform.activity.browser_url import WindowsBrowserURLSource, normalize_browser_url
-from openassist.platform.activity.browser_url_worker import find_address_bar_url
-from openassist.platform.activity.foreground import WindowsForegroundSource
-from openassist.runtime.activity.config import ActivityConfig, load_activity_config
+from mirally.platform.activity.browser_url import WindowsBrowserURLSource, normalize_browser_url
+from mirally.platform.activity.browser_url_worker import find_address_bar_url
+from mirally.platform.activity.foreground import WindowsForegroundSource
+from mirally.runtime.activity.config import ActivityConfig, load_activity_config
 
 
 def _control(role="PaneControl", name="", value="", children=(), **properties):
@@ -104,7 +104,7 @@ class ActivityWindowContextTests(unittest.TestCase):
         source.available = True
         process = Mock()
         process.communicate.side_effect = [subprocess.TimeoutExpired("worker", 1), ("", None)]
-        with patch("openassist.platform.activity.browser_url.subprocess.Popen", return_value=process):
+        with patch("mirally.platform.activity.browser_url.subprocess.Popen", return_value=process):
             result = source.read(100, app_id="msedge.exe", timeout_ms=100)
         self.assertEqual(result.status, "timeout")
         self.assertEqual(result.missing_reasons, ("worker_deadline",))
@@ -116,13 +116,13 @@ class ActivityWindowContextTests(unittest.TestCase):
         process = Mock(returncode=0)
         for output in ("[]", "null", '{"duration_ms":"bad"}', "invalid json"):
             process.communicate.return_value = (output, None)
-            with patch("openassist.platform.activity.browser_url.subprocess.Popen", return_value=process):
+            with patch("mirally.platform.activity.browser_url.subprocess.Popen", return_value=process):
                 result = source.read(100, app_id="msedge.exe")
             self.assertEqual(result.missing_reasons, ("invalid_worker_response",))
 
     def test_real_worker_module_rejects_invalid_target_without_desktop_access(self):
         completed = subprocess.run(
-            [sys.executable, "-m", "openassist.platform.activity.browser_url_worker", "--hwnd", "0"],
+            [sys.executable, "-m", "mirally.platform.activity.browser_url_worker", "--hwnd", "0"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             encoding="utf-8",
@@ -137,7 +137,7 @@ class ActivityWindowContextTests(unittest.TestCase):
         script = r'''
 import ctypes
 from ctypes import wintypes
-from openassist.platform.activity.foreground import WindowsForegroundSource
+from mirally.platform.activity.foreground import WindowsForegroundSource
 user32 = ctypes.windll.user32
 user32.CreateWindowExW.restype = wintypes.HWND
 user32.CreateWindowExW.argtypes = [wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR,

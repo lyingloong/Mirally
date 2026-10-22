@@ -8,6 +8,7 @@ import {
   setActiveEmbeddedRun, clearActiveEmbeddedRun, runAgentHarnessGatewayQuestion,
   claimPendingAgentQuestionAnswer, cancelPendingAgentQuestionForSession,
   resolveBootstrapContextForRun,
+  isSubagentSessionKey,
 } from "openclaw/plugin-sdk/agent-harness-runtime";
 import { SessionManager } from "openclaw/plugin-sdk/agent-sessions";
 import { appendSessionTranscriptMessageByIdentityStrict } from "openclaw/plugin-sdk/session-transcript-runtime";
@@ -145,12 +146,11 @@ export function preparedRoute(params) {
     parameters: parametersFor(params, model)};
 }
 
-/**
- * Selecting the UFO agent is already an explicit desktop intent. A spawned
- * child carries the same mode; the worker's conversation mode remains only a
- * protocol-compatible fallback for older callers.
- */
+// Session classification belongs to OpenClaw. Do not infer delegation from
+// the prompt, agent id, or spawnedBy alone; child continuations keep their key.
 export function workerMode(params) {
+  if (!isSubagentSessionKey(params.sessionKey))
+    throw refuse("桌面执行器仅供 Mirally 主助手调用子任务，请返回主助手提出桌面操作要求。");
   return WORKER_MODES.desktopSubtask;
 }
 
@@ -162,7 +162,7 @@ function workerProcess(root) {
   const python = existsSync(pythonw) ? pythonw : path.join(root, ".venv/Scripts/python.exe");
   if (!existsSync(python) || !existsSync(path.join(root, "UFO/ufo/module/sessions/session.py")))
     throw refuse("UFO 执行环境未就绪，请初始化 UFO submodule 并安装根目录 Python 依赖。");
-  return spawn(python, ["-m", "openassist.runtime.ufo.worker", "--root", root], {
+  return spawn(python, ["-m", "mirally.runtime.ufo.worker", "--root", root], {
     cwd: root, windowsHide: true, stdio: ["pipe", "pipe", "pipe"],
     env: {...process.env, PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1"},
   });
@@ -254,10 +254,12 @@ export function createUfoHarness(api, dependencies = {}) {
   const unregisterRun = dependencies.unregisterRun ?? clearActiveEmbeddedRun;
   const workers = new Map();
   return {
-    id: HARNESS_ID, label: "桌面助手（UFO）", autoSelection: {providerIds: []},
+    id: HARNESS_ID, label: "桌面执行（内部子任务）", autoSelection: {providerIds: []},
     executionEnvironment: "host-only",
     supports: ctx => routeSupport(ctx, api.config),
     async runAttempt(params) {
+      // Refuse top-level chats before context/auth preparation or worker launch.
+      const mode = workerMode(params);
       const diagnostic = createRunDiagnostics(root, params.runId,
         message => api.logger?.warn?.(message));
       diagnostic("harness_entered");
@@ -281,7 +283,6 @@ export function createUfoHarness(api, dependencies = {}) {
       diagnostic("phase", {stage: "context_ready"});
       host.assertActive();
       params.abortSignal?.throwIfAborted();
-      const mode = workerMode(params);
       params.onExecutionPhase?.({phase: "context_assembled", provider: params.provider,
         model: params.modelId, backend: HARNESS_ID});
       if (mode === WORKER_MODES.desktopSubtask)

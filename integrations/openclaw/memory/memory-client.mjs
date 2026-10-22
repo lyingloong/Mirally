@@ -103,7 +103,7 @@ export function createMemoryClient(options = {}) {
       if (stopping) await stopPromise;
       if (child) return request("health");
       if (!options.configPath) throw failure("Memory configPath is required", "memory_config_missing");
-      const target = spawnImpl(options.pythonPath ?? pythonFor(root), ["-m", "openassist.runtime.memory.worker", "--root", root, "--config", path.resolve(root, options.configPath)], {
+      const target = spawnImpl(options.pythonPath ?? pythonFor(root), ["-m", "mirally.runtime.memory.worker", "--root", root, "--config", path.resolve(root, options.configPath)], {
         cwd: root, windowsHide: true, stdio: ["pipe", "pipe", "pipe"],
         env: { ...process.env, PYTHONUNBUFFERED: "1", PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1" },
       });

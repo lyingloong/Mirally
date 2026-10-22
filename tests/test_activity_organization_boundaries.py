@@ -7,8 +7,8 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from openassist.core.activity import Observation, ObservationStore
-from openassist.core.activity.knowledge import ActivityOrganizer, ContextQuery, KnowledgeStore
+from mirally.core.activity import Observation, ObservationStore
+from mirally.core.activity.knowledge import ActivityOrganizer, ContextQuery, KnowledgeStore
 
 
 class ActivityOrganizationBoundaryTests(unittest.TestCase):

@@ -37,7 +37,7 @@ class ActivityAgentConfigTests(unittest.TestCase):
     def test_child_revision_changes_for_code_updates_and_ignores_activity_data(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            package = root / "openassist/runtime/activity"
+            package = root / "mirally/runtime/activity"
             package.mkdir(parents=True)
             source = package / "mcp_server.py"
             source.write_text("revision = 1\n", encoding="utf-8")

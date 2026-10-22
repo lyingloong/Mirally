@@ -17,16 +17,16 @@ from unittest.mock import patch
 ROOT, UFO_ROOT, SCENARIO = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
 sys.path.insert(0, str(ROOT))
 
-from openassist.runtime.config import configure_ufo_config_root
+from mirally.runtime.config import configure_ufo_config_root
 
 configure_ufo_config_root(Path.cwd(), ufo_root=UFO_ROOT)
 
 from PIL import Image
 from pywinauto.win32structures import RECT
 
-from openassist.core.assistant import Assistant
-from openassist.core.conversation import ConversationStore
-from openassist.runtime.native_compat import native_compatibility
+from mirally.core.assistant import Assistant
+from mirally.core.conversation import ConversationStore
+from mirally.runtime.native_compat import native_compatibility
 
 
 BODY = "Integration fixture body: preserve this exact sentence."
@@ -256,7 +256,7 @@ def main():
         previous_windows = inspector.ControlInspectorFacade.get_desktop_windows
         previous_handlers = logging.getLogger().handlers[:]
         if SCENARIO == "prepared_route":
-            from openassist.runtime.ufo.model_bridge import selected_model
+            from mirally.runtime.ufo.model_bridge import selected_model
             from ufo.llm.base import BaseService
             previous_factory = vars(BaseService)["get_service"]
             selected_calls = []
@@ -297,7 +297,7 @@ def main():
             stack.enter_context(patch.object(ui_controller.pyautogui, method, side_effect=AssertionError("Unexpected real input")))
         stack.enter_context(patch.object(ui_controller.keyboard, "send_keys", side_effect=AssertionError("Unexpected real keyboard input")))
 
-        from openassist.application import create_controller
+        from mirally.application import create_controller
         conversation = ConversationStore(Path.cwd() / "conversations")
 
         def conversational_completion(messages):
@@ -333,7 +333,7 @@ def main():
         assert {"observing", "planning", "executing"} <= set(phases), phases
         terminal = [phase for phase in phases if phase in {"completed", "partial", "incomplete", "failed", "cancelled"}]
         assert terminal == [harness.controller.phase], "The product emitted duplicate or inconsistent terminal states"
-        event_files = list(Path.cwd().glob("logs/**/openassist-events.jsonl"))
+        event_files = list(Path.cwd().glob("logs/**/mirally-events.jsonl"))
         assert len(event_files) == 1, event_files
         native_events = [json.loads(line) for line in event_files[0].read_text(encoding="utf-8").splitlines()]
         sequence = [event["sequence"] for event in native_events]

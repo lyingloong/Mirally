@@ -57,7 +57,7 @@
 [透明生产图](../../../../output/imagegen/mirally-a-monogram/01-ally-wing-production-transparent.png)
 为 1254 × 1254 RGBA，透明通道范围 0–255，已打开检视。选定原稿保持不变。
 
-运行资源放在 [openassist/assets](../../../../openassist/assets/README.md)，包含生产 PNG、11 个尺寸 PNG
-和覆盖 16–256 px 的 Windows ICO。应用通过 `openassist.branding` 加载，启动动画通过
-`openassist.startup.StartupReveal` 使用同一标记。开屏约 0.94 秒，首个点击或键盘输入即可跳过，
+运行资源放在 [mirally/assets](../../../../mirally/assets/README.md)，包含生产 PNG、11 个尺寸 PNG
+和覆盖 16–256 px 的 Windows ICO。应用通过 `mirally.branding` 加载，启动动画通过
+`mirally.startup.StartupReveal` 使用同一标记。开屏约 0.94 秒，首个点击或键盘输入即可跳过，
 “减少动态效果”下直接展示主界面。

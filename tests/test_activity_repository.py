@@ -7,7 +7,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from openassist.core.activity.knowledge import ActivityEpisode, ActivityItem, Evidence, KnowledgeStore
+from mirally.core.activity.knowledge import ActivityEpisode, ActivityItem, Evidence, KnowledgeStore
 
 
 class ActivityRepositoryTests(unittest.TestCase):
