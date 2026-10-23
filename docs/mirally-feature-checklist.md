@@ -1,5 +1,7 @@
 # Mirally 功能与体验验收清单
 
+> 本文下方保留 OpenClaw 维护基线的人工体验清单。`codex/mirally-framework-refactor` 默认入口现已运行自有框架，Mirally 自有体验按 [新框架迁移对照](framework-experience-migration.md) 保留；涉及上游配置路径、Gateway、原生 Files 等操作以新文档为准。旧入口需显式 `--openclaw`，不要与新 owner 同时运行。
+
 更新日期：2026-10-15。用于对照检查这几轮累计增加的功能，也用于记录尚未解决的体验问题。所有方框留给实际使用者勾选；有过机器侧验证，不等于你的桌面体验已经验收通过。
 
 当前检查入口是项目根目录的 `.\run.ps1` 或 `.\run-openclaw.ps1 mirally`：完整原生工作台，加上 Mirally 的品牌、工作页面和侧边伙伴。旧 UFO 专用界面和独立 Tk 客户端已删除，不再维护第二套界面。普通会话使用主 Agent，UFO 仅承接其委派的桌面子任务。

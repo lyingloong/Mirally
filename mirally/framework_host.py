@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import logging
 import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
-import threading
 import time
 import urllib.request
 import webbrowser
@@ -128,78 +126,8 @@ class FrameworkHost:
 
 
 def desktop(host: FrameworkHost) -> None:
-    import webview
-    from mirally.platform.frontend_registry import FrontendRegistration
-    logging.getLogger("pywebview").setLevel(logging.WARNING)
-    registration = FrontendRegistration(host.root)
-    quitting = threading.Event()
-    tray_ready = threading.Event()
-    tray = []
-
-    class Bridge:
-        def editing(self, value=False):
-            registration.update(value is True)
-
-        def quit(self):
-            quitting.set()
-            window.destroy()
-
-    bridge = Bridge()
-    window = webview.create_window("Mirally", host.url, js_api=bridge, width=1240, height=850,
-                                   min_size=(480, 620), text_select=True)
-
-    def closing():
-        registration.update(False)
-        if not quitting.is_set() and tray_ready.is_set():
-            window.hide()
-            return False
-        return True
-
-    def shown():
-        try:
-            from System import Action
-            from System.Drawing import Icon
-            from System.Windows.Forms import NotifyIcon, ContextMenuStrip, ToolStripMenuItem
-            def install():
-                icon = NotifyIcon()
-                asset = host.root / "mirally/assets/mirally.ico"
-                if not asset.is_file():
-                    asset = host.root / "assets/mirally.ico"
-                icon.Icon = Icon(str(asset)) if asset.is_file() else Icon.ExtractAssociatedIcon(sys.executable)
-                icon.Text = "Mirally · 关闭窗口后继续运行"
-                menu = ContextMenuStrip()
-                show = ToolStripMenuItem("打开 Mirally")
-                show.Click += lambda *_: (window.show(), window.restore())
-                exit_item = ToolStripMenuItem("退出 Mirally")
-                exit_item.Click += lambda *_: bridge.quit()
-                menu.Items.Add(show)
-                menu.Items.Add(exit_item)
-                icon.ContextMenuStrip = menu
-                icon.DoubleClick += lambda *_: (window.show(), window.restore())
-                icon.Visible = True
-                tray.append(icon)
-                tray_ready.set()
-            window.native.Invoke(Action(install))
-        except Exception:
-            logging.getLogger(__name__).exception("Tray unavailable; closing the window will exit")
-
-    def watch_host():
-        while not quitting.wait(1):
-            if host.process and host.process.poll() is not None:
-                bridge.quit()
-                return
-
-    window.events.closing += closing
-    window.events.shown += shown
-    threading.Thread(target=watch_host, daemon=True).start()
-    try:
-        webview.start(gui="edgechromium", private_mode=False, storage_path=str(host.home / "webview"))
-    finally:
-        quitting.set()
-        for icon in tray:
-            icon.Visible = False
-            icon.Dispose()
-        registration.close()
+    from mirally.framework_shell import FrameworkShell
+    FrameworkShell(host).run()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -216,8 +144,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--test-mode requires an explicit isolated --home")
     host = FrameworkHost(args.root, args.home, node=args.node, test_mode=args.test_mode, port=args.port)
     try:
-        host.start()
         if args.headless or args.browser:
+            host.start()
             if args.browser:
                 webbrowser.open(host.url)
             print("Mirally is running at " + host.runtime["url"], flush=True)

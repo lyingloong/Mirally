@@ -6,6 +6,7 @@
   'use strict';
 
   function active() {
+    if (root.__mirallyExperience) return root.__mirallyExperience.active();
     return [...(root.document?.querySelectorAll(
       'openclaw-chat-pane.chat-pane-cache__pane--active') ?? [])]
       .find(pane => pane.presented !== false && pane.state?.handleSendChat) ?? null;
@@ -18,6 +19,10 @@
   async function attach(files) {
     if (!files?.length) return false;
     const pane = await ensureReady();
+    if (root.__mirallyExperience) {
+      if (!pane) return false;
+      return await root.__mirallyExperience.attachFiles([...files]) !== false;
+    }
     const input = pane?.querySelector('.agent-chat__file-input');
     if (!input || input.disabled || !root.DataTransfer) return false;
     const transfer = new root.DataTransfer();

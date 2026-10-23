@@ -29,6 +29,8 @@ INITIATIVE_RUNS_SCHEMA = """CREATE TABLE initiative_runs (id TEXT PRIMARY KEY,le
     created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,status TEXT NOT NULL,sources_json TEXT NOT NULL)"""
 DEFAULT_SETTINGS = {
     "activity_enabled": False, "background_enabled": False,
+    "activity_paused": False, "activity_capture": {},
+    "memory_semantics": {"max_calls_per_hour": 4, "max_tokens_per_day": 24000, "max_output_tokens": 1500},
     "general_initiative_enabled": False, "memory_enabled": True,
     "do_not_disturb": False, "memory_config_path": None, "activity_config_path": None, "extensions": [],
     "model": {"provider": "openai-compatible", "base_url": "", "api_format": "openai-chat",
@@ -82,6 +84,8 @@ class FrameworkService:
             self.db.execute("PRAGMA synchronous=FULL")
             self._initialize()
             self.reader = ContextReader(self.root, self.home)
+            from .activity_experience import ActivityExperience
+            self.experience = ActivityExperience(self)
             with self._transaction():
                 # A process died after reserving an external effect. Reconcile
                 # the provider; never turn this back into pending automatically.
@@ -169,6 +173,11 @@ class FrameworkService:
             "interaction.stop": self.interaction_stop, "source.set": self.source_set, "source.list": self.source_list,
             "guard.check": self.guard_check, "context.read": self.context_read,
             "memory.search": self.memory_search, "memory.list": self.memory_search, "memory.read": self.memory_read,
+            "memory.status": self.experience.memory_status, "memory.configure": self.experience.memory_configure,
+            "activity.status": self.experience.status, "activity.configure": self.experience.configure,
+            "activity.start": self.experience.start, "activity.pause": self.experience.pause,
+            "activity.resume": self.experience.resume, "activity.stop": self.experience.stop,
+            "activity.browse": self.experience.browse,
             "preference.set": self.preference_set, "preference.list": self.preference_list, "memory.correct": self.memory_correct,
             "commitment.create": self.commitment_create, "commitment.cancel": self.commitment_cancel, "commitment.list": self.commitment_list,
             "reminder.create": self.reminder_create,
@@ -184,8 +193,12 @@ class FrameworkService:
         with self._lock:
             try:
                 return routes[method](**params)
+            except FrameworkError:
+                raise
             except TypeError as error:
                 raise FrameworkError("INVALID_PARAMS", "unexpected or missing parameters") from error
+            except ValueError as error:
+                raise FrameworkError("INVALID_PARAMS", str(error)[:1000]) from error
             except sqlite3.IntegrityError as error:
                 raise FrameworkError("CONFLICT", "product identity or binding conflict") from error
 
@@ -202,9 +215,10 @@ class FrameworkService:
 
     def status(self) -> dict[str, Any]:
         workers = self._controller_status()
+        observed = workers.get("status") if isinstance(workers.get("status"), dict) else workers
         return {"schema_version": SCHEMA_VERSION, "ready": True, "home": str(self.home),
-                "database": str(self.path), "collector_started": workers.get("activity", {}).get("state") == "running",
-                "background_model_started": workers.get("semantic", {}).get("state") == "running",
+                "database": str(self.path), "collector_started": isinstance(observed.get("activity"), dict) and observed["activity"].get("state") == "running",
+                "background_model_started": isinstance(observed.get("semantic"), dict) and observed["semantic"].get("state") == "running",
                 "scheduler": "host_tick", "model_bridge": "host_managed", "transcript_owner": "dsh",
                 "now_utc_ms": self.clock(), "workers": workers}
 
@@ -234,8 +248,8 @@ class FrameworkService:
         value = copy.deepcopy(DEFAULT_SETTINGS)
         for row in self.db.execute("SELECT key,value_json FROM settings"):
             saved = json.loads(row["value_json"])
-            if row["key"] == "model":
-                value["model"].update(saved)
+            if row["key"] in {"model", "activity_capture", "memory_semantics"}:
+                value[row["key"]].update(saved)
             else:
                 value[row["key"]] = saved
         return value
@@ -298,6 +312,19 @@ class FrameworkService:
                     if field == "api_format" and setting not in {"openai-chat", "openai-completions", "openai-responses", "anthropic", "anthropic-messages"}:
                         raise FrameworkError("INVALID_PARAMS", "unsupported model API format")
                     value["model"][field] = setting
+            elif key == "activity_capture":
+                from .activity_experience import validate_capture_patch
+                try:
+                    value[key].update(validate_capture_patch(item))
+                except ValueError as error:
+                    raise FrameworkError("INVALID_PARAMS", str(error)) from error
+            elif key == "memory_semantics":
+                if not isinstance(item, dict) or set(item) - set(DEFAULT_SETTINGS[key]):
+                    raise FrameworkError("INVALID_PARAMS", "unsupported semantic budget field")
+                for field, setting in item.items():
+                    _integer(setting, field, 0 if field != "max_output_tokens" else 128,
+                             {"max_calls_per_hour": 1000, "max_tokens_per_day": 10000000, "max_output_tokens": 262144}[field])
+                value[key].update(item)
             elif key == "extensions":
                 if not isinstance(item, list) or len(item) > 100 or any(not isinstance(entry, dict) for entry in item):
                     raise FrameworkError("INVALID_PARAMS", "extensions must be at most 100 configuration objects")
@@ -322,7 +349,9 @@ class FrameworkService:
             for key in patch:
                 self.db.execute("INSERT INTO settings VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json", (key, _json(value[key])))
             for kind in ("memory", "activity"):
-                if any(value[key] != previous[key] for key in (kind + "_enabled", kind + "_config_path")):
+                fields = [kind + "_enabled", kind + "_config_path"]
+                if kind == "activity": fields.extend(["activity_capture", "activity_paused"])
+                if any(value[key] != previous[key] for key in fields):
                     self._invalidate(kind, self._source(kind)["enabled"], "source_policy_changed", force=True)
         self._update_controller()
         result = self._public_settings(value)
@@ -460,8 +489,11 @@ class FrameworkService:
             self.db.execute("UPDATE commands SET state=?,runtime_request_id=COALESCE(runtime_request_id,?),updated_at=? WHERE conversation_id=? AND command_id=?", (state, runtime_request_id, self.clock(), conversation_id, command_id))
         return self._command(conversation_id, command_id)
 
-    def command_list(self, conversation_id: str) -> dict[str, Any]:
+    def command_list(self, conversation_id: str, command_id: str | None = None) -> dict[str, Any]:
         self._conversation(conversation_id)
+        if command_id is not None:
+            _text(command_id, "command_id")
+            return {"commands": [dict(row) for row in self.db.execute("SELECT * FROM commands WHERE conversation_id=? AND command_id=?", (conversation_id, command_id))]}
         return {"commands": [self._command(conversation_id, row[0]) for row in self.db.execute("SELECT command_id FROM commands WHERE conversation_id=? ORDER BY created_at DESC,command_id DESC LIMIT 200", (conversation_id,))]}
 
     def interaction_stop(self, conversation_id: str, command_id: str | None = None) -> dict[str, Any]:
@@ -618,7 +650,7 @@ class FrameworkService:
             result["gaps"].append("public_source_list_bounded; complete known use receipts retained by product owner")
         return {**result, "preferences": preferences, "sources": refs[:200]}
 
-    def _memory_source_refs(self, record: dict[str, Any]) -> list[dict[str, Any]]:
+    def _memory_source_refs(self, record: dict[str, Any], *, allow_candidate: bool = False) -> list[dict[str, Any]]:
         """Include the owner's known derivation chain on every memory read."""
         from mirally.core.memory.store import MemoryStore
         identities, seen = {"memory"}, set()
@@ -631,7 +663,8 @@ class FrameworkService:
         try:
             for _depth in range(64):
                 identity = current["id"]
-                if identity in seen or current.get("status") not in (None, "active"):
+                allowed = (None, "active", "candidate") if allow_candidate and identity == record["id"] else (None, "active")
+                if identity in seen or current.get("status") not in allowed:
                     raise FrameworkError("FORBIDDEN", "memory lineage is inactive or cyclic")
                 seen.add(identity)
                 identities.add("memory:" + identity)
@@ -694,20 +727,11 @@ class FrameworkService:
         self._update_controller()
         return {"memory": updated, "affected": invalidated["affected"], "source": source}
 
-    def memory_search(self, query: str = "", limit: int = 10) -> dict[str, Any]:
-        return self.context_read(query=query, limit=limit, include_activity=False)["memory"]
+    def memory_search(self, query: str = "", limit: int = 10, include_candidates: bool = False, offset: int = 0, **filters) -> dict[str, Any]:
+        return self.experience.memory_search(query=query, limit=limit, include_candidates=include_candidates, offset=offset, **filters)
 
-    def memory_read(self, memory_id: str) -> dict[str, Any]:
-        _text(memory_id, "memory_id")
-        if not self._settings()["memory_enabled"] or not self._source("memory")["enabled"] or not self._source("memory:" + memory_id)["enabled"]:
-            raise FrameworkError("FORBIDDEN", "memory source is disabled")
-        from mirally.runtime.memory.service import MemoryReader
-        result = MemoryReader(self.root, config=memory_config(self.root, self.home, self._settings())).handle("read", {"memory_id": memory_id})
-        if result.get("memory"):
-            refs = self._memory_source_refs(result["memory"])
-            if self._source_reasons(refs):
-                raise FrameworkError("FORBIDDEN", "memory contains disabled sources")
-        return result
+    def memory_read(self, memory_id: str, from_line: int = 1, line_count: int = 100, include_candidates: bool = False) -> dict[str, Any]:
+        return self.experience.memory_read(memory_id, from_line=from_line, line_count=line_count, include_candidates=include_candidates)
 
     def reminder_create(self, text: str, due_at: str, channel: str = "inbox", request_id: str | None = None,
                         conversation_id: str | None = None) -> dict[str, Any]:
@@ -936,6 +960,7 @@ class FrameworkService:
     def close(self) -> None:
         with self._lock:
             try:
+                self.experience.close()
                 if self.controller is not None:
                     self.controller.close()
             finally:

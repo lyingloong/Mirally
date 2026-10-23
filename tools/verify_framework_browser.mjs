@@ -13,6 +13,8 @@ const output = resolve(process.argv[3] ?? join(root, '.artifacts/framework-brows
 await mkdir(output, {recursive: true});
 const browser = await chromium.launch({channel: 'msedge', headless: true});
 const errors = [];
+const run = Date.now().toString(36);
+async function newChat() { const old = await page.evaluate(() => __mirallyFramework.state.current?.id); await page.locator('#new-chat').click(); await page.waitForFunction(old => __mirallyFramework.state.current?.id && __mirallyFramework.state.current.id !== old && !__mirallyFramework.state.historyLoading, old); }
 let page;
 try {
   const context = await browser.newContext({viewport: {width: 1280, height: 900}, timezoneId: 'Asia/Shanghai'});
@@ -28,7 +30,7 @@ try {
   await page.locator('#model-settings button').click();
   await page.getByText('模型连接已保存。下一次对话使用新配置。').waitFor();
   assert.equal(await page.locator('#model-key').inputValue(), '');
-  await page.locator('#new-chat').click();
+  await newChat();
   await page.locator('#message').fill('你好，验证流式对话');
   await page.locator('#send').click();
   await page.locator('.message.assistant').filter({hasText: '你好，验证流式对话'}).waitFor();
@@ -37,26 +39,26 @@ try {
   await page.reload();
   await page.locator('#connection.ready').waitFor();
   await page.locator('.message.assistant').filter({hasText: '你好，验证流式对话'}).waitFor();
-  await page.locator('#new-chat').click();
+  await newChat();
   await page.waitForFunction(() => document.querySelectorAll('#messages .message').length === 0);
   await page.locator('nav [data-page=memory]').click();
-  await page.locator('#page-memory details summary').click();
-  await page.locator('#correction-text').fill('验证记忆：<img src=x onerror=window.__unsafe=1> 喜欢简洁表达');
+  await page.locator('#page-memory details summary').filter({hasText: '补充或纠正记忆'}).click();
+  await page.locator('#correction-text').fill(`验证记忆 ${run}：<img src=x onerror=window.__unsafe=1> 喜欢简洁表达`);
   await page.locator('#memory-correction button').click();
   await page.getByText('纠正已保存。').waitFor();
-  await page.locator('#memory-query').fill('验证记忆');
+  await page.locator('#memory-query').fill(`验证记忆 ${run}`);
   await page.locator('#memory-search button').click();
-  await page.locator('#memory-results .card').filter({hasText: '喜欢简洁表达'}).waitFor();
+  await page.locator('#memory-results .card').filter({hasText: `验证记忆 ${run}`}).waitFor();
   assert.equal(await page.evaluate(() => window.__unsafe), undefined);
   await page.locator('nav [data-page=reminders]').click();
-  await page.locator('#reminder-text').fill('浏览器真实提醒');
+  await page.locator('#reminder-text').fill(`浏览器真实提醒 ${run}`);
   const past = new Date(Date.now() - 60_000); const local = new Date(past.getTime() - past.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
   await page.locator('#reminder-time').fill(local);
   await page.locator('#reminder-create button').click();
   await page.getByText('提醒已创建。').waitFor();
   await page.locator('nav [data-page=inbox]').click();
-  await page.locator('#inbox-items .card').filter({hasText: '浏览器真实提醒'}).waitFor();
-  await page.locator('#inbox-items .card button').first().click();
+  await page.locator('#inbox-items .card').filter({hasText: `浏览器真实提醒 ${run}`}).waitFor();
+  await page.locator('#inbox-items .card').filter({hasText: `浏览器真实提醒 ${run}`}).getByRole('button').click();
   await page.waitForFunction(() => document.querySelector('#inbox-count').textContent === '');
   await page.locator('nav [data-page=actions]').click();
   await page.locator('#desktop-text').fill('这个任务尚未确认');

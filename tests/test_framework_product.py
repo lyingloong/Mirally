@@ -146,6 +146,16 @@ class FrameworkProductTests(unittest.TestCase):
         self.assertEqual(len(self.call("command.list", conversation_id="chat")["commands"]), 1)
         with self.assertRaises(FrameworkError):
             self.call("command.admit", conversation_id="chat", command_id="same", text="different")
+
+    def test_command_identity_lookup_is_exact_beyond_the_recent_list(self):
+        self.conversation()
+        for index in range(205):
+            self.now += 1
+            self.call("command.admit", conversation_id="chat", command_id=f"command-{index}", text=str(index))
+        self.assertNotIn("command-0", {item["command_id"] for item in self.call("command.list", conversation_id="chat")["commands"]})
+        exact = self.call("command.list", conversation_id="chat", command_id="command-0")["commands"]
+        self.assertEqual([item["command_id"] for item in exact], ["command-0"])
+        self.assertEqual(self.call("command.list", conversation_id="chat", command_id="missing")["commands"], [])
         self.assertNotIn("同一句输入", self.service.path.read_bytes().decode("utf-8", errors="ignore"))
 
     def test_command_replay_never_rebinds_new_generation(self):

@@ -29,6 +29,7 @@
 - MCP client 导出受监督连接，并补齐共享连接上的 prompts、取消/代次检查和工具调用前授权回调；资源、工具与提示模板使用同一传输，相关协议测试同步维护。
 - `tsdown.config.ts` 按 `dsh.sourceOnly` 跳过源码 MJS workspace 的 TypeScript `lib/types` 输出假设。`pnpm-lock.yaml` 记录新增 workspace 接缝。
 - `pnpm-workspace.yaml` 禁止 lefthook 依赖自身的构建/安装钩子，补足工作区自有 postinstall 保护，防止嵌入安装修改外层 Git hooks；准备脚本同时设置 `LEFTHOOK=0`。
+- `mirally-product` 通过原生 attachments 服务接入显式材料和多模态消息，新增有产品授权约束的成果文件工具及本机预览/下载接口；呈现仍复用 Mirally 的既有桌宠、工作页和 Windows 窗口代码，不使用 OpenClaw 客户端或另一条主循环。
 
 ## 验证范围
 

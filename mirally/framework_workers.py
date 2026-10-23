@@ -157,14 +157,10 @@ class WorkerSupervisor:
         return False
 
     def _profiles(self, settings: dict[str, Any]) -> tuple[Path, Path]:
+        from mirally.framework.activity_experience import activity_profile
         activity_path = self.home / "config/activity.yaml"
         memory_path = self.home / "config/memory.yaml"
-        activity = self._profile(settings, "activity")
-        activity["enabled"] = bool(settings.get("activity_enabled", False))
-        if not settings.get("activity_config_path"):
-            activity["storage"] = {"directory": str(self.home / "data/activity"),
-                                   "database_path": str(self.home / "data/activity/observations.sqlite3"),
-                                   "knowledge_database_path": str(self.home / "data/activity/knowledge.sqlite3")}
+        activity = activity_profile(self.root, self.home, settings, capture=True)
         _write_yaml(activity_path, activity)
         memory = self._profile(settings, "memory")
         memory["enabled"] = bool(settings.get("memory_enabled", True))
@@ -172,7 +168,7 @@ class WorkerSupervisor:
         if not settings.get("memory_config_path"):
             memory["database_path"] = str(self.home / "memory/memory.sqlite3")
             memory["projection_database_path"] = str(self.home / "memory/activity-projection.sqlite3")
-        memory["semantics"] = {**memory.get("semantics", {}), "enabled": bool(settings.get("background_enabled", False)) and not self._source_blocked(settings), "model": settings.get("model", {}).get("model_id") or None, "max_calls_per_hour": 4, "max_tokens_per_day": 24000, "max_output_tokens": 1500}
+        memory["semantics"] = {**memory.get("semantics", {}), "enabled": bool(settings.get("background_enabled", False)) and not self._source_blocked(settings), "model": settings.get("model", {}).get("model_id") or None, **{"max_calls_per_hour": 4, "max_tokens_per_day": 24000, "max_output_tokens": 1500, **settings.get("memory_semantics", {})}}
         _write_yaml(memory_path, memory)
         return activity_path, memory_path
 
@@ -205,7 +201,8 @@ class WorkerSupervisor:
     def _apply(self, settings: dict[str, Any]) -> None:
         activity_path, memory_path = self._profiles(settings)
         activity_signature = hashlib.sha256(activity_path.read_bytes()).hexdigest()
-        if self._activity is not None and (not settings.get("activity_enabled") or activity_signature != self._activity_signature):
+        capture_enabled = settings.get("activity_enabled") and not settings.get("activity_paused", False)
+        if self._activity is not None and (not capture_enabled or activity_signature != self._activity_signature):
             self._stop_activity()
         # Activity profile content also determines the Memory organizer source;
         # a path/policy change must not leave it reading the old store.
@@ -214,7 +211,7 @@ class WorkerSupervisor:
             self._cancel_completion("memory_owner_changed")
             self._memory.close()
             self._memory = None
-        if settings.get("activity_enabled") and self._activity is None:
+        if capture_enabled and self._activity is None:
             if sys.platform != "win32":
                 self._state_update("activity", state="unsupported", error="Activity capture requires Windows")
             else:
@@ -225,6 +222,8 @@ class WorkerSupervisor:
                 self._activity = subprocess.Popen([sys.executable, "-m", "mirally.framework_workers", "activity", "--root", str(self.root), "--config", str(activity_path)], cwd=self.root, env=environment, stdin=subprocess.PIPE, stdout=self._activity_log, stderr=subprocess.STDOUT, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
                 self._activity_signature = activity_signature
                 self._state_update("activity", state="starting", pid=self._activity.pid, log=str(logs / "activity.log"))
+        elif settings.get("activity_enabled") and settings.get("activity_paused"):
+            self._state_update("activity", state="paused", pid=None)
         if settings.get("memory_enabled", True) and self._memory is None:
             from mirally.runtime.memory.service import MemoryService
             self._memory = MemoryService(self.root, memory_path)

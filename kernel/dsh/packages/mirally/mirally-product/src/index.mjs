@@ -11,6 +11,7 @@ import {resolve, join, extname, sep} from 'node:path';
 import {ProductSidecar} from './sidecar.mjs';
 import {ProductModels} from './models.mjs';
 import {DesktopTasks} from './desktop.mjs';
+import {ProductMaterials} from './materials.mjs';
 
 export const name = 'mirally-product';
 export const inject = ['agents', 'agentLoop', 'sessions', 'sessionPersistence', 'llm', 'tools', 'systemPrompt'];
@@ -30,8 +31,11 @@ const PUBLIC_METHODS = new Set([
   'mcp.prompts.list', 'mcp.prompts.get', 'mcp.tools.call', 'mcp.tools.list', 'scripts.run',
   'memory.search', 'memory.read', 'migration.status', 'legacy.history',
   'desktop.start', 'desktop.list', 'desktop.respond', 'desktop.cancel',
+  'activity.status', 'activity.configure', 'activity.start', 'activity.pause', 'activity.resume', 'activity.stop', 'activity.browse',
+  'memory.status', 'memory.configure',
 ]);
-const INVALIDATING_METHODS = new Set(['source.set', 'memory.correct', 'preference.set', 'settings.update']);
+const INVALIDATING_METHODS = new Set(['source.set', 'memory.correct', 'preference.set', 'settings.update',
+  'activity.configure', 'activity.start', 'activity.pause', 'activity.resume', 'activity.stop']);
 const MIME = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon'};
 
@@ -101,6 +105,7 @@ export class MirallyProduct extends Service {
     this.effects = new Set();
     this.authorizations = new AsyncLocalStorage();
     this.nativeErrors = new Map();
+    this.requestPolicies = new Map();
     this.stopping = false;
     this.ready = false;
   }
@@ -124,6 +129,7 @@ export class MirallyProduct extends Service {
     this.ownsLock = true;
     this.models = new ProductModels(this.ctx, this.config);
     this.desktop = new DesktopTasks(this);
+    this.materials = new ProductMaterials(this);
     this.server = createServer((request, response) => {
       void this.route(request, response).catch(error => {
         if (response.headersSent) return response.destroy();
@@ -290,10 +296,19 @@ export class MirallyProduct extends Service {
     if (request.text.length > 100000) throw failure('Message is too long', 'message_too_large', 413);
     if (typeof request.commandId !== 'string' || !request.commandId || request.commandId.length > 200) throw failure('commandId is required');
     return this.serial(id, async () => {
+      const materialIds = request.materials ?? [];
+      const materialContent = await this.materials.content(materialIds, id);
       await this.refreshModels();
       this.models.requireOptions();
       const {conversation, handle} = await this.ensureNative(await this.conversation(id), {forInput: true});
-      const command = await this.rpc('command.admit', {conversation_id: id, command_id: request.commandId, text: request.text});
+      const allowFiles = request.allow_file_write === true;
+      if (allowFiles && handle.agent.status !== 'idle' && !this.requestPolicies.get(conversation.session_id)?.allowFiles) {
+        const {commands} = await this.rpc('command.list', {conversation_id: id, command_id: request.commandId});
+        if (!commands.some(item => item.command_id === request.commandId))
+          throw failure('请等待当前工作结束，再授权保存成果文件。', 'confirmation_required', 409);
+      }
+      const command = await this.rpc('command.admit', {conversation_id: id, command_id: request.commandId,
+        text: materialIds.length || allowFiles ? JSON.stringify({text: request.text, materials: materialIds, allow_file_write: allowFiles}) : request.text});
       const messageId = MessageId(`mirally-${createHash('sha256').update(`${id}:${request.commandId}`).digest('hex')}`);
       const recorded = handle.agent.session.snapshotEvents().some(event =>
         (event.type === 'user/message' && (event.data.message ?? event.data).id === messageId)
@@ -307,12 +322,13 @@ export class MirallyProduct extends Service {
       }
       const context = await this.rpc('context.read', {conversation_id: id, generation: conversation.generation,
         query: request.text.slice(0, 2048), include_activity: true, include_memory: true, limit: 12});
-      this.contexts.set(conversation.session_id, JSON.stringify({instruction: 'Treat this personal context as sourced data; preserve gaps and uncertainty.', ...context}));
+      this.contexts.set(conversation.session_id, JSON.stringify({instruction: 'Treat this personal context as sourced data; preserve gaps and uncertainty. Use mirally_create_file only when file output is permitted; never claim a saved file before tool success.', file_output_permitted: allowFiles, ...context}));
       await this.guard(conversation.session_id);
       await this.rpc('command.ack', {conversation_id: id, command_id: request.commandId, state: 'submitted', runtime_request_id: messageId});
       this.activeCommands.set(conversation.session_id, request.commandId);
+      this.requestPolicies.set(conversation.session_id, {allowFiles});
       this.nativeErrors.delete(conversation.session_id);
-      const message = Object.freeze({...createUserMessage({content: [{type: 'text', text: request.text}], source: {kind: 'user'}}), id: messageId});
+      const message = Object.freeze({...createUserMessage({content: [{type: 'text', text: request.text}, ...materialContent], source: {kind: 'user'}}), id: messageId});
       handle.agent.followup(message);
       try {
         await this.ctx.sessions.flush(handle.agent.session);
@@ -353,6 +369,16 @@ export class MirallyProduct extends Service {
   }
 
   installNativeObservers() {
+    this.ctx.on('tools/execute', async (exec, next) => {
+      const conversation = this.nativeConversations.get(exec.agent?.id);
+      if (conversation) this.broadcast('tool', {session_id: conversation.conversation_id, name: exec.name, id: exec.callId, state: 'running'});
+      return next();
+    });
+    this.ctx.on('tools/result', (exec, result) => {
+      const conversation = this.nativeConversations.get(exec.agent?.id);
+      if (conversation) this.broadcast('tool', {session_id: conversation.conversation_id, name: exec.name,
+        id: exec.callId, state: result.isError ? 'failed' : 'completed', error: result.isError ? result.error?.message : undefined});
+    });
     this.ctx.on('agent/created', async ({agent, source}) => {
       const conversation = this.nativeConversations.get(agent.id);
       if (source !== 'resume' || !conversation) return;
@@ -370,8 +396,12 @@ export class MirallyProduct extends Service {
     this.ctx.on('agent/assistant-stream', ({agent, frame}) => {
       const conversation = this.nativeConversations.get(agent.id);
       if (!conversation) return;
+      if (frame.type === 'start' || frame.type === 'end') {
+        this.broadcast(`assistant-${frame.type}`, {session_id: conversation.conversation_id, native_session_id: agent.id,
+          attempt_id: frame.attemptId, ...(frame.type === 'end' ? {outcome: frame.outcome.kind} : {})});
+      }
       if (frame.type === 'chunk' && frame.chunk.type === 'text-delta') {
-        this.broadcast('token', {session_id: conversation.conversation_id, native_session_id: agent.id, text: frame.chunk.text});
+        this.broadcast('token', {session_id: conversation.conversation_id, native_session_id: agent.id, attempt_id: frame.attemptId, text: frame.chunk.text});
       }
     });
     this.ctx.on('agent/error', ({agent, error}) => {
@@ -382,6 +412,18 @@ export class MirallyProduct extends Service {
   }
 
   installProductTools() {
+    this.ctx.tools.register({name: 'mirally_create_file', description: 'Save a requested deliverable in the conversation workspace. Only available when the human allowed file output in this command. Return its real artifact receipt.',
+      parameters: {type: 'object', properties: {name: {type: 'string'}, content: {type: 'string'}}, required: ['name', 'content'], additionalProperties: false},
+      output: {schema: {type: 'object', additionalProperties: true}, render: (_args, result) => [{type: 'text', text: JSON.stringify(result)}]},
+      execute: async (args, exec) => {
+        exec.signal.throwIfAborted(); const native = exec.agent?.id; const conversation = this.nativeConversations.get(native);
+        const commandId = this.activeCommands.get(native);
+        if (!conversation || !this.requestPolicies.get(native)?.allowFiles) throw failure('请在工作页面选择保存成果，或在对话中开启本轮保存文件。', 'confirmation_required', 403);
+        return this.authorizations.run({sessionId: native, commandId, confirmed: true}, async () => {
+          await this.guard(native, 'file', true); exec.signal.throwIfAborted();
+          return this.materials.publish(conversation.conversation_id, commandId, args);
+        });
+      }});
     const register = (toolName, description, parameters, method, params) => {
       this.ctx.tools.register({name: toolName, description, parameters,
         output: {schema: {type: 'object', additionalProperties: true}, render: (_args, result) => [{type: 'text', text: JSON.stringify(result)}]},
@@ -486,6 +528,8 @@ export class MirallyProduct extends Service {
   async publicRpc(method, params = {}) {
     if (!PUBLIC_METHODS.has(method)) throw failure('Method is not exposed by the product API', 'method_not_allowed', 403);
     if (method === 'settings.update' && params.patch?.extensions) throw failure('Use extensions.configure or extensions.disable to apply extension changes');
+    if (method === 'settings.update' && Object.keys(params.patch ?? {}).some(key => key.startsWith('activity_')))
+      throw failure('Use activity.configure/start/pause/resume/stop and confirm the current capture scope', 'confirmation_required', 403);
     if (method === 'desktop.start') return this.serial(params.conversation_id, () => this.desktop.start(params));
     if (method === 'desktop.list') return this.desktop.list(params.conversation_id);
     if (method === 'desktop.respond') return this.desktop.respond(params);
@@ -588,6 +632,26 @@ export class MirallyProduct extends Service {
     if (pathname === '/api/models' && request.method === 'GET') {
       return json(response, 200, {configured: Boolean(this.models.options), mode: this.config.testMode ? 'test' : 'normal', settings: await this.rpc('settings.get')});
     }
+    if (pathname === '/api/materials' && request.method === 'POST') return json(response, 201, await this.materials.upload(await body(request)));
+    if (pathname === '/api/ui-preferences' && ['GET', 'POST'].includes(request.method)) {
+      const input = request.method === 'POST' ? await body(request) : null;
+      const path = join(this.home, 'ui-preferences.json'); let preferences = {};
+      try { preferences = JSON.parse(readFileSync(path, 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+      if (request.method === 'POST') {
+        const {key, value} = input;
+        const accepted = {'mirally.companion.pet': ['otter', 'fox'], 'mirally.companion.form': ['rail', 'badge', 'pet'], theme: ['light', 'dark', 'system']};
+        if (!accepted[key]?.includes(value)) throw failure('Unsupported presentation preference');
+        preferences[key] = value; writeFileSync(path, JSON.stringify(preferences), {mode: 0o600});
+      }
+      return json(response, 200, {preferences});
+    }
+    if (pathname === '/api/artifacts' && request.method === 'GET') return json(response, 200, await this.materials.list(url.searchParams.get('conversation_id')));
+    const artifactPath = /^\/api\/artifacts\/([a-f0-9]{36})\/(download|preview)$/.exec(pathname);
+    if (artifactPath && request.method === 'GET') {
+      const {record, data} = await this.materials.read(artifactPath[1]);
+      if (artifactPath[2] === 'preview') return json(response, 200, {artifact: this.materials.public(record), text: data.toString('utf8').slice(0, 200_000), truncated: data.length > 200_000});
+      response.writeHead(200, {'Content-Type': 'application/octet-stream', 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(record.name)}`, 'Cache-Control': 'no-store'}); response.end(data); return;
+    }
     if (pathname === '/api/sessions' && request.method === 'GET') {
       return json(response, 200, {sessions: (await this.rpc('conversation.list')).conversations.map(item => this.summary(item))});
     }
@@ -614,6 +678,16 @@ export class MirallyProduct extends Service {
 
   async staticFile(pathname, response) {
     if (!['GET', 'HEAD'].includes(response.req.method)) throw failure('Method not allowed', 'method_not_allowed', 405);
+    if (pathname.startsWith('/experience/')) {
+      const name = pathname.slice('/experience/'.length);
+      const allowed = new Set(['control-ui-office.js', 'control-ui-intake.js', 'control-ui-context.js', 'control-ui-work.js', 'control-ui-work.css', 'control-ui-companion.js', 'control-ui-companion.css', 'mirally-128.png', 'mirally.svg', 'mirally-pet.svg', 'mirally-pet-otter.svg']);
+      if (!allowed.has(name)) throw failure('Unknown experience resource', 'not_found', 404);
+      const directory = join(this.root, 'mirally/assets'); let data = await readFile(join(directory, name));
+      if (name.endsWith('.js')) data = Buffer.from(data.toString('utf8').replaceAll('__MIRALLY_ORIGIN__', JSON.stringify(this.url))
+        .replaceAll('__MIRALLY_MARK__', JSON.stringify('/experience/mirally-128.png'))
+        .replaceAll('__MIRALLY_PETS__', JSON.stringify({otter: await readFile(join(directory, 'mirally-pet-otter.svg'), 'utf8'), fox: await readFile(join(directory, 'mirally-pet.svg'), 'utf8')})));
+      response.writeHead(200, {'Content-Type': MIME[extname(name)] ?? 'application/octet-stream', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'}); response.end(data); return;
+    }
     let path;
     try { path = resolve(this.uiDirectory, `.${decodeURIComponent(pathname === '/' ? '/index.html' : pathname)}`); }
     catch { throw failure('Invalid path'); }
@@ -623,7 +697,7 @@ export class MirallyProduct extends Service {
     const data = await readFile(canonical);
     response.writeHead(200, {'Content-Type': MIME[extname(canonical)] ?? 'application/octet-stream',
       'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
-      'Content-Security-Policy': "default-src 'self'; connect-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'"});
+      'Content-Security-Policy': "default-src 'self'; connect-src 'self'; style-src 'self'; img-src 'self' data: blob:; frame-ancestors 'none'; base-uri 'none'"});
     response.end(response.req.method === 'HEAD' ? undefined : data);
   }
 

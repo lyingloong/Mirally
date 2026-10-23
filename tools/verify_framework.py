@@ -45,6 +45,8 @@ class FixtureProvider(BaseHTTPRequestHandler):
             tool, args = "mcp__acceptance__echo", {"text": "fixture value"}
         elif not is_result and "call native plugin" in last:
             tool, args = "fixture_plugin_echo", {"text": "plugin value"}
+        elif not is_result and "create deliverable" in last:
+            tool, args = "mirally_create_file", {"name": "迁移成果.md", "content": "# 实际交付\n\n复用原有 Mirally 产品体验。\n"}
         if tool and tool not in names:
             raise AssertionError("Expected product tool was not offered by the real native runtime: " + tool)
         self.send_response(200)
@@ -110,9 +112,9 @@ class Client:
     def history(self, session):
         return self.call("/api/sessions/" + session["id"] + "/history")["messages"]
 
-    def send(self, session, command, text):
+    def send(self, session, command, text, **options):
         before = len(self.history(session))
-        result = self.call("/api/sessions/" + session["id"] + "/messages", {"commandId": command, "text": text})
+        result = self.call("/api/sessions/" + session["id"] + "/messages", {"commandId": command, "text": text, **options})
         assert result["accepted"]
         wait_until(lambda: len(self.history(session)) >= before + 2 and self.history(session)[-1]["role"] == "assistant")
         return result
@@ -143,6 +145,11 @@ def verify(root: Path, home: Path) -> list[str]:
         except urllib.error.HTTPError as error:
             assert error.code == 403
         checks.append("authenticated loopback and cross-origin/private-method refusal")
+        try:
+            client.rpc('settings.update', {'patch': {'activity_enabled': True, 'activity_capture': {'clipboard_enabled': True}}})
+            raise AssertionError('Generic settings bypassed capture confirmation')
+        except urllib.error.HTTPError as error:
+            assert error.code == 403
         cookies = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         auth = urllib.request.Request(host.runtime["url"] + "/api/auth", data=b"{}", headers={"Authorization": "Bearer " + host.runtime["token"]})
         with cookies.open(auth) as response:
@@ -156,6 +163,27 @@ def verify(root: Path, home: Path) -> list[str]:
         duplicate = client.call("/api/sessions/" + session["id"] + "/messages", {"commandId": "chat-1", "text": "hello"})
         assert duplicate["replay"]
         checks.append("real native provider, Agent loop, transcript and command deduplication")
+        uploaded = client.call('/api/materials', {'conversation_id': session['id'], 'name': '原始材料.txt', 'media_type': 'text/plain', 'data': base64.b64encode('明确材料：保留海獭桌宠。'.encode()).decode()})
+        assert uploaded['readingState'] == 'ready'
+        client.send(session, 'material-1', 'read supplied material', materials=[uploaded['id']])
+        assert '保留海獭桌宠' in json.dumps(FixtureProvider.calls[-1], ensure_ascii=False)
+        client.send(session, 'file-denied', 'create deliverable')
+        assert not client.call('/api/artifacts?conversation_id=' + session['id'])['artifacts']
+        client.send(session, 'file-allowed', 'create deliverable', allow_file_write=True)
+        artifact = client.call('/api/artifacts?conversation_id=' + session['id'])['artifacts'][0]
+        assert artifact['name'] == '迁移成果.md'
+        preview = client.call('/api/artifacts/' + artifact['id'] + '/preview')
+        assert '实际交付' in preview['text']
+        assert 'path' not in preview['artifact']
+        receipt = client.call('/api/sessions/' + session['id'] + '/messages', {'commandId': 'file-allowed', 'text': 'create deliverable', 'allow_file_write': True})
+        assert receipt['replay'] and len(client.call('/api/artifacts?conversation_id=' + session['id'])['artifacts']) == 1
+        client.rpc('settings.update', {'patch': {'model': {'image_enabled': True}}})
+        from PIL import Image
+        image_bytes = io.BytesIO(); Image.new('RGB', (2, 2), 'blue').save(image_bytes, format='PNG')
+        image_material = client.call('/api/materials', {'conversation_id': session['id'], 'name': 'fixture.png', 'media_type': 'image/png', 'data': base64.b64encode(image_bytes.getvalue()).decode()})
+        client.send(session, 'main-image', 'read supplied image', materials=[image_material['id']])
+        assert 'data:image/png;base64' in json.dumps(FixtureProvider.calls[-1])
+        checks.append('real material extraction and native multimodal message, file permission refusal, deliverable receipt/preview and replay deduplication')
         client.send(session, "preference-1", "remember my preference")
         assert any(item["key"] == "tone" for item in client.rpc("preference.list")["preferences"])
         client.send(session, "reminder-1", "create a reminder")
