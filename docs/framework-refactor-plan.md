@@ -17,7 +17,7 @@
 
 ## 2. 目标和约束
 
-Mirally 拥有 Activity、Memory、Settings、Commitments、Initiative、Interaction、Context、Delivery 等产品职责及其状态。DSH 作为同仓源码内核提供会话与模型运行基础；允许直接修改其 API、loop、Session、持久化、宿主与客户端 UI。Profile、Bundle、Preset 和 Slots 等机制可按需复用，不强制每项内置改动都绕成插件。Python 平台采集、记忆资产和 UFO 适配优先复用，不能假定搬动模块就能完成语义迁移。
+Mirally 拥有 Activity、Memory、Settings、Commitments、Initiative、Interaction、Context、Delivery 等产品职责及其状态。DSH 作为同仓源码内核提供会话与模型运行基础；允许直接修改其 API、loop、Session、持久化、宿主与客户端 UI。Profile、Bundle、Preset 和 Slots 等机制可按需复用，不强制每项内置改动都绕成插件。Python 平台采集和记忆资产优先复用；本阶段不接入 UFO，其实现仅作为未来 Windows 适配的参考，不能假定搬动模块就能完成语义迁移。
 
 每份持久状态有明确 owner 与唯一写入者；跨域读写通过接口。Context 只读组合，内核 transcript 保持单一权威；在内核已有 loop 上修改，不在它之外另写第二套模型循环、通用消息总线或插件宿主。可扩展能力的内置与外部实现仍遵循同一组有类型的契约，普通内部代码无需全部公开。Skill、MCP 和插件按实际支持能力验收。
 
@@ -33,7 +33,7 @@ Mirally 拥有 Activity、Memory、Settings、Commitments、Initiative、Interac
 | 1 · 内核导入、构建与最小端到端 | 完成：9 项完整构建检查与原生回环端到端 | 固定来源导入、许可证与工具链记录；在干净环境从锁文件构建宿主和客户端，以独立 home、fake 模型、临时 worker 实际跑通输入、流式回答、能力调用、flush、取消和重启。缺口直接改内核并回归。 |
 | 2 · 产品契约与状态 | 第一版完成，schema 2 与明确 owner | 确定包布局、各 owner 的 schema 与版本迁移、控制接口和启动屏障；接通 Activity/Memory 与只读 Context，避免双写 transcript 或业务库。 |
 | 3 · 扩展与生态 | 第一版完成，真实 Skill/脚本/MCP/插件联调 | 同一接口接入内置和外部能力；完成独立 Skill、脚本能力、MCP tools/resources/prompts 的明确兼容范围，以及组合插件的配置、版本与退出语义。 |
-| 4 · 产品与交互闭环 | 第一版核心完成；长期体验和真实桌面效果待实测 | 自有 UI、Interaction、Commitments、Initiative、Delivery 和 UFO 能力按共同契约协作；在多种生活/工作场景及低资源模式下验证收益、打扰、恢复和实际成本。 |
+| 4 · 产品与交互闭环 | 第一版核心完成；长期体验和真实桌面效果待实测 | 原 Mirally UI、Interaction、Commitments、Initiative、Delivery 按共同契约协作；本阶段不包含 UFO 执行器；在多种生活/工作场景及低资源模式下验证收益、打扰、恢复和实际成本。 |
 | 5 · 状态迁移与切换 | 合成来源复制/回退完成，默认入口已切换；私有数据未自动迁移 | 演练私有数据备份、导入和回退，确认唯一采集/维护者；替代链通过后更新默认启动、安装与文档，移除目标运行链对 OpenClaw 的依赖和旧适配。 |
 
 阶段可按垂直切片推进，但不能跳过前置控制与数据条件。每次完成应注明实际产出、测试方式、未覆盖边界和阶段状态；为实际行为更新运行说明、CHANGELOG 与产品记录。

@@ -1,0 +1,90 @@
+{
+  "source": {
+    "version": "2026.9.6",
+    "commit": "eb377ac59e6c9fd6c7705028034812becf00271b",
+    "builtAt": "2026-09-23T16:33:12.144Z",
+    "buildId": "2026.9.6-release-eb377ac59e6c-2026-09-23T16-33-12.144Z"
+  },
+  "files": {
+    "zh-CN": {
+      "sourceChunk": "zh-CN-CHg4D7GR.js",
+      "sha256": "e250cbeb3c411224987da78b2d2cd2a59529458eb3fd0c7e0613fdd584116141"
+    },
+    "zh-TW": {
+      "sourceChunk": "zh-TW-CwScxFb_.js",
+      "sha256": "f6bc612c179d73f183f2244f396e8687dfdc9275fa49e834b79689a932c81e07"
+    },
+    "pt-BR": {
+      "sourceChunk": "pt-BR-JmkP8kt6.js",
+      "sha256": "ac9a2ef516002a632f98eace017dc8220b896634c96d86d16aba14c97523e216"
+    },
+    "de": {
+      "sourceChunk": "de-DNQ2-o7Y.js",
+      "sha256": "5db7287306c52dc84d147b92e35a6704b9ece8d620269a7f96c0c8b739edfffd"
+    },
+    "es": {
+      "sourceChunk": "es-DLM0BtQe.js",
+      "sha256": "797098144c0dbbfd1fa748ab53422533744b5a8d7e7a514f2c326b127988f7b8"
+    },
+    "ja-JP": {
+      "sourceChunk": "ja-JP-BMucerBQ.js",
+      "sha256": "0cb551d48874ffec011a26d6f2b0202bfcb7cda72a2345bb61b8520ac1f7f2fa"
+    },
+    "ko": {
+      "sourceChunk": "ko-CqJznzBp.js",
+      "sha256": "48d989b8d1a329e604b9b66811c1bd9fa31981e5edbfaa4fe065a3925d9222b2"
+    },
+    "fr": {
+      "sourceChunk": "fr-BVSGsoM2.js",
+      "sha256": "545b994130f4299f71298d75c14b1ceb9b58ed62ed6724e7ea99475f9f1da0c9"
+    },
+    "hi": {
+      "sourceChunk": "hi-DMS0b2jQ.js",
+      "sha256": "aa72f09440783912f434a378f20dcaed147c4334701152027a16c67d51729b60"
+    },
+    "ar": {
+      "sourceChunk": "ar-T27N95rD.js",
+      "sha256": "53f301084b12c31b2798e465493b90390c1001c3d6a7cdf381fb04830bfc0e2c"
+    },
+    "it": {
+      "sourceChunk": "it-B9-jM0fZ.js",
+      "sha256": "7f32e3883fc6af19b9934d7b62ca7b96621ac25b956792a74557c172fda6d1f7"
+    },
+    "tr": {
+      "sourceChunk": "tr-qH7Ubg_C.js",
+      "sha256": "734c2aff67f5fdefc64761d514e111392a4102ede65dcba11157dd427aee0e28"
+    },
+    "uk": {
+      "sourceChunk": "uk-CRmjez5q.js",
+      "sha256": "a1f7ea524531cc72b1c3ffb24b72056aa964ef1b8a1c1d49686587c1ef6e9df1"
+    },
+    "id": {
+      "sourceChunk": "id-CGfglkb_.js",
+      "sha256": "43f548d4e4d2977da07a55c6ea87e5207b55552803f7f38764b81923855878a0"
+    },
+    "pl": {
+      "sourceChunk": "pl-DErz2GTK.js",
+      "sha256": "7e16ee0dfa85c19fa584ac33cddc20ae54d81f54c057ec2810a783c0974b6be4"
+    },
+    "th": {
+      "sourceChunk": "th-DsgI0jed.js",
+      "sha256": "07efea966ac7cc514cd5536d35c817dca6e8d6da2d40b436d27658be5cfdf356"
+    },
+    "vi": {
+      "sourceChunk": "vi-BXg-Th2a.js",
+      "sha256": "762ae529cb74d40a7eb7ea4ba712bbaddebfed31db5e315e977e4464e96c3b76"
+    },
+    "nl": {
+      "sourceChunk": "nl-PULAXUzq.js",
+      "sha256": "a3439fa3b0fb5f2c879e25d6c48d8f34bf5874aa07d11d66086fead2750d0882"
+    },
+    "fa": {
+      "sourceChunk": "fa-DPHIPFE7.js",
+      "sha256": "bc8b78ee0de0ea7bd33d25d3663483063476c637006b219c63051bd8ffc64587"
+    },
+    "ru": {
+      "sourceChunk": "ru-KUdHl0wh.js",
+      "sha256": "97d05737e073747c2b9cbeb16172415950be4f7fb737a1eeeeb6ad0f00c86a3b"
+    }
+  }
+}

@@ -78,6 +78,8 @@ class FrameworkHost:
         required = kernel / "packages/core/agent/lib/index.js"
         if not required.is_file():
             raise RuntimeError("Mirally kernel is not built. Run .venv/Scripts/python.exe tools/setup_framework.py first.")
+        if not (self.root / "frontend/control-ui/dist/.mirally-build.json").is_file():
+            raise RuntimeError("Mirally's retained frontend is not built. Run .venv/Scripts/python.exe tools/setup_framework.py first.")
         node = discover_node(self.root, self.node_option)
         python = self.root / ".venv" / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
         if not python.is_file():

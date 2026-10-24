@@ -12,7 +12,7 @@ mkdirSync(join(home, 'workspace'), {recursive: true});
 const port = Number(values.port);
 if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid Mirally port');
 Object.assign(process.env, {DSH_HOME: home, MIRALLY_ROOT: root, MIRALLY_HOME: home,
-  MIRALLY_PYTHON: resolve(values.python), MIRALLY_UI_DIRECTORY: join(root, 'mirally/framework_ui'),
+  MIRALLY_PYTHON: resolve(values.python), MIRALLY_UI_DIRECTORY: join(root, 'frontend/control-ui/dist'),
   MIRALLY_PORT: String(port), MIRALLY_TEST_MODE: values['test-mode'] ? '1' : '0',
   MIRALLY_WORKSPACE: join(home, 'workspace'),
   DSH_TELEMETRY_DISABLED: '1'});

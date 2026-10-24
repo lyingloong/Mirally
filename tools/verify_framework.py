@@ -9,6 +9,7 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 import threading
 import time
@@ -18,7 +19,7 @@ import http.cookiejar
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from mirally.framework_host import FrameworkHost
+from mirally.framework_host import FrameworkHost, discover_node
 
 
 class FixtureProvider(BaseHTTPRequestHandler):
@@ -32,8 +33,10 @@ class FixtureProvider(BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
         self.calls.append(body)
         messages = body.get("messages", [])
-        last = next((str(item.get("content", "")) for item in reversed(messages) if item.get("role") == "user"), "")
-        is_result = bool(messages and messages[-1].get("role") == "tool")
+        human_inputs = [(index, str(item.get("content", ""))) for index, item in enumerate(messages)
+            if item.get("role") == "user" and not str(item.get("content", "")).startswith(("Current runtime context.", "Current runtime context: none."))]
+        human_index, last = human_inputs[-1] if human_inputs else (-1, "")
+        is_result = any(item.get("role") == "tool" for item in messages[human_index + 1:])
         contact_check = any("Mirally optional personal check-in" in str(item.get("content", "")) for item in messages if item.get("role") == "system")
         names = [tool.get("function", {}).get("name") for tool in body.get("tools", [])]
         tool = args = None
@@ -120,7 +123,7 @@ class Client:
         return result
 
 
-def verify(root: Path, home: Path) -> list[str]:
+def verify(root: Path, home: Path, *, browser_files: bool = False) -> list[str]:
     checks = []
     provider = ThreadingHTTPServer(("127.0.0.1", 0), FixtureProvider)
     thread = threading.Thread(target=provider.serve_forever, daemon=True)
@@ -129,6 +132,16 @@ def verify(root: Path, home: Path) -> list[str]:
     try:
         client = Client(host.start())
         assert client.call("/api/health")["kernel"] == "dsh"
+        for method in ("desktop.start", "desktop.list", "desktop.cancel", "desktop.respond"):
+            try:
+                client.rpc(method, {})
+            except urllib.error.HTTPError as error:
+                assert error.code == 403
+                assert '"method_not_allowed"' in error.msg
+            else:
+                raise AssertionError("Deferred UFO operation was exposed: " + method)
+        assert not (home / "actions").exists()
+        checks.append("default framework has no UFO executor, task API, or action directory")
         client.rpc("settings.update", {"patch": {"model": {"provider": "openai-compatible", "base_url": f"http://127.0.0.1:{provider.server_port}/v1", "api_format": "openai-chat", "model_id": "fixture-model", "api_key": "offline-fixture-key"}}})
         public = client.rpc("settings.get")
         assert "offline-fixture-key" not in json.dumps(public)
@@ -160,6 +173,7 @@ def verify(root: Path, home: Path) -> list[str]:
         session = client.call("/api/sessions", {"title": "End-to-end acceptance"})
         client.send(session, "chat-1", "hello")
         assert "native model adapter" in client.history(session)[-1]["text"]
+        assert not any("ufo" in tool.get("function", {}).get("name", "").lower() or "desktop" in tool.get("function", {}).get("name", "").lower() for tool in FixtureProvider.calls[-1].get("tools", []))
         duplicate = client.call("/api/sessions/" + session["id"] + "/messages", {"commandId": "chat-1", "text": "hello"})
         assert duplicate["replay"]
         checks.append("real native provider, Agent loop, transcript and command deduplication")
@@ -175,6 +189,10 @@ def verify(root: Path, home: Path) -> list[str]:
         preview = client.call('/api/artifacts/' + artifact['id'] + '/preview')
         assert '实际交付' in preview['text']
         assert 'path' not in preview['artifact']
+        if browser_files:
+            subprocess.run([str(discover_node(root)), str(root / "tools/verify_framework_files.mjs"),
+                str(home / "runtime.json"), session["id"], artifact["id"]], cwd=root, check=True)
+            checks.append("original Files panel reads real native tool artifact, previews and downloads")
         receipt = client.call('/api/sessions/' + session['id'] + '/messages', {'commandId': 'file-allowed', 'text': 'create deliverable', 'allow_file_write': True})
         assert receipt['replay'] and len(client.call('/api/artifacts?conversation_id=' + session['id'])['artifacts']) == 1
         client.rpc('settings.update', {'patch': {'model': {'image_enabled': True}}})
@@ -273,15 +291,15 @@ def verify(root: Path, home: Path) -> list[str]:
         names = [value["function"]["name"] for value in FixtureProvider.calls[-1].get("tools", [])]
         assert "fixture_plugin_echo" not in names and "mcp__acceptance__echo" not in names
         checks.append("versioned native plugin execution and removal of plugin/MCP tools from new generations")
-        completion = client.call("/internal/v1/chat/completions", {"messages": [{"role": "user", "content": "Offline auxiliary bridge check"}], "max_tokens": 64})
-        assert "native model adapter" in completion["choices"][0]["message"]["content"]
+        completion = client.call("/internal/completion", {"messages": [{"role": "user", "content": "Offline auxiliary bridge check"}], "max_tokens": 64})
+        assert "native model adapter" in completion["text"]
         client.rpc("settings.update", {"patch": {"model": {"image_enabled": True}}})
         from PIL import Image
         pixels = io.BytesIO()
         Image.new("RGB", (2, 2), "white").save(pixels, format="PNG")
         pixel = "data:image/png;base64," + base64.b64encode(pixels.getvalue()).decode("ascii")
-        image = client.call("/internal/v1/chat/completions", {"messages": [{"role": "user", "content": [{"type": "text", "text": "Offline image bridge check"}, {"type": "image_url", "image_url": {"url": pixel}}]}], "max_tokens": 64})
-        assert "native model adapter" in image["choices"][0]["message"]["content"]
+        image = client.call("/internal/completion", {"messages": [{"role": "user", "content": [{"type": "text", "text": "Offline image bridge check"}, {"type": "image_url", "image_url": {"url": pixel}}]}], "max_tokens": 64})
+        assert "native model adapter" in image["text"]
         assert "data:image/png;base64" in json.dumps(FixtureProvider.calls[-1])
         client.rpc("settings.update", {"patch": {"background_enabled": True, "general_initiative_enabled": True}})
         wait_until(lambda: any(item["kind"] == "initiative" for item in client.rpc("inbox.list")["items"]))
@@ -315,13 +333,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--home", type=Path)
+    parser.add_argument("--browser-files", action="store_true", help="Also verify the retained Files UI in headless Edge against the real loopback tool artifact")
     args = parser.parse_args()
     if args.home:
         assert not args.home.exists() or not any(args.home.iterdir()), "Acceptance requires a fresh isolated home"
-        checks = verify(args.root.resolve(), args.home.resolve())
+        checks = verify(args.root.resolve(), args.home.resolve(), browser_files=args.browser_files)
     else:
         with tempfile.TemporaryDirectory(prefix="mirally-acceptance-") as temporary:
-            checks = verify(args.root.resolve(), Path(temporary) / "product home")
+            checks = verify(args.root.resolve(), Path(temporary) / "product home", browser_files=args.browser_files)
     for check in checks:
         print("PASS " + check)
     return 0

@@ -1,4 +1,4 @@
-"""Verify the real framework desktop with an isolated offline test-mode Host.
+"""Verify the retained Control UI desktop with an isolated test-mode Host.
 
 Run this Windows/WebView2 check separately from other GUI checks. Only the
 current process's HWND and its Chromium child receive messages. It neither
@@ -20,6 +20,48 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+FRONTEND_DIST = ROOT / "frontend/control-ui/dist"
+
+# These inspect the real retained application. The legacy compatibility
+# navigation helper intentionally does not recreate the discarded UI's state.
+FRONTEND_READY = """(() => {
+    const app = document.querySelector('openclaw-app');
+    const gateway = app?.context?.gateway?.snapshot;
+    return !!app && gateway?.phase === 'connected' && gateway.client?.connected === true &&
+      !!window.__mirallyLegacyHost && !!window.__mirallyLegacyNativeBridge &&
+      !!window.__mirallyCompanion && !!window.__mirallyWork && !!window.__mirallyContext;
+})()"""
+
+NATIVE_SESSION_READY = """(() => {
+    const pane = [...document.querySelectorAll('openclaw-chat-pane.chat-pane-cache__pane--active')]
+      .find(node => node.presented !== false && node.state?.handleSendChat);
+    return !!window.__shellVerificationSessionKey &&
+      pane?.state?.sessionKey === window.__shellVerificationSessionKey &&
+      pane.state.connected === true && !pane.state.chatLoading;
+})()"""
+
+CREATE_NATIVE_SESSION = """(() => {
+    const context = document.querySelector('openclaw-app')?.context;
+    const client = context?.gateway?.snapshot?.client;
+    if (!client || !document.querySelector('openclaw-app-shell')?.selectChatSession)
+      throw new Error('Native application session entry is unavailable');
+    window.__shellVerificationCreating = true;
+    void client.request('sessions.create', {
+      agentId: 'main', displayName: '原生窗口验收', idempotencyKey: crypto.randomUUID()
+    }).then(result => {
+      if (!result?.key || result.runStarted === true)
+        throw new Error('Expected a real empty session without a model run');
+      window.__shellVerificationSessionKey = result.key;
+      document.querySelector('openclaw-app-shell').selectChatSession(result.key, 'main');
+    }).catch(error => window.__shellVerificationErrors.push(String(error)))
+      .finally(() => { window.__shellVerificationCreating = false; });
+})()"""
+
+RESTORE_NATIVE_SESSION = """(() => {
+    window.__mirallyWork?.close();
+    document.querySelector('openclaw-app-shell').selectChatSession(
+      window.__shellVerificationSessionKey, 'main');
+})()"""
 
 
 @contextmanager
@@ -47,6 +89,8 @@ def main() -> int:
     arguments = parser.parse_args()
     if sys.platform != "win32":
         raise SystemExit("This verification requires Windows and WebView2.")
+    if not (FRONTEND_DIST / "index.html").is_file():
+        raise SystemExit("Build the retained frontend/control-ui source before running native verification.")
     from mirally.framework_host import FrameworkHost
     from mirally.framework_shell import FrameworkShell
 
@@ -119,7 +163,20 @@ def main() -> int:
                     return value
                 def snapshot():
                     return {"native": native(), "surface_mode": shell._surface_mode, "surface_view": shell._surface_view,
-                        "dom": js("(()=>{const s=document.querySelector('.mirally-companion');return {mode:document.documentElement.dataset.mirallyMode,form:s?.dataset.form,view:s?.dataset.view,page:window.__mirallyFramework?.state.page,connected:window.__mirallyFramework?.state.connected,notice:document.getElementById('notice')?.textContent,errors:window.__shellVerificationErrors||[]}})()")}
+                        "dom": js("""(() => {
+                            const surface = document.querySelector('.mirally-companion');
+                            const context = document.querySelector('openclaw-app')?.context;
+                            const pane = [...document.querySelectorAll('openclaw-chat-pane.chat-pane-cache__pane--active')]
+                              .find(node => node.presented !== false && node.state?.handleSendChat);
+                            return {mode: document.documentElement.dataset.mirallyMode,
+                              form: surface?.dataset.form, view: surface?.dataset.view,
+                              route: location.pathname + location.search,
+                              connected: context?.gateway?.snapshot?.phase === 'connected',
+                              session_key: pane?.state?.sessionKey,
+                              session_loading: pane?.state?.chatLoading,
+                              activity_visible: !!document.querySelector('.mirally-activity:not([hidden])'),
+                              errors: window.__shellVerificationErrors || []};
+                        })()""")}
                 def wait_for(predicate, label, timeout=10):
                     deadline = time.monotonic() + timeout
                     while time.monotonic() < deadline:
@@ -128,8 +185,8 @@ def main() -> int:
                         time.sleep(.04)
                     raise AssertionError(label + "; " + json.dumps(snapshot(), ensure_ascii=False))
                 assert shell.window.events.loaded.wait(30), "Opening page did not load"
-                wait_for(lambda: js("!!window.__mirallyFramework && !!window.__mirallyCompanion && !!window.__mirallyWork && !!window.__mirallyContext && window.__mirallyFramework.state.connected"),
-                    "Owned product and retained experiences did not mount", timeout=90)
+                wait_for(lambda: js(FRONTEND_READY),
+                    "Retained Control UI and its real Mirally connection did not mount", timeout=90)
                 js("window.__shellVerificationErrors=[];addEventListener('error',e=>window.__shellVerificationErrors.push(e.message));addEventListener('unhandledrejection',e=>window.__shellVerificationErrors.push(String(e.reason)))")
                 assert host.runtime.get("mode") == "test", "Verification must use the deterministic isolated Host"
                 assert startup == {"opacity_before": 0.0, "source": "about:blank", "opacity_after": 1.0, "gate": True}, startup
@@ -139,9 +196,24 @@ def main() -> int:
                 hwnd = initial["hwnd"]
                 assert initial["title"] == "" and initial["show_icon"] and initial["has_icon"] and initial["strips"] == 0, initial
                 assert initial["opacity"] == 1 and not initial["region"], initial
-                saved.update(process=host.process, registration=shell._frontend_registration.path)
+                assert shell._frontend_registration is None, "Default framework must not register a UFO input bridge"
+                saved.update(process=host.process)
                 results.append({"case": "real Host and opening first paint", "mode": "test", "startup": startup, "timeline_seconds": timeline,
-                    "same_native_window": True, "formal_icon": True, "blank_caption": True, "no_menu_strip": True})
+                    "same_native_window": True, "formal_icon": True, "blank_caption": True, "no_menu_strip": True,
+                    "frontend_source": "frontend/control-ui", "native_app_mounted": True})
+
+                js(CREATE_NATIVE_SESSION)
+                wait_for(lambda: js(NATIVE_SESSION_READY),
+                    "Real native session creation did not produce an active retained chat pane", timeout=30)
+                session = js("""(() => {
+                    const pane = [...document.querySelectorAll('openclaw-chat-pane.chat-pane-cache__pane--active')]
+                      .find(node => node.presented !== false && node.state?.handleSendChat);
+                    return {key: pane.state.sessionKey, message_count: pane.state.chatMessages?.length || 0,
+                      has_run: !!pane.state.chatRunId, route: location.pathname};
+                })()""")
+                assert session["key"] and session["message_count"] == 0 and not session["has_run"], session
+                results.append({"case": "real native client creates an empty session", "session": session,
+                    "model_request_started": False, "native_chat_pane": True})
 
                 menu = user.GetSystemMenu(hwnd, False)
                 items = []
@@ -154,9 +226,23 @@ def main() -> int:
                 assert 0xF060 in [identifier for identifier, _ in items] and not any("Gateway" in label for label in labels), labels
                 memory_command = next(identifier for identifier, label in items if label == "记忆")
                 user.SendMessageW(hwnd, 0x112, memory_command, 0)
-                wait_for(lambda: js("window.__mirallyFramework.state.page==='memory'"), "Real system-menu memory action was not delivered")
-                js("window.__mirallyFramework.showPage('chat')")
-                results.append({"case": "native product system menu", "labels": labels, "memory_navigation": True})
+                wait_for(lambda: js("/\\/settings\\/memory\\/memories\\/?$/.test(location.pathname) && !!document.querySelector('#mirally-memory-browser')"),
+                    "Real system-menu memory action did not open the original Memory workspace", timeout=20)
+                activity_command = next(identifier for identifier, label in items if label == "活动与记忆设置")
+                user.SendMessageW(hwnd, 0x112, activity_command, 0)
+                wait_for(lambda: js("/\\/settings\\/appearance\\/?$/.test(location.pathname) && new URLSearchParams(location.search).get('mirally')==='activity' && !!document.querySelector('.mirally-activity:not([hidden])')"),
+                    "Real system-menu Activity action did not open the retained settings contribution", timeout=20)
+                js(RESTORE_NATIVE_SESSION)
+                wait_for(lambda: js(NATIVE_SESSION_READY), "Original native chat did not restore after settings")
+                work_command = next(identifier for identifier, label in items if label == "工作")
+                user.SendMessageW(hwnd, 0x112, work_command, 0)
+                wait_for(lambda: js("!!document.querySelector('.mirally-work:not([hidden])')"),
+                    "Real system-menu Work action did not open the original preparation page", timeout=20)
+                assert js("document.querySelectorAll('.mirally-work__cards [data-workflow]').length") == 10
+                js(RESTORE_NATIVE_SESSION)
+                wait_for(lambda: js(NATIVE_SESSION_READY), "Native chat did not restore after the work page")
+                results.append({"case": "native product system menu", "labels": labels, "memory_navigation": True,
+                    "activity_navigation": True, "work_navigation": True, "original_settings_routes": True})
 
                 children = []
                 @child_callback
@@ -303,13 +389,13 @@ def main() -> int:
             host.close()
         if saved.get("process") is not None:
             cleaned = {"host_exited": saved["process"].poll() is not None, "host_handle_released": host.process is None,
-                "tray_disposed": shell._tray is None, "registration_removed": not saved["registration"].exists(),
+                "tray_disposed": shell._tray is None, "no_ufo_registration": shell._frontend_registration is None,
                 "shell_closed": shell.closed.is_set(), "host_log_closed": host.log is None}
             results.append({"case": "explicit tray Quit cleans up", **cleaned, "native_bridge_counts": saved.get("bridge_counts", {})})
             if not all(cleaned.values()):
                 failures.append("Explicit quit did not complete cleanup: " + repr(cleaned))
     report = {"results": results, "native_context_events": native_context, "failures": failures,
-        "scope": "Real FrameworkShell + real temporary test-mode Host + WebView2; only own HWND messages",
+        "scope": "Real retained frontend/control-ui + FrameworkShell + temporary test-mode Host + WebView2; only own HWND messages",
         "limits": ["No physical mouse/keyboard or multi-monitor/DPI changes", "No desktop capture, Activity collection, external model, or production profile", "Tray callback tested through NotifyIcon menu; Windows notification-area pointer hit testing is not exercised"]}
     arguments.output.parent.mkdir(parents=True, exist_ok=True)
     arguments.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

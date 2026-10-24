@@ -1,10 +1,10 @@
 # Mirally 框架第一版
 
-本分支默认运行自有 Mirally 框架。DSH 是同仓可修改的执行内核，OpenClaw 不参与这条运行链。此版交付可运行的核心产品闭环；长期愿景中的所有场景和成熟度仍需逐步实现。
+本分支默认运行自有 Mirally 框架，前端保留原 Mirally 的页面结构、布局、视觉与操作习惯。固定 OpenClaw Control UI `2026.9.6` 的原页面源码纳入 `frontend/control-ui/`，继续使用原 Mirally 皮肤；仅将数据与动作接到 Mirally HTTP/SSE 接口。DSH 是同仓可修改的执行内核，承担唯一 Session/Agent/模型主链；默认入口不启动 OpenClaw Gateway。长期愿景中的所有场景和成熟度仍需逐步实现。
 
 ## 准备与启动
 
-Windows x64，Python 3.10+，Node 22.19+（22.x）或 24+，Microsoft Edge WebView2 Runtime。工具路径从仓库、环境和 PATH 解析；Node 可以通过 `MIRALLY_NODE` 或启动参数 `--node` 指定。
+Windows x64，Python 3.10+，Node 24+（含 npm），Microsoft Edge WebView2 Runtime。工具路径从仓库、环境和 PATH 解析；Node 可以通过 `MIRALLY_NODE` 或启动参数 `--node` 指定。
 
 ```powershell
 py -3.10 -m venv .venv
@@ -13,26 +13,36 @@ py -3.10 -m venv .venv
 .\run.ps1
 ```
 
-安装脚本按内核 `packageManager` 取得精确 pnpm 版本，按锁文件安装，再从源码构建。首次准备需要网络和较多磁盘空间；依赖和构建结果不提交。内核 Windows 原生包已随源码纳入；重建原生包的额外工具见内核说明。迁移到其他机器需重建 `.venv`、`node_modules` 和构建产物，不能复制开发机安装路径作为默认配置。
+安装脚本按内核 `packageManager` 取得精确 pnpm 版本，按内核锁文件安装并构建 DSH；再在 `frontend/control-ui/` 按独立 npm 锁文件执行 `npm ci --ignore-scripts`，构建原前端源码。前端以 Node 24+ 为准备基线，工具自动发现到较旧 Node 不代表前端安装要求已满足。首次准备需要网络和较多磁盘空间；依赖和构建结果不提交。内核 Windows 原生包已随源码纳入；重建原生包的额外工具见内核说明。迁移到其他机器需重建 `.venv`、两套 `node_modules`、DSH 构建产物与 `frontend/control-ui/dist/`，不能复制开发机安装路径作为默认配置。
 
-数据默认放在 `%LOCALAPPDATA%/Mirally/framework`，可用 `MIRALLY_HOME` 或 `--home` 覆盖。首次到「设置」填写自己的服务基础地址、API 格式、模型 ID 和凭据；没有默认服务商密钥或可用的生产假模型。支持 OpenAI Chat Completions、Responses、Anthropic Messages 的原生适配，实际兼容性取决于所选服务。API Key 留空保留已有值，不写入浏览器存储。
+只重建前端时，在仓库根目录执行：
 
-`run.ps1 --browser` 在浏览器打开自有 UI；`--headless` 只运行本机宿主。桌面模式关闭窗口会隐藏到托盘并继续维护提醒与已开启的工作；从托盘或设置页「退出 Mirally」关闭宿主。托盘不可用时关闭窗口会退出。退出、休眠或设备关机期间无法实时投递，重新启动会检查仍有效的提醒。
+```powershell
+npm --prefix frontend/control-ui ci --ignore-scripts --no-audit --no-fund
+npm --prefix frontend/control-ui run verify:source
+npm --prefix frontend/control-ui run build
+```
 
-默认桌面入口已恢复原 Mirally 开屏、原生窗口交互、海獭/飞狐与三形态伙伴，以及原工作页面和材料接入；[体验迁移对照](framework-experience-migration.md) 记录复用模块、操作方式与验收范围。桌面截图仍需明确拖动专用手柄、检查预览后发送；浏览器模式不能调用本机窗口截图、置顶或移动。
+构建先在临时目录完成，检查浏览器模块不含未打包的裸 import，再发布到 `dist/`。`.mirally-build.json` 标记完整构建成功；失败保留上次成功输出并返回错误，缺少成功构建时宿主明确提示准备步骤。来源、许可证、固定提交与集成接缝见 [前端来源说明](../frontend/control-ui/UPSTREAM.md)。
+
+数据默认放在 `%LOCALAPPDATA%/Mirally/framework`，可用 `MIRALLY_HOME` 或 `--home` 覆盖。首次到原「设置 → 模型」填写自己的服务基础地址、API 格式、模型 ID 和凭据；没有默认服务商密钥或可用的生产假模型。支持 OpenAI Chat Completions、Responses、Anthropic Messages 的原生适配，实际兼容性取决于所选服务。API Key 留空保留已有值，不写入浏览器存储。
+
+`run.ps1 --browser` 在浏览器打开保留的原页面；`--headless` 只运行本机宿主。桌面模式关闭窗口会隐藏到托盘并继续维护提醒与已开启的工作；从托盘或设置页「退出 Mirally」关闭宿主。托盘不可用时关闭窗口会退出。退出、休眠或设备关机期间无法实时投递，重新启动会检查仍有效的提醒。
+
+默认桌面入口复用原 Mirally 开屏、窗口交互、海獭/飞狐与三形态伙伴，并直接承载原页面和皮肤；[体验迁移对照](framework-experience-migration.md) 记录源码复用、后端接缝、操作方式与实际页面验收项目。桌面截图仍需明确拖动专用手柄、检查预览后发送；浏览器模式不能调用本机窗口截图、置顶或移动。
 
 ## 各模块如何协作
 
 ```mermaid
 flowchart LR
-  UI[Mirally UI] --> Host[本机 Host / Interaction]
+  UI[原 Mirally 页面与皮肤] --> Client[Mirally HTTP/SSE 适配]
+  Client --> Host[本机 Host / Interaction]
   Host --> Product[Python 产品 owner / SQLite]
   Host --> DSH[DSH Agent loop / Session / LLM]
   Product --> Context[只读 Context]
   Context --> Activity[Activity 数据与采集 owner]
   Context --> Memory[Memory 数据与维护 owner]
   DSH --> Ext[Skill / MCP / 可信插件]
-  Host --> UFO[确认后的 UFO 子任务]
   Product --> Delivery[提醒 / 主动候选 / 持久收件箱]
   Delivery --> UI
 ```
@@ -41,7 +51,8 @@ flowchart LR
 - `mirally/framework/service.py` 拥有设置、逻辑 Conversation 与原生 Session 引用、命令回执、来源版本、明确偏好、提醒、主动候选、投递与已读状态。产品 schema 当前为 2，可从早期开发 schema 1 原地升级，拒绝未来版本。
 - DSH Session 是唯一 transcript。产品库只保存引用、代次和命令内容哈希。停止或撤回来源会冻结旧代次；后续用户输入创建新的原生 Session，历史仍通过代次引用读取。启动恢复不会盲目重放旧输入、脚本或桌面动作。
 - `mirally/framework/context.py` 按需只读组合记忆、活动、偏好和来源缺口。`mirally/framework_workers.py` 监督获准的 Activity 子进程和 Memory 维护 owner；查询不启动采集。后台语义任务通过本机模型桥调用同一原生模型适配。
-- `mirally/framework_ui/` 提供对话、记忆与纠正、活动状态、提醒、收件箱、桌面任务、扩展和设置。界面通过本机鉴权 HTTP/RPC 和 SSE 使用上述 owner，不另存模型历史。
+- `frontend/control-ui/ui/src/` 保留原 Lit 页面、布局、导航、对话和外观组件；`mirally/assets/control-ui-*` 继续提供既有 Mirally 皮肤、工作和伙伴交互。`ui/src/app/mirally-client.ts` 注入原客户端工厂，将已实现的有名操作映射到本机鉴权 HTTP/RPC 与 SSE。`mirally/framework_ui/legacy-native-bridge.js` 适配原活动/记忆、材料成果等产品消息，`mirally-product/src/presentation.mjs` 提供原皮肤资源。`mirally/framework_ui/app.js` 的简化页面不再是默认前端。
+- 原 Context 与组件仍管理页面草稿和状态；DSH Session 保留唯一聊天事实。未映射的旧宿主操作明确返回尚未支持，页面存在不代表对应 OpenClaw 后台能力已经接通。原 Gateway service worker 不参与新宿主的缓存与生命周期。
 
 边界使用有名操作和 JSON 数据，Python worker 采用带 ID 的 JSONL 请求/回执；HTTP 仅公开白名单。原生扩展在同一 Cordis 生命周期中组合。无需引入第二个模型主循环或通用事件总线。
 
@@ -53,13 +64,11 @@ flowchart LR
 
 第一版投递渠道是持久本机收件箱与实时 UI 更新；未实现邮件、手机推送或系统通知。主动联系是有限的可选检查策略，尚未形成成熟的长期社交与陪伴策略。伙伴视图已迁移原三形态、海獭/飞狐与工作交接，支持明确提供的文档和图片；完整语音、跨设备和长期陪伴体验继续设计。
 
-普通对话不会启动 UFO。桌面任务从「桌面任务」页明确填写目标并确认，需要视觉模型和可选 UFO 依赖。宿主启动只读 `UFO/` 内核的既有 worker，模型请求经本机桥进入当前原生适配，每次观察、模型请求和工具动作都复核授权，敏感动作和补充问题回到 UI。停止向 worker 撤权并等待结果；无最终回执的退出保留 `unknown`，不会自动重试。动作回执保存在 home 的 `actions/`。
-
-UFO 准备：按 [UFO 适配说明](../mirally/ARCHITECTURE.md) 和既有子模块依赖准备环境，保留产品策略 `config/mirally/ufo/`。此轮只验证了隔离协议和原有导入/初始化回归，没有执行真实桌面动作或调用真实外部模型，不将该边界当作已验收的桌面效果。
+本阶段暂不接入 UFO。新默认宿主不加载 UFO 执行器、提供相关模型工具或开放桌面任务入口；`UFO/` 与既有维护适配保留供参考。后续按 Mirally 自有执行接口考虑更贴合 Windows 的能力，不把 UFO 的会话、模型链和控制界面带入产品框架。已有桌宠、窗口裁剪、菜单、拖动与用户明确触发的截图继续由 Mirally 自身平台适配负责。
 
 ## 扩展接口与兼容范围
 
-配置在「扩展」页显式应用并持久保存；改变扩展会撤销旧会话代次，依赖冲突与激活错误可查看。插件代码是受信任的本地代码，拥有宿主权限，不是操作系统沙箱。MCP 服务配置的 `readOnly:true` 是用户对该服务的信任声明；不能仅凭工具名称推断只读。
+Mirally 扩展接口支持显式应用并持久保存配置；改变扩展会撤销旧会话代次，并返回依赖冲突与激活错误。原前端插件管理页面与 DSH 扩展接口的契约不同，页面的可用操作以已映射接口为准，不能因保留旧页面就视为兼容全部 OpenClaw 管理功能。插件代码是受信任的本地代码，拥有宿主权限，不是操作系统沙箱。MCP 服务配置的 `readOnly:true` 是用户对该服务的信任声明；不能仅凭工具名称推断只读。
 
 Skill 目录示例：
 
@@ -112,6 +121,6 @@ node --test tests/test_*.mjs integrations/openclaw/*.test.mjs kernel/dsh/package
 .\.venv\Scripts\python.exe tools/verify_framework.py
 ```
 
-最后一项启动真实构建内核、原生 PiAI 适配与回环合成服务，验证会话、工具、停止、重启、Skill、实际脚本产物、真实 MCP 协议、原生插件和主动入箱；不访问外部 API。`--test-mode` 则必须指定独立 `--home`，只用于确定性 UI 测试，绝非生产失败回退。浏览器验收工具 `tools/verify_framework_browser.mjs` 需可用的 Playwright Core 和本机 Edge，可通过 `MIRALLY_PLAYWRIGHT` 指定测试依赖模块。
+最后一项启动真实构建内核、原生 PiAI 适配与回环合成服务，验证会话、工具、停止、重启、Skill、实际脚本产物、真实 MCP 协议、原生插件和主动入箱；不访问外部 API。`--test-mode` 则必须指定独立 `--home`，只用于确定性 UI 测试，绝非生产失败回退。浏览器验收需可用的 Playwright Core 和本机 Edge，可通过 `MIRALLY_PLAYWRIGHT` 指定测试依赖模块；`tools/verify_framework_browser.mjs` 与 `verify_framework_experience.mjs` 已改为核对保留的原组件和真实客户端；`verify_framework.py --browser-files` 补充真实工具文件与工作重试。当前结果见[验收记录](framework-v1-validation.md)，此前简化 UI 的结果单独保留为历史。
 
-这不是已签名安装包，也没有在全新 Windows 机器上完成安装演练。真实供应商差异、UFO 端到端桌面效果、长时间运行成本与陪伴品质仍需后续实测。扩展兼容范围以这些实际实现与验证为准，不将全部上游能力视为本产品自动具备。
+这不是已签名安装包，也没有在全新 Windows 机器上完成安装演练。真实供应商差异、长时间运行成本与陪伴品质仍需后续实测。扩展兼容范围以这些实际实现与验证为准，不将全部上游能力视为本产品自动具备。

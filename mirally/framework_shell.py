@@ -31,14 +31,6 @@ class FrameworkShell(ControlUIShell):
         self._tray = None
         self._cleanup_lock = threading.Lock()
         self._cleanup_done = False
-        self._frontend_lock = threading.Lock()
-
-    def _set_editing(self, value: bool) -> None:
-        # WebView messages run on the UI thread; pywebview API calls use
-        # workers. Both can report the same focus change concurrently.
-        with self._frontend_lock:
-            if not self.closed.is_set() and self._frontend_registration is not None:
-                self._frontend_registration.update(value)
 
     def _status(self, message: str, error: bool = False) -> None:
         if self.closed.is_set():
@@ -92,8 +84,14 @@ class FrameworkShell(ControlUIShell):
         if self.closed.is_set() or self.window is None:
             return
         self._restore_workspace()
+        # Native geometry and the companion's page mode are separate state.
+        # Let its shared workspace transition finish before opening a page.
         self.window.evaluate_js(
-            f"window.__mirallyFramework?.showPage?.({json.dumps(page)})")
+            "(() => {"
+            f"const navigate = () => window.__mirallyFramework?.showPage?.({json.dumps(page)});"
+            "if (window.__mirallyCompanion?.workspace) window.__mirallyCompanion.workspace(navigate);"
+            "else navigate();"
+            "})()")
 
     def _activity_settings_page(self) -> None:
         self._navigate("activity")
@@ -185,7 +183,6 @@ class FrameworkShell(ControlUIShell):
             self.window.destroy()
 
     def _closing(self) -> bool:
-        self._set_editing(False)
         if not self._quitting.is_set() and self._tray_ready.is_set():
             self.window.hide()
             return False
@@ -205,23 +202,16 @@ class FrameworkShell(ControlUIShell):
                     self._tray = None
                 if self._system_menu is not None:
                     self._system_menu.close()
-                with self._frontend_lock:
-                    if self._frontend_registration is not None:
-                        self._frontend_registration.close()
-                        self._frontend_registration = None
             finally:
                 self.host.close()
 
     def _native_style(self) -> None:
         from System import Action
         from System.Drawing import Icon
-        from mirally.platform.frontend_registry import FrontendRegistration
         from mirally.platform.window_menu import WindowSystemMenu
         form = self.window.native
 
         def apply():
-            if self._frontend_registration is None:
-                self._frontend_registration = FrontendRegistration(self.root)
             form.Opacity = 0
             form.Text = ""
             form.Icon = Icon(str(ASSETS / "mirally.ico"))
@@ -289,10 +279,6 @@ class FrameworkShell(ControlUIShell):
         local = (parts.scheme, parts.netloc) == self._gateway_origin
         if isinstance(value, dict) and local:
             kind = value.get("type")
-            if kind == "mirally-ufo-input":
-                if type(value.get("editing")) is bool and self._frontend_registration is not None:
-                    self._set_editing(value["editing"])
-                return
             if kind == "mirally-companion":
                 self._companion_action(value)
                 return
@@ -330,10 +316,6 @@ class FrameworkShell(ControlUIShell):
         webview.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True
         shell = self
         class Bridge:
-            def editing(self, value=False):
-                if type(value) is bool:
-                    shell._set_editing(value)
-
             def quit(self):
                 shell.quit()
 

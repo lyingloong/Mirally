@@ -8,7 +8,7 @@ import {MirallyProduct} from '../kernel/dsh/packages/mirally/mirally-product/src
 function productFixture() {
   const calls = [], product = Object.create(MirallyProduct.prototype);
   Object.assign(product, {
-    handles: new Map(),
+    handles: new Map(), clients: new Set(),
     async rpc(method, params) { calls.push({method, params}); return method === 'conversation.list' ? {conversations: []} : {accepted: true}; },
     async refreshModels() { calls.push({method: 'refresh-models'}); },
   });

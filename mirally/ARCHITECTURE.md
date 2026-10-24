@@ -5,10 +5,10 @@
 - `framework/`：产品业务 owner 与 SQLite，持久设置、会话代次引用、命令和来源回执、偏好、提醒、主动候选及收件箱；不复制原生 transcript。
 - `framework/context.py`：按需只读组合现有 Activity 与 Memory owner，保留来源版本和缺口。
 - `framework_workers.py`：有开关和预算的采集、维护和语义任务生命周期；完成请求经同一原生模型桥。
-- `framework_ui/`：自有交互界面，无独立模型循环或浏览器凭据存储。
-- `kernel/dsh/packages/mirally/mirally-product/`：本机鉴权 Host、DSH Session/Agent loop/LLM 适配、取消与恢复、受控桌面子任务。
+- `frontend/control-ui/`：固定 2026.9.6 原前端源码，保留 Mirally 页面与皮肤；`ui/src/app/mirally-client.ts` 适配本机 HTTP/SSE。`framework_ui/legacy-native-bridge.js` 承接旧原生消息；页面没有独立模型循环。
+- `kernel/dsh/packages/mirally/mirally-product/`：本机鉴权 Host、DSH Session/Agent loop/LLM 适配、取消与恢复。
 - `kernel/dsh/packages/mirally/mirally-extensions/`：Skill、脚本、MCP 与原生可信插件的版本、授权和生命周期组合。
-- 既有 `core/activity`、`core/memory`、`runtime/activity`、`runtime/memory` 与平台适配继续负责原有领域数据。`runtime/ufo` 是只读 UFO 内核的内部任务适配。
+- 既有 `core/activity`、`core/memory`、`runtime/activity`、`runtime/memory` 与平台适配继续负责原有领域数据。`runtime/ufo` 与只读 UFO 内核保留为维护参考，新默认框架本阶段不接入。
 
 接口、数据路径、迁移和实际验收见 [框架第一版](../docs/framework-v1.md)。下面保留旧模块的细节参考，其中 OpenClaw 专用宿主仅由维护入口使用。
 
@@ -16,8 +16,8 @@
 
 This describes the current Python/OpenClaw baseline. The refactor target and
 stage gates live in [the framework plan](../docs/framework-refactor-plan.md).
-The editable DSH source lives in `../kernel/dsh/`; it has not been connected
-to the product launcher or the new product contracts yet.
+The editable DSH source in `../kernel/dsh/` now powers the default launcher.
+The following OpenClaw-specific details describe only the explicit maintenance route.
 
 The product package is split by responsibility:
 

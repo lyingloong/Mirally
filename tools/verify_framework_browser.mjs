@@ -1,4 +1,4 @@
-/** Offline browser acceptance against an explicitly isolated, real product host. */
+/** Real retained UI acceptance against an isolated test-mode Mirally Host. */
 import assert from 'node:assert/strict';
 import {readFile, mkdir} from 'node:fs/promises';
 import {createRequire} from 'node:module';
@@ -8,74 +8,80 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(join(root, 'integrations/openclaw/package.json'));
 const {chromium} = require(process.env.MIRALLY_PLAYWRIGHT ?? 'playwright-core');
 const runtime = JSON.parse(await readFile(process.argv[2], 'utf8'));
-assert.equal(runtime.mode, 'test', 'Browser verification requires an isolated --test-mode host');
+assert.equal(runtime.mode, 'test', 'Requires an explicitly isolated --test-mode host');
 const output = resolve(process.argv[3] ?? join(root, '.artifacts/framework-browser'));
-await mkdir(output, {recursive: true});
-const browser = await chromium.launch({channel: 'msedge', headless: true});
-const errors = [];
-const run = Date.now().toString(36);
-async function newChat() { const old = await page.evaluate(() => __mirallyFramework.state.current?.id); await page.locator('#new-chat').click(); await page.waitForFunction(old => __mirallyFramework.state.current?.id && __mirallyFramework.state.current.id !== old && !__mirallyFramework.state.historyLoading, old); }
-let page;
+await mkdir(output, {recursive:true});
+const browser = await chromium.launch({channel:'msedge', headless:true});
+const page = await browser.newPage({viewport:{width:1280,height:900}});
+page.setDefaultTimeout(15000);
+const errors=[]; page.on('pageerror', error=>errors.push(error.message));
+const active = 'openclaw-chat-pane.chat-pane-cache__pane--active';
+async function ready() { await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase === 'connected'); }
+async function newChat() { await page.evaluate(()=>window.__mirallyFramework.showPage('chat')); await page.locator('.new-session-page__message').waitFor({state:'visible'}); }
+async function idle() { await page.waitForFunction(()=>{const p=document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active'); return p?.state?.chatMessages?.some(m=>m.role==='assistant') && !p.runActivity?.working;}); }
 try {
-  const context = await browser.newContext({viewport: {width: 1280, height: 900}, timezoneId: 'Asia/Shanghai'});
-  page = await context.newPage();
-  page.on('pageerror', error => errors.push(error.message));
-  await page.goto(runtime.url + '/#token=' + runtime.token);
-  await page.locator('#connection.ready').waitFor();
-  assert.equal(new URL(page.url()).hash, '');
-  await page.locator('nav [data-page=settings]').click();
-  await page.locator('#model-url').fill('http://127.0.0.1:1/v1');
-  await page.locator('#model-id').fill('offline-test');
-  await page.locator('#model-key').fill('fixture-secret');
-  await page.locator('#model-settings button').click();
-  await page.getByText('模型连接已保存。下一次对话使用新配置。').waitFor();
-  assert.equal(await page.locator('#model-key').inputValue(), '');
+  // Save through the original Mirally form, not a synthetic replacement page.
+  await page.goto(runtime.url+'/settings/model-providers#token='+runtime.token); await ready();
+  await page.locator('[data-field=modelId]').waitFor();
+  await page.locator('[data-field=baseUrl]').fill('http://127.0.0.1:1/v1');
+  const creating = await page.locator('[data-field=provider]').inputValue() === '__new__';
+  if (creating) await page.locator('[data-field=providerId]').fill('browser-fixture');
+  await page.locator('[data-field=modelId]').fill('offline-test');
+  await page.locator('[data-field=apiKey]').fill('isolated-fixture-secret');
+  await page.locator('[data-action=save]').click();
+  await page.getByText('模型服务已保存。', {exact:true}).waitFor();
+  assert.equal(await page.locator('[data-field=apiKey]').inputValue(), '');
+  await page.screenshot({path:join(output,'original-settings.png')});
   await newChat();
-  await page.locator('#message').fill('你好，验证流式对话');
-  await page.locator('#send').click();
-  await page.locator('.message.assistant').filter({hasText: '你好，验证流式对话'}).waitFor();
-  await page.waitForFunction(() => document.querySelector('#working').hidden);
-  await page.screenshot({path: join(output, 'chat.png')});
-  await page.reload();
-  await page.locator('#connection.ready').waitFor();
-  await page.locator('.message.assistant').filter({hasText: '你好，验证流式对话'}).waitFor();
+  const draft = '原版 **粗体** 与代码\n```js\nconst hello = 1;\n```';
+  await page.locator('.new-session-page__message').fill(draft);
+  await page.locator('.new-session-page__start-submit').click(); await idle();
+  const pane=page.locator(active);
+  assert.equal(await pane.locator('.chat-group.user').count(),1,'optimistic user reconciles with native history');
+  assert.equal(await pane.locator('.chat-group.assistant').count(),1);
+  assert.ok(await pane.locator('.chat-group.assistant strong').count());
+  assert.ok(await pane.locator('.chat-group.assistant pre code').count());
+  await page.evaluate(()=>{window.__copiedCode=[];Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>window.__copiedCode.push(value)}});});
+  await pane.locator('.chat-group.assistant pre').first().hover();
+  await pane.locator('.chat-group.assistant .code-block-copy').first().click();
+  await page.waitForFunction(()=>window.__copiedCode.some(value=>value.includes('const hello = 1;')));
+
+  const url=page.url();
+  await page.screenshot({path:join(output,'original-chat.png')});
+  await page.reload(); await ready(); await idle();
+  assert.equal(await pane.locator('.chat-group.user').count(),1,'refresh does not duplicate user message');
+  await pane.locator('textarea[aria-label="聊天输入框"]').fill('第二轮原版输入');
+  await pane.locator('.chat-send-btn--send').click();
+  await page.waitForFunction(()=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active')?.state?.chatMessages?.filter(m=>m.role==='assistant').length===2);
+  await idle();
+  assert.equal(await pane.locator('.chat-group.user').count(),2);
+  // Original file controls: two simultaneous reads, remove one, attachments-only first turn.
   await newChat();
-  await page.waitForFunction(() => document.querySelectorAll('#messages .message').length === 0);
-  await page.locator('nav [data-page=memory]').click();
-  await page.locator('#page-memory details summary').filter({hasText: '补充或纠正记忆'}).click();
-  await page.locator('#correction-text').fill(`验证记忆 ${run}：<img src=x onerror=window.__unsafe=1> 喜欢简洁表达`);
-  await page.locator('#memory-correction button').click();
-  await page.getByText('纠正已保存。').waitFor();
-  await page.locator('#memory-query').fill(`验证记忆 ${run}`);
-  await page.locator('#memory-search button').click();
-  await page.locator('#memory-results .card').filter({hasText: `验证记忆 ${run}`}).waitFor();
-  assert.equal(await page.evaluate(() => window.__unsafe), undefined);
-  await page.locator('nav [data-page=reminders]').click();
-  await page.locator('#reminder-text').fill(`浏览器真实提醒 ${run}`);
-  const past = new Date(Date.now() - 60_000); const local = new Date(past.getTime() - past.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-  await page.locator('#reminder-time').fill(local);
-  await page.locator('#reminder-create button').click();
-  await page.getByText('提醒已创建。').waitFor();
-  await page.locator('nav [data-page=inbox]').click();
-  await page.locator('#inbox-items .card').filter({hasText: `浏览器真实提醒 ${run}`}).waitFor();
-  await page.locator('#inbox-items .card').filter({hasText: `浏览器真实提醒 ${run}`}).getByRole('button').click();
-  await page.waitForFunction(() => document.querySelector('#inbox-count').textContent === '');
-  await page.locator('nav [data-page=actions]').click();
-  await page.locator('#desktop-text').fill('这个任务尚未确认');
-  await page.locator('#desktop-start button').click();
-  assert.equal(await page.locator('#action-items .card').count(), 0);
-  await page.screenshot({path: join(output, 'actions.png')});
-  await page.setViewportSize({width: 460, height: 820});
-  await page.locator('#toggle-nav').click();
-  await page.locator('nav [data-page=settings]').click();
-  await page.waitForFunction(() => !document.querySelector('#model-id').disabled);
-  await page.screenshot({path: join(output, 'mobile-settings.png')});
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
-  assert.deepEqual(errors, []);
-  console.log('PASS actual UI: streaming chat, cookie refresh, session isolation, memory correction/search, safe text, reminder/read receipt, explicit task confirmation and narrow layout');
-} catch (error) {
-  console.error('UI errors:', errors);
-  console.error('Visible notice:', await page?.locator('#notice').textContent().catch(() => 'unavailable'));
-  await page?.screenshot({path: join(output, 'failure.png')}).catch(() => {});
-  throw error;
-} finally { await browser.close(); }
+  const first=page.locator('openclaw-new-session-page');
+  await first.locator('input.agent-chat__file-input').setInputFiles([
+    {name:'移除材料.txt',mimeType:'text/plain',buffer:Buffer.from('不应发送')},
+    {name:'中文材料.txt',mimeType:'text/plain',buffer:Buffer.from('验收材料只保留这一份')},
+  ]);
+  await first.locator('.chat-attachment-thumb').nth(1).waitFor();
+  await first.locator('.chat-attachment-thumb').filter({hasText:'移除材料.txt'}).locator('button').click();
+  assert.equal(await first.locator('.chat-attachment-thumb').count(),1);
+  await first.locator('.new-session-page__start-submit').click(); await idle();
+  assert.ok((await pane.innerText()).includes('验收材料只保留这一份'));
+  assert.equal(await pane.locator('.chat-group.user').count(),1);
+  assert.ok(!(await pane.innerText()).includes('不应发送'));
+  // Switching uses the original app shell, retaining its own unsent draft.
+  await pane.locator('textarea[aria-label="聊天输入框"]').fill('未发送草稿');
+  const attachmentUrl=page.url();
+  await page.goto(url); await ready(); await idle();
+  assert.equal(await pane.locator('textarea[aria-label="聊天输入框"]').inputValue(),'');
+  await page.goto(attachmentUrl); await ready(); await idle();
+  assert.equal(await pane.locator('textarea[aria-label="聊天输入框"]').inputValue(),'未发送草稿');
+  await page.setViewportSize({width:480,height:820});
+  await page.screenshot({path:join(output,'original-narrow-chat.png')});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  assert.deepEqual(errors,[]);
+  console.log('PASS retained original UI: actual settings save/secret clearing, streaming and Markdown/code/copy, native receipt reconciliation, refresh/2 turns, attachment batch/removal/attachments-only send, session drafts and narrow layout');
+} catch(error) {
+  console.error('Page errors:', errors); console.error((await page.locator('body').innerText()).slice(-2500));
+  await page.screenshot({path:join(output,'failure.png')}).catch(()=>{}); throw error;
+} finally {await browser.close();}

@@ -1,6 +1,6 @@
 # Mirally
 
-本分支默认运行自有 personal agent 框架：以同仓 DSH 源码内核承载会话与模型执行，Mirally 拥有产品状态、自有界面、活动与记忆、提醒、受控行动及扩展接口。OpenClaw 不参与新主链，旧维护基线保留在 `feat/mirally-openclaw-desktop` 的 `2eeb778a`。
+本分支默认运行自有 personal agent 框架，并保留之前 Mirally 的页面、布局、视觉与操作习惯。前端直接导入固定 OpenClaw Control UI `2026.9.6` 源码，继续应用原 Mirally 皮肤；数据与动作接口改接 Mirally 的 HTTP/SSE 宿主，由同仓 DSH 承载唯一会话与模型主链。Mirally 拥有产品状态、活动与记忆、提醒、受控行动及扩展接口，OpenClaw Gateway 不参与默认运行。旧后端维护基线保留在 `feat/mirally-openclaw-desktop` 的 `2eeb778a`。
 
 ```powershell
 py -3.10 -m venv .venv
@@ -9,11 +9,11 @@ py -3.10 -m venv .venv
 .\run.ps1
 ```
 
-需要 Windows、Node 22.19+（22.x）或 24+ 和 WebView2；模型服务由你配置。活动采集、后台模型与一般主动联系默认关闭。安装、模块关系、生态兼容、迁移回退和验证边界见[第一版使用与开发说明](docs/framework-v1.md)，长期方向见[产品框架方案](docs/personal-agent-framework.md)。
+需要 Windows、Node 24+（含 npm）和 WebView2；模型服务由你配置。活动采集、后台模型与一般主动联系默认关闭。安装、模块关系、生态兼容、迁移回退和验证边界见[第一版使用与开发说明](docs/framework-v1.md)，长期方向见[产品框架方案](docs/personal-agent-framework.md)。
 
-已接通原生流式对话与历史、停止和重启恢复、记忆与明确偏好、提醒和持久收件箱、可选主动检查、Skill/MCP/可信插件及独立确认的桌面任务入口。第一版仍需真实外部模型、桌面任务效果和长期成本验收；未交付签名安装包、跨设备推送或完整长期陪伴能力。
+已接通原生流式对话与历史、停止和重启恢复、记忆与明确偏好、提醒和持久收件箱、可选主动检查、Skill/MCP/可信插件。本阶段暂不接入 UFO，已有源码与维护适配留作 Windows 适配参考。第一版仍需真实外部模型和长期成本验收；未交付签名安装包、跨设备推送或完整长期陪伴能力。
 
-此前 Mirally 的开屏动画、相伴 M、海獭／飞狐桌宠、侧栏／图标／伙伴三形态、原生窗口菜单和透明裁剪、十个工作入口、材料预览与交接已接到新框架；保留草稿、会话及单一原生消息链。活动范围确认、暂停／恢复、只读原始历史与高级记忆浏览也已迁移。具体保留项、文件格式和验收边界见 [体验迁移对照](docs/framework-experience-migration.md)。
+原前端源码位于 [frontend/control-ui](frontend/control-ui/README.md)，包括之前的真实对话、历史、设置页面与主题；原 Mirally 开屏、品牌、工作页、海獭／飞狐、三形态伙伴、窗口裁剪和菜单继续复用。安装脚本分别按 DSH 与前端锁文件准备依赖，并构建原页面；前端构建失败会明确报错，不替换成简化页面。页面复用不代表 OpenClaw 的渠道、后台服务和专有管理能力已由 DSH 实现。接入关系、材料限制与实际交互验收项目见 [体验迁移对照](docs/framework-experience-migration.md)。
 
 <details>
 <summary>OpenClaw 维护基线说明（仅适用于显式 --openclaw 入口）</summary>

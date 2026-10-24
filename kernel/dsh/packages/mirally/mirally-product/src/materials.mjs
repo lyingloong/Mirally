@@ -11,12 +11,15 @@ const identity = value => { if (!/^[a-f0-9-]{36}$/.test(value ?? '')) throw new 
 export class ProductMaterials {
   constructor(product) { this.product = product; this.directory = join(product.home, 'materials'); this.artifacts = join(product.home, 'artifacts'); }
   async save(path, value) { await mkdir(this.directory, {recursive: true}); await mkdir(this.artifacts, {recursive: true}); const temporary = path + '.' + randomUUID() + '.tmp'; await writeFile(temporary, JSON.stringify(value)); await rename(temporary, path); }
-  async upload({conversation_id, name, media_type, data}) {
+  async upload({conversation_id, name, media_type, data, request_id}) {
     await this.product.conversation(conversation_id);
     if (typeof data !== 'string' || data.length > 11_184_812 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(data)) throw new Error('A material requires canonical base64 under 8 MiB');
     const bytes = Buffer.from(data, 'base64'); if (!bytes.length || bytes.length > 8 * 1024 * 1024) throw new Error('Material is empty or exceeds 8 MiB');
     if (bytes.toString('base64') !== data) throw new Error('A material requires canonical base64');
-    const id = randomUUID(); name = leaf(name); let attachment, extraction, kind;
+    if (request_id !== undefined && (typeof request_id !== 'string' || !request_id || request_id.length > 300)) throw new Error('Invalid material upload identity');
+    name = leaf(name);
+    const hash = request_id ? digest(JSON.stringify([conversation_id, request_id, name, media_type, data])).slice(0, 32) : null;
+    const id = hash ? `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(20)}` : randomUUID(); let attachment, extraction, kind;
     const attachments = this.product.ctx.get('attachments');
     if (!attachments) throw new Error('Native attachment service is unavailable');
     if (['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(media_type)) {

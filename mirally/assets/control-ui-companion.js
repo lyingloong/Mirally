@@ -7,16 +7,16 @@
   const PET_KEY = 'mirally.companion.pet';
   const FORM_KEY = 'mirally.companion.form';
   let petType = 'otter';
-  try { const saved = experience ? experience.getPreference(PET_KEY) : localStorage.getItem(PET_KEY); if (Object.hasOwn(PETS, saved)) petType = saved; } catch {}
+  try { const saved = experience ? experience.getPreference(PET_KEY) : window.__mirallyLegacyHost?.getUiPreference(PET_KEY) ?? localStorage.getItem(PET_KEY); if (Object.hasOwn(PETS, saved)) petType = saved; } catch {}
   const office = window.__mirallyOffice;
   const trackReply = office.createReplyTracker();
   let app, pane, surface, entry, connectedContext, mode = 'workspace', frame, returnAfterAttention, presentationScope, hydratedHistoryScope, preparing;
   let replyNotice, dismissedReply;
   let surfaceMode = 'rail';
-  try { const saved=experience ? experience.getPreference(FORM_KEY) : localStorage.getItem(FORM_KEY); if (['rail','badge','pet'].includes(saved)) surfaceMode=saved; } catch {}
+  try { const saved=experience ? experience.getPreference(FORM_KEY) : window.__mirallyLegacyHost?.getUiPreference(FORM_KEY) ?? localStorage.getItem(FORM_KEY); if (['rail','badge','pet'].includes(saved)) surfaceMode=saved; } catch {}
   const savePreference = (key, value) => {
     try {
-      const pending = experience?.setPreference ? experience.setPreference(key, value) : localStorage.setItem(key, value);
+      const pending = experience?.setPreference ? experience.setPreference(key, value) : window.__mirallyLegacyHost?.setUiPreference ? window.__mirallyLegacyHost.setUiPreference(key, value) : localStorage.setItem(key, value);
       pending?.catch?.(error => experience?.requestContextUnavailable?.(error.message));
     } catch { /* Presentation remains usable if this source cannot save preferences. */ }
   };

@@ -147,6 +147,20 @@ class FrameworkProductTests(unittest.TestCase):
         with self.assertRaises(FrameworkError):
             self.call("command.admit", conversation_id="chat", command_id="same", text="different")
 
+    def test_conversation_times_and_recency_follow_real_command_receipts(self):
+        first = self.conversation("first")
+        self.now += 10
+        self.conversation("second")
+        self.assertEqual(self.call("conversation.list")["conversations"][0]["conversation_id"], "second")
+        self.now += 10
+        self.call("command.admit", conversation_id="first", command_id="later", text="continue")
+        recent = self.call("conversation.list")["conversations"][0]
+        self.assertEqual(recent["conversation_id"], "first")
+        self.assertEqual(recent["created_at"], first["created_at"])
+        self.assertEqual(recent["updated_at"], self.now)
+        self.restart()
+        self.assertEqual(self.call("conversation.list")["conversations"][0]["updated_at"], self.now)
+
     def test_command_identity_lookup_is_exact_beyond_the_recent_list(self):
         self.conversation()
         for index in range(205):
@@ -156,6 +170,11 @@ class FrameworkProductTests(unittest.TestCase):
         exact = self.call("command.list", conversation_id="chat", command_id="command-0")["commands"]
         self.assertEqual([item["command_id"] for item in exact], ["command-0"])
         self.assertEqual(self.call("command.list", conversation_id="chat", command_id="missing")["commands"], [])
+        page = self.call("command.list", conversation_id="chat", limit=10, offset=200)["commands"]
+        self.assertEqual([item["command_id"] for item in page], [f"command-{index}" for index in range(4, -1, -1)])
+        for options in ({"offset": -1}, {"offset": True}, {"limit": 0}, {"limit": 1001}):
+            with self.subTest(options=options), self.assertRaises(FrameworkError):
+                self.call("command.list", conversation_id="chat", **options)
         self.assertNotIn("同一句输入", self.service.path.read_bytes().decode("utf-8", errors="ignore"))
 
     def test_command_replay_never_rebinds_new_generation(self):

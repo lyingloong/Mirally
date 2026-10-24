@@ -360,7 +360,9 @@ class FrameworkService:
         return result
 
     def _conversation(self, conversation_id: str) -> dict[str, Any]:
-        row = self.db.execute("""SELECT c.id AS conversation_id,c.title,c.current_generation AS generation,g.session_id,g.frozen
+        row = self.db.execute("""SELECT c.id AS conversation_id,c.title,c.created_at,
+            COALESCE((SELECT MAX(updated_at) FROM commands WHERE conversation_id=c.id),c.created_at) AS updated_at,
+            c.current_generation AS generation,g.session_id,g.frozen
             FROM conversations c JOIN generations g ON g.conversation_id=c.id AND g.generation=c.current_generation WHERE c.id=?""", (conversation_id,)).fetchone()
         if row is None:
             raise FrameworkError("NOT_FOUND", "conversation not found")
@@ -402,7 +404,8 @@ class FrameworkService:
         return self._conversation(conversation_id)
 
     def conversation_list(self) -> dict[str, Any]:
-        return {"conversations": [self._conversation(row[0]) for row in self.db.execute("SELECT id FROM conversations ORDER BY created_at DESC,id DESC LIMIT 200")]}
+        return {"conversations": [self._conversation(row[0]) for row in self.db.execute("""SELECT c.id FROM conversations c
+            ORDER BY COALESCE((SELECT MAX(updated_at) FROM commands WHERE conversation_id=c.id),c.created_at) DESC,c.id DESC LIMIT 200""")]}
 
     def conversation_history_refs(self, conversation_id: str) -> dict[str, Any]:
         self._conversation(conversation_id)
@@ -489,12 +492,14 @@ class FrameworkService:
             self.db.execute("UPDATE commands SET state=?,runtime_request_id=COALESCE(runtime_request_id,?),updated_at=? WHERE conversation_id=? AND command_id=?", (state, runtime_request_id, self.clock(), conversation_id, command_id))
         return self._command(conversation_id, command_id)
 
-    def command_list(self, conversation_id: str, command_id: str | None = None) -> dict[str, Any]:
+    def command_list(self, conversation_id: str, command_id: str | None = None, limit: int = 200, offset: int = 0) -> dict[str, Any]:
         self._conversation(conversation_id)
+        _integer(limit, "limit", 1, 1000)
+        _integer(offset, "offset", 0, 2**31 - 1)
         if command_id is not None:
             _text(command_id, "command_id")
             return {"commands": [dict(row) for row in self.db.execute("SELECT * FROM commands WHERE conversation_id=? AND command_id=?", (conversation_id, command_id))]}
-        return {"commands": [self._command(conversation_id, row[0]) for row in self.db.execute("SELECT command_id FROM commands WHERE conversation_id=? ORDER BY created_at DESC,command_id DESC LIMIT 200", (conversation_id,))]}
+        return {"commands": [self._command(conversation_id, row[0]) for row in self.db.execute("SELECT command_id FROM commands WHERE conversation_id=? ORDER BY created_at DESC,command_id DESC LIMIT ? OFFSET ?", (conversation_id, limit, offset))]}
 
     def interaction_stop(self, conversation_id: str, command_id: str | None = None) -> dict[str, Any]:
         with self._transaction():

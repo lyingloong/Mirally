@@ -1,0 +1,301 @@
+/** HTTP/SSE transport for the retained Control UI. Mirally/DSH own every fact. */
+import type { GatewayBrowserClient, GatewayBrowserClientOptions, GatewayHelloOk, GatewayEventFrame } from "../api/gateway.ts";
+
+import {readMirallyModel, MIRALLY_READ_METHODS} from "./mirally-read-models.ts";
+
+type Data = Record<string, any>;
+const key = (id: string) => `agent:main:${id}`;
+const identity = (value: string) => String(value ?? "").replace(/^agent:main:/, "");
+const unsupported = (method: string): never => { throw Object.assign(new Error(`当前 Mirally 内核尚未提供此操作：${method}`), {code: "METHOD_NOT_FOUND", gatewayCode: "METHOD_NOT_FOUND"}); };
+const METHODS = [...MIRALLY_READ_METHODS, "themes.list", "themes.get", "health", "status", "agents.list", "agents.identity.get", "agent.identity.get", "sessions.list", "sessions.resolve", "sessions.create", "sessions.get", "sessions.abort", "sessions.subscribe", "sessions.unsubscribe", "sessions.messages.subscribe", "sessions.messages.unsubscribe", "chat.history", "chat.startup", "chat.metadata", "chat.send", "chat.abort", "config.get", "config.patch", "models.list", "models.authStatus", "sessions.describe", "sessions.files.list", "sessions.files.get", "artifacts.list", "artifacts.get", "artifacts.download"];
+
+export class MirallyBrowserClient {
+  readonly instanceId = crypto.randomUUID();
+  readonly gatewayUrl = location.origin;
+  readonly recoveryScope = `mirally:${location.origin}`;
+  recoveryScopeReady = false;
+  connected = false;
+  readonly scopeUpgradeReady = false;
+  private stopped = true;
+  private generation = 0;
+  private stream?: AbortController;
+  private retry?: ReturnType<typeof setTimeout>;
+  private token: string;
+  private eventListeners = new Set<(event: GatewayEventFrame) => void>();
+  private runs = new Map<string, Set<string>>();
+  private partials = new Map<string, string>();
+  private sequence = 0;
+  private agentSequence = 0;
+  private configHash = "";
+  private preferences: Data = {};
+  constructor(private opts: GatewayBrowserClientOptions) {
+    this.token = opts.token || new URLSearchParams(location.hash.slice(1)).get("token") || "";
+    const host = {request: this.http.bind(this), rpc: this.rpc.bind(this),
+      conversationIdForSession: identity,
+      getUiPreference: (name: string) => this.preferences[name],
+      setUiPreference: (name: string, value: string) => { this.preferences[name] = value; void this.http('/api/ui-preferences', {method:'POST', body:JSON.stringify({key:name,value})}); },
+      client: this};
+    Object.assign(window, {__mirallyLegacyHost: host});
+    window.dispatchEvent(new CustomEvent("mirally-host-ready"));
+  }
+  get needsWakeReconnect() { return !this.connected; }
+  start() { if (!this.stopped) return; this.stopped = false; const generation = ++this.generation; void this.connect(generation); }
+  stop() { this.stopped = true; ++this.generation; this.connected = false; this.stream?.abort(); clearTimeout(this.retry); }
+  requestScopeUpgrade() { return Promise.reject(new Error("本机 Mirally 使用产品授权确认，不提供 Gateway scope 升级。")); }
+  cancelScopeUpgrade() {}
+  private scheduleReconnect(generation: number, delayMs: number) {
+    if (this.stopped || generation !== this.generation) return false;
+    this.connected = false; this.stream?.abort(); clearTimeout(this.retry);
+    const nextGeneration = ++this.generation;
+    this.retry = setTimeout(() => { if (!this.stopped && nextGeneration === this.generation) void this.connect(nextGeneration); }, delayMs);
+    return true;
+  }
+  private disconnected(cause: unknown, generation: number, wasConnected: boolean) {
+    const error = Object.assign(new Error(`gateway disconnected: ${cause instanceof Error ? cause.message : String(cause)}`, {cause}),
+      {code: 'GATEWAY_DISCONNECTED', gatewayCode: 'GATEWAY_DISCONNECTED'});
+    if (wasConnected && this.connected && this.scheduleReconnect(generation, 1500)) {
+      this.opts.onClose?.({code: 1006, reason: error.message, willRetry: true});
+    }
+    return error;
+  }
+  private async http(path: string, options: RequestInit = {}) {
+    const target = new URL(path, location.origin);
+    if (!path.startsWith("/") || target.origin !== location.origin || target.username || target.password) throw new Error("Mirally requests must stay on this origin");
+    const generation = this.generation, wasConnected = this.connected;
+    let response: Response;
+    try { response = await fetch(target, {...options, redirect: "error", headers: {"Content-Type": "application/json", ...(this.token ? {Authorization: `Bearer ${this.token}`} : {}), ...options.headers}}); }
+    catch (cause) { if (options.signal?.aborted) throw cause; throw this.disconnected(cause, generation, wasConnected); }
+    let result: Data;
+    try { result = await response.json(); }
+    catch (cause) {
+      if (options.signal?.aborted) throw cause;
+      if (response.ok) throw this.disconnected(cause, generation, wasConnected);
+      result = {};
+    }
+    if (!response.ok || result.error) throw Object.assign(new Error(result.error?.message || `请求失败 (${response.status})`), {code: result.error?.code, gatewayCode: result.error?.code});
+    return result;
+  }
+  private async rpc(method: string, params: Data = {}) { return (await this.http("/api/rpc", {method: "POST", body: JSON.stringify({method, params})})).result; }
+  private activeRuns(id: string) { return [...(this.runs.get(id) || [])]; }
+  private rememberRun(id: string, runId: string) { const runs = this.runs.get(id) || new Set<string>(); runs.add(runId); this.runs.set(id, runs); }
+  private forgetRun(id: string, runId: string) { const runs = this.runs.get(id); runs?.delete(runId); if (!runs?.size) this.runs.delete(id); }
+  addEventListener(listener: (event: GatewayEventFrame) => void) {
+    this.eventListeners.add(listener); return () => this.eventListeners.delete(listener);
+  }
+  private emit(event: string, payload: Data) {
+    if (this.stopped) return;
+    const frame: GatewayEventFrame = {type: "event", event, payload, seq: ++this.sequence};
+    for (const listener of [this.opts.onEvent, ...this.eventListeners]) {
+      try { listener?.(frame); } catch (error) { console.warn('Mirally UI event handler failed', error); }
+    }
+  }
+  private async connect(generation: number) {
+    try {
+      if (this.token) await this.http("/api/auth", {method: "POST", body: "{}"});
+      const health = await this.http("/api/health");
+      this.preferences = (await this.http('/api/ui-preferences')).preferences || {};
+      await this.loadPresentation();
+      if (this.stopped || generation !== this.generation) return;
+      this.connected = true; this.recoveryScopeReady = true;
+      this.opts.onHello?.({type: "hello-ok", protocol: 3, server: {version: "Mirally", connId: this.instanceId, controlUiBuildSource: "configured"},
+        features: {methods: METHODS, events: ["chat", "agent", "sessions.changed", "config.changed"]},
+        snapshot: {presence: [], health: health.product, stateVersion: {presence: 0, health: 0}, uptimeMs: 0,
+          sessionDefaults: {defaultAgentId: "main", mainKey: "main"}},
+        auth: {role: "operator", scopes: ["operator.read", "operator.write", "operator.admin"], recoveryScope: this.recoveryScope},
+        policy: {maxPayload: 16 * 1024 * 1024, maxBufferedBytes: 16 * 1024 * 1024, tickIntervalMs: 30_000},
+      } as unknown as GatewayHelloOk);
+      void this.events(generation);
+    } catch (error) {
+      if (this.stopped || generation !== this.generation) return;
+      if (this.scheduleReconnect(generation, 2000)) this.opts.onClose?.({code: 1006, reason: String(error), willRetry: true});
+    }
+  }
+  private async loadPresentation() {
+    for (const [id, src] of [["mirally-native-bridge", "/mirally-native-bridge.js"], ["mirally-original-presentation", "/mirally-presentation.js"]]) {
+      if (document.getElementById(id)) continue;
+      await new Promise<void>((resolve, reject) => { const script = document.createElement("script"); script.id = id; script.src = src; script.onload = () => resolve(); script.onerror = () => {script.remove(); reject(new Error("原界面资源未能加载"));}; document.head.append(script); });
+    }
+    (window as any).__mirallyFramework = {showPage: async (page: string) => {
+      const context = (document.querySelector("openclaw-app") as any)?.context;
+      if (page === "work") return (window as any).__mirallyWork?.open();
+      if (page === "activity") return (window as any).__mirallyActivity?.open();
+      if (page === "memory") return context?.navigate("memory", {pathname: "/settings/memory/memories", search: ""});
+      const route = ({chat: "new-session", settings: "model-providers", memory: "memory", extensions: "plugins"} as Data)[page];
+      if (!route) throw new Error("该产品页面尚未完成原界面接入");
+      context?.navigate(route, {search: ""});
+    }};
+  }
+  private async events(generation: number) {
+    const controller = new AbortController(); this.stream?.abort(); this.stream = controller;
+    try {
+      const response = await fetch("/api/events", {headers: this.token ? {Authorization: `Bearer ${this.token}`} : {}, signal: controller.signal});
+      if (!response.ok || !response.body) throw new Error("实时连接暂不可用");
+      const reader = response.body.getReader(), decoder = new TextDecoder(); let buffer = "";
+      while (!this.stopped && generation === this.generation) {
+        const {value, done} = await reader.read(); if (done) break;
+        if (this.stopped || generation !== this.generation) return;
+        buffer += decoder.decode(value, {stream: true}); buffer = buffer.replace(/\r\n/g, "\n");
+        let end;
+        while ((end = buffer.indexOf("\n\n")) >= 0) {
+          const frame = buffer.slice(0, end); buffer = buffer.slice(end + 2);
+          const data = frame.split("\n").filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
+          if (data) await this.consume(JSON.parse(data), generation);
+        }
+      }
+      if (!controller.signal.aborted && !this.stopped) throw new Error("实时连接已结束");
+    } catch (error) {
+      if (controller.signal.aborted || this.stopped || generation !== this.generation) return;
+      if (this.scheduleReconnect(generation, 1500)) this.opts.onClose?.({code: 1006, reason: String(error), willRetry: true});
+    }
+  }
+  private async sessions() {
+    const {sessions} = await this.http("/api/sessions");
+    const {model} = await this.rpc('settings.get');
+    return sessions.map((s: Data) => ({...s, key: key(s.id), sessionId: s.session_id, displayName: s.title, label: s.title,
+      agentId: "main", kind: "direct", updatedAt: s.updated_at, hasActiveRun: s.status === "running", activeRunIds: [...new Set([...(s.active_command_ids || []), ...this.activeRuns(s.id)])], modelProvider: model.provider, model: model.model_id}));
+  }
+  private message(message: Data) { return {id: message.id, role: message.role, timestamp: message.time, __openclaw: message.__openclaw, content: [{type: "text", text: message.text || ""}], stopReason: message.stopReason ?? "stop"}; }
+  private async history(id: string): Promise<Data> {
+    const session = (await this.sessions()).find((item: Data) => identity(item.key) === id);
+    if (!session) return {sessionKey: key(id), messages: [], sessionId: undefined, hasMore: false};
+    const result = await this.http(`/api/sessions/${encodeURIComponent(id)}/history`);
+    return {sessionKey: key(id), sessionId: session.sessionId, sessionInfo:session, messages: result.messages.map(this.message), hasMore: false,
+      ...(result.in_flight ? {inFlightRun:{runId:result.in_flight.command_id, startedAt:result.in_flight.started_at, sessionAbortable:true}} : {}),
+      activeRunIds: session.activeRunIds, model: (await this.rpc("settings.get")).model.model_id};
+  }
+  private async consume(event: Data, generation = this.generation) {
+    if (this.stopped || generation !== this.generation) return;
+    if (event.type === 'configuration') { this.emit('config.changed', {paths:event.fields || []}); return; }
+    const id = event.session_id; if (!id) { if (["artifact", "action", "inbox"].includes(event.type)) window.dispatchEvent(new CustomEvent("mirally-product-event", {detail: event})); return; }
+    const runId = event.command_id || this.activeRuns(id).at(-1);
+    const partialKey = `${id}:${runId || ""}`;
+    if (event.type === "assistant-start") this.partials.set(partialKey, "");
+    if (event.type === "token") {
+      const text = (this.partials.get(partialKey) || "") + event.text; this.partials.set(partialKey, text);
+      this.emit("chat", {sessionKey: key(id), agentId: "main", runId, state: "delta", deltaText: event.text, message: {role: "assistant", content: [{type: "text", text}]}});
+    }
+    if (event.type === "tool") this.emit("agent", {runId, sessionKey: key(id), seq: ++this.agentSequence, ts: Date.now(), stream: "tool", data: {phase: event.state === "running" ? "start" : "result", name: event.name, toolCallId: event.id, isError: event.state === "failed"}});
+    if (["done", "error"].includes(event.type)) {
+      const history = await this.history(id), message = history.messages.filter((m: Data) => m.role === "assistant" && (!runId || m.__openclaw?.runId === runId)).at(-1);
+      if (this.stopped || generation !== this.generation) return;
+      if (runId) this.forgetRun(id, runId);
+      this.emit("chat", {sessionKey: key(id), agentId: "main", runId, state: event.type === "error" || event.failed ? "error" : event.cancelled ? "aborted" : "final", message, errorMessage: event.text || event.message || (event.failed ? "这次处理没有完成。" : undefined)});
+      const activeRunIds = this.activeRuns(id);
+      this.emit("sessions.changed", {key:key(id), agentId:"main", hasActiveRun:!!history.sessionInfo?.hasActiveRun || activeRunIds.length > 0, activeRunIds, reason:"completed"}); this.partials.delete(partialKey);
+    }
+  }
+  async request<T = unknown>(method: string, params: Data = {}, options?: {signal?: AbortSignal}): Promise<T> {
+    options?.signal?.throwIfAborted();
+    const result = await this.dispatch(method, params); options?.signal?.throwIfAborted(); return result as T;
+  }
+  private async dispatch(method: string, p: Data): Promise<any> {
+    const id = identity(p.sessionKey || p.key || p.reference?.key || "main");
+    switch (method) {
+      case "health": case "status": return (await this.http("/api/health")).product;
+      case "themes.list": case "themes.get": {
+        const {BUILTIN_THEMES} = await import("../../../packages/gateway-protocol/src/theme.ts");
+        const prefs = this.preferences['control-ui'] || {}, selected = prefs.theme || 'claw';
+        const theme = BUILTIN_THEMES.find(item => item.id === (p.id || selected));
+        if (!theme) return unsupported('themes.get: custom/plugin theme');
+        return {current:{id:selected, mode:prefs.themeMode || 'system', scope:'gateway', overrides:{
+          ...(prefs.theme ? {id:prefs.theme} : {}), ...(prefs.themeMode ? {mode:prefs.themeMode} : {})}},
+          theme, ...(method === 'themes.list' ? {themes:BUILTIN_THEMES} : {})};
+      }
+      case "agents.list": {const {model}=await this.rpc('settings.get'); return {defaultId: "main", mainKey: "main", scope: "per-sender", agents: [{id: "main", name: "Mirally", model: {primary:model.model_id ? `${model.provider}/${model.model_id}` : ''}, identity: {name: "Mirally", avatar: "/experience/mirally-128.png"}}]};}
+      case "agent.identity.get": case "agents.identity.get": return {agentId: "main", name: "Mirally", avatar: "/experience/mirally-128.png"};
+      case "sessions.list": { const sessions = await this.sessions(), {model}=await this.rpc('settings.get'); return {ts: Date.now(), count: sessions.length, defaults: {modelProvider: model.provider, model: model.model_id}, sessions}; }
+      case "sessions.describe": return {session: (await this.sessions()).find((s: Data) => identity(s.key) === id) || null};
+      case "sessions.get": case "sessions.resolve": { const session = (await this.sessions()).find((s: Data) => identity(s.key) === id); if (!session) { if (p.allowMissing) return {ok:false}; throw new Error("会话不存在"); } return {ok:true, key: session.key, entry: session, sessionId: session.sessionId, agentId:"main"}; }
+      case "sessions.create": {
+        if (p.incognito) throw new Error("当前内核尚未支持无痕会话，请使用普通会话；本次没有创建或保存会话。");
+        const session = await this.http("/api/sessions", {method: "POST", body: JSON.stringify({title: p.displayName || p.label || p.title || "新对话", requestId:p.idempotencyKey})});
+        const entry = (await this.sessions()).find((s: Data) => identity(s.key) === session.id);
+        if (p.message || p.attachments?.length) {
+          try {
+            const sent = await this.dispatch("chat.send", {...p, sessionKey: key(session.id), message: p.message});
+            return {key: key(session.id), entry, runStarted: sent.status !== 'ok' && sent.status !== 'error', runId: sent.runId,
+              ...(sent.status === 'error' ? {runError: {message: '这次提交没有继续执行，请查看历史后重新发送。'}} : {})};
+          }
+          catch (error) { return {key:key(session.id), entry, runStarted:false, runError:{message:String(error)}}; }
+        }
+        return {key: key(session.id), entry};
+      }
+      case "sessions.messages.subscribe": case "sessions.subscribe": return {subscribed: true, subscriptionId: key(id), sessionKey: key(id)};
+      case "sessions.messages.unsubscribe":
+      case "sessions.unsubscribe": return {ok: true};
+      case "chat.history": return this.history(id);
+      case "chat.startup": { const history = await this.history(id); return {...history, history, metadata: await this.dispatch("chat.metadata", p)}; }
+      case "chat.metadata": { const catalog = await this.dispatch('models.list', {}); return {commands:[], models:catalog.models}; }
+      case "sessions.abort": case "chat.abort": {
+        const runIds = this.activeRuns(id);
+        const result = await this.http(`/api/sessions/${encodeURIComponent(id)}/cancel`, {method: "POST", body: JSON.stringify({commandId: p.runId})});
+        if (result.stopped) this.runs.delete(id);
+        return {ok: true, aborted: result.stopped, runIds,
+          ...(method === 'sessions.abort' ? {status:result.stopped ? 'aborted' : 'no-active-run'} : {})};
+      }
+      case "chat.send": {
+        if (id === 'main') await this.http('/api/sessions', {method:'POST',body:JSON.stringify({conversationId:'main',title:'对话'})});
+        const runId = p.idempotencyKey || crypto.randomUUID();
+        const materials = [];
+        for (const [index, attachment] of (p.attachments || []).entries()) {
+          const uploaded = await this.http("/api/materials", {method: "POST", body: JSON.stringify({conversation_id: id, request_id:`${runId}:${index}`, name: attachment.fileName || attachment.name || "material", media_type: attachment.mimeType, data: attachment.content || attachment.data})});
+          if (uploaded.readingState === "error") throw new Error(uploaded.note); materials.push(uploaded.id);
+        }
+        this.rememberRun(id, runId);
+        try {
+          const result = await this.http(`/api/sessions/${encodeURIComponent(id)}/messages`, {method: "POST", body: JSON.stringify({commandId: runId, text: p.message || "请查看我提供的材料。", materials, allow_file_write: p.mirallyAllowFileWrite === true})});
+          if (result.replay && ['completed','cancelled','rejected','unknown'].includes(result.command?.state)) {
+            this.forgetRun(id, runId);
+            const state = result.command.state === 'completed' ? 'final' : result.command.state === 'cancelled' ? 'aborted' : 'error';
+            queueMicrotask(() => { this.emit('chat', {sessionKey:key(id), agentId:'main', runId, state}); const activeRunIds = this.activeRuns(id); this.emit('sessions.changed', {key:key(id), agentId:'main', reason:'command-replay', hasActiveRun:activeRunIds.length > 0, activeRunIds}); });
+            return {runId, status:state === 'final' ? 'ok' : 'error', sessionKey:key(id)};
+          }
+          return {runId, status: result.accepted ? "started" : "unknown", sessionKey: key(id), messageSeq: result.message_seq};
+        } catch (error) { this.forgetRun(id, runId); throw error; }
+      }
+      case "sessions.files.list": case "sessions.files.get": case "artifacts.list": case "artifacts.get": case "artifacts.download": {
+        const bridge = (window as any).__mirallyLegacyNativeBridge;
+        if (!bridge) throw new Error("成果入口尚未准备完成"); return bridge.requestNative(method, p);
+      }
+      case "models.authStatus": {
+        const {model} = await this.rpc("settings.get");
+        return {ts: Date.now(), providers: model.model_id ? [{provider: model.provider, displayName: model.provider,
+          status: model.api_key_configured ? 'static' : 'missing', profiles: [], ...(model.api_key_configured ? {apiKey:{source:'config'}} : {})}] : [], providerCapabilities: []};
+      }
+      case "models.list": { const {model} = await this.rpc("settings.get"); return {models: model.model_id ? [{id: model.model_id, name: model.model_id, provider: model.provider, available:!!model.base_url, input: model.image_enabled ? ["text", "image"] : ["text"], reasoning: model.reasoning_enabled}] : []}; }
+      case "config.get": return this.config();
+      case "config.patch": return this.patchConfig(p);
+      default: {const result = await readMirallyModel(method, p, {rpc:this.rpc.bind(this)}); return result.handled ? result.value : unsupported(method);}
+    }
+  }
+  private async config() {
+    const {model} = await this.rpc("settings.get"), provider = model.provider || "service";
+    const config = {ui: {prefs: this.preferences['control-ui'] || {}}, models: {providers: model.model_id ? {[provider]: {baseUrl: model.base_url, api: model.api_format === "openai-chat" ? "openai-completions" : model.api_format, models: [{id: model.model_id, name: model.model_id, input: model.image_enabled ? ["text", "image"] : ["text"], reasoning: model.reasoning_enabled, maxTokens: model.max_tokens}]}} : {}},
+      agents: {defaults: {model: {primary: model.model_id ? `${provider}/${model.model_id}` : ""}}, list: [{id: "main", name: "Mirally"}]}};
+    const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(config))))).map(x => x.toString(16).padStart(2, "0")).join(""); this.configHash = hash;
+    return {path: "Mirally 产品配置", exists: true, valid: true, hash, config, resolved: config, raw: JSON.stringify(config, null, 2), issues: [], warnings: [], legacyIssues: []};
+  }
+  private async patchConfig(p: Data) {
+    const current = await this.config();
+    if (p.baseHash && p.baseHash !== current.hash) throw new Error("配置已变化，请重新加载后保存。");
+    const patch = typeof p.raw === "string" ? JSON.parse(p.raw) : p.patch;
+    if (patch && Object.keys(patch).length === 1 && patch.ui?.prefs && Object.keys(patch.ui).length === 1) {
+      const value = {...this.preferences['control-ui'], ...patch.ui.prefs};
+      const result = await this.http('/api/ui-preferences', {method:'POST',body:JSON.stringify({key:'control-ui',value})});
+      this.preferences = result.preferences; return {ok:true, config:(await this.config()).config};
+    }
+    if (!patch || Object.keys(patch).some(name => !["models", "agents"].includes(name))) return unsupported("config.patch fields");
+    const defaults = patch.agents?.defaults;
+    if (defaults && Object.keys(defaults).some(name => name !== 'model')) return unsupported('config.patch agent defaults');
+    const providers = patch.models?.providers || {};
+    const names = Object.keys(providers); if (names.length > 1) throw new Error("当前内核只维护一个模型连接，请一次修改一个服务。");
+    const name = names[0], provider = providers[name], model = provider?.models?.[0];
+    if (model?.compat && Object.keys(model.compat).length) return unsupported('config.patch model compatibility');
+    if (!provider || !model?.id || provider.models.length !== 1) throw new Error("当前内核需要一个明确的服务和模型连接。");
+    const value: Data = {provider: name, base_url: provider.baseUrl, model_id: model.id, api_format: provider.api === "openai-completions" ? "openai-chat" : provider.api, image_enabled: model.input?.includes("image") || false, reasoning_enabled: !!model.reasoning};
+    if (model.maxTokens) value.max_tokens = model.maxTokens;
+    if (provider.apiKey) value.api_key = provider.apiKey;
+    await this.rpc("settings.update", {patch: {model: value}}); return {ok: true, config: (await this.config()).config};
+  }
+}
+export function createMirallyBrowserClient(opts: GatewayBrowserClientOptions): GatewayBrowserClient { return new MirallyBrowserClient(opts) as unknown as GatewayBrowserClient; }

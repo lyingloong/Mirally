@@ -1,75 +1,70 @@
-/** Retained Mirally surfaces against a real isolated host; no desktop capture. */
+/** Original Mirally work/companion/settings surfaces on a real isolated Host. */
 import assert from 'node:assert/strict';
-import {readFile, mkdir} from 'node:fs/promises';
+import {readFile,mkdir} from 'node:fs/promises';
 import {createRequire} from 'node:module';
-import {resolve, dirname, join} from 'node:path';
+import {resolve,dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const require = createRequire(join(root, 'integrations/openclaw/package.json'));
-const {chromium} = require(process.env.MIRALLY_PLAYWRIGHT ?? 'playwright-core');
-const runtime = JSON.parse(await readFile(process.argv[2], 'utf8'));
-assert.equal(runtime.mode, 'test');
-const output = resolve(process.argv[3] ?? join(root, '.artifacts/framework-experience'));
-await mkdir(output, {recursive: true});
-const browser = await chromium.launch({channel: 'msedge', headless: true});
-const page = await browser.newPage({viewport: {width: 1280, height: 900}});
-const errors = []; page.on('pageerror', error => errors.push(error.message));
-async function newChat() { const old = await page.evaluate(() => __mirallyFramework.state.current?.id); await page.locator('#new-chat').click(); await page.waitForFunction(old => __mirallyFramework.state.current?.id && __mirallyFramework.state.current.id !== old && !__mirallyFramework.state.historyLoading, old); }
+const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
+const require=createRequire(join(root,'integrations/openclaw/package.json'));
+const {chromium}=require(process.env.MIRALLY_PLAYWRIGHT ?? 'playwright-core');
+const runtime=JSON.parse(await readFile(process.argv[2],'utf8')); assert.equal(runtime.mode,'test');
+const output=resolve(process.argv[3]??join(root,'.artifacts/framework-experience')); await mkdir(output,{recursive:true});
+const browser=await chromium.launch({channel:'msedge',headless:true});
+const page=await browser.newPage({viewport:{width:1280,height:900}}); page.setDefaultTimeout(15000);
+const errors=[];page.on('pageerror',error=>errors.push(error.message));
+const active='openclaw-chat-pane.chat-pane-cache__pane--active';
+async function ready(){await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected');}
 try {
-  await page.goto(runtime.url + '/#token=' + runtime.token);
-  await page.locator('#connection.ready').waitFor();
-  await newChat();
-  const original = await page.evaluate(() => __mirallyFramework.state.current.id);
-  await page.locator('#message').fill('保留在对话里的中文草稿');
-  await page.locator('#file-input').setInputFiles([{name: '中文材料.txt', mimeType: 'text/plain', buffer: Buffer.from('真实材料：迁移之前的产品体验。')}]);
-  await page.waitForFunction(() => __mirallyFramework.state.attachments[0]?.readingState === 'ready');
-  assert.equal(await page.locator('#attachments').getByText('中文材料.txt', {exact: false}).count(), 1);
-  const material = await page.evaluate(() => __mirallyFramework.state.attachments[0].id);
-  await newChat();
-  assert.equal(await page.locator('#message').inputValue(), '');
-  assert.equal(await page.locator('#attachments').textContent(), '');
-  const rejected = await page.evaluate(async id => {
-    const r = await fetch(`/api/sessions/${__mirallyFramework.state.current.id}/messages`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({commandId: crypto.randomUUID(), text: 'cross session', materials: [id]})}); return r.status;
-  }, material);
-  assert.equal(rejected, 500);
-  await page.evaluate(id => __mirallyFramework.selectSession(id), original);
-  assert.equal(await page.locator('#message').inputValue(), '保留在对话里的中文草稿');
-  await page.locator('nav [data-page=work]').click();
-  await page.locator('.mirally-work:not([hidden])').waitFor();
-  assert.equal(await page.locator('.mirally-work__cards [data-workflow]').count(), 10);
-  assert.equal(await page.locator('[data-output]').count(), 4);
-  await page.locator('[data-workflow=read]').click();
-  await page.locator('[data-work=goal]').fill('只整理已提供的材料');
-  await page.locator('[data-output=reply]').click();
-  await page.screenshot({path: join(output, 'work.png')});
-  await page.locator('[data-work=start]').click();
-  await page.waitForFunction(() => __mirallyFramework.state.messages.some(x => x.role === 'assistant') && !__mirallyFramework.state.busy);
-  assert.equal(await page.locator('#message').inputValue(), '保留在对话里的中文草稿');
-  assert.equal(await page.evaluate(() => __mirallyFramework.state.attachments.length), 0);
-  await page.evaluate(() => __mirallyWork.close());
-  await page.locator('#continue-work').click();
-  assert.match(await page.locator('#message').inputValue(), /请接着/);
-  for (const form of ['rail', 'badge', 'pet']) {
-    await page.evaluate(async form => { __mirallyCompanion.setForm(form); await __mirallyCompanion.dock(); }, form);
-    await page.waitForFunction(form => document.documentElement.dataset.mirallyMode === 'companion' && document.querySelector('.mirally-companion').dataset.form === form, form);
-    await page.screenshot({path: join(output, `${form}.png`)});
-    await page.evaluate(() => __mirallyCompanion.workspace());
+  await page.goto(runtime.url+'/new#token='+runtime.token);await ready();
+  // Native client factory only; no shadow session, fake DOM or fixture state.
+  await page.evaluate(async()=>{const ctx=document.querySelector('openclaw-app').context;const r=await ctx.gateway.snapshot.client.request('sessions.create',{displayName:'原版体验验收',idempotencyKey:crypto.randomUUID()});document.querySelector('openclaw-app-shell').selectChatSession(r.key,'main');});
+  await page.locator(active+' textarea[aria-label="聊天输入框"]').waitFor();
+  const pane=page.locator(active), composer=pane.locator('textarea[aria-label="聊天输入框"]');
+  await composer.fill('保留在聊天里的中文草稿');
+  await pane.locator('input.agent-chat__file-input').setInputFiles([{name:'工作材料.txt',mimeType:'text/plain',buffer:Buffer.from('真实工作材料：保留原版体验')}]);
+  await pane.locator('.chat-attachment-thumb').waitFor();
+  await page.evaluate(()=>__mirallyWork.open());
+  const work=page.locator('.mirally-work:not([hidden])');await work.waitFor();
+  assert.equal(await work.locator('.mirally-work__cards [data-workflow]').count(),10);
+  assert.equal(await work.locator('[data-output]').count(),4);
+  await work.locator('[data-workflow=read]').click();
+  await work.locator('[data-work=goal]').fill('只整理已提供材料');
+  await work.locator('[data-output=reply]').click();
+  await work.locator('[data-work=start]').click();
+  await page.waitForFunction(()=>{const p=document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active');return p?.state?.chatMessages?.some(x=>x.role==='assistant')&&!p.runActivity?.working;});
+  assert.equal(await composer.inputValue(),'保留在聊天里的中文草稿');
+  assert.equal(await pane.locator('.chat-attachment-thumb').count(),0);
+  await page.screenshot({path:join(output,'original-work.png')});
+  await page.evaluate(()=>__mirallyWork.close());
+  for(const form of ['rail','badge','pet']){
+    await page.evaluate(async form=>{__mirallyCompanion.setForm(form);await __mirallyCompanion.dock();},form);
+    await page.waitForFunction(form=>document.documentElement.dataset.mirallyMode==='companion'&&document.querySelector('.mirally-companion').dataset.form===form,form);
+    await page.screenshot({path:join(output,form+'.png')});
+    await page.evaluate(()=>__mirallyCompanion.workspace());
+    await page.waitForFunction(()=>document.documentElement.dataset.mirallyMode!=='companion');
   }
-  await page.evaluate(() => { __mirallyCompanion.setPet('fox'); __mirallyCompanion.setForm('pet'); });
-  await page.waitForFunction(() => __mirallyFramework.state.uiPreferences['mirally.companion.pet'] === 'fox');
-  await page.reload(); await page.locator('#connection.ready').waitFor();
-  assert.equal(await page.evaluate(() => __mirallyFramework.state.uiPreferences['mirally.companion.pet']), 'fox');
-  assert.equal(await page.evaluate(() => __mirallyFramework.state.uiPreferences['mirally.companion.form']), 'pet');
-  await page.locator('nav [data-page=activity]').click();
-  await page.getByText('活动范围、采集控制与原始记录', {exact: true}).click();
-  assert.equal(await page.locator('#fx-capture-dialog').count(), 1);
-  await page.screenshot({path: join(output, 'activity.png')});
-  await page.locator('nav [data-page=memory]').click();
-  await page.getByText('按来源与类型浏览记忆 / 查看候选和完整正文', {exact: true}).click();
-  await page.screenshot({path: join(output, 'memory.png')});
-  assert.deepEqual(errors, []);
-  console.log('PASS retained experience: 10 workflows / 4 outputs, real material upload and native send, conversation drafts/ownership, editable continuation, 3 companion forms, fox preference/reload, advanced Activity/Memory UI');
-} catch (error) {
-  console.error('UI errors:', errors); console.error('Notice:', await page.locator('#notice').textContent());
-  await page.screenshot({path: join(output, 'failure.png')}); throw error;
-} finally { await browser.close(); }
+  await page.evaluate(()=>{__mirallyCompanion.setPet('fox');__mirallyCompanion.setForm('pet');});
+  await page.waitForFunction(()=>__mirallyLegacyHost.getUiPreference('mirally.companion.pet')==='fox');
+  await page.reload();await ready();
+  assert.equal(await page.evaluate(()=>__mirallyLegacyHost.getUiPreference('mirally.companion.pet')),'fox');
+  assert.equal(await page.evaluate(()=>__mirallyLegacyHost.getUiPreference('mirally.companion.form')),'pet');
+  await page.evaluate(()=>__mirallyFramework.showPage('activity'));
+  await page.locator('.mirally-activity').waitFor();
+  await page.waitForFunction(()=>{const e=document.querySelector('.mirally-activity [data-status=collector]');return e&&e.textContent!=='—';});
+  await page.screenshot({path:join(output,'original-activity.png')});
+  assert.equal(await page.locator('.mirally-activity [data-action=set-enabled]').getAttribute('aria-checked'),'false');
+  await page.evaluate(()=>__mirallyFramework.showPage('memory'));
+  await page.locator('#mirally-memory-browser').waitFor();
+  await page.waitForFunction(()=>!document.querySelector('#mirally-memory-browser [data-memory-slot=notice]')?.textContent.includes('正在读取'));
+  await page.screenshot({path:join(output,'original-memory.png')});
+  await page.evaluate(()=>document.querySelector('openclaw-app').context.navigate('appearance',{search:''}));
+  await page.locator('wa-radio[value=dark]').click();
+  await page.waitForFunction(()=>document.querySelector('openclaw-app').context.theme.resolvedMode==='dark');
+  await page.screenshot({path:join(output,'original-dark-appearance.png')});
+  await page.reload();await ready();
+  assert.equal(await page.evaluate(()=>document.querySelector('openclaw-app').context.theme.resolvedMode),'dark');
+  await page.locator('wa-radio[value=light]').click();
+  await page.waitForFunction(()=>document.querySelector('openclaw-app').context.theme.resolvedMode==='light');
+  assert.deepEqual(errors,[]);
+  console.log('PASS retained Mirally surfaces: original 10 workflows/4 outputs, real materials and native task, chat draft preservation, 3 companion forms, server-owned pet preference/reload, actual Activity/Memory pages without capture, original appearance controls and dark-mode reload');
+}catch(error){console.error('Page errors:',errors);console.error((await page.locator('body').innerText()).slice(-2000));await page.screenshot({path:join(output,'failure.png')}).catch(()=>{});throw error;}finally{await browser.close();}

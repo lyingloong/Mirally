@@ -1,4 +1,40 @@
-# 第一版验收记录
+# 原前端恢复与当前验收
+
+日期：2026-10-24，Asia/Shanghai。分支：`codex/mirally-framework-refactor`。本节对应当前默认源码；下方 2026-10-23 内容保留为初版历史，不能据此推断简化页面仍是当前界面。
+
+| 验证 | 当前结果 | 范围 |
+| --- | --- | --- |
+| 原前端来源 | 2672 个固定提交文件、7 处注明的非视觉接缝、20 种原语言 catalog 校验通过 | `2026.9.6` / `eb377ac59e6c9fd6c7705028034812becf00271b`；保留许可证和来源清单 |
+| 原前端构建 | 878 个浏览器 JS 模块检查通过 | 无未打包裸 import；独立锁文件与原子发布，非全量 TypeScript 类型检查 |
+| Node 完整回归 | 231 项全部通过，0 跳过 | 原客户端、收据和运行归属、网络丢响应、原 UI 工具归约、扩展/材料/维护路线 |
+| Framework Python 定向 | 101 项通过 | 产品持久化、配置、路径、安装、宿主与原生 Shell |
+| 根 Python 全套 | 979 项：976 通过、2 跳过、1 失败 | 唯一失败为旧维护路线 `pythonw.exe` UFO 导入超过 20 秒；没有放宽断言或修改 UFO 内核来隐藏失败。新默认框架不加载 UFO |
+| 原生产品端到端 | 17 组通过 | 实际 DSH、PiAI、工具/材料/图片/文件、取消、冷重启、真实 MCP stdio、Skill/脚本、插件、主动入箱、sidecar 故障与退出 |
+| 原浏览器页面 | 通过，无 pageerror | 从空配置首次保存模型即可发消息；原聊天布局、Markdown/代码及复制、两轮/刷新、首轮附件批量添加与移除、纯附件发送、草稿归属、480px 布局 |
+| 原工作、伙伴与设置页 | 通过，无 pageerror | 十个工作起点/四种输出，真实材料和同一 native 会话、草稿保留、三形态、造型持久、Activity/Memory、深色切换及刷新 |
+| 原 Files 与成果 | 通过，无 pageerror | 真正工具产生的文件回执、原侧栏文件/成果两类预览、有界原始字节下载；发送失败后刷新重试保留同一命令 ID 和文件授权；localhost 来源也能挂载原呈现 |
+| 实际 WebView2/Shell | 11 组通过 | 开屏首绘、同 HWND、图标、原生菜单、三形态 Region/置顶、右键、返回工作台、托盘/退出；确认不登记 UFO 输入桥 |
+| 无 UFO 默认链路 | 3 项通过 | Node/Python 导入拦截下真实启动、对话、关闭；相关 RPC 拒绝、专用旧模型别名 404、无 actions 目录、无相关模型工具 |
+
+本轮 GUI 顺序运行，只操作隔离 Host 和自身 WebView2 窗口；没有采集开发者桌面、操作用户应用或调用外部模型。代码复制使用隔离浏览器内的 clipboard 写入接收器，不改系统剪贴板。所有私有配置、测试 home、日志、截图及凭据未纳入提交。
+
+保留原页面与实现原宿主后台能力分别验收。当前模型设置仍是单组服务/模型连接，Files 只暴露该会话实际登记的成果；原渠道、Gateway 管理、通用工作区、账号、分支/标题/归档等未映射操作明确报尚未支持。无痕会话不支持时在创建前拒绝，不假装无痕但实际落盘。Skill/MCP/可信插件的原生链路通过，不等同于全部原宿主管理页均已接通。UFO 本阶段已移出默认执行链，仅保留源码与旧维护适配供后续 Windows 适配参考。
+
+完整 TypeScript 检查仍受固定前端共享 workspace/生成声明缺失影响；正式构建通过，不能称全量类型检查通过。未做全新 Windows 安装演练、真实外部供应商或长期陪伴质量验收。
+
+复现当前原页面与真实文件验收：
+
+```powershell
+.\.venv\Scripts\python.exe tools/verify_framework.py --browser-files
+.\.venv\Scripts\python.exe tools/verify_framework_shell.py
+# 对显式 --test-mode --home 隔离宿主，顺序执行：
+node tools/verify_framework_browser.mjs <隔离home/runtime.json>
+node tools/verify_framework_experience.mjs <隔离home/runtime.json>
+```
+
+---
+
+# 2026-10-23 初版验收历史
 
 日期：2026-10-23（Asia/Shanghai）。分支：`codex/mirally-framework-refactor`。本记录对应[第一版范围](framework-v1.md)，长期产品方案继续演进。
 

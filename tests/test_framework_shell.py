@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import threading
 from types import SimpleNamespace
@@ -12,6 +13,7 @@ from unittest.mock import MagicMock, patch
 
 from mirally.control_ui_shell import ControlUIShell, startup_html
 from mirally.framework_shell import FrameworkShell
+from mirally.framework_host import discover_node
 
 
 class FrameworkShellTests(unittest.TestCase):
@@ -83,71 +85,47 @@ class FrameworkShellTests(unittest.TestCase):
         self.shell._web_message(None, self.frame({"type": "mirally-startup-painted"}, "about:blank"))
         self.assertEqual(self.shell.window.native.Opacity, 0)
 
-    def test_native_geometry_and_editing_bridge_reject_other_origins(self):
+    def test_native_geometry_rejects_other_origins(self):
         self.shell._gateway_origin = ("http", "127.0.0.1:37281")
-        self.shell._frontend_registration = MagicMock()
         with patch.object(self.shell, "_companion_action") as action:
             for origin in ("https://untrusted.invalid/", "http://127.0.0.1:37282/"):
                 self.shell._web_message(None, self.frame({"type": "mirally-companion", "action": "dock"}, origin))
-                self.shell._web_message(None, self.frame({"type": "mirally-ufo-input", "editing": True}, origin))
             action.assert_not_called()
-            self.shell._frontend_registration.update.assert_not_called()
             value = {"type": "mirally-companion", "action": "shape", "rect": [1, 1, 80, 96]}
             self.shell._web_message(None, self.frame(value))
             action.assert_called_once_with(value)
-            self.shell._web_message(None, self.frame({"type": "mirally-ufo-input", "editing": True}))
-            self.shell._frontend_registration.update.assert_called_once_with(True)
 
-    def test_invalid_editing_and_remote_webview_protocol_are_ignored(self):
+    def test_retired_ufo_focus_messages_do_not_register_or_update_worker_state(self):
         self.shell._gateway_origin = ("http", "127.0.0.1:37281")
-        self.shell._frontend_registration = MagicMock()
-        self.shell._web_message(None, self.frame({"type": "mirally-ufo-input", "editing": "yes"}))
-        self.shell._frontend_registration.update.assert_not_called()
+        registration = MagicMock()
+        self.shell._frontend_registration = registration
+        for editing in (True, False, "yes"):
+            for origin in ("http://127.0.0.1:37281/", "https://untrusted.invalid/"):
+                self.shell._web_message(None, self.frame({"type": "mirally-ufo-input", "editing": editing}, origin))
+        registration.update.assert_not_called()
+        self.assertFalse((self.host.root / ".artifacts/frontends").exists())
+
+    def test_native_style_keeps_window_menu_without_registering_ufo_input_tracking(self):
+        self.shell.window.native.Invoke.side_effect = lambda callback: callback()
+        modules = {"System": SimpleNamespace(Action=lambda callback: callback),
+                   "System.Drawing": SimpleNamespace(Icon=MagicMock())}
+        with patch.dict("sys.modules", modules), \
+             patch("mirally.platform.frontend_registry.FrontendRegistration") as registration, \
+             patch("mirally.platform.window_menu.WindowSystemMenu") as menu:
+            self.shell._native_style()
+        registration.assert_not_called()
+        menu.return_value.install.assert_called_once_with()
+        self.assertIsNone(self.shell._frontend_registration)
+        self.assertFalse((self.host.root / ".artifacts/frontends").exists())
+        self.assertEqual(self.shell.window.native.Opacity, 0)
+
+    def test_remote_webview_protocol_is_ignored(self):
+        self.shell._gateway_origin = ("http", "127.0.0.1:37281")
         self.shell._web_message(None, self.frame([1, 2, 3], "https://untrusted.invalid/"))
         self.shell.window.native.browser.on_script_notify.assert_not_called()
         message = self.frame([1, 2, 3])
         self.shell._web_message(None, message)
         self.shell.window.native.browser.on_script_notify.assert_called_once_with(None, message)
-
-    def test_worker_focus_and_native_focus_serialize_registration_writes(self):
-        self.shell._gateway_origin = ("http", "127.0.0.1:37281")
-        self.shell._frontend_registration = MagicMock()
-        writing, release, second_started, second_done = (threading.Event() for _ in range(4))
-        values = []
-        def update(value):
-            values.append(value)
-            if len(values) == 1:
-                writing.set()
-                release.wait(2)
-        self.shell._frontend_registration.update.side_effect = update
-        first = threading.Thread(target=lambda: self.shell._set_editing(True))
-        def native_focus():
-            second_started.set()
-            self.shell._web_message(None, self.frame({"type": "mirally-ufo-input", "editing": False}))
-            second_done.set()
-        second = threading.Thread(target=native_focus)
-        first.start()
-        try:
-            self.assertTrue(writing.wait(1))
-            second.start()
-            self.assertTrue(second_started.wait(1))
-            self.assertFalse(second_done.wait(.05), "Native focus wrote while the API worker still owned the pending file")
-            self.assertEqual(values, [True])
-        finally:
-            release.set()
-            first.join(2)
-            if second.ident is not None:
-                second.join(2)
-        self.assertEqual(values, [True, False])
-        self.assertTrue(second_done.is_set())
-
-    def test_late_focus_update_does_not_recreate_closed_registration(self):
-        registration = MagicMock()
-        self.shell._frontend_registration = registration
-        self.shell._close()
-        self.shell._set_editing(True)
-        registration.update.assert_not_called()
-        registration.close.assert_called_once()
 
     def test_close_hides_when_tray_is_ready_but_explicit_quit_can_close(self):
         self.shell._tray_ready.set()
@@ -171,12 +149,11 @@ class FrameworkShellTests(unittest.TestCase):
         self.shell.window.destroy.assert_called_once()
         self.assertTrue(self.shell._quitting.is_set())
 
-    def test_cleanup_closes_registration_and_host_once(self):
-        registration, tray = MagicMock(), MagicMock()
-        self.shell._frontend_registration, self.shell._tray = registration, tray
+    def test_cleanup_closes_tray_and_host_once(self):
+        tray = MagicMock()
+        self.shell._tray = tray
         self.shell._close()
         self.shell._close()
-        registration.close.assert_called_once()
         tray.Dispose.assert_called_once()
         self.host.close.assert_called_once()
         self.assertTrue(self.shell.closed.is_set())
@@ -188,14 +165,71 @@ class FrameworkShellTests(unittest.TestCase):
         self.host.close.assert_called_once()
 
     def test_page_menu_is_allowlisted_and_restores_workspace_first(self):
+        order = []
+        self.shell.window.evaluate_js.side_effect = lambda _: order.append("navigate")
         with patch.object(self.shell, "_restore_workspace") as restore:
+            restore.side_effect = lambda: order.append("restore")
             self.shell._navigate("memory")
             restore.assert_called_once()
+        self.assertEqual(order, ["restore", "navigate"])
         self.assertIn('showPage?.("memory")', self.shell.window.evaluate_js.call_args.args[0])
         self.shell.window.evaluate_js.reset_mock()
         self.shell._navigate("not-a-page")
         self.shell._navigate(["memory"])
         self.shell.window.evaluate_js.assert_not_called()
+
+    def test_native_page_menu_exits_shared_companion_mode_before_navigation(self):
+        root = Path(__file__).resolve().parents[1]
+        try:
+            node = discover_node(root)
+        except RuntimeError as error:
+            self.skipTest(str(error))
+        companion = (root / "mirally/assets/control-ui-companion.js").read_text(encoding="utf-8")
+        # Run the shared transition itself without creating a browser or native
+        # window. The animation frame is controlled so ordering is observable.
+        set_mode = companion[companion.index("  function setMode(value)"):companion.index("  async function dock()")]
+        workspace = companion[companion.index("  function workspace(callback)"):companion.index("  async function nativeFiles")]
+        scripts = {}
+        for page in ("chat", "memory", "activity", "work"):
+            with patch.object(self.shell, "_restore_workspace"):
+                self.shell._navigate(page)
+            scripts[page] = self.shell.window.evaluate_js.call_args.args[0]
+        script = r"""
+const assert = require('node:assert/strict');
+const vm = require('node:vm');
+const input = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
+for (const [page, script] of Object.entries(input.scripts)) {
+  const frames = [], events = [];
+  const document = {documentElement: {dataset: {mirallyMode: 'companion'}}};
+  const surface = {hidden: false};
+  const window = {__mirallyFramework: {showPage(value) {
+    assert.equal(document.documentElement.dataset.mirallyMode, 'workspace');
+    assert.equal(surface.hidden, true);
+    events.push(['navigate', value]);
+  }}};
+  const context = vm.createContext({window, document, surface,
+    dismissReply() { events.push(['dismiss']); },
+    post(value) { events.push(['native', value]); },
+    schedule() {}, expand() {}, requestAnimationFrame(callback) { frames.push(callback); }});
+  vm.runInContext('let mode = "companion";\n' + input.set_mode + input.workspace
+    + '\nwindow.__mirallyCompanion = {workspace};', context);
+  vm.runInContext(script, context);
+  assert.equal(document.documentElement.dataset.mirallyMode, 'workspace');
+  assert.equal(surface.hidden, true);
+  assert.deepEqual(events, [['dismiss'], ['native', 'workspace']]);
+  assert.equal(frames.length, 1);
+  frames.shift()();
+  assert.deepEqual(events.at(-1), ['navigate', page]);
+  const fallbackPages = [];
+  const fallback = vm.createContext({window: {__mirallyFramework: {showPage(value) { fallbackPages.push(value); }}}});
+  vm.runInContext(script, fallback);
+  assert.deepEqual(fallbackPages, [page]);
+}
+"""
+        result = subprocess.run([str(node), "-e", script],
+            input=json.dumps({"scripts": scripts, "set_mode": set_mode, "workspace": workspace}),
+            text=True, encoding="utf-8", capture_output=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def browser_origin(self):
         self.shell._gateway_origin = ("http", "127.0.0.1:37281")

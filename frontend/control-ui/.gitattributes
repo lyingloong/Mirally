@@ -1,0 +1,5 @@
+# Preserve pinned source blob hashes on Windows and other checkouts.
+* text=auto eol=lf
+# Preserve existing whitespace in these hash-verified upstream texts.
+ui/public/fonts/*-OFL.txt -whitespace
+ui/src/pages/usage/view-details.ts -whitespace
