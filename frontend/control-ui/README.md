@@ -1,6 +1,6 @@
 # Mirally 原界面
 
-这里保存重构前的真实 Control UI 页面源码。来源和集成接缝见 [UPSTREAM.md](UPSTREAM.md)。默认产品只使用 Mirally/DSH 后端；此目录不启动 OpenClaw Gateway。
+这里以重构前真实 Control UI 源码为组件和视觉基础，自行维护 Mirally 的导航与内容页。对话、工作、主题、动画和伙伴体验继续复用；页面映射见 [Mirally 前端](../../docs/mirally-frontend.md)，来源与维护文件见 [UPSTREAM.md](UPSTREAM.md) 和 `local-changes.json`。默认产品只使用 Mirally/DSH 后端；此目录不启动 OpenClaw Gateway。
 
 准备整个产品：在仓库根目录运行：
 

@@ -226,11 +226,11 @@ def main() -> int:
                 assert 0xF060 in [identifier for identifier, _ in items] and not any("Gateway" in label for label in labels), labels
                 memory_command = next(identifier for identifier, label in items if label == "记忆")
                 user.SendMessageW(hwnd, 0x112, memory_command, 0)
-                wait_for(lambda: js("/\\/settings\\/memory\\/memories\\/?$/.test(location.pathname) && !!document.querySelector('#mirally-memory-browser')"),
+                wait_for(lambda: js("/\\/memory\\/?$/.test(location.pathname) && !!document.querySelector('#mirally-memory-browser')"),
                     "Real system-menu memory action did not open the original Memory workspace", timeout=20)
                 activity_command = next(identifier for identifier, label in items if label == "活动与记忆设置")
                 user.SendMessageW(hwnd, 0x112, activity_command, 0)
-                wait_for(lambda: js("/\\/settings\\/appearance\\/?$/.test(location.pathname) && new URLSearchParams(location.search).get('mirally')==='activity' && !!document.querySelector('.mirally-activity:not([hidden])')"),
+                wait_for(lambda: js("/\\/activity\\/?$/.test(location.pathname) && !!document.querySelector('.mirally-activity:not([hidden])')"),
                     "Real system-menu Activity action did not open the retained settings contribution", timeout=20)
                 js(RESTORE_NATIVE_SESSION)
                 wait_for(lambda: js(NATIVE_SESSION_READY), "Original native chat did not restore after settings")

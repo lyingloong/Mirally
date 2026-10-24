@@ -9,11 +9,13 @@
 - `upstream-files.json` 记录每个导入文件的 Git blob SHA-1 与大小；导入时先核对固定提交的完整 Git tree。本地缓存只有逐字节哈希吻合时才可复用，不能以相近版本代替。
 - 浏览器共享依赖按编译后的实际模块图保留。未引入后端 owner、Gateway server、Agent loop、工作区配置或用户数据。
 
-上游页面与样式保留原样；当前入口的集成修改是：
+原组件、样式与固定来源保留；经用户确认，导航与页面内容现按 Mirally 自有产品维护。所有本地修改的上游文件及原因列在 `local-changes.json`，未列出的文件继续逐字节核验。早期接缝包括：
 
 1. `ui/src/app/bootstrap.ts` 向原 `createApplicationGateway` 工厂注入 `createMirallyBrowserClient`，保留原 Context、路由、会话组件和界面状态。新客户端直接映射 Mirally 的 HTTP/SSE 接口，不建立 OpenClaw WebSocket 或第二条推理链。
 2. `ui/src/main.ts` 禁用上游 Gateway 的 service worker 安装。Mirally 的回环来源与构建由自身宿主管理，避免旧缓存和 Gateway 构建身份参与生命周期。
-3. 原发送队列的五个类型、编解码与投递模块增加 `mirallyAllowFileWrite` 字段：工作页明确选择保存成果时，授权随同一原生 outbox 条目与发送身份保留，直到重试/重放完成。它不从模型输出或提示文本推断，也不授权其他会话/输入；不改变原页面布局和排队行为。`scripts/verify-source.mjs` 列出全部允许的源码接缝，其余文件继续逐字节核验。
+3. 原发送队列的五个类型、编解码与投递模块增加 `mirallyAllowFileWrite` 字段：工作页明确选择保存成果时，授权随同一原生 outbox 条目与发送身份保留，直到重试/重放完成。它不从模型输出或提示文本推断，也不授权其他会话/输入；不改变原页面布局和排队行为。
+
+当前内容层位于 `ui/src/pages/mirally/`，复用原 settings/workspace 组件与样式。路由装配、导航、菜单、命令面板与搜索改为 Mirally 实际能力，保留原对话、新建对话和外观控件；默认不加载旧后台管理页面。上游版本是来源标识，不作为 Mirally 产品版本显示。
 
 `ui/src/app/mirally-client.ts`、`ui/src/app/mirally-read-models.ts` 和 `ui/src/lib/mirally-browser-path.ts` 是 Mirally 自有代码。后者只提供上游材料展示所需的文件名操作，构建器拒绝其余 Node 内建模块进入浏览器。原 Mirally 品牌、工作、材料与伙伴资源仍由产品层提供，并没有另画一套近似页面。
 

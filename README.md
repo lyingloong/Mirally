@@ -1,6 +1,6 @@
 # Mirally
 
-本分支默认运行自有 personal agent 框架，并保留之前 Mirally 的页面、布局、视觉与操作习惯。前端直接导入固定 OpenClaw Control UI `2026.9.6` 源码，继续应用原 Mirally 皮肤；数据与动作接口改接 Mirally 的 HTTP/SSE 宿主，由同仓 DSH 承载唯一会话与模型主链。Mirally 拥有产品状态、活动与记忆、提醒、受控行动及扩展接口，OpenClaw Gateway 不参与默认运行。旧后端维护基线保留在 `feat/mirally-openclaw-desktop` 的 `2eeb778a`。
+本分支默认运行自有 personal agent 框架。前端以固定 OpenClaw Control UI `2026.9.6` 源码为来源，沿用原 Mirally 的布局习惯、视觉、主题、动画与伙伴体验；导航、设置和内容页改为 Mirally 自有产品，见[前端内容与导航](docs/mirally-frontend.md)。数据与动作接到 Mirally HTTP/SSE 宿主，同仓 DSH 承载唯一会话与模型主链。OpenClaw Gateway 不参与默认运行；旧后端维护基线保留在 `feat/mirally-openclaw-desktop` 的 `2eeb778a`。
 
 ```powershell
 py -3.10 -m venv .venv

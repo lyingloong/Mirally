@@ -220,6 +220,14 @@ test('unsupported incognito semantics fail before creating a durable session', a
   assert.equal(f.calls.some(item => item.init.method === 'POST'), false);
 });
 
+test('unsupported session forks and other agent owners cannot silently create an empty ordinary conversation', async t => {
+  const f = fixture(t);
+  for (const params of [{fork:true,parentSessionKey:conversationKey('one')},{parentSessionKey:conversationKey('one')},{parentSessionId:'native-one'},{agentId:'another-agent'}]) {
+    await assert.rejects(f.client.request('sessions.create',params),/尚未支持|仅支持/);
+  }
+  assert.equal(f.calls.some(item=>item.init.method==='POST'),false);
+});
+
 test('a rejected initial turn retains its created session identity for the original UI retry flow', async t => {
   const f = fixture(t); f.override = call => call.path.endsWith('/messages')
     ? reply({error: {code: 'model_not_configured', message: '请先配置模型'}}, 409) : undefined;

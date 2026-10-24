@@ -23,7 +23,6 @@ import type { SessionCreatedActor } from "../../../components/session-owner-chip
 import { t } from "../../../i18n/index.ts";
 import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
 import {
-  canManageChatSessionSharing,
   renderChatSessionSharing,
   selectChatSessionSharingItem,
   type ChatSessionSharingProps,
@@ -100,7 +99,6 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
       navigationAllowed: this.navigationAllowed,
       copyMarkdownAllowed: this.copyMarkdownAllowed,
       splitAllowed: this.splitAllowed,
-      renderOpenInExtra: (inline) => this.renderTerminalAction(inline),
       disabled: false,
       actionDisabledReasons: this.actionDisabledReasons,
       forkDisabled: this.forkDisabled,
@@ -212,7 +210,7 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
     actions: HeaderMenuQuickAction[],
     inline = false,
   ) {
-    return actions.map((action) => {
+    return actions.filter((action) => !["terminal", "browser"].includes(action.id)).map((action) => {
       const label = html`<span class="session-menu__text"
         >${action.label}${
           action.description
@@ -273,7 +271,7 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
   }
 
   private renderQuickActions(group: "panels" | "layout", actions: HeaderMenuQuickAction[]) {
-    if (actions.length === 0) {
+    if (!actions.some((action) => !["terminal", "browser"].includes(action.id))) {
       return nothing;
     }
     const label = t(group === "panels" ? "chat.sessionHeader.panels" : "chat.sessionHeader.layout");
@@ -384,16 +382,6 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
       ${this.renderQuickActions("panels", this.panelActions)}
       ${this.renderQuickActions("layout", this.layoutActions)}
       ${
-        this.compact && this.sharing?.session && canManageChatSessionSharing(this.sharing.session)
-          ? this.renderCompactNavigationItem(
-              "sharing",
-              t("chat.sessionSharing.menu"),
-              icons.users,
-              Boolean(this.sharing.openDisabledReason),
-            )
-          : nothing
-      }
-      ${
         this.compact
           ? this.renderCompactNavigationItem("view", t("chat.view.menu"), icons.eye)
           : html`<wa-dropdown-item class="session-menu__item">
@@ -403,32 +391,24 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
             </wa-dropdown-item>`
       }
       <div class="session-menu__separator" role="separator"></div>
-      ${this.managementActions.renderPrimaryActions()}
-      <div class="session-menu__separator" role="separator"></div>
-      ${this.managementActions.renderOrganizationActions()}
-      <div class="session-menu__separator" role="separator"></div>
-      ${this.managementActions.renderTransferActions()}
-      <div class="session-menu__separator" role="separator"></div>
-      ${this.managementActions.renderDeleteAction()}
+      <wa-dropdown-item
+        class="session-menu__item"
+        value="copy-markdown"
+        ?disabled=${!this.copyMarkdownAllowed}
+      >
+        <span slot="icon" class="session-menu__icon" aria-hidden="true">${icons.fileText}</span>
+        <span class="session-menu__text">${t("sessionsView.copyMarkdown")}</span>
+      </wa-dropdown-item>
+      ${this.navigationAllowed ? html`
+        <wa-dropdown-item class="session-menu__item" value="copy-session-link">
+          <span slot="icon" class="session-menu__icon" aria-hidden="true">${icons.link}</span>
+          <span class="session-menu__text">${t("sessionsView.copySessionLink")}</span>
+        </wa-dropdown-item>` : nothing}
     `;
-  }
-
-  private renderTerminalAction(inline: boolean) {
-    return html`<wa-dropdown-item
-      slot=${inline ? nothing : "submenu"}
-      class="session-menu__item"
-      value="continue-in-terminal"
-      ?disabled=${this.actionDisabled("continue-in-terminal")}
-      title=${this.actionTitle("continue-in-terminal")}
-    >
-      <span slot="icon" class="session-menu__icon" aria-hidden="true">${icons.terminal}</span>
-      <span class="session-menu__text">${t("chat.sessionHeader.continueInTerminal.action")}</span>
-    </wa-dropdown-item>`;
   }
 
   private readonly handleShow = () => {
     this.compactView = "root";
-    this.managementActions.loadOwners();
     this.onOpen();
   };
 

@@ -23,51 +23,12 @@ import {
 } from "./app-route-paths.ts";
 import type { ApplicationContext } from "./app/context.ts";
 import { gatewayPresentationScope } from "./app/gateway-presentation-scope.ts";
-import { page as aboutPage } from "./pages/about/route.ts";
-import { page as activityPage } from "./pages/activity/route.ts";
-import { page as agentsHomePage } from "./pages/agents-home/route.ts";
-import { page as agentsPage } from "./pages/agents/route.ts";
-import { page as approvalsPage } from "./pages/approvals/route.ts";
-import { page as appsPage } from "./pages/apps/route.ts";
-import { page as channelsPage } from "./pages/channels/route.ts";
 import { pages as chatPages } from "./pages/chat/route.ts";
 import type { ChatRouteData } from "./pages/chat/session-route-data.ts";
-import { page as cloudWorkersPage } from "./pages/cloud-workers/route.ts";
 import { pages as configPages } from "./pages/config/route.ts";
-import { page as connectionPage } from "./pages/connection/route.ts";
-import { page as cronPage } from "./pages/cron/route.ts";
-import { page as custodianPage } from "./pages/custodian/route.ts";
-import { page as dashboardsPage } from "./pages/dashboards/route.ts";
-import { page as debugPage } from "./pages/debug/route.ts";
-import {
-  page as devicePage,
-  permissionsPage as devicePermissionsPage,
-} from "./pages/device/route.ts";
-import { page as devicesPage } from "./pages/devices/route.ts";
-import { page as labsPage } from "./pages/labs/route.ts";
-import { page as lobsterdexPage } from "./pages/lobsterdex/route.ts";
-import { page as logsPage } from "./pages/logs/route.ts";
-import { page as meetingsPage } from "./pages/meetings/route.ts";
-import { page as memoryImportPage } from "./pages/memory-import/route.ts";
-import { page as modelProvidersPage } from "./pages/model-providers/route.ts";
-import { page as modelSetupPage } from "./pages/model-setup/route.ts";
 import { page as newSessionPage } from "./pages/new-session/route.ts";
-import { page as pluginPage } from "./pages/plugin/route.ts";
-import { pages as pluginsPages } from "./pages/plugins/route.ts";
-import { page as portalsPage } from "./pages/portals/route.ts";
-import { page as profilePage } from "./pages/profile/route.ts";
-import { page as searchPage } from "./pages/search/route.ts";
-import { page as secretsPage } from "./pages/secrets/route.ts";
-import { page as sessionsPage } from "./pages/sessions/route.ts";
-import { page as skillWorkshopPage } from "./pages/skill-workshop/route.ts";
-import { pages as skillsPages } from "./pages/skills/route.ts";
-import { page as systemsPage } from "./pages/systems/route.ts";
-import { page as tasksPage } from "./pages/tasks/route.ts";
-import { page as terminalPage } from "./pages/terminal/route.ts";
-import { page as usagePage } from "./pages/usage/route.ts";
+import { pages as mirallyPages } from "./pages/mirally/route.ts";
 import { resolveWorkboardRouteLocation } from "./pages/workboard/route-location.ts";
-import { page as workboardPage } from "./pages/workboard/route.ts";
-import { page as worktreesPage } from "./pages/worktrees/route.ts";
 
 type AppRouteModule = {
   render: (data: unknown, loaderPending: boolean, presented?: boolean) => unknown;
@@ -85,46 +46,9 @@ type AppRoute = PageDefinition<RouteId, ApplicationContext, AppRouteModule>;
 
 const APP_ROUTE_TREE = [
   ...chatPages,
-  custodianPage,
   newSessionPage,
-  terminalPage,
-  activityPage,
-  meetingsPage,
-  dashboardsPage,
-  appsPage,
-  portalsPage,
-  agentsHomePage,
-  agentsPage,
-  approvalsPage,
-  channelsPage,
-  cloudWorkersPage,
-  connectionPage,
-  labsPage,
-  aboutPage,
-  lobsterdexPage,
-  ...configPages,
-  modelSetupPage,
-  modelProvidersPage,
-  memoryImportPage,
-  profilePage,
-  workboardPage,
-  worktreesPage,
-  sessionsPage,
-  systemsPage,
-  secretsPage,
-  searchPage,
-  usagePage,
-  debugPage,
-  logsPage,
-  skillWorkshopPage,
-  ...skillsPages,
-  ...pluginsPages,
-  cronPage,
-  tasksPage,
-  devicePage,
-  devicePermissionsPage,
-  devicesPage,
-  pluginPage,
+  ...configPages.filter(page => page.id === "appearance"),
+  ...mirallyPages,
 ] as const;
 
 const appRoutes = APP_ROUTE_TREE as readonly AppRoute[];

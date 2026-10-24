@@ -1,8 +1,8 @@
 # Mirally 自有体验迁移对照
 
-本轮按 `feat/mirally-openclaw-desktop` 的 `2eeb778a` 核对之前的页面和产品成果。重构前端必须保留原页面结构、布局、视觉与操作习惯；此前简化页面即使接回桌宠和工作入口，也不等同于恢复原界面。
+本轮按 `feat/mirally-openclaw-desktop` 的 `2eeb778a` 核对之前的页面和产品成果。原布局习惯、视觉与已实现体验继续保留；依据用户在 PN-0022 的确认，导航与页面内容现按 Mirally 自有能力调整，见[前端内容与导航](mirally-frontend.md)。此前简化页面即使接回桌宠和工作入口，也不等同于恢复原界面。
 
-当前默认入口直接使用固定 OpenClaw Control UI `2026.9.6`（`eb377ac59e6c9fd6c7705028034812becf00271b`）的真实前端源码与原 Mirally 皮肤，源码、许可证、校验清单和独立构建位于 [frontend/control-ui](../frontend/control-ui/README.md)。原客户端工厂改接 Mirally 的 HTTP/SSE 数据与动作接口，DSH 保持唯一 Session/Agent/模型主链；默认不启动 OpenClaw Gateway。旧后端维护基线与私有配置继续保留，不自动导入。
+当前默认入口以固定 OpenClaw Control UI `2026.9.6`（`eb377ac59e6c9fd6c7705028034812becf00271b`）的真实源码与原 Mirally 皮肤为基础，自行维护导航和产品内容；源码、许可证、校验清单和独立构建位于 [frontend/control-ui](../frontend/control-ui/README.md)。原客户端工厂改接 Mirally HTTP/SSE 接口，DSH 保持唯一 Session/Agent/模型主链；默认不启动 OpenClaw Gateway。旧后端维护基线与私有配置继续保留，不自动导入。
 
 ## 页面与产品成果对照
 

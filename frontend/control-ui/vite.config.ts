@@ -15,7 +15,7 @@ export default defineConfig({
   publicDir: path.join(root,'ui/public'),
   cacheDir: path.join(root,'node_modules/.vite'),
   define: {
-    'globalThis.OPENCLAW_CONTROL_UI_BUILD_INFO': JSON.stringify({version:'2026.9.6',commit:upstream.commit,buildId:'mirally-control-ui-'+upstream.commit.slice(0,12),builtAt:null}),
+    'globalThis.OPENCLAW_CONTROL_UI_BUILD_INFO': JSON.stringify({version:'0.1.0',commit:null,buildId:'mirally-frontend-0.1.0',builtAt:null}),
   },
   resolve: {alias:[{find:'json5',replacement:require.resolve('json5/dist/index.mjs')}]},
   build: {outDir:path.join(root,'dist'),emptyOutDir:true,sourcemap:false,chunkSizeWarningLimit:1600},

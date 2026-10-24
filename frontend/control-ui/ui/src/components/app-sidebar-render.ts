@@ -3,14 +3,12 @@ import { repeat } from "lit/directives/repeat.js";
 import { html as staticHtml, literal } from "lit/static-html.js";
 import { presenceUserKey } from "../../../src/shared/presence-user.ts";
 import type { GatewayControlUiPluginTab } from "../api/gateway.ts";
-import { serializeSidebarEntry, type SidebarZoneEntry } from "../app-navigation.ts";
+import { mirallyNavigationText, serializeSidebarEntry, type SidebarZoneEntry } from "../app-navigation.ts";
 import { isRouteId, isSessionRouteId } from "../app-route-paths.ts";
 import { gatewayPresentationScope } from "../app/gateway-presentation-scope.ts";
-import type { NativeGateway, NativeGatewaysSnapshot } from "../app/native-gateways.runtime.ts";
 import { isHomePanelAvailable } from "../app/panel-availability.ts";
 import { controlUiPublicAssetPath } from "../app/public-assets.ts";
 import { readPresenceEntries, resolveCurrentSelfUser } from "../app/user-profile.ts";
-import { CONTROL_UI_BUILD_INFO } from "../build-info.ts";
 import { t } from "../i18n/index.ts";
 import { normalizeAgentLabel, resolveAgentTextAvatar } from "../lib/agents/display.ts";
 import { resolveAgentAvatarUrl } from "../lib/avatar.ts";
@@ -52,7 +50,6 @@ import {
 } from "./session-attention-presentation.ts";
 import { renderSessionGlyph, renderSessionUnreadBadge } from "./session-glyph.ts";
 import { renderSessionRowBadges } from "./session-row-badges.ts";
-import { formatSidebarBuildSubtitle } from "./sidebar-build-chip-format.ts";
 
 export type AppSidebarRenderHost = AppSidebarSessionNavigationElement & {
   activePluginTabId: string;
@@ -61,18 +58,6 @@ export type AppSidebarRenderHost = AppSidebarSessionNavigationElement & {
   renderPinnedSidebarSession(session: SidebarRecentSession): unknown;
   toggleSection(sectionId: string): void;
 };
-
-// Display-only: read the injected global directly; the capability module must stay
-// lazy to protect the startup budget.
-function readSidebarNativeGateway(): NativeGateway | null {
-  const snapshot = (window as Window & { __OPENCLAW_NATIVE_GATEWAYS__?: NativeGatewaysSnapshot })[
-    "__OPENCLAW_NATIVE_GATEWAYS__"
-  ];
-  if (!snapshot || !Array.isArray(snapshot.gateways)) {
-    return null;
-  }
-  return snapshot.gateways.find((gateway) => gateway.id === snapshot.currentId) ?? null;
-}
 
 function renderSidebarAgentCard(host: AppSidebarRenderHost) {
   const {
@@ -124,7 +109,7 @@ function renderSidebarAgentCard(host: AppSidebarRenderHost) {
 }
 
 function renderSidebarWorkspaceHeader(host: AppSidebarRenderHost) {
-  const name = readSidebarNativeGateway()?.name.trim() || "OpenClaw";
+  const name = "Mirally";
   const menuOpen = host.sidebarMenus.agentMenuPosition !== null;
   return html`
     <div class="sidebar-workspace-header">
@@ -472,25 +457,18 @@ export function renderAppSidebarFooterBar(host: AppSidebarRenderHost) {
   const selfUser = host.sessionDataContext
     ? gatewayPresentationScope(host.sessionDataContext.gateway).displayUser
     : null;
-  const selfLabel = selfUser?.name ?? selfUser?.email ?? t("nav.owner");
+  const selfLabel = selfUser?.name ?? selfUser?.email ?? mirallyNavigationText("我的 Mirally", "My Mirally");
   const avatarUser = {
     id: "owner",
     ...selfUser,
     name: selfLabel,
     watchedSessions: [],
   };
-  const gateway = readSidebarNativeGateway();
-  const buildSubtitle = formatSidebarBuildSubtitle(CONTROL_UI_BUILD_INFO);
-  const gatewayPrimaryTag = gateway?.isPrimary ? t("nav.gateway.primaryTag") : null;
   const identityMenuLabel = t("profilePage.identity.menuButtonLabel", { name: selfLabel });
   const statusLabel = connectionStatus ? t(`connection.${connectionStatus}`) : null;
-  const identityDetail = statusLabel
-    ? statusLabel
-    : gateway
-      ? `${gateway.name}${gatewayPrimaryTag ? `, ${gatewayPrimaryTag}` : ""}`
-      : buildSubtitle;
+  const identityDetail = statusLabel ?? "Mirally";
   const accessibleDetail = identityDetail;
-  const announcement = statusLabel ?? (host.connected ? t("nav.gateway.connected") : "");
+  const announcement = statusLabel ?? (host.connected ? mirallyNavigationText("已连接 Mirally", "Connected to Mirally") : "");
   return html`
     <div class="sidebar-footer-bar sidebar-footer-bar--one-action">
       <button
@@ -512,16 +490,7 @@ export function renderAppSidebarFooterBar(host: AppSidebarRenderHost) {
                   lastError: host.lastError,
                   announce: false,
                 })
-              : html`
-                  ${
-                    gateway
-                      ? html`<span class="sidebar-identity-card__gateway" aria-hidden="true">
-                          <span class="sidebar-gateway-name">${gateway.name}</span>
-                          ${gatewayPrimaryTag ? html`<span class="sidebar-gateway-primary">${gatewayPrimaryTag}</span>` : nothing}
-                        </span>`
-                      : nothing
-                  }
-                `
+              : nothing
           }
         </span>
       </button>

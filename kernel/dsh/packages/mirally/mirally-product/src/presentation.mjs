@@ -2,7 +2,7 @@
 import {readFile} from 'node:fs/promises';
 import {join} from 'node:path';
 const css = ['mirally', 'companion', 'work', 'subagents', 'activity', 'memory', 'models'];
-const scripts = ['mirally', 'office', 'intake', 'context', 'work', 'files', 'companion', 'subagents', 'activity', 'memory', 'models'];
+const scripts = ['mirally', 'office', 'intake', 'context', 'work', 'files', 'companion', 'subagents', 'activity', 'memory'];
 export async function originalPresentation(root, origin) {
   const assets = join(root, 'mirally/assets');
   const styles = await Promise.all(css.map(name => readFile(join(assets, `control-ui-${name}.css`), 'utf8')));

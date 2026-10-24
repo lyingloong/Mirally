@@ -5,10 +5,12 @@ import { fileURLToPath } from 'node:url';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const manifest=JSON.parse(await fs.readFile(path.join(root,'upstream-files.json'),'utf8'));
-const maintained=new Set(['ui/src/app/bootstrap.ts','ui/src/main.ts',
-  'ui/src/lib/chat/chat-types.ts','ui/src/lib/chat/outbox-store-codec.ts',
-  'ui/src/pages/chat/chat-send-submit.ts','ui/src/pages/chat/chat-send-delivery.ts',
-  'ui/src/pages/chat/chat-send-request.ts']);
+const localChanges=JSON.parse(await fs.readFile(path.join(root,'local-changes.json'),'utf8'));
+const maintained=new Set(Object.keys(localChanges));
+for(const [name,reason] of Object.entries(localChanges)) {
+  if(!manifest.files[name] || typeof reason!=='string' || !reason.trim()) throw new Error('Invalid maintained source declaration: '+name);
+}
+
 let checked=0;
 for(const [name,identity] of Object.entries(manifest.files)) {
   const bytes=await fs.readFile(path.join(root,name));

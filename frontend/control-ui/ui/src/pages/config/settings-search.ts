@@ -4,7 +4,6 @@ import {
   settingsSearchTextMatches,
   type SettingsSearchBlock,
 } from "../../app-navigation.ts";
-import { pathForMemoryTab } from "../../app-route-paths.ts";
 import type {
   NativeDeviceSettingsCapability,
   NativeDeviceSettingsSnapshot,
@@ -30,7 +29,9 @@ type StaticSettingsBlock = SettingsSearchBlock & {
 };
 
 const STATIC_SETTINGS_BLOCKS: readonly SettingsSearchTarget[] =
-  Object.values(SETTINGS_SEARCH_TARGETS);
+  // Other Mirally pages are found by their navigation title and subtitle.
+  // Only Appearance retains the original field anchors and settings schema.
+  Object.values(SETTINGS_SEARCH_TARGETS).filter((block) => block.routeId === "appearance");
 
 function resolveStaticSettingsBlock(
   block: SettingsSearchTarget,
@@ -139,7 +140,7 @@ export function findSettingsSearchBlocks(params: {
   for (const [key, rawSectionSchema] of Object.entries(schema.properties)) {
     const routeId = configPageForSection(key);
     if (
-      !isSettingsNavigationRouteVisible(
+      routeId !== "appearance" || !isSettingsNavigationRouteVisible(
         routeId,
         params.canAdmin !== false,
         params.nativeDeviceSettings,
@@ -187,28 +188,12 @@ export function findSettingsSearchBlocks(params: {
     const encodedKey = encodeURIComponent(key);
     const editorHash = `#config-section-${encodedKey}`;
     const destination = { search: "", hash: editorHash };
-    matches.push(
-      routeId === "memory"
-        ? {
-            routeId,
-            label: meta?.label ?? sectionSchema.title ?? key,
-            pathname: pathForMemoryTab("settings", params.basePath),
-            hash: destination.hash,
-          }
-        : routeId === "plugin-settings"
-          ? {
-              routeId,
-              label: meta?.label ?? sectionSchema.title ?? key,
-              search: "?tab=advanced",
-              hash: "#plugin-settings-advanced",
-            }
-          : {
-              routeId,
-              label: meta?.label ?? sectionSchema.title ?? key,
-              search: `?section=${encodedKey}${matchesAdvanced || key === "wizard" ? "&advanced=1" : ""}`,
-              hash: destination.hash,
-            },
-    );
+    matches.push({
+      routeId,
+      label: meta?.label ?? sectionSchema.title ?? key,
+      search: `?section=${encodedKey}${matchesAdvanced || key === "wizard" ? "&advanced=1" : ""}`,
+      hash: destination.hash,
+    });
   }
   return matches;
 }

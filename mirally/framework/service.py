@@ -688,14 +688,23 @@ class FrameworkService:
             if store is not None:
                 store.close()
 
-    def memory_correct(self, content: str, memory_id: str | None = None, title: str | None = None) -> dict[str, Any]:
+    def memory_correct(self, content: str, memory_id: str | None = None, title: str | None = None,
+                       request_id: str | None = None) -> dict[str, Any]:
         """Explicit correction through Memory's owner API, never SQL into its DB.
 
         Fence stale use first. If the separate owner write fails, the source
         stays blocked and this call can be retried; no atomic cross-DB claim.
+        Optional request_id gives creation a stable owner ID across retries;
+        a replay never rewrites a memory or restores withdrawn source use.
         """
         creating = memory_id is None
-        memory_id = "manual_" + uuid.uuid4().hex if creating else _text(memory_id, "memory_id")
+        if request_id is not None:
+            _text(request_id, "request_id")
+        if creating:
+            identity = uuid.uuid5(uuid.NAMESPACE_URL, "mirally:manual-memory:" + request_id) if request_id is not None else uuid.uuid4()
+            memory_id = "manual_" + identity.hex
+        else:
+            memory_id = _text(memory_id, "memory_id")
         _text(content, "content", 100000)
         if title is not None:
             _text(title, "title", 1024, empty=True)
@@ -709,6 +718,11 @@ class FrameworkService:
                 old = reader.get_memory(memory_id, include_inactive=True)
         if old is None and not creating:
             raise FrameworkError("NOT_FOUND", "memory not found")
+        if old is not None and creating and request_id is not None:
+            if (old.get("content") != content or old.get("title") != (title or content.splitlines()[0][:100])
+                    or old.get("provenance") != "user_confirmed"):
+                raise FrameworkError("CONFLICT", "request_id already identifies a different memory")
+            return {"memory": old, "affected": [], "source": self._source("memory:" + memory_id)}
         if old is None:
             record = {"id": memory_id, "kind": "semantic", "scope": "user/local", "status": "active",
                       "provenance": "user_confirmed", "title": title or content.splitlines()[0][:100], "content": content}

@@ -1,6 +1,6 @@
 # Mirally 框架第一版
 
-本分支默认运行自有 Mirally 框架，前端保留原 Mirally 的页面结构、布局、视觉与操作习惯。固定 OpenClaw Control UI `2026.9.6` 的原页面源码纳入 `frontend/control-ui/`，继续使用原 Mirally 皮肤；仅将数据与动作接到 Mirally HTTP/SSE 接口。DSH 是同仓可修改的执行内核，承担唯一 Session/Agent/模型主链；默认入口不启动 OpenClaw Gateway。长期愿景中的所有场景和成熟度仍需逐步实现。
+本分支默认运行自有 Mirally 框架，前端沿用原布局习惯、视觉、主题和产品交互，导航与页面内容围绕 Mirally 自有能力组织。固定 OpenClaw Control UI `2026.9.6` 源码纳入 `frontend/control-ui/` 作为组件与界面基础，Mirally 自行维护内容页并接入 HTTP/SSE；页面映射见[前端内容与导航](mirally-frontend.md)。DSH 是同仓可修改的执行内核，承担唯一 Session/Agent/模型主链；默认入口不启动 OpenClaw Gateway。长期愿景中的所有场景和成熟度仍需逐步实现。
 
 ## 准备与启动
 
@@ -51,7 +51,7 @@ flowchart LR
 - `mirally/framework/service.py` 拥有设置、逻辑 Conversation 与原生 Session 引用、命令回执、来源版本、明确偏好、提醒、主动候选、投递与已读状态。产品 schema 当前为 2，可从早期开发 schema 1 原地升级，拒绝未来版本。
 - DSH Session 是唯一 transcript。产品库只保存引用、代次和命令内容哈希。停止或撤回来源会冻结旧代次；后续用户输入创建新的原生 Session，历史仍通过代次引用读取。启动恢复不会盲目重放旧输入、脚本或桌面动作。
 - `mirally/framework/context.py` 按需只读组合记忆、活动、偏好和来源缺口。`mirally/framework_workers.py` 监督获准的 Activity 子进程和 Memory 维护 owner；查询不启动采集。后台语义任务通过本机模型桥调用同一原生模型适配。
-- `frontend/control-ui/ui/src/` 保留原 Lit 页面、布局、导航、对话和外观组件；`mirally/assets/control-ui-*` 继续提供既有 Mirally 皮肤、工作和伙伴交互。`ui/src/app/mirally-client.ts` 注入原客户端工厂，将已实现的有名操作映射到本机鉴权 HTTP/RPC 与 SSE。`mirally/framework_ui/legacy-native-bridge.js` 适配原活动/记忆、材料成果等产品消息，`mirally-product/src/presentation.mjs` 提供原皮肤资源。`mirally/framework_ui/app.js` 的简化页面不再是默认前端。
+- `frontend/control-ui/ui/src/` 复用原 Lit 壳、对话和外观组件，`pages/mirally/` 维护自有内容页与产品 API；`mirally/assets/control-ui-*` 继续提供既有 Mirally 皮肤、工作和伙伴交互。`ui/src/app/mirally-client.ts` 注入原客户端工厂，将已实现操作映射到本机鉴权 HTTP/RPC 与 SSE。`mirally/framework_ui/legacy-native-bridge.js` 适配活动/记忆、材料成果等产品消息，`mirally-product/src/presentation.mjs` 提供原皮肤资源。`mirally/framework_ui/app.js` 的简化页面不再是默认前端。
 - 原 Context 与组件仍管理页面草稿和状态；DSH Session 保留唯一聊天事实。未映射的旧宿主操作明确返回尚未支持，页面存在不代表对应 OpenClaw 后台能力已经接通。原 Gateway service worker 不参与新宿主的缓存与生命周期。
 
 边界使用有名操作和 JSON 数据，Python worker 采用带 ID 的 JSONL 请求/回执；HTTP 仅公开白名单。原生扩展在同一 Cordis 生命周期中组合。无需引入第二个模型主循环或通用事件总线。

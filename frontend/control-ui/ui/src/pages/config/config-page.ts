@@ -153,8 +153,7 @@ function configPageTitle(pageId: ConfigPageId): string {
 function renderConfigPageSubtitle(pageId: ConfigPageId) {
   switch (pageId) {
     case "appearance":
-      return html`${t("configView.appearance.intro")}
-      ${renderLearnMoreLink("https://docs.openclaw.ai/web/control-ui")}`;
+      return html`调整 Mirally 的主题、字体、语言和聊天显示方式。`;
     case "mcp":
       return html`${t("mcpPage.intro")} ${renderLearnMoreLink("https://docs.openclaw.ai/tools/mcp")}`;
     case "security":

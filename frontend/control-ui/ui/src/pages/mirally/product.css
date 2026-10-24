@@ -1,0 +1,21 @@
+/* Mirally content uses the retained shell's settings language and theme tokens. */
+mirally-settings-page, mirally-messages-page, mirally-memory-page,
+mirally-extensions-page { display: block; min-width: 0; width: 100%; }
+.mirally-settings-content, .mirally-settings-content > form { display: flex; flex-direction: column; gap: var(--space-8); }
+.mirally-product-form { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-4); }
+.mirally-product-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: var(--space-4); }
+.mirally-product-field { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; font-size: var(--control-ui-text-sm); }
+.mirally-product-field input, .mirally-product-field select, .mirally-product-field textarea { width: 100%; max-width: 100%; box-sizing: border-box; }
+.mirally-product-field textarea { min-height: 96px; resize: vertical; }
+.mirally-product-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.mirally-product-item { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4); overflow-wrap: anywhere; }
+.mirally-product-item + .mirally-product-item { border-top: 1px solid var(--border); }
+.mirally-product-item h3, .mirally-product-item p { margin: 0; }
+.mirally-product-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.mirally-product-notice { padding: var(--space-3) var(--space-4); margin: 0; overflow-wrap: anywhere; }
+.mirally-product-notice[data-error] { color: var(--danger, #c33); }
+.mirally-product-empty { padding: var(--space-5) var(--space-4); color: var(--muted); }
+.mirally-product-meta { color: var(--muted); font-size: var(--control-ui-text-sm); }
+.mirally-product-debug { max-width: 100%; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mirally-product-memory .memory-page__panel { min-width: 0; }
+.mirally-product-memory .mirally-memory { width: 100%; margin: 0; }

@@ -651,7 +651,7 @@ class OpenClawShell
       return;
     }
     const outboxScopeHost = this.storedOutboxScopeHost(context);
-    let primaryContext = routeId === "custodian" ? t("nav.askOpenClaw") : titleForRoute(routeId);
+    let primaryContext = titleForRoute(routeId);
     if (isSessionRouteId(routeId) && this.activeSessionKey) {
       primaryContext = this.chatTitleContext(context, outboxScopeHost) || primaryContext;
     }
@@ -727,7 +727,7 @@ class OpenClawShell
   }
 
   enabledRouteIds(): readonly RouteId[] {
-    return APP_ROUTE_IDS;
+    return ["chat", "new-session", "custodian", "cron", "activity", "memory", "plugins", "config", "profile", "model-providers", "appearance", "notifications", "about"];
   }
 
   /** Agent targeted by the open new-session route, keyed off its ?agent param. */

@@ -13,25 +13,14 @@ export type NavigationRouteId = RouteId;
 
 type NavigationPresentation = readonly [icon: IconName, titleKey: string, subtitleKey: string];
 
-// The sidebar shows a small user-customizable ordered zone; every other nav route
-// lives in the collapsed "More" section. Chat is reachable through the session
-// list and Settings/Docs live in the sidebar footer, so neither is listed here.
-// Skills and Skill Workshop are reached from the Plugins workspace, not sidebar items.
-// Worktrees is a tab of the Sessions hub, so it is not listed either.
-// Workboard is plugin-owned and enters the zone through its Control UI descriptor.
+// Keep the original customizable sidebar and session list, with destinations
+// owned by Mirally. Legacy route ids stay stable for saved links and preferences.
 export const SIDEBAR_NAV_ROUTES = [
-  "agents-home",
-  "dashboards",
-  "usage",
+  "custodian",
   "cron",
-  "tasks",
-  "sessions",
-  "systems",
   "activity",
-  "meetings",
+  "memory",
   "plugins",
-  "apps",
-  "portals",
 ] as const satisfies readonly NavigationRouteId[];
 
 // Routes presented as tabs of the Plugins hub. The sidebar highlights the
@@ -66,11 +55,13 @@ export type SidebarZoneEntry =
   | { type: "plugin"; key: string }
   | { type: "session"; key: string };
 
-// Keep the highest-value operational destinations visible on first use. Users
-// can still replace this route set through the customize menu.
-export const DEFAULT_SIDEBAR_ENTRIES = (
-  ["agents-home", "dashboards", "systems", "cron", "plugins"] as const
-).map((route) => serializeSidebarEntry({ type: "route", route }));
+export const DEFAULT_SIDEBAR_ENTRIES = SIDEBAR_NAV_ROUTES.map((route) =>
+  serializeSidebarEntry({ type: "route", route }),
+);
+
+const LEGACY_DEFAULT_SIDEBAR_ENTRIES = [
+  "route:agents-home", "route:dashboards", "route:systems", "route:cron", "route:plugins",
+];
 
 /**
  * Parse the compact persisted representation used by browser and synced prefs.
@@ -121,6 +112,10 @@ export function serializeSidebarEntry(entry: SidebarZoneEntry): string {
 export function normalizeSidebarEntries(value: unknown): string[] | null {
   if (!Array.isArray(value)) {
     return null;
+  }
+  if (value.length === LEGACY_DEFAULT_SIDEBAR_ENTRIES.length &&
+      value.every((entry, index) => entry === LEGACY_DEFAULT_SIDEBAR_ENTRIES[index])) {
+    return [...DEFAULT_SIDEBAR_ENTRIES];
   }
   const normalized: string[] = [];
   for (const valueEntry of value) {
@@ -195,82 +190,27 @@ export function settingsSearchTextMatches(value: string, query: string): boolean
   return settingsSearchHasWordPrefix(candidate, normalizedQuery);
 }
 
-// Grouping feeds the full-page settings sidebar (settings-sidebar.ts). Ordered
-// by user attention: personal/look-and-feel first, system plumbing last.
-// Management surfaces (sessions, worktrees, activity, memory import) are
-// workspace destinations, not settings; model setup is a subpage of Models.
+// Keep the existing settings takeover, without exposing host administration
+// pages whose Gateway APIs are not part of the Mirally product.
 const SETTINGS_NAVIGATION_GROUPS = [
-  { labelKey: null, routes: ["custodian", "profile", "appearance", "notifications"] },
-  { labelKey: "nav.settingsGroupDevice", routes: ["device", "device-permissions"] },
-  {
-    labelKey: "nav.settingsGroupConnections",
-    routes: ["connection", "channels", "communications", "talk", "devices", "cloud-workers"],
-  },
-  {
-    labelKey: "nav.settingsGroupAgents",
-    routes: [
-      "agents",
-      "model-providers",
-      "search",
-      "plugin-settings",
-      "skill-settings",
-      "mcp",
-      "memory",
-      "automation",
-    ],
-  },
-  {
-    labelKey: "nav.settingsGroupSecurity",
-    routes: ["security", "secrets", "approvals"],
-  },
-  {
-    labelKey: "nav.settingsGroupSystem",
-    routes: ["infrastructure", "labs", "advanced", "debug", "logs", "updates", "about"],
-  },
+  { labelKey: null, routes: ["config", "profile", "model-providers", "appearance", "notifications", "about"] },
 ] as const satisfies readonly SettingsNavigationGroup[];
 
 const NON_ADMIN_SETTINGS_ROUTES: ReadonlySet<NavigationRouteId> = new Set([
+  "config",
   "profile",
   "appearance",
   "notifications",
-  "connection",
-  "channels",
-  "talk",
-  "devices",
-  "agents",
   "model-providers",
-  "search",
-  "plugin-settings",
-  "skill-settings",
-  "memory",
-  "approvals",
-  "advanced",
-  "debug",
-  "logs",
   "about",
 ]);
 
 export function isSettingsNavigationRouteVisible(
   routeId: NavigationRouteId,
-  canAdmin: boolean,
-  nativeDeviceSettings: NativeDeviceSettingsCapability | null = null,
+  _canAdmin: boolean,
+  _nativeDeviceSettings: NativeDeviceSettingsCapability | null = null,
 ): boolean {
-  if (routeId === "device") {
-    return nativeDeviceSettings !== null;
-  }
-  if (routeId === "device-permissions") {
-    const snapshot = nativeDeviceSettings?.snapshot;
-    return Boolean(
-      snapshot &&
-      (snapshot.permissions.entries.length > 0 ||
-        snapshot.permissions.location ||
-        snapshot.capabilities?.activeComputerPresenceEnabled !== undefined),
-    );
-  }
-  if (routeId === "updates") {
-    return canAdmin || nativeDeviceSettings !== null;
-  }
-  return canAdmin || NON_ADMIN_SETTINGS_ROUTES.has(routeId);
+  return NON_ADMIN_SETTINGS_ROUTES.has(routeId);
 }
 
 export function deviceSettingsGroupLabelKey(
@@ -299,10 +239,7 @@ export function visibleSettingsNavigationGroups(
   nativeDeviceSettings: NativeDeviceSettingsCapability | null = null,
 ): readonly SettingsNavigationGroup[] {
   return SETTINGS_NAVIGATION_GROUPS.map((group) => ({
-    labelKey:
-      group.labelKey === "nav.settingsGroupDevice"
-        ? deviceSettingsGroupLabelKey(nativeDeviceSettings?.snapshot)
-        : group.labelKey,
+    labelKey: group.labelKey,
     routes: group.routes.filter((route) =>
       isSettingsNavigationRouteVisible(route, canAdmin, nativeDeviceSettings),
     ),
@@ -312,16 +249,12 @@ export function visibleSettingsNavigationGroups(
 // Settings subpages render with settings chrome but stay out of the sidebar.
 // Subpages with a visible owner keep that owner selected so users retain
 // location context while completing the nested flow.
-const SETTINGS_SUBPAGE_ROUTES: readonly NavigationRouteId[] = [
-  "ai-agents",
-  "model-setup",
-  "lobsterdex",
-];
-export const SETTINGS_SEARCHABLE_SUBPAGE_ROUTES: readonly NavigationRouteId[] = ["ai-agents"];
+const SETTINGS_SUBPAGE_ROUTES: readonly NavigationRouteId[] = ["settings", "model-setup"];
+export const SETTINGS_SEARCHABLE_SUBPAGE_ROUTES: readonly NavigationRouteId[] = [];
 const SETTINGS_SUBPAGE_OWNER_ROUTES: Partial<
   Readonly<Record<NavigationRouteId, NavigationRouteId>>
 > = {
-  "ai-agents": "agents",
+  settings: "config",
   "model-setup": "model-providers",
 };
 
@@ -394,6 +327,33 @@ const NAVIGATION_PRESENTATION: Record<NavigationRouteId, NavigationPresentation>
   "new-session": ["plus", "newSession.title", "newSession.hint"],
 };
 
+type MirallyNavigationCopy = readonly [titleZh: string, titleEn: string, subtitleZh: string, subtitleEn: string];
+
+// Mirally owns product language separately from the preserved upstream locale
+// catalogs. New copy falls back to English outside Chinese locales.
+const MIRALLY_NAVIGATION_COPY: Partial<Record<NavigationRouteId, MirallyNavigationCopy>> = {
+  settings: ["设置", "Settings", "调整 Mirally 的体验与连接", "Customize Mirally and its connections"],
+  chat: ["对话", "Chat", "与 Mirally 一起处理生活和工作中的事情", "Work through life and work with Mirally"],
+  dashboard: ["对话", "Chat", "与 Mirally 一起处理生活和工作中的事情", "Work through life and work with Mirally"],
+  "new-session": ["新对话", "New conversation", "从一件想聊、想做的事开始", "Start with something to discuss or do"],
+  custodian: ["消息", "Inbox", "查看 Mirally 的主动联系与提醒投递", "Review messages and reminders from Mirally"],
+  cron: ["提醒", "Reminders", "管理约定、到期时间与提醒状态", "Manage commitments, due dates, and reminder status"],
+  activity: ["活动", "Activity", "选择允许 Mirally 了解的活动范围", "Choose which activities Mirally may understand"],
+  memory: ["记忆", "Memory", "查看与管理 Mirally 记住的信息", "Review and manage what Mirally remembers"],
+  plugins: ["扩展", "Extensions", "连接 Skill、MCP 与 Mirally 插件", "Connect Skills, MCP, and Mirally plugins"],
+  config: ["通用", "General", "查看 Mirally 的基本设置与数据位置", "Review Mirally settings and data locations"],
+  profile: ["个性化", "Personalization", "管理你的偏好与 Mirally 的了解方式", "Manage your preferences and how Mirally understands you"],
+  "model-providers": ["模型连接", "Model connection", "配置 Mirally 使用的模型与服务连接", "Configure the model and service Mirally uses"],
+  "model-setup": ["模型连接", "Model connection", "配置 Mirally 使用的模型与服务连接", "Configure the model and service Mirally uses"],
+  appearance: ["外观", "Appearance", "调整主题、色彩与界面偏好", "Adjust themes, colors, and interface preferences"],
+  notifications: ["主动联系", "Proactive contact", "决定 Mirally 在什么时间、通过什么方式联系你", "Choose when and how Mirally may contact you"],
+  about: ["关于与运行状态", "About and status", "查看 Mirally 的运行状态与能力边界", "Review Mirally status and supported capabilities"],
+};
+
+export function mirallyNavigationText(zh: string, en: string): string {
+  return i18n.getLocale().startsWith("zh") ? zh : en;
+}
+
 export function isSettingsNavigationRoute(routeId: NavigationRouteId): boolean {
   return SETTINGS_NAVIGATION_ROUTES.has(routeId);
 }
@@ -407,6 +367,7 @@ export function settingsNavigationOwnerRoute(routeId: NavigationRouteId): Naviga
 }
 
 export function navigationIconForRoute(routeId: NavigationRouteId): IconName {
+  if (routeId === "custodian") return "bell";
   return NAVIGATION_PRESENTATION[routeId]?.[0] ?? "folder";
 }
 
@@ -459,22 +420,21 @@ export function cancelRoutePreload(
 }
 
 export function titleForRoute(routeId: NavigationRouteId): string {
+  const productCopy = MIRALLY_NAVIGATION_COPY[routeId];
+  if (productCopy) return mirallyNavigationText(productCopy[0], productCopy[1]);
   const [, titleKey] = NAVIGATION_PRESENTATION[routeId];
   return t(titleKey);
 }
 
-/** Window/tab title, markers leftmost because tabs truncate from the right.
- * A disconnected Gateway replaces the approval count (a stale queue is not
- * actionable); titles already ending in the brand
- * ("Ask OpenClaw") skip the suffix so it never reads "… OpenClaw — OpenClaw". */
+/** Keep attention markers leftmost and use the Mirally product brand. */
 export function formatDocumentTitle(options: {
   context: string;
   attentionCount?: number;
   gatewayDisconnected?: boolean;
 }): string {
-  const base = options.context.endsWith("OpenClaw")
+  const base = options.context.endsWith("Mirally")
     ? options.context
-    : `${options.context} — OpenClaw`;
+    : `${options.context} — Mirally`;
   if (options.gatewayDisconnected) {
     return `(${t("connection.disconnectedTitle")}) ${base}`;
   }
@@ -491,13 +451,12 @@ export function settingsNavigationLabelForRoute(
   if (routeId === "device" && snapshot) {
     return t(deviceSettingsGroupLabelKey(snapshot));
   }
-  if (routeId === "custodian") {
-    return t("nav.askOpenClaw");
-  }
   return titleForRoute(routeId);
 }
 
 export function subtitleForRoute(routeId: NavigationRouteId): string {
+  const productCopy = MIRALLY_NAVIGATION_COPY[routeId];
+  if (productCopy) return mirallyNavigationText(productCopy[2], productCopy[3]);
   const subtitleKey = NAVIGATION_PRESENTATION[routeId][2];
   return t(subtitleKey);
 }

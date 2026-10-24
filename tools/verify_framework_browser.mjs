@@ -20,18 +20,16 @@ async function ready() { await page.waitForFunction(()=>document.querySelector('
 async function newChat() { await page.evaluate(()=>window.__mirallyFramework.showPage('chat')); await page.locator('.new-session-page__message').waitFor({state:'visible'}); }
 async function idle() { await page.waitForFunction(()=>{const p=document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active'); return p?.state?.chatMessages?.some(m=>m.role==='assistant') && !p.runActivity?.working;}); }
 try {
-  // Save through the original Mirally form, not a synthetic replacement page.
+  // Save the Mirally-owned form through the same real product transport.
   await page.goto(runtime.url+'/settings/model-providers#token='+runtime.token); await ready();
-  await page.locator('[data-field=modelId]').waitFor();
-  await page.locator('[data-field=baseUrl]').fill('http://127.0.0.1:1/v1');
-  const creating = await page.locator('[data-field=provider]').inputValue() === '__new__';
-  if (creating) await page.locator('[data-field=providerId]').fill('browser-fixture');
-  await page.locator('[data-field=modelId]').fill('offline-test');
-  await page.locator('[data-field=apiKey]').fill('isolated-fixture-secret');
-  await page.locator('[data-action=save]').click();
-  await page.getByText('模型服务已保存。', {exact:true}).waitFor();
-  assert.equal(await page.locator('[data-field=apiKey]').inputValue(), '');
-  await page.screenshot({path:join(output,'original-settings.png')});
+  await page.getByTestId('mirally-settings-model-id').waitFor();
+  await page.getByTestId('mirally-settings-model-base-url').fill('http://127.0.0.1:1/v1');
+  await page.getByTestId('mirally-settings-model-id').fill('offline-test');
+  await page.getByTestId('mirally-settings-model-key').fill('isolated-fixture-secret');
+  await page.getByTestId('mirally-settings-model-save').click();
+  await page.getByTestId('mirally-settings-notice').filter({hasText:'模型连接已保存'}).waitFor();
+  assert.equal(await page.getByTestId('mirally-settings-model-key').inputValue(), '');
+  await page.screenshot({path:join(output,'mirally-settings.png')});
   await newChat();
   const draft = '原版 **粗体** 与代码\n```js\nconst hello = 1;\n```';
   await page.locator('.new-session-page__message').fill(draft);

@@ -42,7 +42,7 @@ const APP_ROUTE_DEFINITIONS = {
   terminal: { path: "/terminal" },
   dashboard: { path: "/dashboard" },
   dashboards: { path: "/dashboards" },
-  custodian: { path: "/custodian" },
+  custodian: { path: "/inbox", aliases: ["/custodian"] },
   "new-session": { path: "/new" },
   activity: { path: "/activity" },
   meetings: { path: "/meetings" },
@@ -66,7 +66,7 @@ const APP_ROUTE_DEFINITIONS = {
   approvals: { path: "/settings/approvals" },
   automation: { path: "/settings/automation", aliases: ["/automation"] },
   mcp: { path: "/settings/mcp", aliases: ["/mcp"] },
-  memory: { path: "/settings/memory" },
+  memory: { path: "/memory", aliases: ["/settings/memory"] },
   search: { path: "/settings/search" },
   talk: { path: "/settings/talk" },
   infrastructure: { path: "/settings/infrastructure", aliases: ["/infrastructure"] },
@@ -89,11 +89,11 @@ const APP_ROUTE_DEFINITIONS = {
   "skill-workshop": { path: "/skills/workshop" },
   skills: { path: "/skills" },
   "skill-settings": { path: "/settings/skills" },
-  plugins: { path: "/plugins" },
+  plugins: { path: "/extensions", aliases: ["/plugins"] },
   "plugin-settings": { path: "/settings/plugins" },
-  // Automations is the product name; /cron stays as a legacy alias for
-  // pre-rename bookmarks and deep links.
-  cron: { path: "/automations", aliases: ["/cron"] },
+  // The route id is retained for preference compatibility; Mirally exposes its
+  // own durable reminders instead of the original host's Cron administration.
+  cron: { path: "/reminders", aliases: ["/automations", "/cron"] },
   tasks: { path: "/tasks" },
   devices: { path: "/settings/devices", aliases: ["/nodes"] },
   "cloud-workers": { path: "/settings/cloud-workers" },
@@ -134,7 +134,7 @@ function pluginTabSlug(tab: PluginTab): string | undefined {
   if (NATIVE_ROUTE_SEGMENTS.has(slug)) {
     if (!warnedSlugs.has(slug)) {
       warnedSlugs.add(slug);
-      console.warn(`[openclaw] /${slug} is a native route; using /plugin.`);
+      console.warn(`[mirally] /${slug} is a native route; using /plugin.`);
     }
     return undefined;
   }
@@ -218,12 +218,16 @@ export function pathForRoute(routeId: RouteId, basePath = ""): string {
 
 function routePathSuffix(pathname: string, routeId: RouteId, basePath: string): string | null {
   const normalizedPath = normalizePath(pathname);
-  const routePath = pathForRoute(routeId, basePath);
-  if (normalizedPath === routePath) {
-    return "";
+  const definition = APP_ROUTE_DEFINITIONS[routeId];
+  const paths: readonly string[] = "aliases" in definition
+    ? [definition.path, ...definition.aliases] : [definition.path];
+  for (const path of paths) {
+    const routePath = `${normalizeBasePath(basePath)}${path}`;
+    if (normalizedPath === routePath) return "";
+    const prefix = `${routePath}/`;
+    if (normalizedPath.startsWith(prefix)) return normalizedPath.slice(prefix.length) || null;
   }
-  const prefix = `${routePath}/`;
-  return normalizedPath.startsWith(prefix) ? normalizedPath.slice(prefix.length) || null : null;
+  return null;
 }
 
 /** Legacy person query accepted by existing Activity links. */
@@ -356,13 +360,8 @@ export function pathForPluginCatalogEntry(id: string, basePath = ""): string {
 }
 
 export function pluginCatalogIdFromPath(pathname: string, basePath = ""): string | null {
-  const normalizedPath = normalizePath(pathname);
-  const prefix = `${pathForRoute("plugins", basePath)}/`;
-  if (!normalizedPath.startsWith(prefix)) {
-    return null;
-  }
-  const id = normalizedPath.slice(prefix.length);
-  return isPluginCatalogId(id) ? id : null;
+  const id = routePathSuffix(pathname, "plugins", basePath);
+  return id && isPluginCatalogId(id) ? id : null;
 }
 
 export function pathForPluginSettings(pluginId: string, basePath = ""): string {
@@ -414,6 +413,11 @@ export function sessionRouteNamespaceFromPath(pathname: string, basePath = ""): 
   }
   if (routePath.startsWith("/dashboard/")) {
     return "dashboard";
+  }
+  // New Mirally namespaces must not be interpreted as catalog share sessions
+  // by the preserved upstream grammar, which predates these product routes.
+  if (NATIVE_ROUTE_SEGMENTS.has(routePath.split("/")[1])) {
+    return null;
   }
   // The shared matcher reserves every built-in route and document namespace.
   const catalogShare = matchControlUiCatalogSharePath({

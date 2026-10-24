@@ -4,8 +4,7 @@
 import { html, nothing } from "lit";
 import { ref } from "lit/directives/ref.js";
 import type { AgentIdentityResult } from "../api/types.ts";
-import type { NavigationRouteId } from "../app-navigation.ts";
-import { pathForAgentPanel } from "../app-route-paths.ts";
+import { mirallyNavigationText, titleForRoute, type NavigationRouteId } from "../app-navigation.ts";
 import type { ApplicationNavigationOptions } from "../app/context.ts";
 import { t } from "../i18n/index.ts";
 import { normalizeAgentLabel } from "../lib/agents/display.ts";
@@ -21,24 +20,18 @@ import {
   trackDropdownKeyboardDismissal,
 } from "./web-awesome.ts";
 
-// External rows of the footer identity menu. Docs-first: public docs pages over
-// raw GitHub, matching the ClawSweeper docs-link policy for user-facing copy.
+// Project destinations belong to Mirally. Upstream credits remain in About;
+// links to the old host's setup and community do not describe this product.
 const IDENTITY_MENU_LINKS: ReadonlyArray<{
   href: string;
   icon: IconName;
   label: () => string;
 }> = [
-  { href: "https://docs.openclaw.ai", icon: "book", label: () => t("common.docs") },
+  { href: "https://github.com/lyingloong/openassist", icon: "book", label: () => mirallyNavigationText("Mirally 项目与文档", "Mirally project and documentation") },
   {
-    href: "https://docs.openclaw.ai/help",
+    href: "https://github.com/lyingloong/openassist/issues",
     icon: "messageSquare",
     label: () => t("agentChip.getHelp"),
-  },
-  { href: "https://discord.gg/clawd", icon: "users", label: () => t("agentChip.discord") },
-  {
-    href: "https://docs.openclaw.ai/releases",
-    icon: "scrollText",
-    label: () => t("agentChip.viewChangelog"),
   },
 ];
 
@@ -328,22 +321,17 @@ export function renderSidebarAgentMenu(params: SidebarAgentMenuParams) {
           return;
         }
         switch (value) {
-          case `${COMMAND_VALUE_PREFIX}sidebar-agents`:
-            params.onToggleRoster();
-            break;
-          case `${COMMAND_VALUE_PREFIX}all-agents`:
-            params.onNavigate("agents-home");
-            break;
-          case `${COMMAND_VALUE_PREFIX}new-agent`:
-            params.onNavigate("custodian", { search: "?intent=new-agent" });
-            break;
           case `${COMMAND_VALUE_PREFIX}capabilities`:
             params.onAskCapabilities(activeId);
             break;
           case `${COMMAND_VALUE_PREFIX}agent-settings`:
-            params.onNavigate("agents", {
-              pathname: pathForAgentPanel(activeId, null, params.basePath),
-            });
+            params.onNavigate("config");
+            break;
+          case `${COMMAND_VALUE_PREFIX}extensions`:
+            params.onNavigate("plugins");
+            break;
+          case `${COMMAND_VALUE_PREFIX}about`:
+            params.onNavigate("about");
             break;
         }
       }}
@@ -392,40 +380,26 @@ export function renderSidebarAgentMenu(params: SidebarAgentMenuParams) {
       }
       <wa-dropdown-item
         class="sidebar-customize-menu__item"
-        value="command:sidebar-agents"
-        type=${params.rosterMode ? "normal" : "checkbox"}
+        value="command:capabilities"
+        ?disabled=${!params.connected}
       >
-        ${t(params.rosterMode ? "agentChip.showOneAgent" : "agentChip.showAllAgents")}
+        <span slot="icon" class="nav-item__icon" aria-hidden="true">${icons.bot}</span>
+        <span class="sidebar-customize-menu__text">
+          ${t("agentChip.whatCanAgentDo", { name: activeName })}
+        </span>
       </wa-dropdown-item>
-      ${
-        !params.rosterMode
-          ? html`
-              <wa-dropdown-item class="sidebar-customize-menu__item" value="command:all-agents">
-                <span slot="icon" class="nav-item__icon" aria-hidden="true">${icons.bot}</span>
-                <span class="sidebar-customize-menu__text">${t("agentChip.allAgents")}</span>
-              </wa-dropdown-item>
-              <wa-dropdown-item class="sidebar-customize-menu__item" value="command:new-agent">
-                <span slot="icon" class="nav-item__icon" aria-hidden="true">${icons.users}</span>
-                <span class="sidebar-customize-menu__text">${t("custodian.newAgent")}</span>
-              </wa-dropdown-item>
-              <wa-dropdown-item
-                class="sidebar-customize-menu__item"
-                value="command:capabilities"
-                ?disabled=${!params.connected}
-              >
-                <span slot="icon" class="nav-item__icon" aria-hidden="true">${icons.bot}</span>
-                <span class="sidebar-customize-menu__text">
-                  ${t("agentChip.whatCanAgentDo", { name: activeName })}
-                </span>
-              </wa-dropdown-item>
-            `
-          : nothing
-      }
       <wa-dropdown-item class="sidebar-customize-menu__item" value="command:agent-settings">
         <span slot="icon" class="nav-item__icon" aria-hidden="true">${icons.settings}</span>
-        <span class="sidebar-customize-menu__text">${t("agentChip.agentSettings")}</span>
+        <span class="sidebar-customize-menu__text">${mirallyNavigationText("Mirally 设置", "Mirally settings")}</span>
       </wa-dropdown-item>
-      ${params.rosterMode ? renderSidebarHelpMenu() : nothing}
+      <wa-dropdown-item class="sidebar-customize-menu__item" value="command:extensions">
+        <span slot="icon" class="nav-item__icon" aria-hidden="true">${icons.plug}</span>
+        <span class="sidebar-customize-menu__text">${titleForRoute("plugins")}</span>
+      </wa-dropdown-item>
+      <wa-dropdown-item class="sidebar-customize-menu__item" value="command:about">
+        <span slot="icon" class="nav-item__icon" aria-hidden="true">${icons.circleQuestionMark}</span>
+        <span class="sidebar-customize-menu__text">${titleForRoute("about")}</span>
+      </wa-dropdown-item>
     </wa-dropdown>
   `;
 }

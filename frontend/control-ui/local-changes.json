@@ -1,0 +1,21 @@
+{
+  "ui/src/app/bootstrap.ts": "Inject the Mirally HTTP/SSE client into the retained application context.",
+  "ui/src/main.ts": "Disable the upstream Gateway service worker.",
+  "ui/src/lib/chat/chat-types.ts": "Retain explicit file-write consent through native outbox state.",
+  "ui/src/lib/chat/outbox-store-codec.ts": "Persist file-write consent with the original command identity.",
+  "ui/src/pages/chat/chat-send-submit.ts": "Submit explicit file-write consent with the original outbox item.",
+  "ui/src/pages/chat/chat-send-delivery.ts": "Retain file-write consent across retry and reload.",
+  "ui/src/pages/chat/chat-send-request.ts": "Forward file-write consent to the Mirally transport.",
+  "ui/src/app-navigation.ts": "Mirally workspace and settings navigation, titles and product branding.",
+  "ui/src/app-route-paths.ts": "Canonical Mirally destinations with old bookmarks as aliases.",
+  "ui/src/app-routes.ts": "Retain chat and appearance, compose Mirally-owned content routes without Gateway loaders.",
+  "ui/src/app/app-host.ts": "Use Mirally route titles in browser and desktop document chrome.",
+  "ui/src/components/app-sidebar-render.ts": "Retain sidebar layout with Mirally workspace/footer identity.",
+  "ui/src/components/app-sidebar-agent-menu.ts": "Mirally workspace menu without unsupported host administration.",
+  "ui/src/components/app-sidebar-identity-menu.ts": "Mirally user menu without Gateway, pairing or account administration.",
+  "ui/src/pages/config/config-page.ts": "Describe the retained appearance controls as Mirally settings.",
+  "ui/src/components/command-palette-catalog-search.ts": "Use real Mirally product pages and supported reminder/model search.",
+  "ui/src/pages/config/settings-search.ts": "Index retained Appearance controls without old administration sections.",
+  "ui/src/pages/chat/components/chat-header-session-menu.ts": "Retain usable local view and copy actions without unsupported host operations.",
+  "ui/src/components/session-menu.ts": "Expose only supported context actions; no fork, management or old user-owner reads."
+}

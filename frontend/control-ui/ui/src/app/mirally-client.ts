@@ -119,8 +119,7 @@ export class MirallyBrowserClient {
       const context = (document.querySelector("openclaw-app") as any)?.context;
       if (page === "work") return (window as any).__mirallyWork?.open();
       if (page === "activity") return (window as any).__mirallyActivity?.open();
-      if (page === "memory") return context?.navigate("memory", {pathname: "/settings/memory/memories", search: ""});
-      const route = ({chat: "new-session", settings: "model-providers", memory: "memory", extensions: "plugins"} as Data)[page];
+      const route = ({chat: "new-session", settings: "config", model: "model-providers", memory: "memory", extensions: "plugins", reminders: "cron", inbox: "custodian"} as Data)[page];
       if (!route) throw new Error("该产品页面尚未完成原界面接入");
       context?.navigate(route, {search: ""});
     }};
@@ -208,6 +207,8 @@ export class MirallyBrowserClient {
       case "sessions.get": case "sessions.resolve": { const session = (await this.sessions()).find((s: Data) => identity(s.key) === id); if (!session) { if (p.allowMissing) return {ok:false}; throw new Error("会话不存在"); } return {ok:true, key: session.key, entry: session, sessionId: session.sessionId, agentId:"main"}; }
       case "sessions.create": {
         if (p.incognito) throw new Error("当前内核尚未支持无痕会话，请使用普通会话；本次没有创建或保存会话。");
+        if (p.fork || p.parentSessionKey || p.parentSessionId) throw new Error("当前 Mirally 尚未支持分叉会话；本次没有创建会话，也不会用空会话代替分叉。");
+        if (p.agentId && p.agentId !== 'main') throw new Error("当前 Mirally 仅支持主伙伴的会话；本次没有创建会话。");
         const session = await this.http("/api/sessions", {method: "POST", body: JSON.stringify({title: p.displayName || p.label || p.title || "新对话", requestId:p.idempotencyKey})});
         const entry = (await this.sessions()).find((s: Data) => identity(s.key) === session.id);
         if (p.message || p.attachments?.length) {
