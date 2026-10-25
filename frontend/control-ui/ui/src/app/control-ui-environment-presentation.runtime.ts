@@ -2,7 +2,7 @@ import {
   CONTROL_UI_ENVIRONMENT_ATTRIBUTE,
   type ControlUiEnvironment,
 } from "../../../src/gateway/control-ui-bootstrap-contract.js";
-import { currentThemeBranding, neutralMarkSvg } from "../components/neutral-mark.ts";
+import { neutralMarkSvg } from "../components/neutral-mark.ts";
 import { applyControlUiOperatorSeamColor } from "./control-ui-presentation.ts";
 
 export function applyControlUiPresentation(params: {
@@ -93,16 +93,11 @@ function resolveFaviconPalette() {
   const environmentColor = environment
     ? style.getPropertyValue(`--control-ui-environment-${environment.color}`).trim()
     : "";
-  const artwork =
-    currentThemeBranding().mascot === "none"
-      ? neutralMarkSvg({
-          fill: style.getPropertyValue("--primary").trim(),
-          glyph: style.getPropertyValue("--primary-foreground").trim(),
-        })
-      : environmentColor
-        ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path fill="${environmentColor}" d="M60 10C30 10 15 35 15 55c0 20 15 40 30 45v10h10v-10h10v10h10v-10c15-5 30-25 30-45 0-20-15-45-45-45Z"/></svg>`
-        : null;
-  const baseSvg = artwork ? `data:image/svg+xml,${encodeURIComponent(artwork)}` : null;
+  const artwork = neutralMarkSvg({
+    fill: environmentColor || style.getPropertyValue("--accent").trim() || "#52b9ef",
+    glyph: style.getPropertyValue("--primary-foreground").trim(),
+  });
+  const baseSvg = `data:image/svg+xml,${encodeURIComponent(artwork)}`;
   const light = root.dataset.themeMode === "light";
   const token = {
     attention: light ? "--session-color-orange" : "--warn",

@@ -1,6 +1,7 @@
 // Control UI i18n module implements translate behavior.
 import { getSafeLocalStorage } from "../../local-storage.ts";
 import { en } from "../locales/en.ts";
+import { mirallyProductTranslation } from "../mirally-product-copy.ts";
 import {
   DEFAULT_LOCALE,
   SUPPORTED_LOCALES,
@@ -246,7 +247,7 @@ class I18nManager {
 
   public translateActive(key: string): string | undefined {
     const value = lookupTranslation(this.translations[this.locale], key.split("."));
-    return typeof value === "string" ? value : undefined;
+    return mirallyProductTranslation(key, this.locale, value);
   }
 
   public t(key: string, params?: Record<string, string>): string {
@@ -259,6 +260,7 @@ class I18nManager {
       value = lookupTranslation(this.translations[DEFAULT_LOCALE], keys);
     }
 
+    value = mirallyProductTranslation(key, this.locale, value);
     if (typeof value !== "string") {
       return key;
     }

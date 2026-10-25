@@ -31,10 +31,12 @@ try {
   assert.equal(await page.getByTestId('mirally-settings-model-key').inputValue(), '');
   await page.screenshot({path:join(output,'mirally-settings.png')});
   await newChat();
+  assert.equal(await page.locator('[data-chat-permission-select]').count(),0,'new conversations do not advertise unsupported host permission modes');
   const draft = '原版 **粗体** 与代码\n```js\nconst hello = 1;\n```';
   await page.locator('.new-session-page__message').fill(draft);
   await page.locator('.new-session-page__start-submit').click(); await idle();
   const pane=page.locator(active);
+  assert.equal(await pane.locator('[data-chat-permission-select]').count(),0,'existing conversations do not advertise unsupported host permission modes');
   assert.equal(await pane.locator('.chat-group.user').count(),1,'optimistic user reconciles with native history');
   assert.equal(await pane.locator('.chat-group.assistant').count(),1);
   assert.ok(await pane.locator('.chat-group.assistant strong').count());
@@ -78,7 +80,7 @@ try {
   await page.screenshot({path:join(output,'original-narrow-chat.png')});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   assert.deepEqual(errors,[]);
-  console.log('PASS retained original UI: actual settings save/secret clearing, streaming and Markdown/code/copy, native receipt reconciliation, refresh/2 turns, attachment batch/removal/attachments-only send, session drafts and narrow layout');
+  console.log('PASS retained original UI: actual settings save/secret clearing, unsupported permission modes absent, streaming and Markdown/code/copy, native receipt reconciliation, refresh/2 turns, attachment batch/removal/attachments-only send, session drafts and narrow layout');
 } catch(error) {
   console.error('Page errors:', errors); console.error((await page.locator('body').innerText()).slice(-2500));
   await page.screenshot({path:join(output,'failure.png')}).catch(()=>{}); throw error;

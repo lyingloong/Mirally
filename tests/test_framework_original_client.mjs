@@ -220,6 +220,19 @@ test('unsupported incognito semantics fail before creating a durable session', a
   assert.equal(f.calls.some(item => item.init.method === 'POST'), false);
 });
 
+test('unsupported session permission modes reject restored drafts before any creation, upload or send', async t => {
+  const f = fixture(t);
+  for (const permissionMode of ['read-only', 'guarded', 'workspace', 'full', 'unknown', false, 0]) {
+    await assert.rejects(f.client.request('sessions.create', {permissionMode, message: '恢复旧权限草稿',
+      idempotencyKey: 'restored-permission-draft', mirallyAllowFileWrite: true,
+      attachments: [{fileName: '旧草稿材料.txt', mimeType: 'text/plain', content: 'YQ=='}]}), /尚未支持会话权限模式|没有创建会话/);
+  }
+  assert.deepEqual(f.calls, [], 'Unsupported modes must not reach any authenticated network request');
+  assert.equal(f.sessions.length, 2, 'No durable ordinary conversation may replace a permission-specific draft');
+  const ordinary = await f.client.request('sessions.create', {permissionMode: null, displayName: '普通对话'});
+  assert.equal(ordinary.key, conversationKey('created'));
+});
+
 test('unsupported session forks and other agent owners cannot silently create an empty ordinary conversation', async t => {
   const f = fixture(t);
   for (const params of [{fork:true,parentSessionKey:conversationKey('one')},{parentSessionKey:conversationKey('one')},{parentSessionId:'native-one'},{agentId:'another-agent'}]) {

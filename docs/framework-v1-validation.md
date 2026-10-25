@@ -1,3 +1,43 @@
+# Mirally 窗口生命周期与首次品牌验收
+
+日期：2026-10-25，Asia/Shanghai。对应 PN-0023 / PN-0024：关闭主窗口可选择托盘或退出，明确退出收尾真实后台；默认产品的空配置、重连和失败状态使用 Mirally 标识。下方 2026-10-24 及更早章节保留历史结果。
+
+| 验证 | 本次结果 | 范围 |
+| --- | --- | --- |
+| 固定来源校验 | 2672 文件、45 个有理由登记的维护文件、20 个原语言 catalog 通过 | 静态资源和源组件直接维护；保留来源与许可 |
+| 正式构建 | 708 个浏览器模块通过 | 无未打包 import；包含本轮权限菜单补漏 |
+| Node 完整回归 | 233 项通过，0 跳过 | 新增旧权限模式在网络、材料上传和会话创建前拒绝；普通会话与真实逐条文件授权保留 |
+| Framework Python 定向 | 125 项通过，其中 Shell 37 项 | 关闭偏好、托盘恢复、幂等清理、启动/重试迟到 owner、复用进程退出屏障与句柄释放 |
+| 首次品牌真实浏览器 | 通过 | 禁用 JavaScript 时的标题/HTML、manifest/图标；空配置 M 插画、真实模型连接入口；关闭偏好默认/保存/刷新/非法值拒绝；深浅色与运行时图标；无效凭据重连、实际模块加载失败回退 |
+| 原聊天真实浏览器 | 通过，无 pageerror | 模型保存/密钥清空、新旧会话不暴露未实现的权限模式、Markdown/代码复制、流式回执、刷新/两轮、批量附件/移除/纯附件发送、草稿和窄屏 |
+| 原工作与伙伴真实浏览器 | 通过，无 pageerror | 新对话水獭实际资源和来访；十个工作起点/四种输出、真实材料与草稿保留、三形态、造型/形态持久化、Activity/Memory 页面、原深浅色切换与刷新 |
+| 实际 WebView2：默认托盘 | 11 组通过 | 同 HWND，三种伙伴形态及最小化的单击恢复，托盘明确退出 |
+| 实际 WebView2：关闭即退出 | 10 组通过 | 真实 WM_CLOSE、窗口/托盘清理、进程退出、日志/句柄释放与运行记录退役 |
+| 实际 WebView2：复用后台后页面退出 | 11 组通过 | 真实关于页按钮；提前保留只读进程句柄，验证具体后台进程已退出，不能仅以运行记录消失代替 |
+
+复用后台验收发现运行记录先于 Node 进程最终结束，已修复为等待该具体进程的只读同步句柄。上述退出结果均在验收器的应急清理之前断言；未以强制清理掩盖失败。启动中关闭与迟到复用 owner 的边界本轮由针对性线程单测验证。
+
+GUI 顺序运行，只使用独立测试 home、本机确定性模型、自身 WebView2 HWND 和隔离 Edge。托盘恢复调用真实 NotifyIcon MouseClick 事件，尚未覆盖通知区物理指针命中、跨屏或 DPI 变化。没有桌面采集、外部模型调用或私有配置写入；测试数据、凭据、日志、截图和构建产物不提交。
+
+本轮根 Python 全套未重跑；下方历史记录中的旧 UFO 导入超时仍保留。正式构建与实际交互通过不等于完整 TypeScript 检查通过，上游 workspace/生成声明边界未在本轮解决。未做全新 Windows 安装、签名打包或真实供应商在线验证。
+
+复现本轮窗口和品牌检查（顺序执行，品牌脚本需尚未配置模型的独立测试 home）：
+
+```powershell
+npm --prefix frontend/control-ui run verify:source
+npm --prefix frontend/control-ui run build
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p '*framework*.py' -q
+node --test tests/test_*.mjs integrations/openclaw/*.test.mjs kernel/dsh/packages/mirally/mirally-product/tests/*.test.mjs kernel/dsh/packages/mirally/mirally-extensions/tests/*.test.mjs
+.\.venv\Scripts\python.exe tools/verify_framework_shell.py
+.\.venv\Scripts\python.exe tools/verify_framework_shell.py --close-exit
+.\.venv\Scripts\python.exe tools/verify_framework_shell.py --page-quit --reuse-host
+node tools/verify_framework_branding.mjs <空配置隔离home/runtime.json>
+node tools/verify_framework_browser.mjs <隔离home/runtime.json>
+node tools/verify_framework_experience.mjs <隔离home/runtime.json>
+```
+
+---
+
 # Mirally 内容与导航重构验收
 
 日期：2026-10-24，Asia/Shanghai。依据用户在 PN-0022 的确认，保留原视觉、布局习惯、组件、工作和伙伴，导航及页面内容改为 Mirally 自有产品。实现映射见[前端说明](mirally-frontend.md)。

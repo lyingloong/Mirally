@@ -734,7 +734,7 @@ export class MirallyProduct extends Service {
       try { preferences = JSON.parse(readFileSync(path, 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
       if (request.method === 'POST') {
         const {key, value} = input;
-        const accepted = {'mirally.companion.pet': ['otter', 'fox'], 'mirally.companion.form': ['rail', 'badge', 'pet'], theme: ['light', 'dark', 'system']};
+        const accepted = {'mirally.companion.pet': ['otter', 'fox'], 'mirally.companion.form': ['rail', 'badge', 'pet'], 'mirally.window.closeBehavior': ['tray', 'exit'], theme: ['light', 'dark', 'system']};
         const controlUi = key === 'control-ui' && value && typeof value === 'object' && !Array.isArray(value) && JSON.stringify(value).length <= 32768;
         if (!controlUi && !accepted[key]?.includes(value)) throw failure('Unsupported presentation preference');
         preferences[key] = value; writeFileSync(path, JSON.stringify(preferences), {mode: 0o600});

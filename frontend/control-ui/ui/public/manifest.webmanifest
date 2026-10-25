@@ -1,7 +1,7 @@
 {
-  "name": "OpenClaw Control",
-  "short_name": "OpenClaw",
-  "description": "Multi-channel AI gateway control panel",
+  "name": "Mirally",
+  "short_name": "Mirally",
+  "description": "Your personal companion for life and work",
   "start_url": "./",
   "display": "standalone",
   "theme_color": "#0a0a0a",
@@ -20,7 +20,7 @@
     },
     {
       "src": "./apple-touch-icon.png",
-      "sizes": "180x180",
+      "sizes": "256x256",
       "type": "image/png"
     }
   ]

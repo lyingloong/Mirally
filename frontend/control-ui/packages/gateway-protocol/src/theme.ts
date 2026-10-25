@@ -114,9 +114,9 @@ export const BUILTIN_THEMES: readonly ThemeDescriptor[] = (
   [
     {
       id: "claw",
-      name: "Claw",
+      name: "Mirally",
       description:
-        "Signature coral red and teal on charcoal or pale surfaces, with Instrument Sans throughout. A balanced everyday workspace.",
+        "Mirally blue and cool neutrals, with Instrument Sans throughout. A balanced everyday workspace.",
     },
     {
       id: "knot",

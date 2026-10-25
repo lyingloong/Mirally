@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
-    <title>OpenClaw Control</title>
+    <title>Mirally</title>
     <meta name="color-scheme" content="dark light" />
     <!-- These mirror the claw theme's --bg tokens for first paint; runtime theme application keeps them synchronized. -->
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#faf9f7" />
@@ -364,22 +364,22 @@
       hidden
     >
       <div class="mount-fallback__panel" tabindex="-1">
-        <p class="mount-fallback__eyebrow">OpenClaw Control UI</p>
-        <h1 id="openclaw-mount-fallback-title">Control UI did not start</h1>
+        <p class="mount-fallback__eyebrow">Mirally</p>
+        <h1 id="openclaw-mount-fallback-title">Mirally did not start</h1>
         <p id="openclaw-mount-fallback-summary">
-          The browser loaded the static page, but the app bundle did not start. The gateway may be
-          restarting, or this page may reference assets from a different OpenClaw version.
+          The browser loaded the static page, but the app bundle did not start. The local Mirally service may be
+          restarting, or this page may reference assets from a different Mirally version.
         </p>
         <ul>
-          <li>If startup fails, OpenClaw will retry the current app bundle automatically.</li>
+          <li>If startup fails, Mirally will retry the current app bundle automatically.</li>
           <li>If this persists, reload or try a clean browser profile.</li>
           <li>
             See
             <a
-              href="https://docs.openclaw.ai/web/control-ui#blank-control-ui-page"
+              href="https://github.com/lyingloong/openassist/blob/codex/mirally-framework-refactor/docs/framework-v1.md"
               target="_blank"
               rel="noopener noreferrer"
-              >Control UI troubleshooting</a
+              >Mirally startup guide</a
             >.
           </li>
         </ul>
@@ -456,12 +456,12 @@
           if (appStarted) return;
           if (recoveryAttempt >= maxRecoveryAttempts) {
             setSummary(
-              "The gateway is still unavailable. Try again, then check the troubleshooting guide if the problem persists.",
+              "Mirally is still unavailable. Restart Mirally from the project folder, then try again.",
             );
             return;
           }
           setSummary(
-            "The gateway is not reachable yet. OpenClaw will keep retrying while it restarts.",
+            "The local Mirally service is not reachable yet. Mirally will keep retrying while it restarts.",
           );
           scheduleRecovery();
         }
@@ -493,7 +493,7 @@
           var documentUrl = new URL(window.location.href);
           if (recoveryNavigation) {
             setSummary(
-              "A fresh page still could not start the Control UI. Try again, then check the troubleshooting guide if the problem persists.",
+              "A fresh page still could not start Mirally. Restart Mirally from the project folder, then try again.",
             );
             return;
           }
@@ -511,7 +511,7 @@
               signal: controller.signal,
             })
             .then(function (response) {
-              if (!response.ok) throw new Error("gateway unavailable");
+              if (!response.ok) throw new Error("Mirally unavailable");
               if (!appStarted && recoveryController === controller)
                 window.location.replace(documentUrl.href);
             })
@@ -528,13 +528,13 @@
         function showFallback() {
           if (appStarted) return;
           title.textContent = documentLoaded
-            ? "Control UI did not start"
-            : "Control UI is still loading";
+            ? "Mirally did not start"
+            : "Mirally is still loading";
           fallback.setAttribute("role", documentLoaded ? "alert" : "status");
           setSummary(
             documentLoaded
               ? failureSummary
-              : "The browser is still loading the app. OpenClaw will keep waiting without interrupting the download.",
+              : "The browser is still loading the app. Mirally will keep waiting without interrupting the download.",
           );
           if (documentLoaded) retryCurrentDocument();
           fallback.hidden = false;

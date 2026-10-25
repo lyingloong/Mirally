@@ -16,6 +16,11 @@ const active='openclaw-chat-pane.chat-pane-cache__pane--active';
 async function ready(){await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected');}
 try {
   await page.goto(runtime.url+'/new#token='+runtime.token);await ready();
+  const visitor=page.locator('mirally-composer-companion');
+  await visitor.locator('[data-mirally-mascot=otter]').waitFor();
+  assert.equal(await page.locator('openclaw-lobster-pet').count(),0,'new-session visitor uses the Mirally companion');
+  assert.ok(await visitor.locator('img').evaluate(image=>image.complete&&image.naturalWidth>0),'the actual companion resource loads');
+  await page.screenshot({path:join(output,'composer-companion.png')});
   // Native client factory only; no shadow session, fake DOM or fixture state.
   await page.evaluate(async()=>{const ctx=document.querySelector('openclaw-app').context;const r=await ctx.gateway.snapshot.client.request('sessions.create',{displayName:'原版体验验收',idempotencyKey:crypto.randomUUID()});document.querySelector('openclaw-app-shell').selectChatSession(r.key,'main');});
   await page.locator(active+' textarea[aria-label="聊天输入框"]').waitFor();
@@ -66,5 +71,5 @@ try {
   await page.locator('wa-radio[value=light]').click();
   await page.waitForFunction(()=>document.querySelector('openclaw-app').context.theme.resolvedMode==='light');
   assert.deepEqual(errors,[]);
-  console.log('PASS retained Mirally surfaces: original 10 workflows/4 outputs, real materials and native task, chat draft preservation, 3 companion forms, server-owned pet preference/reload, actual Activity/Memory pages without capture, original appearance controls and dark-mode reload');
+  console.log('PASS retained Mirally surfaces: actual otter composer visitor, original 10 workflows/4 outputs, real materials and native task, chat draft preservation, 3 companion forms, server-owned pet preference/reload, actual Activity/Memory pages without capture, original appearance controls and dark-mode reload');
 }catch(error){console.error('Page errors:',errors);console.error((await page.locator('body').innerText()).slice(-2000));await page.screenshot({path:join(output,'failure.png')}).catch(()=>{});throw error;}finally{await browser.close();}

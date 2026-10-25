@@ -78,6 +78,7 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
   @state() private settings: ProductSettings | null = null;
   @state() private status: ProductStatus | null = null;
   @state() private preferences: Preference[] = [];
+  @state() private closeBehavior: 'tray' | 'exit' = 'tray';
   @state() private model: ModelDraft | null = null;
   @state() private budget: BudgetDraft | null = null;
   @state() private preferenceKey = "";
@@ -146,12 +147,14 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
     const request = ++this.loadEpoch, view = this.viewEpoch;
     this.loading = true; this.error = "";
     try {
-      const [settings, status, preferences] = await Promise.all([
+      const [settings, status, preferences, presentation] = await Promise.all([
         rpcProduct<ProductSettings>("settings.get"), rpcProduct<ProductStatus>("system.status"),
         rpcProduct<{preferences: Preference[]}>("preference.list"),
+        requestProduct<{preferences: Record<string, unknown>}>("/api/ui-preferences"),
       ]);
       if (!this.isConnected || view !== this.viewEpoch || request !== this.loadEpoch) return;
       this.settings = settings; this.status = status; this.preferences = preferences.preferences || [];
+      this.closeBehavior = presentation.preferences?.['mirally.window.closeBehavior'] === 'exit' ? 'exit' : 'tray';
       if (!this.modelDirty) this.model = modelDraft(settings.model || {});
       if (!this.budgetDirty) {
         const saved = settings.memory_semantics;
@@ -222,6 +225,11 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
 
   private generalPage() {
     return html`
+      ${renderSettingsSection({title: "桌面窗口"}, renderSettingsRow({title: "关闭主窗口时", description: "仅影响 Mirally 桌面窗口。隐藏后点击托盘图标可返回；选择「退出 Mirally」始终会停止宿主与后台。",
+        control: html`<select class="settings-input" aria-label="关闭主窗口时" data-testid="mirally-settings-close-behavior" .value=${live(this.closeBehavior)} ?disabled=${this.busy || this.loading}
+          @change=${(event: Event) => {const value=(event.target as HTMLSelectElement).value;void this.mutate(()=>requestProduct('/api/ui-preferences',{method:'POST',body:JSON.stringify({key:'mirally.window.closeBehavior',value})}), '关闭方式已保存。');}}>
+          <option value="tray">隐藏到系统托盘</option><option value="exit">退出 Mirally</option>
+        </select>`}))}
       ${renderSettingsSection({title: "了解你与陪伴你"}, html`
         ${this.toggle("memory_enabled", "使用记忆", "在对话中使用已启用的个人记忆。关闭后不再读取这些记忆。", "mirally-settings-memory")}
         ${renderSettingsRow({title: "电脑活动", description: "查看已有记录、采集范围与运行状态，开始采集前需确认当前范围。",
@@ -335,7 +343,11 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
         stacked: true, control: html`<details data-testid="mirally-settings-diagnostics"><summary>查看诊断信息</summary><pre class="mirally-product-debug">${JSON.stringify(this.status, null, 2)}</pre></details>`}))}
       ${renderSettingsSection({title: "退出", danger: true}, renderSettingsRow({title: "退出 Mirally", description: "停止当前 Mirally 宿主。后台任务与对话会一并停止。",
         control: html`<button class="btn btn--sm" data-testid="mirally-settings-quit" ?disabled=${this.busy || this.loading}
-          @click=${() => void this.mutate(() => requestProduct("/api/shutdown", {method: "POST", body: "{}"}), "Mirally 正在退出。", undefined, false)}>退出 Mirally</button>`}))}
+          @click=${() => void this.mutate(async () => {
+            await requestProduct("/api/shutdown", {method: "POST", body: "{}"});
+            const native=(window as any).chrome?.webview;
+            if (native && native.__mirallyBrowserOnly !== true) native.postMessage({type:'mirally-framework',action:'quit'});
+          }, "Mirally 正在退出。", undefined, false)}>退出 Mirally</button>`}))}
     `;
   }
 

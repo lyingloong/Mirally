@@ -17,6 +17,10 @@
 
 当前内容层位于 `ui/src/pages/mirally/`，复用原 settings/workspace 组件与样式。路由装配、导航、菜单、命令面板与搜索改为 Mirally 实际能力，保留原对话、新建对话和外观控件；默认不加载旧后台管理页面。上游版本是来源标识，不作为 Mirally 产品版本显示。
 
+新对话和已有对话的权限模式控件仅在宿主明确宣告 `sessions.patch` 能力时显示；Mirally 默认未实现该模式，客户端也会在创建、材料上传或发送前拒绝恢复草稿中显式保存的权限模式，不将“只读”等选择静默降级为普通会话。工作成果仍使用原有按输入持久化的明确文件写入授权。
+
+默认产品身份现覆盖 JavaScript 启动前的 HTML/失败恢复、安装清单及 SVG/PNG/ICO，运行时 favicon、未配置模型页和重连页也使用 Mirally。原 mascot 标签只作调用兼容，由自有向量 M 组件实现；页面来访伙伴复用既有海獭资源，原生三形态与动画不变。翻译通过插值前的产品文案覆盖层维护，原 catalog 保持校验，用户正文及显式链接不作品牌文本替换。全部导入文件的本地修改理由仍在 `local-changes.json`。
+
 `ui/src/app/mirally-client.ts`、`ui/src/app/mirally-read-models.ts` 和 `ui/src/lib/mirally-browser-path.ts` 是 Mirally 自有代码。后者只提供上游材料展示所需的文件名操作，构建器拒绝其余 Node 内建模块进入浏览器。原 Mirally 品牌、工作、材料与伙伴资源仍由产品层提供，并没有另画一套近似页面。
 
 20 种翻译以精确发行包导出的静态 catalog 保存在 `locales/`；`locales/upstream.json` 记录相同提交、源 chunk 和导出内容 SHA-256。这样保留原中文与其他语言，无须带入约 84 MB 的上游翻译生成缓存。维护工具只导入纯数据模块，不启动 Gateway 或读取用户配置。

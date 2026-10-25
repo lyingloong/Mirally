@@ -158,52 +158,11 @@ export const toolIcons = {
   listTree: strokeIcon(
     svg`<path d="M21 12h-8M21 6H8M21 18h-8M3 6v4c0 1.1.9 2 2 2h3M3 10v6c0 1.1.9 2 2 2h3" />`,
   ),
-  claw: strokeIcon(svg` <path
-      d="M8.2 10 A5.2 5.2 0 1 0 8.2 20.4 A5.2 5.2 0 0 0 8.2 10 Z M10.2 20 C14.5 20.8 19 18.6 22.3 13.2 C21 12.9 19.7 12.7 18.4 12.8 L17.5 14.6 L16 12.9 L14.3 14.5 L13.5 13 L11.5 14.2 Z"
-    />
-    <path
-      class="claw-icon__jaw"
-      d="M5.6 12.2 C5.2 5.6 10.4 1.4 15.6 2 C19.4 2.6 21.8 5.2 22.6 8.2 C20.9 7.7 19.2 7.6 17.6 7.9 L16.9 6.3 L15.2 8.5 C13.6 9.4 12.2 10.9 11.6 12.4 L6.8 13 Z"
-    />`),
+  claw: neutralMark,
   spark: strokeIcon(svg` <path
     d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
   />`),
-  // Theme tokens brighten the gradient in dark mode; var() needs style attributes.
-  lobster: html`
-    <svg viewBox="0 0 120 120" fill="none">
-      <defs>
-        <linearGradient id="lob-g" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style="stop-color: var(--lobster-icon-body, #ff4d4d)" />
-          <stop offset="100%" style="stop-color: var(--lobster-icon-shade, #991b1b)" />
-        </linearGradient>
-      </defs>
-      <path
-        d="M60 10C30 10 15 35 15 55C15 75 30 95 45 100L45 110L55 110L55 100C55 100 60 102 65 100L65 110L75 110L75 100C90 95 105 75 105 55C105 35 90 10 60 10Z"
-        fill="url(#lob-g)"
-      />
-      <path d="M20 45C5 40 0 50 5 60C10 70 20 65 25 55C28 48 25 45 20 45Z" fill="url(#lob-g)" />
-      <path
-        d="M100 45C115 40 120 50 115 60C110 70 100 65 95 55C92 48 95 45 100 45Z"
-        fill="url(#lob-g)"
-      />
-      <path
-        d="M45 15Q35 5 30 8"
-        style="stroke: var(--lobster-icon-body, #ff4d4d)"
-        stroke-width="3"
-        stroke-linecap="round"
-      />
-      <path
-        d="M75 15Q85 5 90 8"
-        style="stroke: var(--lobster-icon-body, #ff4d4d)"
-        stroke-width="3"
-        stroke-linecap="round"
-      />
-      <circle cx="45" cy="35" r="6" style="fill: var(--lobster-icon-eye, #050810)" />
-      <circle cx="75" cy="35" r="6" style="fill: var(--lobster-icon-eye, #050810)" />
-      <circle cx="46" cy="34" r="2.5" fill="#00e5cc" />
-      <circle cx="76" cy="34" r="2.5" fill="#00e5cc" />
-    </svg>
-  `,
+  lobster: neutralMark, // Compatibility key for the retained icon API.
   circleUser: strokeIcon(svg` <path d="M18 20a6 6 0 0 0-12 0" />
     <circle cx="12" cy="10" r="4" />
     <circle cx="12" cy="12" r="10" />`),

@@ -9,27 +9,7 @@ import { fnv1aUtf16 } from "../lib/fnv1a.ts";
 import { OpenClawLightDomContentsElement } from "../lit/openclaw-element.ts";
 import { PollController } from "../lit/poll-controller.ts";
 
-const PHRASE_KEYS = [
-  "shelling",
-  "scuttling",
-  "clawing",
-  "pinching",
-  "molting",
-  "bubbling",
-  "tiding",
-  "reefing",
-  "cracking",
-  "sifting",
-  "brining",
-  "nautiling",
-  "krilling",
-  "barnacling",
-  "lobstering",
-  "tidepooling",
-  "pearling",
-  "snapping",
-  "surfacing",
-] as const;
+const PHRASE_KEYS = ["thinking", "considering", "working", "processing", "reflecting"] as const;
 
 /** Quiet grace period before the first phrase appears. Mirrored as literals
  * in working-phrase.test.ts (knip forbids test-only exports). */

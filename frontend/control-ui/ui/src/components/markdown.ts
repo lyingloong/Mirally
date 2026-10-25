@@ -452,32 +452,10 @@ function isDocsRootPath(normalizedPath: string, segments: string[]): boolean {
   return segment ? DOCS_ROOT_SEGMENTS.has(segment) : false;
 }
 
+// Preserve the author's link target. Mirally does not own the upstream host's
+// documentation namespace or redirect unrelated root-relative links to it.
 function normalizeDocsRootHref(href: string): string {
-  const trimmed = href.trim();
-  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
-    return href;
-  }
-  try {
-    const url = new URL(trimmed, DOCS_ORIGIN);
-    if (url.origin !== DOCS_ORIGIN) {
-      return href;
-    }
-    const normalizedPath = url.pathname.replace(/\/+$/, "") || "/";
-    if (isControlUiRoutePath(normalizedPath)) {
-      return href;
-    }
-    const segments = pathSegments(normalizedPath);
-    const resourceSegments = stripCurrentControlUiBasePath(normalizedPath);
-    if (isControlUiResourcePath(resourceSegments)) {
-      return href;
-    }
-    if (isDocsRootPath(normalizedPath, segments)) {
-      return url.href;
-    }
-    return href;
-  } catch {
-    return href;
-  }
+  return href;
 }
 
 function hasMarkdownContentName(node: Node): boolean {

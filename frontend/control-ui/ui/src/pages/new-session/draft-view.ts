@@ -4,6 +4,7 @@ import type { ImageLightboxItem } from "../../components/image-lightbox.types.ts
 import { t } from "../../i18n/index.ts";
 import { registerNewSessionSetupEnglish } from "../../i18n/locales/en-new-session-setup.ts";
 import type { HumanMention } from "../../lib/chat/chat-types.ts";
+import { isGatewayMethodAdvertised } from "../../lib/gateway-methods.ts";
 import { renderChatPermissionPicker } from "../chat/components/chat-permission-picker.ts";
 import type { SidebarContent } from "../chat/components/chat-sidebar-content-types.ts";
 import type { NewSessionDictationControl } from "./composer-dictation-control.ts";
@@ -90,7 +91,9 @@ export function renderNewSessionDraftView(options: {
         draftAvailable: capabilities.canStartAsDraft(context),
         ...capabilities.composerProps(context, gateway, place.agentId),
         modelControl: place.modelControl,
-        permissionControl: isCatalogTarget
+        // Mirally does not advertise session permission-mode mutations. Keep
+        // unsupported choices out of new drafts as well as existing sessions.
+        permissionControl: isCatalogTarget || isGatewayMethodAdvertised(context?.gateway.snapshot ?? {}, "sessions.patch") !== true
           ? undefined
           : renderChatPermissionPicker({
               canSelectFull: place.isAdmin(),

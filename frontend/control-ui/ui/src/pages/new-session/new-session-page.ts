@@ -73,7 +73,7 @@ export class NewSessionPage extends OpenClawLightDomElement {
   private retainedForHandoff: object | null = null;
   private openedFor: string | null = null;
   private readonly critterImport = createIdleImport(
-    () => import("../../components/lobster-pet.runtime.ts"),
+    () => import("../../components/mirally-composer-companion.ts"),
   );
   private openedGroupDefaults = "";
   private openedAgentId = "";

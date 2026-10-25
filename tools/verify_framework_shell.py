@@ -86,6 +86,9 @@ def temporary_home():
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=ROOT / ".artifacts/framework-shell-verification.json")
+    parser.add_argument("--close-exit", action="store_true", help="verify configured Windows Close exits instead of hiding to tray")
+    parser.add_argument("--page-quit", action="store_true", help="quit through the real About Mirally page")
+    parser.add_argument("--reuse-host", action="store_true", help="connect the shell to an already running isolated Host")
     arguments = parser.parse_args()
     if sys.platform != "win32":
         raise SystemExit("This verification requires Windows and WebView2.")
@@ -105,6 +108,8 @@ def main() -> int:
     user.PostMessageW.restype = wintypes.BOOL
     user.SendMessageW.argtypes = user.PostMessageW.argtypes
     user.SendMessageW.restype = wintypes.LPARAM
+    user.IsIconic.argtypes = [wintypes.HWND]
+    user.IsIconic.restype = wintypes.BOOL
     user.GetSystemMenu.argtypes = [wintypes.HWND, wintypes.BOOL]
     user.GetSystemMenu.restype = wintypes.HMENU
     user.GetMenuItemCount.argtypes = [wintypes.HMENU]
@@ -116,6 +121,13 @@ def main() -> int:
     timeline, startup, saved = {}, {}, {}
     began = time.monotonic()
     with temporary_home() as home:
+        if arguments.close_exit:
+            home.mkdir(parents=True)
+            (home / "ui-preferences.json").write_text(json.dumps({"mirally.window.closeBehavior": "exit"}), encoding="utf-8")
+        previous_owner = None
+        if arguments.reuse_host:
+            previous_owner = FrameworkHost(ROOT, home, test_mode=True)
+            previous_owner.start()
         host = FrameworkHost(ROOT, home, test_mode=True)
         shell = FrameworkShell(host)
         original_start = host.start
@@ -144,9 +156,11 @@ def main() -> int:
 
         def verify():
             try:
-                from System import Action
+                from System import Action, Array, Object
                 from System.Drawing import Point
-                from System.Windows.Forms import MenuStrip
+                from System.Reflection import BindingFlags
+                from System.Windows.Forms import FormWindowState, MenuStrip, MouseButtons, MouseEventArgs
+                from mirally.control_ui_shell import _frame_style
                 form = shell.window.native
                 def js(source):
                     return shell.window.evaluate_js(source)
@@ -154,6 +168,9 @@ def main() -> int:
                     value = {}
                     def inspect():
                         value.update(hwnd=int(form.Handle.ToInt64()), visible=bool(form.Visible),
+                            minimized=form.WindowState == FormWindowState.Minimized,
+                            native_minimized=bool(user.IsIconic(int(form.Handle.ToInt64()))),
+                            window_style=hex(_frame_style(form)), minimize_box=bool(form.MinimizeBox),
                             opacity=float(form.Opacity), region=form.Region is not None,
                             topmost=bool(form.TopMost), title=str(form.Text), show_icon=bool(form.ShowIcon),
                             has_icon=form.Icon is not None, strips=sum(isinstance(control, MenuStrip) for control in form.Controls),
@@ -184,6 +201,15 @@ def main() -> int:
                             return
                         time.sleep(.04)
                     raise AssertionError(label + "; " + json.dumps(snapshot(), ensure_ascii=False))
+                def tray_left_click():
+                    # Raise the actual NotifyIcon event, including its registered
+                    # single-click callback, without moving the user's pointer.
+                    def click():
+                        icon = shell._tray
+                        method = icon.GetType().GetMethod("OnMouseClick", BindingFlags.Instance | BindingFlags.NonPublic)
+                        assert method is not None, "NotifyIcon MouseClick event is unavailable"
+                        method.Invoke(icon, Array[Object]([MouseEventArgs(MouseButtons.Left, 1, 0, 0, 0)]))
+                    form.Invoke(Action(click))
                 assert shell.window.events.loaded.wait(30), "Opening page did not load"
                 wait_for(lambda: js(FRONTEND_READY),
                     "Retained Control UI and its real Mirally connection did not mount", timeout=90)
@@ -197,7 +223,9 @@ def main() -> int:
                 assert initial["title"] == "" and initial["show_icon"] and initial["has_icon"] and initial["strips"] == 0, initial
                 assert initial["opacity"] == 1 and not initial["region"], initial
                 assert shell._frontend_registration is None, "Default framework must not register a UFO input bridge"
-                saved.update(process=host.process)
+                saved.update(process=previous_owner.process if previous_owner is not None else host.process)
+                if arguments.reuse_host:
+                    assert host.process is None and not host.owned, "Shell did not reuse the existing isolated owner"
                 results.append({"case": "real Host and opening first paint", "mode": "test", "startup": startup, "timeline_seconds": timeline,
                     "same_native_window": True, "formal_icon": True, "blank_caption": True, "no_menu_strip": True,
                     "frontend_source": "frontend/control-ui", "native_app_mounted": True})
@@ -302,12 +330,20 @@ def main() -> int:
                     time.sleep(.3)
                     compact = native()
                     assert compact["hwnd"] == hwnd and compact["topmost"], compact
+                    if not arguments.close_exit:
+                        wait_for(shell._tray_ready.is_set, "Tray was not installed")
+                        assert user.PostMessageW(hwnd, 0x10, 0, 0)
+                        wait_for(lambda: not native()["visible"], appearance + " did not hide to tray")
+                        tray_left_click()
+                        wait_for(lambda: native()["visible"], appearance + " single tray click did not restore")
+                        assert native()["region"] and native()["bounds"] == compact["bounds"], native()
                     anchor = target('.mirally-companion__rail')
                     assert anchor["width"] > 0 and anchor["height"] > 0 and point(anchor)["clipped"], appearance + " anchor clipped"
                     right_click(anchor)
                     check_menu(appearance)
                     results.append({"case": appearance + " native companion", "same_hwnd": True, "topmost": True,
                         "native_region": True, "anchor_visible": True, "right_click_menu": True, "menu_button_visible": True,
+                        "tray_single_click_preserves_companion": not arguments.close_exit,
                         "native_size": compact["bounds"][2:], "device_dpi": compact["dpi"]})
                     js("window.__mirallyCompanion.workspace()")
                     wait_for(lambda: shell._workspace is None and not native()["region"], appearance + " did not restore workbench")
@@ -355,18 +391,35 @@ def main() -> int:
 
                 wait_for(shell._tray_ready.is_set, "Tray was not installed")
                 assert shell._tray is not None and bool(shell._tray.Visible), "Tray icon is not visible"
-                user.PostMessageW(hwnd, 0x112, 0xF060, 0)
-                wait_for(lambda: not native()["visible"], "Windows Close did not hide to tray")
-                assert not shell.closed.is_set() and host.process.poll() is None, "Closing window terminated background Host"
-                form.Invoke(Action(lambda: shell._tray.ContextMenuStrip.Items[0].PerformClick()))
-                wait_for(lambda: native()["visible"], "Tray Open did not restore window")
-                assert native()["hwnd"] == hwnd, "Tray restore created another HWND"
-                results.append({"case": "close to tray and actual tray Open callback", "host_kept_running": True, "same_hwnd": True})
+                if not arguments.close_exit:
+                    user.PostMessageW(hwnd, 0x112, 0xF060, 0)
+                    wait_for(lambda: not native()["visible"], "Windows Close did not hide to tray")
+                    assert not shell.closed.is_set() and saved["process"].poll() is None, "Closing window terminated background Host"
+                    tray_left_click()
+                    wait_for(lambda: native()["visible"], "Single tray click did not restore window")
+                    assert native()["hwnd"] == hwnd, "Tray restore created another HWND"
+                    user.PostMessageW(hwnd, 0x112, 0xF020, 0)
+                    wait_for(lambda: native()["minimized"], "Native minimize did not minimize")
+                    tray_left_click()
+                    wait_for(lambda: native()["visible"] and not native()["minimized"], "Single tray click did not restore minimized window")
+                    results.append({"case": "close to tray, single-click restore and minimize restore", "host_kept_running": True, "same_hwnd": True})
                 saved["bridge_counts"] = {action: sum(item["action"] == action for item in messages) for action in ("dock", "shape", "workspace")}
                 assert all(saved["bridge_counts"].values()), saved["bridge_counts"]
-                # Exercise the actual tray callback rather than directly
-                # calling cleanup or terminating the deterministic child.
-                form.Invoke(Action(lambda: shell._tray.ContextMenuStrip.Items[2].PerformClick()))
+                if arguments.page_quit:
+                    # About is an application route, not one of the limited
+                    # companion/native-menu compatibility page aliases.
+                    js("(() => { document.querySelector('openclaw-app').context.navigate('about', {search: ''}); return true; })()")
+                    wait_for(lambda: js("!!document.querySelector('[data-testid=mirally-settings-quit]:not([disabled])')"), "About Mirally quit button did not mount")
+                    saved["exit_gesture"] = "About Mirally Quit" + (" with reused Host" if arguments.reuse_host else "")
+                    js("document.querySelector('[data-testid=mirally-settings-quit]').click()")
+                elif arguments.close_exit:
+                    assert user.PostMessageW(hwnd, 0x10, 0, 0), "WM_CLOSE could not be posted"
+                    saved["exit_gesture"] = "configured WM_CLOSE"
+                else:
+                    # Exercise the actual tray callback rather than directly
+                    # calling cleanup or terminating the deterministic child.
+                    form.Invoke(Action(lambda: shell._tray.ContextMenuStrip.Items[2].PerformClick()))
+                    saved["exit_gesture"] = "explicit tray Quit"
             except BaseException as error:
                 failures.append(repr(error))
                 shell.quit()
@@ -386,17 +439,22 @@ def main() -> int:
         except BaseException as error:
             failures.append(repr(error))
         finally:
+            # Inspect before emergency test cleanup; the harness must not make
+            # a missing product shutdown look like a passing native exit.
+            if saved.get("process") is not None:
+                cleaned = {"host_exited": saved["process"].poll() is not None, "host_handle_released": host.process is None,
+                    "tray_disposed": shell._tray is None, "no_ufo_registration": shell._frontend_registration is None,
+                    "shell_closed": shell.closed.is_set(), "host_log_closed": host.log is None,
+                    "runtime_retired": not (home / "runtime.json").exists()}
+                results.append({"case": saved.get("exit_gesture", "failed verification") + " cleans up", **cleaned, "native_bridge_counts": saved.get("bridge_counts", {})})
+                if not all(cleaned.values()):
+                    failures.append("Native exit did not complete cleanup: " + repr(cleaned))
             host.close()
-        if saved.get("process") is not None:
-            cleaned = {"host_exited": saved["process"].poll() is not None, "host_handle_released": host.process is None,
-                "tray_disposed": shell._tray is None, "no_ufo_registration": shell._frontend_registration is None,
-                "shell_closed": shell.closed.is_set(), "host_log_closed": host.log is None}
-            results.append({"case": "explicit tray Quit cleans up", **cleaned, "native_bridge_counts": saved.get("bridge_counts", {})})
-            if not all(cleaned.values()):
-                failures.append("Explicit quit did not complete cleanup: " + repr(cleaned))
+            if previous_owner is not None:
+                previous_owner.close()
     report = {"results": results, "native_context_events": native_context, "failures": failures,
         "scope": "Real retained frontend/control-ui + FrameworkShell + temporary test-mode Host + WebView2; only own HWND messages",
-        "limits": ["No physical mouse/keyboard or multi-monitor/DPI changes", "No desktop capture, Activity collection, external model, or production profile", "Tray callback tested through NotifyIcon menu; Windows notification-area pointer hit testing is not exercised"]}
+        "limits": ["No physical mouse/keyboard or multi-monitor/DPI changes", "No desktop capture, Activity collection, external model, or production profile", "Tray callbacks tested through actual NotifyIcon MouseClick event and menu; notification-area pointer hit testing is not exercised"]}
     arguments.output.parent.mkdir(parents=True, exist_ok=True)
     arguments.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report, ensure_ascii=False, indent=2))

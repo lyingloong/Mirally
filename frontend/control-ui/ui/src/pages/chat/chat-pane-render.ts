@@ -549,7 +549,9 @@ export class ChatPane extends ChatPaneLayoutRender {
         modelAuthStatusResult: state.modelAuthStatusResult,
       },
       composerControls: composerControls?.composerControls ?? nothing,
-      permissionPicker: composerControls?.permissionPicker,
+      permissionPicker: isGatewayMethodAdvertised(gatewaySnapshot, "sessions.patch") === true
+        ? composerControls?.permissionPicker
+        : undefined,
       backgroundTasks: catalogKey ? undefined : backgroundTasks,
       ...this.suggestionChatProps(state.connected, selectedSessionArchived, multiIdentity),
       pullRequests: this.visibleSessionPullRequests,

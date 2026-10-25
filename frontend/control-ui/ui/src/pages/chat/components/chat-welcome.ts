@@ -118,7 +118,7 @@ function selectWelcomeRecentSessions(
   );
 }
 
-function renderWelcomeClawd() {
+function renderWelcomeCompanion() {
   return html`
     <div class="agent-chat__welcome-clawd" aria-hidden="true">
       <openclaw-mascot mood="idle" .size=${112}></openclaw-mascot>
@@ -198,7 +198,7 @@ export function renderWelcomeState(props: ChatWelcomeProps) {
   if (props.modelSetupRequired) {
     return html`
       <div class="agent-chat__welcome agent-chat__welcome--setup" role="alert">
-        ${renderWelcomeClawd()}
+        ${renderWelcomeCompanion()}
         <h2>${t("modelSetup.required.title")}</h2>
         <p class="agent-chat__hint">${t("modelSetup.required.body")}</p>
         ${

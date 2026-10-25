@@ -1,6 +1,6 @@
 # Mirally 前端内容与导航
 
-2026-10-24，Asia/Shanghai。依据用户在 PN-0022 的确认，沿用原 Mirally 视觉、布局习惯、主题和组件，导航与页面内容围绕自有产品调整。
+更新于 2026-10-25，Asia/Shanghai。依据用户在 PN-0022 的确认，沿用原 Mirally 视觉、布局习惯、主题和组件，导航与页面内容围绕自有产品调整。
 
 ## 页面归属
 
@@ -28,6 +28,12 @@
 
 伙伴三形态、窗口裁剪/菜单/托盘、开屏、工作准备和成果继续复用。UFO 不接入默认链。原完整 OpenClaw 维护入口及其私有数据不因本轮页面重构而改变。
 
+「设置 → 通用 → 关闭主窗口时」通过产品呈现偏好保存 `mirally.window.closeBehavior`，桌面壳在关闭手势时读取实际值。默认有可用托盘时隐藏窗口；单击托盘恢复同一窗口与形态，也可设为关闭即退出。明确退出始终收尾所连接的宿主，包含复用和启动中情形；关于页退出还通知原生窗口关闭，普通浏览器标签页关闭不停止宿主。
+
+首次未配置模型页使用 Mirally M 标识，页面访客复用原水獭伙伴资源。首屏 HTML、重连/失败状态、静态与运行时图标及安装清单均由源组件维护品牌；原兼容组件名、偏好键和协议标识不作机械重命名。未修改的原翻译目录继续校验，产品文案按键覆盖后再插值，避免重写用户内容。
+
+输入框不提供未接入的原宿主“只读 / 工作区 / 全权”等会话权限模式；旧草稿或恢复请求显式携带该模式时，在创建会话前拒绝，不悄悄降级。工作页的成果写入仍使用现有按条授权，敏感行动确认边界不变。
+
 ## 来源维护与验证
 
 原组件、样式和翻译来源仍在 `upstream-files.json` 与 `locales/upstream.json`。自有维护的原文件及理由显式登记在 `local-changes.json`，其余源文件继续逐字节校验；这是固定来源后的自主维护，不再承诺全部页面保持上游原样。许可证与第三方声明保留。
@@ -41,6 +47,12 @@ npm --prefix frontend/control-ui run build
 node tools/verify_framework_browser.mjs <隔离home/runtime.json>
 node tools/verify_framework_experience.mjs <隔离home/runtime.json>
 node tools/verify_framework_product_pages.mjs <隔离home/runtime.json>
+# 首次品牌验收需要独立、尚未配置模型的测试 home：
+node tools/verify_framework_branding.mjs <空配置隔离home/runtime.json>
+# 原生窗口验收亦须顺序运行：
+.\.venv\Scripts\python.exe tools/verify_framework_shell.py
+.\.venv\Scripts\python.exe tools/verify_framework_shell.py --close-exit
+.\.venv\Scripts\python.exe tools/verify_framework_shell.py --page-quit --reuse-host
 ```
 
 外部模型质量、跨设备推送、语音、插件市场和长期陪伴效果不因内容页接通而视为完成。新产品页正文当前以中文呈现，原组件和外观继续保留原多语言能力。

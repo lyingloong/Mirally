@@ -130,39 +130,313 @@ class FrameworkShellTests(unittest.TestCase):
     def test_close_hides_when_tray_is_ready_but_explicit_quit_can_close(self):
         self.shell._tray_ready.set()
         self.assertFalse(self.shell._closing())
-        self.shell.window.hide.assert_called_once()
+        self.shell.window.native.Hide.assert_called_once()
+        self.assertFalse(self.shell.closed.is_set())
+        self.host.close.assert_not_called()
         self.shell._quitting.set()
         self.assertTrue(self.shell._closing())
 
+    def test_close_preference_is_read_live_and_exit_closes_even_with_a_tray(self):
+        self.shell._tray_ready.set()
+        self.host.home.mkdir(parents=True)
+        preference = self.host.home / "ui-preferences.json"
+        preference.write_text(json.dumps({"mirally.window.closeBehavior": "tray"}), encoding="utf-8")
+        self.assertFalse(self.shell._closing())
+        preference.write_text(json.dumps({"mirally.window.closeBehavior": "exit"}), encoding="utf-8")
+        with patch("mirally.framework_shell.urllib.request.urlopen") as opener:
+            self.assertTrue(self.shell._closing())
+            # Native closing must not wait on HTTP or recursively destroy.
+            opener.assert_not_called()
+            self.shell.window.destroy.assert_not_called()
+            self.host.close.assert_not_called()
+            self.shell._close()
+            opener.assert_called_once()
+        self.host.close.assert_called_once_with()
+        self.assertTrue(self.shell._quitting.is_set())
+        self.assertTrue(self.shell.closed.is_set())
+
+    def test_close_without_available_tray_exits_instead_of_hiding_an_unreachable_app(self):
+        self.assertTrue(self.shell._closing())
+        self.shell.window.native.Hide.assert_not_called()
+        self.shell.window.destroy.assert_not_called()
+        self.assertTrue(self.shell.closed.is_set())
+
+    def test_invalid_preferences_fall_back_to_tray_without_breaking_close(self):
+        self.shell._tray_ready.set()
+        self.host.home.mkdir(parents=True)
+        for raw in ("{broken", "[]", '{"mirally.window.closeBehavior":"unknown"}', " " * 65537):
+            with self.subTest(raw=raw[:80]):
+                (self.host.home / "ui-preferences.json").write_text(raw, encoding="utf-8")
+                self.assertFalse(self.shell._closing())
+                self.assertFalse(self.shell.closed.is_set())
+
+    def show_modules(self, state="minimized"):
+        form = self.shell.window.native
+        form.IsDisposed = False
+        form.Disposing = False
+        form.InvokeRequired = True
+        form.Invoke.side_effect = lambda callback: callback()
+        form.WindowState = state
+        return {"System": SimpleNamespace(Action=lambda callback: callback),
+                "System.Windows.Forms": SimpleNamespace(FormWindowState=SimpleNamespace(
+                    Minimized="minimized", Normal="normal", Maximized="maximized"))}
+
     def test_tray_companion_restores_hidden_window_before_docking(self):
-        self.shell._dock()
-        self.shell.window.show.assert_called_once()
-        self.shell.window.restore.assert_called_once()
+        with patch.dict("sys.modules", self.show_modules()):
+            self.shell._dock()
+        form = self.shell.window.native
+        form.Show.assert_called_once_with()
+        form.Activate.assert_called_once_with()
+        self.assertEqual(form.WindowState, "normal")
         self.assertIn("__mirallyCompanion?.dock()", self.shell.window.evaluate_js.call_args.args[0])
+
+    def test_tray_restore_uses_ui_thread_and_preserves_companion_region_and_maximized_state(self):
+        for state in ("normal", "maximized", "minimized"):
+            with self.subTest(state=state), patch.dict("sys.modules", self.show_modules(state)):
+                form = self.shell.window.native
+                region = form.Region
+                workspace = self.shell._workspace = object()
+                self.shell._show_window()
+                self.assertEqual(form.WindowState, "normal" if state == "minimized" else state)
+                self.assertIs(form.Region, region)
+                self.assertIs(self.shell._workspace, workspace)
+                form.Invoke.assert_called()
+                form.BringToFront.assert_called()
+                form.Activate.assert_called()
+                form.webview.Focus.assert_called()
+        self.shell.window.evaluate_js.assert_not_called()
+
+    def test_tray_left_click_finishes_restore_before_return_and_right_click_keeps_the_menu(self):
+        modules = {"System.Windows.Forms": SimpleNamespace(MouseButtons=SimpleNamespace(Left="left"))}
+        with patch.dict("sys.modules", modules), patch.object(self.shell, "_show_window") as restore, \
+             patch.object(self.shell, "_dispatch_window_action") as dispatch:
+            self.shell._tray_mouse_click(None, SimpleNamespace(Button="right"))
+            restore.assert_not_called()
+            self.shell._tray_mouse_click(None, SimpleNamespace(Button="left"))
+            restore.assert_called_once_with()
+            dispatch.assert_not_called()
+
+    def test_late_queued_tray_restore_cannot_reopen_closed_or_disposed_window(self):
+        with patch.dict("sys.modules", self.show_modules()):
+            self.shell.window.native.IsDisposed = True
+            self.shell._show_window()
+            self.shell.window.native.Show.assert_not_called()
+            self.shell.closed.set()
+            self.shell.window.native.IsDisposed = False
+            self.shell._show_window()
+            self.shell.window.native.Show.assert_not_called()
 
     def test_quit_uses_authenticated_local_shutdown_for_reused_host(self):
         with patch("mirally.framework_shell.urllib.request.urlopen") as opener:
+            self.shell.quit()
             self.shell.quit()
         request = opener.call_args.args[0]
         self.assertEqual(request.full_url, self.host.runtime["url"] + "/api/shutdown")
         self.assertEqual(request.headers["Authorization"], "Bearer isolated-token")
         self.shell.window.destroy.assert_called_once()
         self.assertTrue(self.shell._quitting.is_set())
+        opener.assert_called_once()
+        self.host.close.assert_called_once_with()
+
+    def test_explicit_quit_does_not_deadlock_reentrant_native_close_callbacks(self):
+        def destroy():
+            self.assertTrue(self.shell._closing())
+            self.shell._close()
+        self.shell.window.destroy.side_effect = destroy
+        with patch("mirally.framework_shell.urllib.request.urlopen", side_effect=OSError("already stopped")) as opener:
+            self.shell.quit()
+        self.host.close.assert_called_once_with()
+        opener.assert_called_once()
+
+    def test_reused_owner_quit_waits_for_its_completed_disposal_record(self):
+        self.host.home.mkdir(parents=True)
+        self.host.runtime["pid"] = 58213
+        runtime_path = self.host.home / "runtime.json"
+        runtime_path.write_text(json.dumps(self.host.runtime), encoding="utf-8")
+        with patch("mirally.framework_shell.urllib.request.urlopen"), \
+             patch("mirally.framework_shell.time.sleep", side_effect=lambda _: runtime_path.unlink()) as wait:
+            self.shell.quit()
+        wait.assert_called_once()
+        self.assertFalse(runtime_path.exists())
+        self.host.close.assert_called_once_with()
+
+    def test_reused_owner_quit_never_waits_for_or_removes_a_replacement_owner(self):
+        self.host.home.mkdir(parents=True)
+        self.host.runtime["pid"] = 58213
+        replacement = dict(self.host.runtime, pid=58214, token="replacement-token")
+        runtime_path = self.host.home / "runtime.json"
+        runtime_path.write_text(json.dumps(replacement), encoding="utf-8")
+        with patch("mirally.framework_shell.urllib.request.urlopen"), \
+             patch("mirally.framework_shell.time.sleep") as wait:
+            self.shell.quit()
+        wait.assert_not_called()
+        self.assertEqual(json.loads(runtime_path.read_text(encoding="utf-8")), replacement)
+
+    def test_reused_process_handle_is_captured_before_shutdown_and_waited_until_actual_exit(self):
+        self.host.runtime["pid"] = 58213
+        kernel, order = MagicMock(), []
+        kernel.OpenProcess.side_effect = lambda *_: order.append("observe") or 735291
+        kernel.WaitForSingleObject.side_effect = lambda *_: order.append("wait") or 0
+        response = MagicMock()
+        with patch("mirally.framework_shell.ctypes.WinDLL", return_value=kernel, create=True), \
+             patch("mirally.framework_shell.urllib.request.urlopen", side_effect=lambda *_args, **_kwargs: order.append("shutdown") or response):
+            self.shell._connect()
+            self.shell.quit()
+            self.shell._close()
+        self.assertEqual(order, ["observe", "shutdown", "wait"])
+        kernel.OpenProcess.assert_called_once_with(0x00100000, False, 58213)
+        kernel.WaitForSingleObject.assert_called_once_with(735291, 90_000)
+        kernel.CloseHandle.assert_called_once_with(735291)
+        self.assertIsNone(self.shell._observed_host_exit)
+
+    def test_process_observation_failure_keeps_authoritative_shutdown_fallback(self):
+        self.host.runtime["pid"] = 58213
+        with patch("mirally.framework_shell.ctypes.WinDLL", side_effect=OSError("not available"), create=True), \
+             patch("mirally.framework_shell.urllib.request.urlopen") as opener:
+            self.shell._connect()
+            self.shell.quit()
+        opener.assert_called_once()
+        self.host.close.assert_called_once_with()
+        self.assertIsNone(self.shell._observed_host_exit)
+
+    def test_process_exit_wait_failure_still_releases_the_read_only_handle(self):
+        self.host.runtime["pid"] = 58213
+        kernel = MagicMock()
+        kernel.OpenProcess.return_value = 735291
+        kernel.WaitForSingleObject.side_effect = OSError("wait failed")
+        with patch("mirally.framework_shell.ctypes.WinDLL", return_value=kernel, create=True), \
+             patch("mirally.framework_shell.urllib.request.urlopen"), \
+             self.assertLogs("mirally.framework_shell", level="WARNING"):
+            self.shell._connect()
+            self.shell.quit()
+        kernel.CloseHandle.assert_called_once_with(735291)
+        self.assertIsNone(self.shell._observed_host_exit)
+
+    def test_process_observer_does_not_wait_for_a_changed_runtime_identity(self):
+        self.host.runtime["pid"] = 58213
+        kernel = MagicMock()
+        kernel.OpenProcess.return_value = 735291
+        with patch("mirally.framework_shell.ctypes.WinDLL", return_value=kernel, create=True), \
+             patch("mirally.framework_shell.urllib.request.urlopen"):
+            self.shell._connect()
+            self.host.runtime = dict(self.host.runtime, pid=58214, token="replacement-owner")
+            self.shell.quit()
+        kernel.WaitForSingleObject.assert_not_called()
+        kernel.CloseHandle.assert_called_once_with(735291)
+
+    def test_quit_still_cleans_up_when_native_destroy_fails(self):
+        self.shell.window.destroy.side_effect = RuntimeError("already disposed")
+        with patch("mirally.framework_shell.urllib.request.urlopen"), self.assertRaises(RuntimeError):
+            self.shell.quit()
+        self.host.close.assert_called_once_with()
 
     def test_cleanup_closes_tray_and_host_once(self):
         tray = MagicMock()
         self.shell._tray = tray
-        self.shell._close()
-        self.shell._close()
+        with patch("mirally.framework_shell.urllib.request.urlopen"):
+            self.shell._close()
+            self.shell._close()
         tray.Dispose.assert_called_once()
         self.host.close.assert_called_once()
         self.assertTrue(self.shell.closed.is_set())
 
     def test_close_while_starting_discards_late_navigation(self):
         self.host.start.side_effect = lambda: self.shell.closed.set()
-        self.shell._connect()
+        with patch("mirally.framework_shell.urllib.request.urlopen"):
+            self.shell._connect()
         self.shell.window.load_url.assert_not_called()
         self.host.close.assert_called_once()
+
+    def test_close_during_startup_shuts_down_late_reused_owner_without_navigating(self):
+        runtime = self.host.runtime
+        self.host.runtime = {}
+        def late_start():
+            self.shell._close()
+            self.host.runtime = runtime
+        self.host.start.side_effect = late_start
+        with patch("mirally.framework_shell.urllib.request.urlopen") as opener:
+            self.shell._connect()
+        opener.assert_called_once()
+        self.assertEqual(opener.call_args.args[0].full_url, runtime["url"] + "/api/shutdown")
+        self.shell.window.load_url.assert_not_called()
+
+    def test_finalizer_waits_for_async_startup_to_publish_and_close_a_reused_owner(self):
+        runtime = self.host.runtime
+        self.host.runtime = {}
+        started, publish, initial_cleanup = threading.Event(), threading.Event(), threading.Event()
+        errors = []
+        def late_start():
+            started.set()
+            publish.wait(5)
+            self.host.runtime = runtime
+        def finish():
+            try:
+                self.shell._finish()
+            except BaseException as error:
+                errors.append(error)
+        self.host.start.side_effect = late_start
+        self.host.close.side_effect = initial_cleanup.set
+        finalizer = threading.Thread(target=finish)
+        with patch("mirally.framework_shell.urllib.request.urlopen") as opener:
+            self.shell._start_connect()
+            try:
+                self.assertTrue(started.wait(2))
+                finalizer.start()
+                self.assertTrue(initial_cleanup.wait(2))
+                self.assertTrue(finalizer.is_alive(), "Finalizer returned before the in-flight owner lookup")
+                opener.assert_not_called()
+                self.assertTrue(self.shell.closed.is_set())
+                publish.set()
+                finalizer.join(2)
+                self.assertFalse(finalizer.is_alive(), "Finalizer did not finish after startup published its owner")
+                opener.assert_called_once()
+                self.assertEqual(opener.call_args.args[0].full_url, runtime["url"] + "/api/shutdown")
+                self.assertFalse(any(worker.is_alive() for worker in self.shell._connect_workers))
+                self.assertEqual(errors, [])
+                self.shell.window.load_url.assert_not_called()
+            finally:
+                publish.set()
+                if finalizer.ident is not None:
+                    finalizer.join(2)
+                for worker in self.shell._connect_workers:
+                    worker.join(2)
+
+    def test_tracked_retry_keeps_one_startup_owner_and_rejects_new_work_after_finish(self):
+        started, release = threading.Event(), threading.Event()
+        def start():
+            started.set()
+            release.wait(5)
+        self.host.start.side_effect = start
+        with patch("mirally.framework_shell.urllib.request.urlopen"):
+            self.shell._start_connect()
+            try:
+                self.assertTrue(started.wait(2))
+                self.shell._retry()
+                self.shell._connect_workers[-1].join(2)
+                self.host.start.assert_called_once_with()
+            finally:
+                self.shell.closed.set()
+                release.set()
+                self.shell._finish()
+        self.shell._retry()
+        self.shell._start_connect()
+        self.host.start.assert_called_once_with()
+        self.assertFalse(any(worker.is_alive() for worker in self.shell._connect_workers))
+
+    def test_finalizer_cancels_a_pending_first_paint_wait_without_an_extra_animation_timeout(self):
+        waiting = threading.Event()
+        def wait(timeout):
+            waiting.set()
+            return threading.Event().wait(timeout)
+        self.shell.window.events.loaded = SimpleNamespace(is_set=lambda: False, wait=wait)
+        with patch("mirally.framework_shell.urllib.request.urlopen"):
+            self.shell._start_connect()
+            try:
+                self.assertTrue(waiting.wait(2))
+            finally:
+                self.shell._finish()
+        self.assertFalse(any(worker.is_alive() for worker in self.shell._connect_workers))
+        self.shell.window.load_url.assert_not_called()
 
     def test_page_menu_is_allowlisted_and_restores_workspace_first(self):
         order = []

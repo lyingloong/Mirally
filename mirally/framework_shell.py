@@ -11,6 +11,7 @@ import json
 import logging
 import re
 import threading
+import time
 import urllib.request
 import webbrowser
 from urllib.parse import parse_qsl, urlsplit
@@ -31,6 +32,54 @@ class FrameworkShell(ControlUIShell):
         self._tray = None
         self._cleanup_lock = threading.Lock()
         self._cleanup_done = False
+        self._host_shutdown_lock = threading.Lock()
+        self._shutdown_runtime = None
+        self._observed_host_exit = None
+        self._connect_workers_lock = threading.Lock()
+        self._connect_workers = []
+
+    def _queue_connect(self, *, reload: bool = False) -> None:
+        with self._connect_workers_lock:
+            if self.closed.is_set():
+                return
+            self._connect_workers = [worker for worker in self._connect_workers if worker.is_alive()]
+            worker = threading.Thread(target=self._connect, kwargs={"reload": reload},
+                name="mirally-desktop-connect", daemon=True)
+            self._connect_workers.append(worker)
+            worker.start()
+
+    def _start_connect(self) -> None:
+        self._queue_connect()
+
+    def _retry(self) -> None:
+        self._queue_connect(reload=True)
+
+    def _wait_for_presentation(self, event, timeout: float = 20) -> bool:
+        deadline = time.monotonic() + timeout
+        while not self.closed.is_set():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            if event.wait(min(.05, remaining)):
+                return not self.closed.is_set()
+        return False
+
+    def _finish(self) -> None:
+        """Retire startup/retry owners before the launcher can leave Python.
+
+        Called after the UI loop returns, never from FormClosing. Host.start
+        and Host.close keep their existing deadlines. A late reused owner
+        must finish publication and _connect's shutdown finally block before
+        daemon workers may be discarded by interpreter shutdown.
+        """
+        try:
+            self._close()
+        finally:
+            with self._connect_workers_lock:
+                workers = tuple(self._connect_workers)
+            for worker in workers:
+                if worker is not threading.current_thread():
+                    worker.join()
 
     def _status(self, message: str, error: bool = False) -> None:
         if self.closed.is_set():
@@ -53,14 +102,15 @@ class FrameworkShell(ControlUIShell):
                 self.window.load_html(startup_html())
             self._status("正在准备你的工作空间")
             self.host.start()
+            self._observe_host_exit()
             if self.closed.is_set():
                 return
             parts = urlsplit(self.host.runtime["url"])
             if parts.scheme != "http" or parts.hostname != "127.0.0.1":
                 raise RuntimeError("本机工作空间返回了无效地址。")
             self._gateway_origin = (parts.scheme, parts.netloc)
-            if (not self.window.events.loaded.wait(20)
-                    or not self._startup_visible.wait(20) or self.closed.is_set()):
+            if (not self._wait_for_presentation(self.window.events.loaded)
+                    or not self._wait_for_presentation(self._startup_visible)):
                 return
             # First paint is the only presentation gate. A ready Host is never
             # held while a decorative animation finishes another cycle.
@@ -71,7 +121,9 @@ class FrameworkShell(ControlUIShell):
         finally:
             self._connecting.release()
             if self.closed.is_set():
-                self.host.close()
+                # Startup may have found a reused owner after the window was
+                # already closed. It needs the same explicit shutdown signal.
+                self._shutdown_host()
 
     def _restore_workspace(self) -> None:
         if self.window is not None and self._workspace is not None:
@@ -155,9 +207,39 @@ class FrameworkShell(ControlUIShell):
         return {"opened": True}
 
     def _show_window(self) -> None:
-        if not self.closed.is_set() and self.window is not None:
-            self.window.show()
-            self.window.restore()
+        if self.closed.is_set() or self.window is None:
+            return
+        from System import Action
+        from System.Windows.Forms import FormWindowState
+        form = self.window.native
+
+        def show():
+            if self.closed.is_set() or form.IsDisposed or form.Disposing:
+                return
+            # Keep the existing workspace/companion Region and maximized
+            # state. Only a genuinely minimized form needs restoration.
+            form.Show()
+            if form.WindowState == FormWindowState.Minimized:
+                form.WindowState = FormWindowState.Normal
+            form.BringToFront()
+            form.Activate()
+            form.webview.Focus()
+
+        if form.InvokeRequired:
+            form.Invoke(Action(show))
+        else:
+            show()
+
+    def _tray_mouse_click(self, _sender, args) -> None:
+        from System.Windows.Forms import MouseButtons
+        if args.Button == MouseButtons.Left:
+            # NotifyIcon already raises this event on the UI thread. Restoring
+            # is native-only, so finish it before returning from the gesture;
+            # a queued worker can otherwise restore over a subsequent minimize.
+            try:
+                self._show_window()
+            except Exception:
+                logging.getLogger(__name__).exception("Tray window restore failed")
 
     def _dock(self) -> None:
         # A tray action can arrive while the original HWND is hidden.
@@ -166,27 +248,124 @@ class FrameworkShell(ControlUIShell):
             super()._dock()
 
     def quit(self) -> None:
-        """Explicit quit also closes a reused Host, unlike closing its window."""
+        """Exit the native shell and its owner, including a reused Host."""
         if self._quitting.is_set():
             return
         self._quitting.set()
-        runtime = self.host.runtime
-        if runtime.get("url") and runtime.get("token"):
-            request = urllib.request.Request(runtime["url"] + "/api/shutdown", data=b"{}",
-                headers={"Authorization": "Bearer " + runtime["token"], "Content-Type": "application/json"})
-            try:
-                with urllib.request.urlopen(request, timeout=2):
-                    pass
-            except (OSError, ValueError):
-                pass  # The page may already have requested this same shutdown.
-        if self.window is not None:
-            self.window.destroy()
+        self.closed.set()
+        try:
+            if self.window is not None:
+                self.window.destroy()
+        finally:
+            self._close()
+
+    def _close_behavior(self) -> str:
+        """Read the product preference at the gesture, without network/UI calls."""
+        try:
+            with (self.host.home / "ui-preferences.json").open(encoding="utf-8") as stream:
+                raw = stream.read(65537)
+            preferences = json.loads(raw) if len(raw) <= 65536 else {}
+            if isinstance(preferences, dict) and preferences.get("mirally.window.closeBehavior") == "exit":
+                return "exit"
+        except (OSError, ValueError):
+            pass
+        return "tray"
 
     def _closing(self) -> bool:
-        if not self._quitting.is_set() and self._tray_ready.is_set():
-            self.window.hide()
+        if not self._quitting.is_set() and self._tray_ready.is_set() and self._close_behavior() == "tray":
+            self.window.native.Hide()
             return False
+        # FormClosing is synchronous on the UI thread. Do not destroy this
+        # same form recursively or wait for a Host/network call here.
+        self._quitting.set()
+        self.closed.set()
         return True
+
+    def _observe_host_exit(self) -> None:
+        """Keep a read-only handle to the reused process before showing its UI."""
+        if self.host.process is not None:
+            return  # The supervising launcher already owns a Popen exit handle.
+        runtime = self.host.runtime
+        identity = (runtime.get("pid"), runtime.get("url"), runtime.get("token"))
+        if type(identity[0]) is not int or identity[0] <= 0 or not all(identity):
+            return
+        loader = getattr(ctypes, "WinDLL", None)
+        if loader is None:
+            return  # This native shell is Windows-only; non-GUI tests are portable.
+        with self._host_shutdown_lock:
+            if self._observed_host_exit is not None:
+                previous, kernel, handle = self._observed_host_exit
+                if previous == identity:
+                    return
+                self._observed_host_exit = None
+                kernel.CloseHandle(handle)
+            try:
+                kernel = loader("kernel32", use_last_error=True)
+                kernel.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
+                kernel.OpenProcess.restype = ctypes.c_void_p
+                kernel.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+                kernel.WaitForSingleObject.restype = ctypes.c_uint32
+                kernel.CloseHandle.argtypes = [ctypes.c_void_p]
+                kernel.CloseHandle.restype = ctypes.c_int
+                handle = kernel.OpenProcess(0x00100000, False, identity[0])  # SYNCHRONIZE only.
+                if handle:
+                    self._observed_host_exit = (identity, kernel, handle)
+            except OSError:
+                logging.getLogger(__name__).debug("Reused Host exit observation unavailable", exc_info=True)
+
+    def _wait_for_observed_host_exit(self, runtime) -> None:
+        observed, self._observed_host_exit = self._observed_host_exit, None
+        if observed is None:
+            return
+        identity, kernel, handle = observed
+        try:
+            current = (runtime.get("pid"), runtime.get("url"), runtime.get("token"))
+            if current == identity:
+                # A retained process handle denotes that exact process even if
+                # Windows later reuses its PID. Never terminate a reused owner.
+                if kernel.WaitForSingleObject(handle, 90_000) != 0:
+                    logging.getLogger(__name__).warning("Mirally Host process exit is still pending; inspect the product host log")
+        except OSError:
+            logging.getLogger(__name__).warning("Mirally Host process exit could not be observed", exc_info=True)
+        finally:
+            kernel.CloseHandle(handle)
+
+    def _shutdown_host(self) -> None:
+        with self._host_shutdown_lock:
+            runtime = self.host.runtime
+            identity = (runtime.get("url"), runtime.get("token"))
+            if all(identity) and identity != self._shutdown_runtime:
+                self._shutdown_runtime = identity
+                request = urllib.request.Request(identity[0] + "/api/shutdown", data=b"{}",
+                    headers={"Authorization": "Bearer " + identity[1], "Content-Type": "application/json"})
+                try:
+                    with urllib.request.urlopen(request, timeout=2):
+                        pass
+                except (OSError, ValueError):
+                    pass  # The page may already have requested this shutdown.
+            if all(identity) and self.host.process is None:
+                # A reused Host has no Popen handle in this launcher. Its
+                # authoritative runtime is retired only after agents, Python
+                # worker and HTTP server finish disposal. Wait for that exact
+                # owner; never stop or wait on a replacement process/PID.
+                deadline = time.monotonic() + 90
+                runtime_path = self.host.home / "runtime.json"
+                while time.monotonic() < deadline:
+                    try:
+                        current = json.loads(runtime_path.read_text(encoding="utf-8"))
+                    except (OSError, ValueError):
+                        break
+                    if not isinstance(current, dict) or any(current.get(key) != runtime.get(key) for key in ("pid", "url", "token")):
+                        break
+                    time.sleep(.05)
+                else:
+                    logging.getLogger(__name__).warning("Mirally Host shutdown is still pending; inspect the product host log")
+            # An owned process is waited for and has its stdin/log released;
+            # the HTTP request above is also necessary for a reused owner.
+            try:
+                self.host.close()
+            finally:
+                self._wait_for_observed_host_exit(runtime)
 
     def _close(self) -> None:
         with self._cleanup_lock:
@@ -203,7 +382,7 @@ class FrameworkShell(ControlUIShell):
                 if self._system_menu is not None:
                     self._system_menu.close()
             finally:
-                self.host.close()
+                self._shutdown_host()
 
     def _native_style(self) -> None:
         from System import Action
@@ -242,7 +421,7 @@ class FrameworkShell(ControlUIShell):
         def install():
             icon = NotifyIcon()
             icon.Icon = Icon(str(ASSETS / "mirally.ico"))
-            icon.Text = "Mirally · 关闭窗口后继续运行"
+            icon.Text = "Mirally · 单击打开，右键退出"
             menu = ContextMenuStrip()
             for label, action in (("打开 Mirally", self._show_window),
                                   ("侧边伙伴", self._dock), ("退出 Mirally", self.quit)):
@@ -250,7 +429,7 @@ class FrameworkShell(ControlUIShell):
                 item.Click += lambda *_, action=action: self._dispatch_window_action(action)
                 menu.Items.Add(item)
             icon.ContextMenuStrip = menu
-            icon.DoubleClick += lambda *_: self._dispatch_window_action(self._show_window)
+            icon.MouseClick += self._tray_mouse_click
             icon.Visible = True
             self._tray = icon
             self._tray_ready.set()
@@ -337,4 +516,4 @@ class FrameworkShell(ControlUIShell):
         except webview.WebViewException:
             raise SystemExit("无法启动 WebView2，请检查 Microsoft Edge WebView2 Runtime 和 requirements-framework.txt。") from None
         finally:
-            self._close()
+            self._finish()

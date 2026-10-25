@@ -8,6 +8,7 @@ import { resolveControlUiPaths } from "./browser.ts";
 
 type ControlUiPublicAsset =
   | ControlUiRootPublicAsset
+  | "mirally-pet-otter.svg"
   | `fonts/${string}.css`
   | `themes/${string}.css`
   | `provider-icons/ProviderIcon-${string}.svg`

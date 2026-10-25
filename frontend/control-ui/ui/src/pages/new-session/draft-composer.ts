@@ -118,7 +118,7 @@ export function renderNewSessionDraftComposer(options: {
     options.draftOwnerKey,
   );
   return renderNewSessionComposer({
-    renderCritters: (floorEnabled) => html`<openclaw-lobster-pet
+    renderCritters: (floorEnabled) => html`<mirally-composer-companion
       .seed=${lobsterPetSeed(`${options.textareaController.critterVisit}:${options.draftOwnerKey}`)}
       .mode=${resolveLobsterPetMode(!gateway?.snapshot.offlineStable, options.context?.sessions.state.result?.sessions)}
       .runOutcome=${resolveLobsterRunOutcome(options.context?.sessions.state.result?.sessions)}
@@ -130,7 +130,7 @@ export function renderNewSessionDraftComposer(options: {
       .gatewayVersion=${options.context?.config.current.serverVersion ?? gateway?.snapshot.hello?.server?.version ?? null}
       .onVisitsDisabled=${() => options.context?.theme.refresh()}
       .floorEnabled=${floorEnabled}
-    ></openclaw-lobster-pet>`,
+    ></mirally-composer-companion>`,
     attachmentLimits: options.context?.gateway.snapshot.hello?.policy?.attachments,
     attachments: options.attachmentDraft.attachments,
     canSubmit: options.canSubmit,
