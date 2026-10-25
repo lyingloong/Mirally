@@ -3,6 +3,36 @@ import {setTimeout as delay} from 'node:timers/promises';
 import {LlmAdapter, resolveImageAttachmentAccess} from '@deepseek-ai/dsh-llm';
 import {PiAiAdapter, resolveProfiles, credentialStoreFrom, authContextFrom} from '@deepseek-ai/dsh-llm-pi-ai';
 
+/** Protocol facts, not a second model loop. Keep service-default distinct from off. */
+export function productModelRoute(model) {
+  const protocols = {'openai-chat': 'openai-completions', 'openai-responses': 'openai-responses',
+    'anthropic': 'anthropic-messages', 'anthropic-messages': 'anthropic-messages'};
+  const api = protocols[model.api_format] ?? model.api_format ?? 'openai-completions';
+  let officialDeepSeek = false;
+  try { officialDeepSeek = new URL(model.base_url).hostname === 'api.deepseek.com'; } catch {}
+  const deepseek = officialDeepSeek || model.provider === 'deepseek';
+  const configured = model.reasoning_effort || '';
+  const effort = configured === 'default' ? undefined : configured || (model.reasoning_enabled ? (deepseek ? 'high' : 'medium') : deepseek ? 'off' : undefined);
+  const reasoning = deepseek || model.reasoning_enabled || (configured && configured !== 'default');
+  // In PiAI, absent off means "do not override the service default"; null
+  // explicitly enables Off and lets each protocol send its correct disable field.
+  const reasoningEfforts = {
+    ...(configured === 'default' ? {} : {off: null}), low: 'low',
+    medium: deepseek ? 'high' : 'medium', high: 'high', max: 'max',
+  };
+  return {
+    profile: {api, baseURL: model.base_url,
+      ...(deepseek && api === 'openai-completions' ? {compat: {thinkingFormat: 'deepseek', supportsDeveloperRole: false, requiresReasoningContentOnAssistantMessages: true}} : {}),
+      models: [{id: model.model_id, contextWindow: model.context_window ?? 128000,
+        maxTokens: model.max_tokens ?? 2048, input: model.image_enabled ? ['text', 'image'] : ['text'],
+        ...(reasoning ? {reasoningEfforts} : {})}],
+      retryPolicy: {mode: 'normal', maxRetries: 1}},
+    options: {provider: 'mirally', model: model.model_id, maxTokens: model.max_tokens ?? 2048,
+      ...(effort && effort !== 'off' ? {} : {temperature: model.temperature ?? 0.7}),
+      ...(effort ? {reasoningEffort: effort} : {})},
+  };
+}
+
 class ExplicitTestAdapter extends LlmAdapter {
   constructor(tokenDelay) { super(); this.tokenDelay = tokenDelay; }
   async listModels() { return [{id: 'test-model', name: 'Explicit offline test model', contextWindow: 65536, maxTokens: 4096}]; }
@@ -55,23 +85,14 @@ export class ProductModels {
     const fingerprint = createHash('sha256').update(JSON.stringify(model)).digest('hex');
     if (fingerprint === this.fingerprint) return this.options;
     const keyReference = `MIRALLY_MODEL_${fingerprint.slice(0, 20).toUpperCase()}`;
-    const protocols = {'openai-chat': 'openai-completions', 'openai-responses': 'openai-responses',
-      'anthropic': 'anthropic-messages', 'anthropic-messages': 'anthropic-messages'};
-    const api = protocols[model.api_format] ?? model.api_format ?? 'openai-completions';
-    const profile = {
-      api, baseURL: model.base_url, apiKeyEnv: keyReference,
-      models: [{id: model.model_id, contextWindow: model.context_window ?? 128000,
-        maxTokens: model.max_tokens ?? 2048, input: model.image_enabled ? ['text', 'image'] : ['text'],
-        ...(model.reasoning_enabled ? {reasoningEfforts: {off: '', medium: 'medium', high: 'high'}} : {})}],
-      retryPolicy: {mode: 'normal', maxRetries: 1},
-    };
+    const route = productModelRoute(model);
+    const profile = {...route.profile, apiKeyEnv: keyReference};
     const next = resolveProfiles({mirally: profile});
     this.keys.set(keyReference, model.api_key ?? '');
     this.profiles = next;
     if (!this.registration) this.registration = this.ctx.llm.registerAdapter(['mirally'], this.adapter);
     this.fingerprint = fingerprint;
-    this.options = {provider: 'mirally', model: model.model_id, maxTokens: model.max_tokens ?? 2048,
-      temperature: model.temperature ?? 0.7, ...(model.reasoning_enabled ? {reasoningEffort: 'medium'} : {})};
+    this.options = route.options;
     return this.options;
   }
 

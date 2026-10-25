@@ -20,6 +20,23 @@ const user = (id, text, kind = 'user') => ({id, role: 'user', content: [{type: '
 const event = (seq, type, data) => ({seq, time: 1700000000000 + seq, type, data});
 const command = (id, message, session = 'native-one') => ({command_id: id, runtime_request_id: message, session_id: session, state: 'completed'});
 
+test('native reasoning is preserved separately from visible answers, including reasoning-only steps', () => {
+  const human = user('ask', '求解'), source = [event(0, 'user/message', human),
+    event(1, 'assistant/message', {turn: 1, message: {id: 'reason-first', content: [{type: 'reasoning', text: '先核对已知条件。'}]}}),
+    event(2, 'assistant/message', {turn: 1, message: {id: 'answer', content: [
+      {type: 'reasoning', text: '再验证结果。'}, {type: 'text', text: '结果为 42。'},
+      {type: 'tool-call', id: 'not-reasoning', name: 'unknown', arguments: '{}'}]}}),
+    event(3, 'turn/end', {turn: 1, reason: {kind: 'completed'}})];
+  const before = JSON.stringify(source), rows = projectMessages(source, [command('real-run', 'ask')]);
+  assert.equal(rows[1].text, '');
+  assert.deepEqual(rows[1].content, [{type: 'thinking', thinking: '先核对已知条件。'}]);
+  assert.equal(rows[2].text, '结果为 42。');
+  assert.deepEqual(rows[2].content, [{type: 'thinking', thinking: '再验证结果。'}, {type: 'text', text: '结果为 42。'}]);
+  assert.equal(rows[1].__openclaw.runTerminal, undefined); assert.equal(rows[2].__openclaw.runTerminal, true);
+  assert.deepEqual(rows.slice(1).map(row => row.__openclaw.runId), ['real-run', 'real-run']);
+  assert.equal(JSON.stringify(source), before, 'Displaying reasoning cannot alter native replay content');
+});
+
 test('queued human rows have one stable receipt and assistant ownership follows consumed input', () => {
   const a = user('native-user-a', '第一条需求'), b = user('native-user-b', '忙中补充'), injected = user('context', '内部上下文', 'runtime-context');
   const events = [event(0, 'agent/inbox/spliced', {inserted: [a]}), event(1, 'turn/start', {turn: 1}),
@@ -102,14 +119,17 @@ test('stream attempts retain consumed command ownership while another human inpu
   const stream = observers.get('agent/assistant-stream');
   stream({agent, frame: {type: 'start', attemptId: 'attempt-a'}});
   events.push(event(1, 'agent/inbox/spliced', {inserted: [b]}));
+  stream({agent, frame: {type: 'chunk', attemptId: 'attempt-a', chunk: {type: 'reasoning-delta', text: 'A推理'}}});
   stream({agent, frame: {type: 'chunk', attemptId: 'attempt-a', chunk: {type: 'text-delta', text: 'A回复'}}});
   // Even if consumption advances before a delayed old stream boundary, that
   // boundary retains the command captured by its native attempt start.
   events.push(event(2, 'user/message', b));
-  stream({agent, frame: {type: 'end', attemptId: 'attempt-a', outcome: {kind: 'committed'}}});
+  stream({agent, frame: {type: 'end', attemptId: 'attempt-a', outcome: {kind: 'committed', seq: 3}}});
   stream({agent, frame: {type: 'start', attemptId: 'attempt-b'}});
   stream({agent, frame: {type: 'chunk', attemptId: 'attempt-b', chunk: {type: 'text-delta', text: 'B回复'}}});
-  assert.deepEqual(broadcasts.map(item => item.command_id), ['run-a', 'run-a', 'run-a', 'run-b', 'run-b']);
+  assert.deepEqual(broadcasts.map(item => item.command_id), ['run-a', 'run-a', 'run-a', 'run-a', 'run-b', 'run-b']);
+  assert.equal(broadcasts[1].type, 'reasoning'); assert.equal(broadcasts[1].text, 'A推理');
+  assert.equal(broadcasts[3].native_seq, 3); assert.equal(broadcasts[3].attempt_id, 'attempt-a');
 });
 
 test('in-flight history comes only from a live owned command, never unknown or persisted old work', async () => {

@@ -1,3 +1,36 @@
+# 伙伴还原、模型能力与体验迁移验收
+
+日期：2026-10-25，Asia/Shanghai。对应用户的侧边返回、DeepSeek 连接能力和旧功能迁移反馈。本节为当前结果，下方同日品牌与退出结果作为上一轮记录保留。
+
+| 验证 | 本次结果 | 范围 |
+| --- | --- | --- |
+| 固定来源与正式构建 | 2672 文件 / 45 个登记维护文件 / 20 个 catalog；708 个浏览器模块通过 | 无未打包 import，原视觉与组件继续复用 |
+| Node 完整回归 | 269 项通过，0 跳过 | 包含实际 PiAI HTTP 推理字段/工具回放、模型发现响应体中断/超限、真实 Host 的推理 SSE/历史与工具投影 |
+| Framework Python 定向 | 127 项通过 | 包含 Shell 38 项与模型设置字段验证；共享壳旧维护路径另有 68 项通过 |
+| 实际 WebView2 | 17 组通过 | 真实伙伴返回按钮，rail/badge/pet：自定义正常大小/位置、移动、最小化和托盘后返回；最大化进入后移动，再返回及还原正常 RestoreBounds；显式退出清理 |
+| 模型设置真实 Edge | 通过，无 pageerror | 实际普通 Host / PiAI + 本机服务，预设/保存/密钥清空、列表与能力采用、同项采用、dirty禁检查、off/default/low重载、刷新/保存清旧探测状态、文字成功/503失败/401列表失败、窄屏 |
+| DeepSeek 真实服务与产品链路 | 直连 7 个、Mirally 14 个场景通过 | Flash 两协议的文字、图片、推理档位和工具续轮；实际成果下载核对字节。细节与供应商范围见[实测记录](deepseek-compatibility.md) |
+| DeepSeek 实际页面 | 通过，无 pageerror | 用户菜单开启推理，流式期间实际绘制 9 次，最终与刷新后可见且无重复消息；工具卡展开显示实际空提醒列表 |
+| 原聊天、工作与伙伴回归 | 通过，无 pageerror | 原 Markdown/代码复制、材料批量/移除/纯附件、两轮/刷新/草稿/窄屏；十个工作起点/四种交付、水獭来访、三形态与造型持久、Activity/Memory、原深浅色切换 |
+
+原生几何问题的根因为提前恢复 WS_MAXIMIZE 样式位，导致窗口状态已标最大化但实际仍是伙伴 Bounds；现在由 WindowState 执行真实状态转换。验收同时检查状态、实际 Bounds 与 RestoreBounds，不能只检查 DOM 或同 HWND。
+
+真实 API 由本次用户明确授权，使用已保存凭据的独立模型配置副本；只发送测试文字和自制几何 PNG，文件与会话仅进入隔离 home，没有改写用户原模型配置或发送个人历史/桌面/记忆。GUI 顺序运行，本机 fixture 与真实供应商验证分别记载。临时数据、日志、截图、凭据与构建产物不提交。
+
+尚待迁移的会话组织、完整历史材料/工具块、旧索引入口、多模型与基础工具见[体验对照](framework-experience-migration.md)。根 Python 全套及全新 Windows 安装本轮未重跑；完整 TypeScript 检查仍不作通过项，未通过调整上游断言隐藏旧 UFO 超时或声明缺失。窗口未覆盖多显示器/DPI切换及通知区物理指针命中；供应商独立 Files/Search/FIM 等不属于上述对话链路通过范围。
+
+关键复现：
+
+```powershell
+.\.venv\Scripts\python.exe tools/verify_framework_shell.py
+node tools/verify_framework_model_settings.mjs
+node --test tests/test_framework_model_routing.mjs tests/test_framework_reasoning_stream.mjs
+# 仅对自己准备、已配置推理模型的独立测试 home，真实服务会产生 API 用量：
+node tools/verify_framework_reasoning_browser.mjs <隔离home/runtime.json> --live
+```
+
+---
+
 # Mirally 窗口生命周期与首次品牌验收
 
 日期：2026-10-25，Asia/Shanghai。对应 PN-0023 / PN-0024：关闭主窗口可选择托盘或退出，明确退出收尾真实后台；默认产品的空配置、重连和失败状态使用 Mirally 标识。下方 2026-10-24 及更早章节保留历史结果。

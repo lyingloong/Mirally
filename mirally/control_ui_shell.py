@@ -518,7 +518,11 @@ class ControlUIShell:
             form.Region = None
             if previous:
                 previous.Dispose()
-            _frame_style(form, style)
+            # WindowState owns minimization/maximization. Reapplying the saved
+            # WS_MAXIMIZE/WS_MINIMIZE bits here makes Windows report that state
+            # before the real ShowWindow transition, leaving sidebar bounds
+            # in place when WindowState is assigned below.
+            _frame_style(form, style & ~0x21000000)
             _frame_composition(form, composition)
             _client_glass(form, self._workspace_glass_margin)
             form.BackColor = self._workspace_backcolor

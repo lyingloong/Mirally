@@ -105,7 +105,7 @@
           runId: event.runId || event.command_id || api.state.runId,
           resultReceived: ended, isError: event.state === 'failed' || !!event.error,
           activity: [{phase: ended ? 'end' : 'start', status: event.state,
-            title: event.progressText || event.title || toolLabels[event.name] || '处理工作材料'}]});
+            title: event.progressText || event.title || root.__mirallyOffice?.toolLabel(event.name) || toolLabels[event.name] || '处理工作材料'}]});
       }
       Object.assign(state, {
         sessionKey: id, connected: api.state.connected !== false,

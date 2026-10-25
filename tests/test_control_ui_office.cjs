@@ -7,6 +7,18 @@ const replyFrame = overrides => ({scope:'pane:session',turn:'user:1',reply:null,
 const finalReply = (key='answer:1',text='你好呀！') => ({key,text});
 const done = runId => ({phase:'done',sessionKey:'session',runId,occurredAt:123});
 
+test('the retained companion and work surfaces share labels for the real Mirally tools', () => {
+  assert.equal(office.toolLabel('mirally_context'), '整理相关记忆与活动');
+  assert.equal(office.toolLabel('mirally_preferences'), '读取你的偏好');
+  assert.equal(office.toolLabel('mirally_reminders'), '查看提醒');
+  assert.equal(office.toolLabel('mirally_set_preference'), '保存你的偏好');
+  assert.equal(office.toolLabel('mirally_create_reminder'), '创建提醒');
+  assert.equal(office.toolLabel('mirally_create_file'), '保存交付文件');
+  assert.equal(office.toolLabel('read'), '读取资料');
+  assert.equal(office.toolLabel('constructor'), '处理工作材料');
+  assert.equal(office.toolLabel('unconfigured_plugin_tool'), '处理工作材料');
+});
+
 test('reply tracker baselines old history and remembers it across session switches', () => {
   const track=office.createReplyTracker(), state=replyFrame({reply:finalReply()});
   assert.equal(track(state),null);

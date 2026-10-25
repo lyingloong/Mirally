@@ -35,7 +35,8 @@ DEFAULT_SETTINGS = {
     "do_not_disturb": False, "memory_config_path": None, "activity_config_path": None, "extensions": [],
     "model": {"provider": "openai-compatible", "base_url": "", "api_format": "openai-chat",
               "api_key": "", "model_id": "", "image_enabled": False, "reasoning_enabled": False,
-              "reasoning_budget": 0, "max_tokens": 2048, "temperature": 0.7},
+              "reasoning_budget": 0, "reasoning_effort": "", "context_window": 128000,
+              "max_tokens": 2048, "temperature": 0.7},
 }
 TERMINAL_COMMANDS = {"completed", "cancelled", "rejected"}
 
@@ -298,19 +299,23 @@ class FrameworkService:
                     if isinstance(default, bool):
                         if not isinstance(setting, bool):
                             raise FrameworkError("INVALID_PARAMS", f"model.{field} must be boolean")
+                    elif field == "context_window":
+                        _integer(setting, "model.context_window", 128, 10000000)
                     elif field in {"max_tokens", "reasoning_budget"}:
                         _integer(setting, f"model.{field}", 128 if field == "max_tokens" else 0, 262144)
                     elif field == "temperature":
                         if isinstance(setting, bool) or not isinstance(setting, (int, float)) or not math.isfinite(setting) or not 0 <= setting <= 2:
                             raise FrameworkError("INVALID_PARAMS", "model.temperature must be between zero and two")
                     else:
-                        _text(setting, f"model.{field}", 16384 if field == "api_key" else 2048, empty=field in {"api_key", "base_url", "model_id"})
+                        _text(setting, f"model.{field}", 16384 if field == "api_key" else 2048, empty=field in {"api_key", "base_url", "model_id", "reasoning_effort"})
                     if field == "base_url" and setting:
                         parsed = urlsplit(setting)
                         if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
                             raise FrameworkError("INVALID_PARAMS", "model.base_url must be an HTTP(S) URL without credentials")
                     if field == "api_format" and setting not in {"openai-chat", "openai-completions", "openai-responses", "anthropic", "anthropic-messages"}:
                         raise FrameworkError("INVALID_PARAMS", "unsupported model API format")
+                    if field == "reasoning_effort" and setting not in {"", "default", "off", "low", "medium", "high", "max"}:
+                        raise FrameworkError("INVALID_PARAMS", "unsupported model reasoning effort")
                     value["model"][field] = setting
             elif key == "activity_capture":
                 from .activity_experience import validate_capture_patch

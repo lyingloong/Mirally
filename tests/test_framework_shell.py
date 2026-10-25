@@ -206,6 +206,70 @@ class FrameworkShellTests(unittest.TestCase):
                 form.webview.Focus.assert_called()
         self.shell.window.evaluate_js.assert_not_called()
 
+    def test_workspace_restore_uses_real_state_transitions_instead_of_reapplying_native_state_bits(self):
+        normal, sidebar, maximized = (100, 120, 1280, 860), (1810, 180, 400, 680), (-8, -8, 2576, 1456)
+        states = SimpleNamespace(Normal="Normal", Minimized="Minimized", Maximized="Maximized")
+        class NativeForm:
+            """WinForms keeps restored Bounds separate while non-normal."""
+            def __init__(self):
+                self._state, self._bounds = states.Normal, sidebar
+                self.RestoreBounds = normal
+                self.Region = MagicMock()
+                self.webview = SimpleNamespace(DefaultBackgroundColor="companion")
+                self.PerformLayout = MagicMock()
+            @property
+            def Bounds(self):
+                return self._bounds
+            @Bounds.setter
+            def Bounds(self, value):
+                self.RestoreBounds = value
+                if self._state == states.Normal:
+                    self._bounds = value
+            @property
+            def WindowState(self):
+                return self._state
+            @WindowState.setter
+            def WindowState(self, value):
+                if value != self._state:
+                    if value == states.Maximized:
+                        self._bounds = maximized
+                    elif value == states.Minimized:
+                        self._bounds = (-32000, -32000, normal[2], normal[3])
+                    else:
+                        self._bounds = self.RestoreBounds
+                self._state = value
+        modules = {"System.Drawing": SimpleNamespace(**{name: MagicMock() for name in ("Color", "Point", "Rectangle", "Region", "Size")}),
+            "System.Drawing.Drawing2D": SimpleNamespace(GraphicsPath=MagicMock()),
+            "System.Windows.Forms": SimpleNamespace(FormWindowState=states, Screen=MagicMock())}
+        for state, bits, expected in ((states.Normal, 0, normal), (states.Maximized, 0x01000000, maximized),
+                                      (states.Minimized, 0x20000000, (-32000, -32000, normal[2], normal[3]))):
+            with self.subTest(state=state):
+                form = self.shell.window.native = NativeForm()
+                previous_region = form.Region
+                self.shell._workspace = (normal, state, (640, 480), False, "workspace", 0x16cf0000 | bits, 2)
+                self.shell._workspace_backcolor = "workspace-color"
+                def frame_style(_form, style):
+                    # Native SetWindowLong state bits can report a state
+                    # without performing the corresponding bounds transition.
+                    if style & 0x01000000:
+                        form._state = states.Maximized
+                    elif style & 0x20000000:
+                        form._state = states.Minimized
+                with patch.dict("sys.modules", modules), \
+                     patch("mirally.control_ui_shell._frame_style", side_effect=frame_style), \
+                     patch("mirally.control_ui_shell._frame_composition"), \
+                     patch("mirally.control_ui_shell._client_glass"), \
+                     patch("mirally.control_ui_shell._capture_affinity"):
+                    self.shell._companion_action({"action": "workspace"})
+                self.assertEqual(form.WindowState, state)
+                self.assertEqual(form.Bounds, expected)
+                self.assertEqual(form.RestoreBounds, normal)
+                self.assertEqual(form.MinimumSize, (640, 480))
+                self.assertFalse(form.TopMost)
+                self.assertIsNone(form.Region)
+                previous_region.Dispose.assert_called_once_with()
+                self.assertIsNone(self.shell._workspace)
+
     def test_tray_left_click_finishes_restore_before_return_and_right_click_keeps_the_menu(self):
         modules = {"System.Windows.Forms": SimpleNamespace(MouseButtons=SimpleNamespace(Left="left"))}
         with patch.dict("sys.modules", modules), patch.object(self.shell, "_show_window") as restore, \

@@ -1,6 +1,7 @@
 import type { ProgressCard } from "@openclaw/gateway-protocol";
 import { html, nothing } from "lit";
 import { gatewayPresentationScope } from "../../app/gateway-presentation-scope.ts";
+import { withLiveReasoningMessages } from "../../app/mirally-stream-presentation.ts";
 import { hasOperatorAdminAccess, hasOperatorWriteAccess } from "../../app/operator-access.ts";
 import { patchSettings } from "../../app/settings.ts";
 import { readPresenceEntries, resolveCurrentSelfUser } from "../../app/user-profile.ts";
@@ -433,7 +434,7 @@ export class ChatPane extends ChatPaneLayoutRender {
           composerAvailability.canSend && !catalogKey && !suggestionViewer && state.connected,
         isCurrent: () => this.state === state,
       }),
-      messages: catalogKey ? this.catalogMessages : state.chatMessages,
+      messages: catalogKey ? this.catalogMessages : withLiveReasoningMessages(state.client, state.sessionKey, projectionRunId, state.chatMessages),
       historyPagination:
         historyHasMore || this.loadingOlder
           ? {

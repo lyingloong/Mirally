@@ -43,5 +43,5 @@
   "ui/src/pages/new-session/draft-composer.ts": "Use Mirally companion art in the retained chat composer.",
   "ui/src/pages/new-session/new-session-page.ts": "Use Mirally product wording, identity and controls in reachable default frontend surfaces.",
   "ui/src/pages/new-session/draft-view.ts": "Show session permission modes only when the active host advertises session mutation support; Mirally uses explicit per-operation consent.",
-  "ui/src/pages/chat/chat-pane-render.ts": "Hide unsupported session permission modes instead of displaying inactive host-specific choices."
+  "ui/src/pages/chat/chat-pane-render.ts": "Hide unsupported session permission modes and render attempt-scoped live Mirally thinking through the original components without writing transient rows to history."
 }

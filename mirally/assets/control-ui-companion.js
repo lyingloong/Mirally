@@ -420,8 +420,7 @@
     const step = tool => {
       const items = (Array.isArray(tool.activity) ? tool.activity : []).filter(item => !item.hideFromChannelProgress);
       const item = items.filter(item => item.phase !== 'end' && !['completed','failed'].includes(item.status)).at(-1) || items.at(-1);
-      return {label:excerpt(item?.progressText || item?.title || tool.activity?.description ||
-        ({read:'读取资料',write:'整理文件',edit:'修改内容',exec:'执行后台操作',browser:'处理网页',web_search:'查找资料',web_fetch:'阅读网页',process:'等待后台操作'}[tool.name]) || '处理工作材料',60),
+      return {label:excerpt(item?.progressText || item?.title || tool.activity?.description || office.toolLabel(tool.name),60),
         error:tool.isError || item?.status === 'failed', ended:tool.resultReceived || item?.phase === 'end' || item?.status === 'completed'};
     };
     const liveStep = currentTools.map(step).filter(item => !item.ended && !item.error).at(-1);

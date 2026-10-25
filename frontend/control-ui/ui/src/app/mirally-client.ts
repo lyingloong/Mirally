@@ -24,6 +24,8 @@ export class MirallyBrowserClient {
   private eventListeners = new Set<(event: GatewayEventFrame) => void>();
   private runs = new Map<string, Set<string>>();
   private partials = new Map<string, string>();
+  private assistantAttempts = new Map<string, {id: string; fresh: boolean; closed: boolean}>();
+  private reasoningStreams = new Map<string, Map<string, {text: string; timestamp: number; nativeSessionId?: string; nativeSeq?: number}>>();
   private sequence = 0;
   private agentSequence = 0;
   private configHash = "";
@@ -40,7 +42,18 @@ export class MirallyBrowserClient {
   }
   get needsWakeReconnect() { return !this.connected; }
   start() { if (!this.stopped) return; this.stopped = false; const generation = ++this.generation; void this.connect(generation); }
-  stop() { this.stopped = true; ++this.generation; this.connected = false; this.stream?.abort(); clearTimeout(this.retry); }
+  stop() { this.stopped = true; ++this.generation; this.connected = false; this.stream?.abort(); clearTimeout(this.retry); this.reasoningStreams.clear(); this.assistantAttempts.clear(); this.partials.clear(); }
+
+  /** Render-only rows: they never enter the transcript, outbox or message cache. */
+  getReasoningStream(sessionKey: string, runId?: string | null, history: Data[] = []) {
+    if (!runId) return [];
+    const entries = this.reasoningStreams.get(`${identity(sessionKey)}:${runId}`);
+    if (!entries) return [];
+    return [...entries].filter(([, entry]) => entry.text && !history.some(message => entry.nativeSeq !== undefined
+      && message.native_session_id === entry.nativeSessionId && message.native_seq === entry.nativeSeq))
+      .map(([attemptId, entry]) => ({id: `mirally-reasoning:${attemptId}`, role: 'assistant', timestamp: entry.timestamp,
+        __openclaw: {runId}, __mirallyTransient: true, content: [{type: 'thinking', thinking: entry.text}]}));
+  }
   requestScopeUpgrade() { return Promise.reject(new Error("本机 Mirally 使用产品授权确认，不提供 Gateway scope 升级。")); }
   cancelScopeUpgrade() {}
   private scheduleReconnect(generation: number, delayMs: number) {
@@ -151,9 +164,15 @@ export class MirallyBrowserClient {
     const {sessions} = await this.http("/api/sessions");
     const {model} = await this.rpc('settings.get');
     return sessions.map((s: Data) => ({...s, key: key(s.id), sessionId: s.session_id, displayName: s.title, label: s.title,
-      agentId: "main", kind: "direct", updatedAt: s.updated_at, hasActiveRun: s.status === "running", activeRunIds: [...new Set([...(s.active_command_ids || []), ...this.activeRuns(s.id)])], modelProvider: model.provider, model: model.model_id}));
+      // The retained UI separates display policy from generation effort. Allow
+      // real thinking blocks (including old history) through its second gate;
+      // chatShowThinking remains the user's visibility toggle.
+      reasoningLevel: 'on', agentId: "main", kind: "direct", updatedAt: s.updated_at, hasActiveRun: s.status === "running", activeRunIds: [...new Set([...(s.active_command_ids || []), ...this.activeRuns(s.id)])], modelProvider: model.provider, model: model.model_id}));
   }
-  private message(message: Data) { return {id: message.id, role: message.role, timestamp: message.time, __openclaw: message.__openclaw, content: [{type: "text", text: message.text || ""}], stopReason: message.stopReason ?? "stop"}; }
+  private message(message: Data) { return {id: message.id, role: message.role, timestamp: message.time, __openclaw: message.__openclaw,
+    native_session_id: message.native_session_id, native_seq: message.native_seq,
+    content: Array.isArray(message.content) ? message.content.filter((block: Data) => block.type === 'text' && typeof block.text === 'string'
+      || message.role === 'assistant' && block.type === 'thinking' && typeof block.thinking === 'string') : [{type: "text", text: message.text || ""}], stopReason: message.stopReason ?? "stop"}; }
   private async history(id: string): Promise<Data> {
     const session = (await this.sessions()).find((item: Data) => identity(item.key) === id);
     if (!session) return {sessionKey: key(id), messages: [], sessionId: undefined, hasMore: false};
@@ -168,16 +187,50 @@ export class MirallyBrowserClient {
     const id = event.session_id; if (!id) { if (["artifact", "action", "inbox"].includes(event.type)) window.dispatchEvent(new CustomEvent("mirally-product-event", {detail: event})); return; }
     const runId = event.command_id || this.activeRuns(id).at(-1);
     const partialKey = `${id}:${runId || ""}`;
-    if (event.type === "assistant-start") this.partials.set(partialKey, "");
-    if (event.type === "token") {
-      const text = (this.partials.get(partialKey) || "") + event.text; this.partials.set(partialKey, text);
-      this.emit("chat", {sessionKey: key(id), agentId: "main", runId, state: "delta", deltaText: event.text, message: {role: "assistant", content: [{type: "text", text}]}});
+    if (event.type === "assistant-start") {
+      this.partials.set(partialKey, "");
+      this.assistantAttempts.set(partialKey, {id: event.attempt_id || 'unframed', fresh: true, closed: false});
     }
-    if (event.type === "tool") this.emit("agent", {runId, sessionKey: key(id), seq: ++this.agentSequence, ts: Date.now(), stream: "tool", data: {phase: event.state === "running" ? "start" : "result", name: event.name, toolCallId: event.id, isError: event.state === "failed"}});
+    if (["token", "reasoning"].includes(event.type) && typeof event.text === 'string') {
+      const attempt = this.assistantAttempts.get(partialKey);
+      if (attempt?.closed || event.attempt_id && attempt && event.attempt_id !== attempt.id) return;
+      const attemptId = event.attempt_id || attempt?.id || 'unframed';
+      const replace = attempt?.fresh === true;
+      if (attempt) attempt.fresh = false;
+      if (event.type === 'reasoning') {
+        const entries = this.reasoningStreams.get(partialKey) || new Map();
+        const previous = entries.get(attemptId);
+        entries.set(attemptId, {...previous, text: (previous?.text || '') + event.text,
+          timestamp: previous?.timestamp || Date.now(), nativeSessionId: event.native_session_id});
+        this.reasoningStreams.set(partialKey, entries);
+      } else this.partials.set(partialKey, (this.partials.get(partialKey) || '') + event.text);
+      const text = this.partials.get(partialKey) || '';
+      this.emit("chat", {sessionKey: key(id), agentId: "main", runId, state: "delta", ...(replace ? {replace: true} : {}),
+        deltaText: event.type === 'token' ? event.text : '', message: {role: "assistant", content: [{type: "text", text}]}});
+    }
+    if (event.type === 'assistant-end') {
+      const attempt = this.assistantAttempts.get(partialKey);
+      const entry = this.reasoningStreams.get(partialKey)?.get(event.attempt_id);
+      if (entry && Number.isSafeInteger(event.native_seq)) entry.nativeSeq = event.native_seq;
+      if (event.outcome === 'abandoned') this.reasoningStreams.get(partialKey)?.delete(event.attempt_id);
+      if (attempt?.id === event.attempt_id) {
+        attempt.closed = true;
+        if (event.outcome === 'abandoned') {
+          this.partials.delete(partialKey);
+          this.emit('chat', {sessionKey: key(id), agentId: 'main', runId, state: 'delta', replace: true, deltaText: '', message: {role: 'assistant', content: []}});
+        }
+      }
+    }
+    if (event.type === "tool") this.emit("agent", {runId, sessionKey: key(id), seq: ++this.agentSequence, ts: Date.now(), stream: "tool", data: {
+      phase: event.state === "running" ? "start" : "result", name: event.name, toolCallId: event.id, isError: event.state === "failed",
+      ...(event.state === "running" && Object.hasOwn(event, "args") ? {args: event.args} : {}),
+      ...(event.state !== "running" && Object.hasOwn(event, "result") ? {result: event.result} : {}),
+    }});
     if (["done", "error"].includes(event.type)) {
       const history = await this.history(id), message = history.messages.filter((m: Data) => m.role === "assistant" && (!runId || m.__openclaw?.runId === runId)).at(-1);
       if (this.stopped || generation !== this.generation) return;
       if (runId) this.forgetRun(id, runId);
+      this.reasoningStreams.delete(partialKey); this.assistantAttempts.delete(partialKey);
       this.emit("chat", {sessionKey: key(id), agentId: "main", runId, state: event.type === "error" || event.failed ? "error" : event.cancelled ? "aborted" : "final", message, errorMessage: event.text || event.message || (event.failed ? "这次处理没有完成。" : undefined)});
       const activeRunIds = this.activeRuns(id);
       this.emit("sessions.changed", {key:key(id), agentId:"main", hasActiveRun:!!history.sessionInfo?.hasActiveRun || activeRunIds.length > 0, activeRunIds, reason:"completed"}); this.partials.delete(partialKey);

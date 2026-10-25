@@ -32,6 +32,14 @@
     {id:'pages', title:'展示初稿', description:'保存一个可在浏览器打开的 HTML 汇报或演示初稿，提供文件与摘要'}
   ];
   const handoffRequest = '\n\n回复格式：完成后在回复末尾用以下 Markdown 标题简短总结本轮实际执行结果，不重复文档正文。\n## 交接\n### 已完成\n实际完成的内容和文件。\n### 待确认\n仍需我决定的事项；没有就写“无”。\n### 下一步\n一项可以继续推进的建议。\n对依赖材料的结论，缺少依据时说明或询问，不编造内容。';
+  const toolLabels = Object.freeze({
+    mirally_context:'整理相关记忆与活动', mirally_preferences:'读取你的偏好',
+    mirally_reminders:'查看提醒', mirally_set_preference:'保存你的偏好',
+    mirally_create_reminder:'创建提醒', mirally_create_file:'保存交付文件',
+    read:'读取资料', write:'整理文件', edit:'修改内容', exec:'执行后台操作',
+    browser:'处理网页', web_search:'查找资料', web_fetch:'阅读网页', process:'等待后台操作',
+  });
+  const toolLabel = name => Object.hasOwn(toolLabels, name) ? toolLabels[name] : '处理工作材料';
   function compose(id, goal, output = 'document', context = {}) {
     const workflow = workflows.find(item => item.id === id);
     const format = outputs.find(item => item.id === output);
@@ -132,5 +140,5 @@
       return {key, text};
     };
   }
-  return Object.freeze({workflows, outputs, compose, plain, handoff, isFinal, createReplyTracker});
+  return Object.freeze({workflows, outputs, compose, plain, handoff, isFinal, createReplyTracker, toolLabel});
 });

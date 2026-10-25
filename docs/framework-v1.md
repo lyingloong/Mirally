@@ -27,6 +27,8 @@ npm --prefix frontend/control-ui run build
 
 数据默认放在 `%LOCALAPPDATA%/Mirally/framework`，可用 `MIRALLY_HOME` 或 `--home` 覆盖。首次到原「设置 → 模型」填写自己的服务基础地址、API 格式、模型 ID 和凭据；没有默认服务商密钥或可用的生产假模型。支持 OpenAI Chat Completions、Responses、Anthropic Messages 的原生适配，实际兼容性取决于所选服务。API Key 留空保留已有值，不写入浏览器存储。
 
+模型连接页可明确选择 DeepSeek 预设、读取服务模型列表及声明能力、设置推理强度与上下文窗口，并对保存后的连接发起固定短文字测试。声明能力与实际验收分别展示；空配置不自动采用预设。DeepSeek Flash 的视觉、推理与工具续轮实测范围见[连接与能力验证](deepseek-compatibility.md)。
+
 `run.ps1 --browser` 在浏览器打开产品页面；`--headless` 只运行本机宿主。「设置 → 通用 → 关闭主窗口时」可选隐藏到系统托盘或退出 Mirally，默认隐藏到可用托盘并继续维护提醒与已开启的工作。单击托盘图标恢复原窗口和伙伴形态，右键提供退出；托盘不可用时关闭会退出。从托盘或设置页明确「退出 Mirally」会停止窗口、自己连接的宿主和后台，包含复用已有宿主的情形；关闭浏览器标签页不等于停止宿主。退出、休眠或设备关机期间无法实时投递，重新启动会检查仍有效的提醒。
 
 默认桌面入口复用原 Mirally 开屏、窗口交互、海獭/飞狐与三形态伙伴，并直接承载原页面和皮肤；[体验迁移对照](framework-experience-migration.md) 记录源码复用、后端接缝、操作方式与实际页面验收项目。桌面截图仍需明确拖动专用手柄、检查预览后发送；浏览器模式不能调用本机窗口截图、置顶或移动。
@@ -102,7 +104,7 @@ MCP 支持 stdio 与 Streamable HTTP，同一受监督连接提供 tools、resou
 # --apply --confirm-stopped
 ```
 
-目标必须不存在或为空，拒绝覆盖与链接/目录联接。SQLite backup 包含已提交 WAL；截图资产复制并核对哈希，源前后指纹一致才原子发布。旧会话只建立只读索引，不伪造 DSH transcript。运行状态与旧会话索引在设置页查看。新 home 内生成迁移清单，凭据保存在新产品库中，不输出到预览或普通 HTTP。
+目标必须不存在或为空，拒绝覆盖与链接/目录联接。SQLite backup 包含已提交 WAL；截图资产复制并核对哈希，源前后指纹一致才原子发布。旧会话只建立只读索引，不伪造 DSH transcript。设置页提供当前运行状态，旧会话索引目前仅有本机迁移文件与读取接口，专门查看入口尚待接回。新 home 内生成迁移清单，凭据保存在新产品库中，不输出到预览或普通 HTTP。
 
 ```powershell
 .\.venv\Scripts\python.exe -m mirally.framework.migration --home "新数据目录" --rollback

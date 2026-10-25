@@ -10,8 +10,10 @@ import {readFile, realpath} from 'node:fs/promises';
 import {resolve, join, extname, sep} from 'node:path';
 import {ProductSidecar} from './sidecar.mjs';
 import {ProductModels} from './models.mjs';
+import {discoverProductModels} from './model-probe.mjs';
 import {ProductMaterials} from './materials.mjs';
 import {originalPresentation} from './presentation.mjs';
+import {toolDisplayValue, toolResultDisplay} from './tool-presentation.mjs';
 
 export const name = 'mirally-product';
 export const inject = ['agents', 'agentLoop', 'sessions', 'sessionPersistence', 'llm', 'tools', 'systemPrompt'];
@@ -70,6 +72,18 @@ function textOf(content) {
   return content.filter(block => block.type === 'text').map(block => block.text).join('');
 }
 
+/** Preserve visible provider reasoning as a separate presentation block. */
+function messageContent(content, role) {
+  if (typeof content === 'string') return [{type: 'text', text: content}];
+  if (!Array.isArray(content)) return [];
+  return content.flatMap(block => {
+    if (block.type === 'text' && typeof block.text === 'string') return [{type: 'text', text: block.text}];
+    if (role === 'assistant' && block.type === 'reasoning' && typeof block.text === 'string' && block.text)
+      return [{type: 'thinking', thinking: block.text}];
+    return [];
+  });
+}
+
 /** Derives display messages from native history, keeping the native log as the sole transcript. */
 export function projectMessages(events, commands = [], sequenceOffset = 0) {
   const result = [], seenUsers = new Set(), assistantByTurn = new Map();
@@ -82,12 +96,13 @@ export function projectMessages(events, commands = [], sequenceOffset = 0) {
       seenUsers.add(message.id);
     }
     const text = textOf(message.content);
-    if (!text) return;
+    const content = messageContent(message.content, role);
+    if (!text && !content.some(block => block.type === 'thinking')) return;
     const id = message.id ?? String(event.seq);
     // DSH's physical log starts at zero; the retained UI protocol requires a
     // positive sequence. Closed predecessor logs occupy the preceding range.
     const seq = sequenceOffset + event.seq + 1;
-    const projected = {id, role, text, seq, native_seq: event.seq, time: event.time, timestamp: event.time,
+    const projected = {id, role, text, content, seq, native_seq: event.seq, time: event.time, timestamp: event.time,
       ...(commandId ? {command_id: commandId} : {}),
       __openclaw: {id, seq, ...(commandId ? {runId: commandId,
         ...(role === 'user' ? {idempotencyKey: `${commandId}:user`} : {})} : {})}};
@@ -462,13 +477,20 @@ export class MirallyProduct extends Service {
     const attempts = new Map();
     this.ctx.on('tools/execute', async (exec, next) => {
       const conversation = this.nativeConversations.get(exec.agent?.id);
-      if (conversation) this.broadcast('tool', {session_id: conversation.conversation_id, command_id: this.consumedCommandId(exec.agent), name: exec.name, id: exec.callId, state: 'running'});
+      if (conversation) {
+        const args = toolDisplayValue(exec.arguments);
+        this.broadcast('tool', {session_id: conversation.conversation_id, command_id: this.consumedCommandId(exec.agent),
+          name: exec.name, id: exec.callId, state: 'running', args: args.value, args_truncated: args.truncated});
+      }
       return next();
     });
     this.ctx.on('tools/result', (exec, result) => {
       const conversation = this.nativeConversations.get(exec.agent?.id);
-      if (conversation) this.broadcast('tool', {session_id: conversation.conversation_id, command_id: this.consumedCommandId(exec.agent), name: exec.name,
-        id: exec.callId, state: result.isError ? 'failed' : 'completed', error: result.isError ? result.error?.message : undefined});
+      if (conversation) {
+        const display = toolResultDisplay(result);
+        this.broadcast('tool', {session_id: conversation.conversation_id, command_id: this.consumedCommandId(exec.agent), name: exec.name,
+          id: exec.callId, state: result.isError ? 'failed' : 'completed', result: display.value, result_truncated: display.truncated});
+      }
     });
     this.ctx.on('agent/created', async ({agent, source}) => {
       const conversation = this.nativeConversations.get(agent.id);
@@ -492,10 +514,12 @@ export class MirallyProduct extends Service {
       const commandId = attempts.get(attemptKey);
       if (frame.type === 'start' || frame.type === 'end') {
         this.broadcast(`assistant-${frame.type}`, {session_id: conversation.conversation_id, native_session_id: agent.id,
-          ...(commandId ? {command_id: commandId} : {}), attempt_id: frame.attemptId, ...(frame.type === 'end' ? {outcome: frame.outcome.kind} : {})});
+          ...(commandId ? {command_id: commandId} : {}), attempt_id: frame.attemptId,
+          ...(frame.type === 'end' ? {outcome: frame.outcome.kind, ...(frame.outcome.seq !== undefined ? {native_seq: frame.outcome.seq} : {})} : {})});
       }
-      if (frame.type === 'chunk' && frame.chunk.type === 'text-delta') {
-        this.broadcast('token', {session_id: conversation.conversation_id, native_session_id: agent.id, ...(commandId ? {command_id: commandId} : {}), attempt_id: frame.attemptId, text: frame.chunk.text});
+      if (frame.type === 'chunk' && ['text-delta', 'reasoning-delta'].includes(frame.chunk.type)) {
+        this.broadcast(frame.chunk.type === 'reasoning-delta' ? 'reasoning' : 'token', {session_id: conversation.conversation_id, native_session_id: agent.id,
+          ...(commandId ? {command_id: commandId} : {}), attempt_id: frame.attemptId, text: frame.chunk.text});
       }
       if (frame.type === 'end') attempts.delete(attemptKey);
     });
@@ -580,9 +604,16 @@ export class MirallyProduct extends Service {
     const prepared = await this.ctx.llm.prepareCall({...options, maxTokens: max_tokens ?? options.maxTokens}, signal);
     let text = '';
     let usage = {};
+    let finish;
     for await (const chunk of prepared.stream({...prepared.config, ...(systemText ? {system: systemText} : {}), messages: normalized, signal})) {
       if (chunk.type === 'text-delta') text += chunk.text;
       if (chunk.type === 'usage') usage = chunk.usage;
+      if (chunk.type === 'finish') finish = chunk.reason;
+    }
+    // Native adapters may deliver failures in the terminal chunk rather than
+    // throwing. Auxiliary callers must not accept partial/empty text as success.
+    if (!finish || ['error', 'aborted'].includes(finish.kind)) {
+      throw failure(finish?.failure?.message || '模型请求未正常完成，请检查连接后重试。', finish?.failure?.code || 'model_request_failed', finish?.kind === 'aborted' ? 499 : 502);
     }
     return {text, usage, model: options.model};
   }
@@ -726,6 +757,26 @@ export class MirallyProduct extends Service {
     }
     if (pathname === '/api/models' && request.method === 'GET') {
       return json(response, 200, {configured: Boolean(this.models.options), mode: this.config.testMode ? 'test' : 'normal', settings: await this.rpc('settings.get')});
+    }
+    if (['/api/models/discover', '/api/models/test'].includes(pathname) && request.method === 'POST') {
+      const input = await body(request);
+      if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length) throw failure('模型检查只使用已保存的连接，请先保存设置。');
+      const disconnected = new AbortController();
+      const disconnect = () => { if (!response.writableEnded) disconnected.abort(new Error('Client disconnected')); };
+      response.once('close', disconnect);
+      try {
+        const result = await this.runEffect('model-settings-probe', async stopping => {
+          const signal = AbortSignal.any([stopping, disconnected.signal, AbortSignal.timeout(pathname.endsWith('/discover') ? 20_000 : 90_000)]);
+          if (pathname.endsWith('/discover')) {
+            const {model} = await this.rpc('internal.settings.get');
+            return discoverProductModels(model, signal);
+          }
+          const start = Date.now();
+          const result = await this.modelCall({prompt: 'Reply with exactly: Mirally connection OK', max_tokens: 512, signal});
+          return {...result, elapsed_ms: Date.now() - start, scope: 'text_generation', mode: this.config.testMode ? 'test' : 'normal'};
+        });
+        return json(response, 200, result);
+      } finally { response.off('close', disconnect); }
     }
     if (pathname === '/api/materials' && request.method === 'POST') return json(response, 201, await this.materials.upload(await body(request)));
     if (pathname === '/api/ui-preferences' && ['GET', 'POST'].includes(request.method)) {

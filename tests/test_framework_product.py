@@ -136,6 +136,19 @@ class FrameworkProductTests(unittest.TestCase):
                 self.call("settings.update", patch=patch_value)
         self.assertFalse(self.call("settings.get")["activity_enabled"])
 
+    def test_reasoning_effort_and_context_budget_are_explicit_and_durable(self):
+        self.assertEqual(self.call("settings.get")["model"]["reasoning_effort"], "")
+        self.call("settings.update", patch={"model": {"context_window": 1000000, "reasoning_effort": "default"}})
+        self.restart()
+        self.assertEqual(self.call("settings.get")["model"]["context_window"], 1000000)
+        self.assertEqual(self.call("settings.get")["model"]["reasoning_effort"], "default")
+        for effort in ("off", "low", "medium", "high", "max", ""):
+            self.call("settings.update", patch={"model": {"reasoning_effort": effort}})
+        for model in ({"reasoning_effort": "ultra"}, {"reasoning_effort": False},
+                      {"context_window": True}, {"context_window": 0}, {"context_window": 10000001}):
+            with self.subTest(model=model), self.assertRaises(FrameworkError):
+                self.call("settings.update", patch={"model": model})
+
     def test_concurrent_command_identity_is_admitted_once(self):
         self.conversation()
         def admit(_):

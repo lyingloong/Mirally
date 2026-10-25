@@ -157,7 +157,7 @@ def main() -> int:
         def verify():
             try:
                 from System import Action, Array, Object
-                from System.Drawing import Point
+                from System.Drawing import Point, Rectangle
                 from System.Reflection import BindingFlags
                 from System.Windows.Forms import FormWindowState, MenuStrip, MouseButtons, MouseEventArgs
                 from mirally.control_ui_shell import _frame_style
@@ -169,6 +169,8 @@ def main() -> int:
                     def inspect():
                         value.update(hwnd=int(form.Handle.ToInt64()), visible=bool(form.Visible),
                             minimized=form.WindowState == FormWindowState.Minimized,
+                            window_state=str(form.WindowState),
+                            restore_bounds=[int(form.RestoreBounds.X), int(form.RestoreBounds.Y), int(form.RestoreBounds.Width), int(form.RestoreBounds.Height)],
                             native_minimized=bool(user.IsIconic(int(form.Handle.ToInt64()))),
                             window_style=hex(_frame_style(form)), minimize_box=bool(form.MinimizeBox),
                             opacity=float(form.Opacity), region=form.Region is not None,
@@ -386,8 +388,56 @@ def main() -> int:
                 post(0x202, button)
                 wait_for(lambda: shell._workspace is None and js("document.documentElement.dataset.mirallyMode==='workspace'"), "Native menu button did not return to workbench")
                 assert native()["hwnd"] == hwnd, "Workspace created another native window"
+                assert native()["bounds"] == initial["bounds"] and native()["window_state"] == initial["window_state"], snapshot()
                 assert not js("window.__shellVerificationErrors.length"), snapshot()
-                results.append({"case": "native menu click returns to same workbench HWND", "restored": True})
+                results.append({"case": "native menu click restores workspace HWND, size and position", "restored": True})
+
+                # A user-sized, moved normal window must survive floating
+                # movement and minimize/restore without adopting sidebar bounds.
+                form.Invoke(Action(lambda: setattr(form, "Bounds", Rectangle(initial["bounds"][0] + 35, initial["bounds"][1] + 25,
+                    initial["bounds"][2] - 140, initial["bounds"][3] - 110))))
+                custom_normal = native()
+                for appearance in ("rail", "badge", "pet"):
+                    js(f"window.__mirallyCompanion.setForm('{appearance}',false);window.__mirallyCompanion.dock()")
+                    wait_for(lambda: shell._workspace is not None and native()["region"], appearance + " normal dock did not finish")
+                    form.Invoke(Action(lambda: form.SetDesktopLocation(100, 140)))
+                    js("window.__mirallyCompanion.setView('detail')")
+                    if not arguments.close_exit:
+                        js("document.querySelector('.mirally-companion [data-action=minimize]').click()")
+                        wait_for(lambda: native()["minimized"], appearance + " companion minimize did not finish")
+                        tray_left_click()
+                        wait_for(lambda: not native()["minimized"] and native()["visible"], appearance + " companion tray restore did not finish")
+                    js("document.querySelector('.mirally-companion [data-action=workspace]').click()")
+                    wait_for(lambda: shell._workspace is None and js("document.documentElement.dataset.mirallyMode==='workspace'"), appearance + " normal control did not restore workspace")
+                    restored = native()
+                    assert restored["bounds"] == custom_normal["bounds"] and restored["window_state"] == "Normal", snapshot()
+                    assert restored["restore_bounds"] == custom_normal["bounds"] and not restored["region"] and not restored["topmost"], snapshot()
+                    results.append({"case": appearance + " moved/minimized companion restores user-sized normal workbench", "restored": True,
+                        "normal_bounds": restored["bounds"], "companion_minimize_restore": not arguments.close_exit})
+                form.Invoke(Action(lambda: setattr(form, "Bounds", Rectangle(*initial["bounds"]))))
+
+                # Restore both the current maximized presentation and the
+                # underlying normal bounds after moving the floating companion.
+                form.Invoke(Action(lambda: setattr(form, "WindowState", FormWindowState.Maximized)))
+                wait_for(lambda: native()["window_state"] == "Maximized", "Workbench did not maximize")
+                maximized = native()
+                assert maximized["restore_bounds"] == initial["bounds"], maximized
+                for appearance in ("rail", "badge", "pet"):
+                    js(f"window.__mirallyCompanion.setForm('{appearance}',false);window.__mirallyCompanion.dock()")
+                    wait_for(lambda: shell._workspace is not None and native()["region"], appearance + " maximized dock did not finish")
+                    form.Invoke(Action(lambda: form.SetDesktopLocation(80, 120)))
+                    js("window.__mirallyCompanion.setView('detail')")
+                    wait_for(lambda: js("!!document.querySelector('.mirally-companion [data-action=workspace]')"), "Workspace restore control missing")
+                    js("document.querySelector('.mirally-companion [data-action=workspace]').click()")
+                    wait_for(lambda: shell._workspace is None and js("document.documentElement.dataset.mirallyMode==='workspace'"), appearance + " control did not leave companion mode")
+                    restored = native()
+                    assert restored["window_state"] == maximized["window_state"] and restored["bounds"] == maximized["bounds"], snapshot()
+                    assert restored["restore_bounds"] == initial["bounds"], snapshot()
+                    results.append({"case": appearance + " moved companion restores maximized workbench and normal bounds", "restored": True,
+                        "maximized_bounds": restored["bounds"], "normal_bounds": restored["restore_bounds"]})
+                form.Invoke(Action(lambda: setattr(form, "WindowState", FormWindowState.Normal)))
+                wait_for(lambda: native()["window_state"] == "Normal", "Workbench did not leave maximized state")
+                assert native()["bounds"] == initial["bounds"], snapshot()
 
                 wait_for(shell._tray_ready.is_set, "Tray was not installed")
                 assert shell._tray is not None and bool(shell._tray.Visible), "Tray icon is not visible"

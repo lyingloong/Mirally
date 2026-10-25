@@ -11,14 +11,11 @@ import {renderSettingsWorkspace} from "../../components/settings-workspace.ts";
 import {OpenClawLightDomElement} from "../../lit/openclaw-element.ts";
 import {SubscriptionsController} from "../../lit/subscriptions-controller.ts";
 import {errorMessage, openProductPage, requestProduct, rpcProduct, type ProductData} from "./api.ts";
+import {modelDraft, deepSeekPreset, adoptDiscoveredModel, isDeepSeekEndpoint, modelCapabilityText,
+  type ModelSettings, type ModelDraft, type DiscoveredModel} from "./model-settings.ts";
 import "./product.css";
 
 type SettingsPageId = "general" | "profile" | "model" | "initiative" | "about";
-type ModelSettings = {
-  provider?: string; base_url?: string; api_format?: string; model_id?: string;
-  api_key_configured?: boolean; max_tokens?: number; temperature?: number;
-  image_enabled?: boolean; reasoning_enabled?: boolean;
-};
 type ProductSettings = {
   model: ModelSettings; memory_enabled: boolean; background_enabled: boolean;
   general_initiative_enabled: boolean; do_not_disturb: boolean;
@@ -29,11 +26,6 @@ type ProductStatus = {
   ready?: boolean; home?: string; database?: string; transcript_owner?: string;
   collector_started?: boolean; background_model_started?: boolean;
   now_utc_ms?: number; workers?: Record<string, unknown>;
-};
-/** Secrets are read directly from the password input and never enter a draft. */
-type ModelDraft = {
-  base_url: string; api_format: string; model_id: string; max_tokens: string;
-  temperature: string; image_enabled: boolean; reasoning_enabled: boolean;
 };
 type BudgetDraft = {max_calls_per_hour: string; max_tokens_per_day: string; max_output_tokens: string};
 
@@ -47,15 +39,6 @@ const PAGE_COPY: Record<SettingsPageId, {title: string; subtitle: string}> = {
 
 function textValue(value: unknown) {
   return typeof value === "string" ? value : JSON.stringify(value);
-}
-
-function modelDraft(model: ModelSettings): ModelDraft {
-  return {
-    base_url: model.base_url || "", model_id: model.model_id || "",
-    api_format: ({"openai-completions": "openai-chat", anthropic: "anthropic-messages"} as Record<string, string>)[model.api_format || ""] || model.api_format || "openai-chat",
-    max_tokens: String(model.max_tokens ?? 2048), temperature: String(model.temperature ?? 0.7),
-    image_enabled: model.image_enabled === true, reasoning_enabled: model.reasoning_enabled === true,
-  };
 }
 
 function workerState(status: ProductStatus | null, name: string): string {
@@ -80,6 +63,8 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
   @state() private preferences: Preference[] = [];
   @state() private closeBehavior: 'tray' | 'exit' = 'tray';
   @state() private model: ModelDraft | null = null;
+  @state() private discoveredModels: DiscoveredModel[] | null = null;
+  @state() private modelTest: {text: string; model: string; elapsed_ms: number; mode: string} | null = null;
   @state() private budget: BudgetDraft | null = null;
   @state() private preferenceKey = "";
   @state() private preferenceValue = "";
@@ -154,6 +139,9 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
       ]);
       if (!this.isConnected || view !== this.viewEpoch || request !== this.loadEpoch) return;
       this.settings = settings; this.status = status; this.preferences = preferences.preferences || [];
+      // A refresh may observe another window's service or credential changes.
+      // Probe results belong to their original saved connection, not this one.
+      this.discoveredModels = null; this.modelTest = null;
       this.closeBehavior = presentation.preferences?.['mirally.window.closeBehavior'] === 'exit' ? 'exit' : 'tray';
       if (!this.modelDirty) this.model = modelDraft(settings.model || {});
       if (!this.budgetDirty) {
@@ -265,11 +253,19 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
     `;
   }
 
-  private modelInput(name: "base_url" | "model_id" | "max_tokens" | "temperature", label: string, type = "text", options: {min?: number; max?: number; step?: string; placeholder?: string} = {}) {
+  private changeModel(patch: Partial<ModelDraft>) {
+    if (!this.model) return;
+    if ((patch.base_url !== undefined && patch.base_url !== this.model.base_url)
+      || (patch.api_format !== undefined && patch.api_format !== this.model.api_format)) this.discoveredModels = null;
+    this.model = {...this.model, ...patch};
+    this.modelDirty = true; this.modelTest = null;
+  }
+
+  private modelInput(name: "base_url" | "model_id" | "max_tokens" | "context_window" | "temperature", label: string, type = "text", options: {min?: number; max?: number; step?: string; placeholder?: string; description?: string} = {}) {
     return this.field(label, html`<input class="settings-input" type=${type} aria-label=${label} data-testid=${`mirally-settings-model-${name==='model_id'?'id':name.replaceAll("_", "-")}`}
       .value=${live(this.model?.[name] || "")} ?disabled=${this.busy || this.loading} required
       min=${options.min ?? nothing} max=${options.max ?? nothing} step=${options.step ?? nothing} placeholder=${options.placeholder ?? ""}
-      @input=${(event: Event) => {if (this.model) {this.model = {...this.model, [name]: (event.target as HTMLInputElement).value}; this.modelDirty = true;}}}>`);
+      @input=${(event: Event) => this.changeModel({[name]: (event.target as HTMLInputElement).value})}>`, options.description);
   }
 
   private saveModel(event: SubmitEvent) {
@@ -279,34 +275,88 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
     const secret = secretInput?.value || "";
     if (secretInput) secretInput.value = "";
     const draft = this.model;
-    const model: ProductData = {base_url: draft.base_url.trim(), api_format: draft.api_format, model_id: draft.model_id.trim(),
-      max_tokens: Number(draft.max_tokens), temperature: Number(draft.temperature), image_enabled: draft.image_enabled, reasoning_enabled: draft.reasoning_enabled};
+    const model: ProductData = {provider: draft.provider, base_url: draft.base_url.trim(), api_format: draft.api_format, model_id: draft.model_id.trim(),
+      max_tokens: Number(draft.max_tokens), context_window: Number(draft.context_window), temperature: Number(draft.temperature),
+      image_enabled: draft.image_enabled, reasoning_effort: draft.reasoning_effort, reasoning_enabled: !['off'].includes(draft.reasoning_effort)};
     if (secret) model.api_key = secret;
-    void this.mutate(() => rpcProduct("settings.update", {patch: {model}}), "模型连接已保存。实际请求会在使用该模型时进行。", () => {this.modelDirty = false;});
+    void this.mutate(() => rpcProduct("settings.update", {patch: {model}}), "模型连接已保存。可读取模型列表或测试文字回复。", () => {this.modelDirty = false; this.modelTest = null; this.discoveredModels = null;});
+  }
+
+  private async discoverModels() {
+    if (this.modelDirty) return;
+    const view = this.viewEpoch, load = this.loadEpoch;
+    this.discoveredModels = null;
+    await this.mutate(async () => {
+      const result = await requestProduct<{models: DiscoveredModel[]; truncated?: boolean}>("/api/models/discover", {method: "POST", body: "{}"});
+      if (this.isConnected && view === this.viewEpoch && load === this.loadEpoch) this.discoveredModels = result.models;
+    }, "已读取服务提供的模型信息。选择模型后请保存；列表声明不等于逐项能力测试通过。", undefined, false);
+  }
+
+  private async testModel() {
+    if (this.modelDirty) return;
+    const view = this.viewEpoch, load = this.loadEpoch;
+    this.modelTest = null;
+    await this.mutate(async () => {
+      const result = await requestProduct<{text: string; model: string; elapsed_ms: number; mode: string}>("/api/models/test", {method: "POST", body: "{}"});
+      if (this.isConnected && view === this.viewEpoch && load === this.loadEpoch) this.modelTest = result;
+    }, "模型请求已完成。此检查只验证文字生成，图片与工具等能力需在对应场景验证。", undefined, false);
   }
 
   private modelPage() {
+    const deepseek = isDeepSeekEndpoint(this.model?.base_url || "");
+    const selected = this.discoveredModels?.find(item => item.id === this.model?.model_id);
+    const levels = deepseek ? ['default', 'off', 'low', 'high', 'max'] : ['default', 'off', 'low', 'medium', 'high', 'max'];
+    if (this.model?.reasoning_effort && !levels.includes(this.model.reasoning_effort)) levels.push(this.model.reasoning_effort);
+    const labels: Record<string, string> = {default: '服务默认', off: '关闭', low: 'Low · 低', medium: 'Medium · 中', high: 'High · 高', max: 'Max · 最高'};
     return html`<form data-testid="mirally-settings-model-form" @submit=${(event: SubmitEvent) => this.saveModel(event)}>
-      ${renderSettingsSection({title: "连接信息", description: "填写你自己的服务地址和模型 ID。留空 API Key 会保留已保存的凭据。"}, html`
+      ${renderSettingsSection({title: "连接信息", description: "配置对话与后台整理共用的服务。预设只在你选择时填入；API Key 留空保留已保存的凭据。"}, html`
+        ${this.field("服务预设", html`<select class="settings-input" aria-label="服务预设" data-testid="mirally-settings-model-preset"
+          .value=${live(deepseek ? 'deepseek' : 'custom')} ?disabled=${this.busy || this.loading}
+          @change=${(event: Event) => {if (!this.model) return; const choice=(event.target as HTMLSelectElement).value;
+            if(choice==='deepseek') {this.changeModel(deepSeekPreset(this.model)); this.clearSecret();}
+            else this.changeModel({provider: 'openai-compatible', base_url: '', model_id: ''});}}>
+          <option value="custom">自定义 / 兼容服务</option><option value="deepseek">DeepSeek 官方</option>
+        </select>`, "更换服务时请同时填写该服务对应的 API Key。")}
         ${this.field("接口格式", html`<select class="settings-input" aria-label="接口格式" data-testid="mirally-settings-model-format"
           .value=${live(this.model?.api_format || "openai-chat")} ?disabled=${this.busy || this.loading}
-          @change=${(event: Event) => {if (this.model) {this.model = {...this.model, api_format: (event.target as HTMLSelectElement).value}; this.modelDirty = true;}}}>
+          @change=${(event: Event) => this.changeModel({api_format: (event.target as HTMLSelectElement).value})}>
           <option value="openai-chat">OpenAI Chat Completions 兼容</option><option value="openai-responses">OpenAI Responses 兼容</option><option value="anthropic-messages">Anthropic Messages 兼容</option>
-        </select>`)}
+        </select>`, deepseek ? "DeepSeek 官方预设使用 Responses；也可选择 Chat Completions。切换格式后请重新测试。" : undefined)}
         ${this.modelInput("base_url", "服务地址", "url", {placeholder: "https://api.example.com/v1"})}
         ${this.modelInput("model_id", "模型 ID", "text", {placeholder: "填写服务支持的模型 ID"})}
         ${this.field("API Key", html`<input class="settings-input" type="password" aria-label="API Key" data-testid="mirally-settings-model-key" autocomplete="new-password" spellcheck="false"
-          placeholder=${this.settings?.model.api_key_configured ? "已保存，留空保持不变" : "填写 API Key（本地服务可留空）"} ?disabled=${this.busy || this.loading}>`, this.settings?.model.api_key_configured ? "凭据已保存；输入内容发送后会立即从此输入框清空。" : "输入内容发送后会立即清空，保存失败时请重新输入。")}
+          placeholder=${this.settings?.model.api_key_configured ? "已保存，留空保持不变" : "填写 API Key（本地服务可留空）"} ?disabled=${this.busy || this.loading}
+          @input=${() => {this.modelDirty = true; this.modelTest = null;}}>`, this.settings?.model.api_key_configured ? "凭据已保存；输入内容发送后会立即从此输入框清空。" : "输入内容发送后会立即清空，保存失败时请重新输入。")}
       `)}
-      ${renderSettingsSection({title: "模型能力", description: "请按服务实际支持的能力配置。"}, html`
-        ${this.modelInput("max_tokens", "最大输出 token", "number", {min: 128, max: 262144, step: "1"})}
-        ${this.modelInput("temperature", "温度", "number", {min: 0, max: 2, step: "0.1"})}
-        ${renderSettingsRow({title: "图片输入", description: "让对话将图片材料提交给支持视觉的模型。", control: html`<span data-testid="mirally-settings-model-images">${renderSettingsToggle({checked: this.model?.image_enabled === true, disabled: this.busy || this.loading || !this.model, ariaLabel: "图片输入", onChange: value => {if (this.model) {this.model = {...this.model, image_enabled: value}; this.modelDirty = true;}}})}</span>`})}
-        ${renderSettingsRow({title: "推理模式", description: "向兼容服务请求 medium 级别推理。", control: html`<span data-testid="mirally-settings-model-reasoning">${renderSettingsToggle({checked: this.model?.reasoning_enabled === true, disabled: this.busy || this.loading || !this.model, ariaLabel: "推理模式", onChange: value => {if (this.model) {this.model = {...this.model, reasoning_enabled: value}; this.modelDirty = true;}}})}</span>`})}
+      ${renderSettingsSection({title: "模型能力", description: "选项决定请求方式，不会让服务获得额外能力。服务列表未声明的能力请查阅对应模型文档。"}, html`
+        ${this.modelInput("max_tokens", "最大输出 token", "number", {min: 128, max: 262144, step: "1", description: "包含服务计入输出的推理 token；设得过低可能只有推理而没有完整回复。"})}
+        ${this.modelInput("context_window", "上下文窗口 token", "number", {min: 128, max: 10000000, step: "1", description: "按服务实际窗口填写，用于会话上下文预算；选择列表模型时会采用服务声明值。"})}
+        ${this.modelInput("temperature", "温度", "number", {min: 0, max: 2, step: "0.1", description: deepseek ? "DeepSeek 的思考模式可能忽略采样参数，具体以模型服务为准。" : undefined})}
+        ${renderSettingsRow({title: "图片输入", description: deepseek ? "当前官方 Flash 支持图片，Pro 不支持。选择模型列表项会按服务声明更新此项。" : "将图片材料提交给支持视觉的模型；仅启用此项不能使纯文本模型识图。", control: html`<span data-testid="mirally-settings-model-images">${renderSettingsToggle({checked: this.model?.image_enabled === true, disabled: this.busy || this.loading || !this.model, ariaLabel: "图片输入", onChange: value => this.changeModel({image_enabled: value})})}</span>`})}
+        ${this.field("推理强度", html`<select class="settings-input" aria-label="推理强度" data-testid="mirally-settings-model-reasoning"
+          .value=${live(this.model?.reasoning_effort || 'default')} ?disabled=${this.busy || this.loading || !this.model}
+          @change=${(event: Event) => this.changeModel({reasoning_effort: (event.target as HTMLSelectElement).value})}>
+          ${levels.map(level => html`<option value=${level}>${labels[level]}</option>`)}
+        </select>`, deepseek ? "关闭会明确关闭思考；服务默认遵从接口默认值。Low / High / Max 对应 DeepSeek 实际推理档位。" : "按模型实际支持档位选择。服务默认不指定强度，关闭由兼容服务支持情况决定。")}
       `)}
-      ${renderSettingsSection({}, renderSettingsRow({title: this.settings?.model.model_id ? `当前保存：${this.settings.model.model_id}` : "尚未配置模型",
+      ${renderSettingsSection({}, renderSettingsRow({title: this.settings?.model.model_id ? `当前保存：${this.settings.model.model_id}` : "尚未配置模型", description: this.modelDirty ? "有未保存的更改。保存后才能检查这组连接。" : "设置已保存，检查操作使用当前保存的连接。",
         control: html`<button class="btn primary" type="submit" data-testid="mirally-settings-model-save" ?disabled=${this.busy || this.loading || !this.model}>保存连接</button>`}))}
-    </form>`;
+    </form>
+    ${renderSettingsSection({title: "检查连接", description: "读取模型列表不发起推理；测试文字回复会向已保存服务发送一条固定短消息，可能产生少量费用，不发送会话或材料。"}, html`
+      ${renderSettingsRow({title: "模型列表与文字测试", control: html`
+        <button class="btn btn--sm" type="button" data-testid="mirally-settings-model-discover" ?disabled=${this.busy || this.loading || this.modelDirty || !this.settings?.model.base_url} @click=${() => void this.discoverModels()}>读取可用模型</button>
+        <button class="btn btn--sm" type="button" data-testid="mirally-settings-model-test" ?disabled=${this.busy || this.loading || this.modelDirty || !this.settings?.model.model_id} @click=${() => void this.testModel()}>测试文字回复</button>`})}
+      ${this.modelTest ? html`<div data-testid="mirally-settings-model-test-result">${renderSettingsRow({title: `${this.modelTest.mode === 'test' ? '离线测试模型' : '文字请求完成'} · ${this.modelTest.model} · ${(this.modelTest.elapsed_ms / 1000).toFixed(1)} 秒`, description: this.modelTest.text || "服务已响应，但未返回文字。可提高最大输出 token，或关闭推理后再试。"})}</div>` : nothing}
+      ${this.discoveredModels ? this.discoveredModels.length ? html`
+        ${this.field("服务提供的模型", html`<select class="settings-input" aria-label="服务提供的模型" data-testid="mirally-settings-model-catalog" .value=${live(selected?.id || '')} ?disabled=${this.busy || this.loading}
+          @change=${(event: Event) => {const item=this.discoveredModels?.find(item=>item.id===(event.target as HTMLSelectElement).value);if(item && this.model) this.changeModel(adoptDiscoveredModel(this.model,item));}}>
+          <option value="">选择模型…</option>${this.discoveredModels.map(item=>html`<option value=${item.id}>${item.name}</option>`)}
+        </select>`, selected ? modelCapabilityText(selected) : '选择后采用服务声明的输入类型和窗口；仍需保存。')}
+        ${selected ? renderSettingsRow({title: "采用当前模型的能力信息", description: "将服务声明的输入类型和上下文窗口填入设置，并将输出上限限制在服务支持的范围内。更改仍需保存。",
+          control: html`<button class="btn btn--sm" type="button" data-testid="mirally-settings-model-adopt" ?disabled=${this.busy || this.loading}
+            @click=${() => {if (this.model) this.changeModel(adoptDiscoveredModel(this.model, selected));}}>采用能力信息</button>`}) : nothing}
+      ` : renderSettingsEmpty("服务返回了空模型列表，仍可手动填写模型 ID。") : nothing}
+    `)}`;
   }
 
   private initiativePage() {

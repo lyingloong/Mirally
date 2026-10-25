@@ -333,6 +333,81 @@ test('interleaved, chunk-split UTF-8 SSE preserves conversation, run, and transc
   assert.equal(changed.key, conversationKey('one')); assert.equal(changed.agentId, 'main'); assert.equal(changed.hasActiveRun, false);
 });
 
+test('provider reasoning streams through the original thinking view and survives final/history separately from text', async t => {
+  const f = fixture(t); await f.start();
+  const listed = await f.client.request('sessions.list');
+  assert.equal(listed.sessions.find(session => session.key === conversationKey('one')).reasoningLevel, 'on');
+  // Read the actual retained transcript gate; generation capability must not
+  // accidentally bypass the user's view toggle or hide real historical blocks.
+  const projectionSource = readFileSync(join(root, 'frontend/control-ui/ui/src/pages/chat/components/chat-transcript-projection.ts'), 'utf8');
+  const gate = /const showReasoning = ([^;]+);/.exec(projectionSource)?.[1];
+  assert.ok(gate, 'The original thinking display gate must remain explicit');
+  const visibleGate = (showThinking, activeSession) => vm.runInNewContext(gate, {props: {showThinking}, activeSession});
+  assert.equal(visibleGate(true, listed.sessions[0]), true);
+  assert.equal(visibleGate(false, listed.sessions[0]), false);
+  const renderSource = readFileSync(join(root, 'frontend/control-ui/ui/src/app/mirally-stream-presentation.ts'), 'utf8');
+  const {withLiveReasoningMessages} = await import('data:text/javascript;base64,' + Buffer.from(stripTypeScriptTypes(renderSource, {mode: 'transform'})).toString('base64'));
+  // Exercise the actual original thinking extractor, with only its plain-record
+  // dependency supplied. No copied implementation or browser/DOM substitution.
+  const extractSource = readFileSync(join(root, 'frontend/control-ui/ui/src/lib/chat/message-extract.ts'), 'utf8');
+  const start = extractSource.indexOf('function extractThinking('), end = extractSource.indexOf('\nexport function extractThinkingCached', start);
+  const extract = {asOptionalRecord: value => value && typeof value === 'object' ? value : undefined};
+  vm.runInNewContext(stripTypeScriptTypes(extractSource.slice(start, end), {mode: 'transform'}) + '\nglobalThis.thinking = extractThinking;', extract);
+  const push = value => f.push({session_id: 'one', command_id: 'reasoning-run', native_session_id: 'native-one', ...value});
+  push({type: 'assistant-start', attempt_id: 'reason-attempt'});
+  push({type: 'reasoning', attempt_id: 'reason-attempt', text: '先核对'});
+  push({type: 'reasoning', attempt_id: 'reason-attempt', text: '条件。'});
+  await until(() => f.events.filter(item => item.payload.state === 'delta').length === 2, 'live reasoning');
+  const history = [{id: 'u1', role: 'user', content: [{type: 'text', text: '求解'}]}];
+  const visible = withLiveReasoningMessages(f.client, conversationKey('one'), 'reasoning-run', history);
+  assert.equal(visible.length, 2); assert.equal(extract.thinking(visible[1]), '先核对条件。');
+  assert.equal(history.length, 1, 'Render-only reasoning must not mutate transcript or cache state');
+  assert.equal(f.client.getReasoningStream(conversationKey('two'), 'reasoning-run').length, 0);
+  assert.equal(f.client.getReasoningStream(conversationKey('one'), 'different-run').length, 0);
+  assert.ok(f.events.every(item => !textOf(item.payload.message)?.includes('条件')), 'Reasoning never enters text delta snapshots');
+  push({type: 'token', attempt_id: 'reason-attempt', text: '结果为 42。'});
+  push({type: 'assistant-end', attempt_id: 'reason-attempt', outcome: 'committed', native_seq: 4});
+  const persisted = {id: 'actual-message', role: 'assistant', time: 123, text: '结果为 42。', native_seq: 4, native_session_id: 'native-one',
+    content: [{type: 'thinking', thinking: '先核对条件。'}, {type: 'text', text: '结果为 42。'}],
+    __openclaw: {id: 'actual-message', seq: 5, runId: 'reasoning-run', runTerminal: true}};
+  f.histories.set('one', [persisted]);
+  await until(() => f.events.filter(item => item.payload.state === 'delta').length === 3, 'answer delta');
+  const restored = await f.client.request('chat.history', {sessionKey: conversationKey('one')});
+  assert.equal(restored.sessionInfo.reasoningLevel, 'on');
+  assert.equal(extract.thinking(restored.messages[0]), '先核对条件。');
+  assert.equal(textOf(restored.messages[0]), '结果为 42。');
+  assert.equal(withLiveReasoningMessages(f.client, conversationKey('one'), 'reasoning-run', restored.messages).length, 1, 'Committed native receipt replaces the transient thinking row');
+  push({type: 'done'});
+  await until(() => f.events.some(item => item.payload.state === 'final'), 'reasoning final');
+  const final = f.events.find(item => item.payload.state === 'final').payload.message;
+  assert.equal(extract.thinking(final), '先核对条件。'); assert.equal(textOf(final), '结果为 42。');
+  assert.equal(f.client.getReasoningStream(conversationKey('one'), 'reasoning-run').length, 0);
+  f.settings.model.reasoning_enabled = false;
+  const oldHistory = await f.client.request('chat.history', {sessionKey: conversationKey('one')});
+  assert.equal(visibleGate(true, oldHistory.sessionInfo), true, 'Changing generation effort must not hide actual reasoning already in native history');
+  assert.equal(extract.thinking(oldHistory.messages[0]), '先核对条件。');
+});
+
+test('abandoned and older attempts cannot leak reasoning or late text into a replacement attempt', async t => {
+  const f = fixture(t); await f.start();
+  const push = value => f.push({session_id: 'one', command_id: 'attempt-run', ...value});
+  push({type: 'assistant-start', attempt_id: 'old'});
+  push({type: 'reasoning', attempt_id: 'old', text: '已放弃推理'});
+  push({type: 'assistant-end', attempt_id: 'old', outcome: 'abandoned'});
+  push({type: 'reasoning', attempt_id: 'old', text: '迟到'});
+  push({type: 'assistant-start', attempt_id: 'new'});
+  push({type: 'reasoning', attempt_id: 'new', text: '新推理'});
+  push({type: 'token', attempt_id: 'old', text: '旧正文'});
+  push({type: 'token', attempt_id: 'new', text: '新正文'});
+  await until(() => f.events.some(item => textOf(item.payload.message) === '新正文'), 'replacement attempt');
+  assert.deepEqual(f.client.getReasoningStream(conversationKey('one'), 'attempt-run').map(message => message.content[0].thinking), ['新推理']);
+  assert.ok(f.events.every(item => !textOf(item.payload.message)?.includes('旧正文')));
+  assert.ok(f.events.some(item => item.payload.replace === true && item.payload.deltaText === ''), 'Abandonment clears the old transient answer without manufacturing completion');
+  assert.equal(f.events.some(item => item.payload.state === 'final'), false);
+  f.client.stop();
+  assert.equal(f.client.getReasoningStream(conversationKey('one'), 'attempt-run').length, 0);
+});
+
 test('failed completion cannot be presented as success and cancellation retains its aborted outcome', async t => {
   const f = fixture(t); await f.start();
   await f.client.request('chat.send', {sessionKey: conversationKey('one'), message: '这次失败', idempotencyKey: 'failed-run'});
@@ -502,10 +577,11 @@ test('configured native model availability does not expose credentials or imply 
   assert.equal(f.calls.every(item => item.path === '/api/rpc' && item.body.method === 'settings.get'), true);
 });
 
-test('tool start and empty result have ordered agent receipts accepted by the real original UI reducer', async t => {
+test('tool start and real result have ordered, detailed receipts accepted by the real original UI reducer', async t => {
   const f = fixture(t); await f.start();
-  f.push({type: 'tool', session_id: 'one', command_id: 'tool-run', id: 'tool-call', name: 'mirally_context', state: 'running'});
-  f.push({type: 'tool', session_id: 'one', command_id: 'tool-run', id: 'tool-call', name: 'mirally_context', state: 'completed'});
+  const args = {query: '当前工作'}, result = {content: [{type: 'text', text: '真实来源：会议记录'}]};
+  f.push({type: 'tool', session_id: 'one', command_id: 'tool-run', id: 'tool-call', name: 'mirally_context', state: 'running', args});
+  f.push({type: 'tool', session_id: 'one', command_id: 'tool-run', id: 'tool-call', name: 'mirally_context', state: 'completed', result});
   await until(() => f.events.filter(item => item.event === 'agent').length === 2, 'tool start/result');
   const payloads = f.events.filter(item => item.event === 'agent').map(item => item.payload);
   assert.ok(Number.isSafeInteger(payloads[0].seq) && payloads[0].seq > 0 && payloads[1].seq > payloads[0].seq);
@@ -533,7 +609,8 @@ test('tool start and empty result have ordered agent receipts accepted by the re
     Value: {Check: () => false}, AgentActivityItemSchema: {},
     uiSessionEventMatches: (host, session) => host.sessionKey === session,
     handleStreamStatus: () => false, handlePreambleProgress: () => false,
-    window: {setTimeout, clearTimeout}, clearTimeout};
+    window: {setTimeout, clearTimeout}, clearTimeout,
+    truncateText: text => ({text, truncated: false})};
   vm.runInNewContext(reducer + '\nglobalThis.reduceTool = handleAgentEvent;', sandbox);
   const host = {sessionKey: conversationKey('one'), chatRunId: null, toolStreamById: new Map(), toolStreamOrder: [], chatToolMessages: []};
   t.after(() => { if (host.toolStreamSyncTimer) clearTimeout(host.toolStreamSyncTimer); });
@@ -542,6 +619,7 @@ test('tool start and empty result have ordered agent receipts accepted by the re
   assert.equal(sandbox.reduceTool(host, payloads[1]), true, 'The result must not be rejected as a duplicate seq=0');
   const entry = host.toolStreamById.values().next().value;
   assert.equal(entry.resultReceived, true); assert.equal(entry.message.__openclawToolStreamResultReceived, true);
+  assert.deepEqual(entry.args, args); assert.equal(entry.output, '真实来源：会议记录');
   assert.equal(entry.message.content.some(block => block.type === 'toolresult'), true);
   assert.equal(host.chatToolMessages.length, 1);
 });
