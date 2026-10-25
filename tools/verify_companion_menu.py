@@ -241,7 +241,7 @@ def main():
                         results.append({"case": name, "menu_visible": True, "native_clip_visible": True,
                                         "snapshot": snapshot()})
 
-                    for appearance, hovered in (("pet", "compact"), ("badge", "quick"), ("rail", "detail")):
+                    for appearance, hovered in (("pet", "compact"), ("badge", "quick"), ("rail", "quick")):
                         js(f"window.__mirallyCompanion.setForm('{appearance}',false);window.__mirallyCompanion.dock()")
                         wait_for(lambda: shell._workspace is not None, "Dock was not delivered")
                         time.sleep(.4)
@@ -256,8 +256,7 @@ def main():
                             # we verify native right-click and clipping separately.
                             js("document.querySelector('[data-slot=\"draft\"]').focus()")
                             time.sleep(.3)
-                        where = target('.mirally-companion__header') if appearance == "rail" else target('.mirally-companion__rail')
-                        right_click(where)
+                        right_click(target('.mirally-companion__rail'))
                         check_menu(appearance + " " + hovered)
                         js("window.__mirallyCompanion.workspace()")
                         wait_for(lambda: shell._workspace is None, "Workspace bounds were not restored")

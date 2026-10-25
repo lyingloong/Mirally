@@ -37,6 +37,8 @@ class FrameworkShell(ControlUIShell):
         self._observed_host_exit = None
         self._connect_workers_lock = threading.Lock()
         self._connect_workers = []
+        self._companion_minimize_geometry = None
+        self._native_resize_bound = False
 
     def _queue_connect(self, *, reload: bool = False) -> None:
         with self._connect_workers_lock:
@@ -218,9 +220,12 @@ class FrameworkShell(ControlUIShell):
                 return
             # Keep the existing workspace/companion Region and maximized
             # state. Only a genuinely minimized form needs restoration.
+            if form.WindowState == FormWindowState.Minimized and self._workspace is not None:
+                self._remember_companion_minimize_geometry()
             form.Show()
             if form.WindowState == FormWindowState.Minimized:
                 form.WindowState = FormWindowState.Normal
+            self._restore_companion_minimize_geometry()
             form.BringToFront()
             form.Activate()
             form.webview.Focus()
@@ -229,6 +234,50 @@ class FrameworkShell(ControlUIShell):
             form.Invoke(Action(show))
         else:
             show()
+
+    def _remember_companion_minimize_geometry(self) -> None:
+        """Save native outer bounds before WinForms restores its cached frame."""
+        current = self._companion_minimize_geometry
+        if self._workspace is not None and (current is None or current[0] is not self._workspace):
+            self._companion_minimize_geometry = (self._workspace, self.window.native.RestoreBounds)
+
+    def _restore_companion_minimize_geometry(self, expected=None) -> None:
+        """Finish both tray and taskbar restore on the original clipped HWND.
+
+        Companion chrome is removed through the native style so WebView2 keeps
+        its HWND. WinForms still caches a sizable frame and can add that frame
+        back to Bounds when restoring its client-size bookkeeping. Reapply the
+        saved outer rectangle after that transition, once per minimize cycle.
+        """
+        from System.Windows.Forms import FormWindowState
+        pending = self._companion_minimize_geometry
+        if pending is None or (expected is not None and pending is not expected):
+            return
+        form = self.window.native
+        if (self.closed.is_set() or form.IsDisposed or form.Disposing
+                or self._workspace is not pending[0]):
+            self._companion_minimize_geometry = None
+            return
+        if form.WindowState != FormWindowState.Normal:
+            return  # A second minimize may have overtaken the queued callback.
+        self._companion_minimize_geometry = None
+        if form.Bounds != pending[1]:
+            form.Bounds = pending[1]
+
+    def _native_resize(self, _sender, _args) -> None:
+        from System import Action
+        from System.Windows.Forms import FormWindowState
+        form = self.window.native
+        if self.closed.is_set() or form.IsDisposed or form.Disposing or self._workspace is None:
+            self._companion_minimize_geometry = None
+            return
+        if form.WindowState == FormWindowState.Minimized:
+            self._remember_companion_minimize_geometry()
+        elif form.WindowState == FormWindowState.Normal and self._companion_minimize_geometry is not None:
+            expected = self._companion_minimize_geometry
+            # WM_SIZE/Resize occurs before Form's final cached-bounds restore.
+            # Run after that stack returns; never resize on animation frames.
+            form.BeginInvoke(Action(lambda: self._restore_companion_minimize_geometry(expected)))
 
     def _tray_mouse_click(self, _sender, args) -> None:
         from System.Windows.Forms import MouseButtons
@@ -373,6 +422,7 @@ class FrameworkShell(ControlUIShell):
                 return
             self._cleanup_done = True
             self.closed.set()
+            self._companion_minimize_geometry = None
             self._context_request = None
             try:
                 if self._tray is not None:
@@ -396,6 +446,9 @@ class FrameworkShell(ControlUIShell):
             form.Icon = Icon(str(ASSETS / "mirally.ico"))
             form.ShowIcon = True
             form.ShowInTaskbar = True
+            if not self._native_resize_bound:
+                form.Resize += self._native_resize
+                self._native_resize_bound = True
             form.webview.WebMessageReceived -= form.browser.on_script_notify
             form.webview.WebMessageReceived += self._web_message
             if self._system_menu is None:

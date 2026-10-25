@@ -1,3 +1,39 @@
+# 侧边伙伴交互与窗口性能验收
+
+日期：2026-10-26，Asia/Shanghai。对应 PN-0028 与[伙伴交互设计及官方调研来源](companion-interaction.md)。本节为本轮最终源码结果，下方迁移验收保留为历史。
+
+| 验证 | 结果 | 范围 |
+| --- | --- | --- |
+| Node 完整回归 | 440 项通过，0 跳过 | 原会话、材料、工具、模型与产品模块；全部离线或本机回环 |
+| Framework Python | 159 项通过 | 原153项及新增6项最小化恢复、迟到回调与owner隔离；另有5项物理像素裁剪/资源释放测试通过 |
+| 伙伴真实 DOM | 12 组通过，无 pageerror | 停留/掠过/离开宽限、固定/选择/键盘、草稿材料、桌宠点击/拖动、更多、触屏、减少动态效果；实际本仓 JS/CSS/资源，native bridge与会话状态为fixture |
+| 原菜单与进展展示 | 10 + 6 组通过，无 pageerror | 三形态右键、编辑选择的原生菜单归属、几何变化后的误收起、235/267/400px布局、同会话当前轮状态与唯一回复通知 |
+| 实际 WebView2 | 21 组通过，0 失败 | 真Host/原前端/FrameworkShell、真实Region命中、三形态SC_MINIMIZE→SC_RESTORE与托盘恢复、normal/maximized主窗口恢复及完整退出；选择阅读保护与真实hasFocus失焦收起 |
+| 完整产品页面 | 通过，无 pageerror | 隔离test-mode Host：原水獭、十工作入口/四输出、真实材料与本机会话、聊天草稿、三形态和造型刷新、Activity/Memory、原深浅主题；无桌面采集或外部API |
+
+悬浮展开的 DOM 与实际 WebView2 均观测到 **1 条 shape 消息**；静止重复同步为0，8次目标切换为8条。验证目标布局稳定和消息有界，不承诺机器固定FPS。原生工具的rAF记录包含故意最小化后的后台节流，最大间隔不能当成展开动画长帧。
+
+触屏检查实际确认按钮高度至少40px，400/267/235px宽、最短350px高下的三形态detail/quick/menu无横向滚动需求、关键按钮可命中、裁剪在视口内。极窄或短面板允许纵向滚动。真实窗口检查还记录恢复后0/100/300/600ms的Bounds/ClientSize，防止只在瞬间通过；修复前稳定复现的边框重复计入尺寸已消除。
+
+原生hover使用同一WebView2的CDP可信输入，按钮/右键和任务栏restore使用自己的HWND消息，托盘用真实NotifyIcon回调；未移动系统指针。GUI顺序执行，只操作隔离数据和测试窗口。未覆盖物理通知区命中、多屏DPI切换、全新安装与长期实际使用。根Python全套本轮未重跑，上一轮旧UFO导入超时记录保持不变；本轮未修改或接入UFO。
+
+复现（GUI顺序执行）：
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p '*framework*.py' -q
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p 'test_companion_geometry.py' -v
+node tools/verify_companion_interaction.mjs
+node tools/verify_companion_menu.mjs
+node tools/verify_companion_status.mjs
+.\.venv\Scripts\python.exe tools/verify_framework_shell.py
+# 对自己创建并已配置本机fixture模型的 --test-mode --home 隔离Host：
+node tools/verify_framework_experience.mjs <隔离home/runtime.json>
+```
+
+完整产品页面使用临时home和显式本机fixture连接；test-mode不替用户自动配置服务商。临时日志、截图、配置与构建产物不提交。
+
+---
+
 # 迁移收尾与单一框架验收
 
 日期：2026-10-26，Asia/Shanghai。对应 PN-0027 和[迁移收尾](framework-migration-closure.md)。此前记录保留为历史；下表为本轮最终源码的验证范围。

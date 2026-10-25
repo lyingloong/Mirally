@@ -13,6 +13,7 @@
   let app, pane, surface, entry, connectedContext, mode = 'workspace', frame, returnAfterAttention, presentationScope, hydratedHistoryScope, preparing;
   let replyNotice, dismissedReply;
   let surfaceMode = 'rail';
+  let pinned = false, shapeSignature = '', presentationAnimations = [];
   try { const saved=experience ? experience.getPreference(FORM_KEY) : window.__mirallyLegacyHost?.getUiPreference(FORM_KEY) ?? localStorage.getItem(FORM_KEY); if (['rail','badge','pet'].includes(saved)) surfaceMode=saved; } catch {}
   const savePreference = (key, value) => {
     try {
@@ -91,15 +92,52 @@
   function openOffice() {
     workspace(() => window.__mirallyWork?.open());
   }
-  function setView(value) {
+  function setPinned(value) {
+    pinned = !!value;
+    surface.dataset.pinned = String(pinned);
+    surface.dataset.preview = String(!pinned && ['quick','detail'].includes(surface.dataset.view));
+    surface.querySelectorAll('[data-action="pin"]').forEach(button => {
+      button.setAttribute('aria-pressed',String(pinned));
+      button.title = pinned ? '取消固定，移开后自动收起' : '固定面板，移开后保持展开';
+      button.setAttribute('aria-label',button.title);
+    });
+  }
+  function animatePresentation(value) {
+    presentationAnimations.splice(0).forEach(animation=>animation.cancel());
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const node = value === 'compact' ? $('.mirally-companion__rail') : $('.mirally-companion__panel');
+    // Layout and the native Region reach their final geometry once. Only
+    // compositor properties animate; neither one chases the other's frames.
+    const animation=node.animate([{opacity:value === 'compact' ? .6 : 0},{opacity:1}],
+      {duration:value === 'compact' ? 83 : 167,easing:'cubic-bezier(0,0,0,1)'});
+    presentationAnimations.push(animation);
+    animation.finished.catch(()=>{});
+    if (value !== 'compact') for (const child of node.children) {
+      if (getComputedStyle(child).display === 'none') continue;
+      const motion=child.animate([{translate:'6px 0'},{translate:'0px 0'}],{duration:167,easing:'cubic-bezier(0,0,0,1)'});
+      presentationAnimations.push(motion);motion.finished.catch(()=>{});
+    }
+  }
+  function setView(value, {preview = false} = {}) {
     if (!['compact','quick','menu','detail','reply'].includes(value)) return;
     if (value === 'compact' && replyNotice) value = 'reply';
+    if (['quick','detail'].includes(value)) setPinned(!preview);
+    else if (value === 'compact' || value === 'reply') setPinned(false);
+    if (surface.dataset.view === value) { schedule(); return; }
+    const ownedFocus=surface.contains(document.activeElement);
     surface.dataset.fromView = surface.dataset.view;
     surface.dataset.view = value;
     surface.dataset.expanded = String(value !== 'compact');
     $('.mirally-companion__rail').tabIndex = value === 'detail' ? -1 : 0;
+    $('.mirally-companion__rail').setAttribute('aria-expanded',String(value !== 'compact'));
     $('.mirally-companion__panel').inert = value === 'compact';
+    surface.dataset.preview = String(!pinned && ['quick','detail'].includes(value));
+    if (!preview && ownedFocus && ['quick','detail'].includes(value) &&
+        (!document.activeElement.getClientRects().length || value==='detail' && document.activeElement===$('.mirally-companion__rail'))) {
+      $('[data-slot="draft"]').focus({preventScroll:true});
+    }
     syncShape();
+    animatePresentation(value);
     schedule();
   }
   function expand(value) {
@@ -166,7 +204,10 @@
       const r = node.getBoundingClientRect();
       return [r.x,r.y,r.width,r.height,parseFloat(getComputedStyle(node).borderTopLeftRadius) || 0];
     });
-    post('shape', {rect:[rect.x, rect.y, rect.width, rect.height], viewport:[innerWidth, innerHeight],parts,view:surface.dataset.view});
+    const shape={rect:[rect.x, rect.y, rect.width, rect.height], viewport:[innerWidth, innerHeight],parts,view:surface.dataset.view};
+    const signature=JSON.stringify(shape);
+    if (signature === shapeSignature) return;
+    shapeSignature=signature;post('shape',shape);
   }
   function workspace(callback) {
     dismissReply();
@@ -406,11 +447,12 @@
       finalReply ? '回复已经留下，随时可以接着聊' : '把手头的一小部分交给我，我们一起推进';
     surface.dataset.state = waiting ? 'waiting' : error ? 'error' : busy ? 'working' : finalReply ? 'done' : 'idle';
     text('[data-slot="title"]', title);
+    text('[data-slot="peek-title"]', title);
     text('[data-slot="rail-title"]', excerpt(title, 28));
     const otherAttention = background(state);
     text('[data-slot="state"]', waiting ? '需要你' : busy ? '正在推进' : error ? '需要查看' : finalReply ? '本轮已结束' : '随时在这里');
     text('[data-slot="rail-state"]', loading ? '读取中' : waiting ? '待确认' : busy ? '工作中' : error ? '需查看' : finalReply ? '已完成' : '待命');
-    text('.mirally-companion__rail-hint', waiting || otherAttention ? '需要你' : busy ? '与你并肩' : error ? '需要查看' : finalReply ? '回复已留下' : '随时在这里');
+    text('.mirally-companion__rail-hint', waiting || otherAttention ? '需要你' : busy ? '与你并肩' : error ? '需要查看' : finalReply ? '回复已留下' : '悬停速览');
     $('[data-action="attention"]').hidden = !waiting;
     $('[data-action="stop"]').hidden = !busy;
     text('[data-action="send"]', busy ? '补充 ↗' : '发送 ↗');
@@ -494,10 +536,12 @@
     surface.dataset.expanded = 'false';
     surface.dataset.view = 'compact';
     surface.dataset.form = surfaceMode;
+    surface.dataset.pinned = 'false';
+    surface.dataset.preview = 'false';
     surface.dataset.state = 'idle';
     surface.setAttribute('aria-label', 'Mirally 侧边伙伴');
     surface.innerHTML = `
-      <div class="mirally-companion__rail" role="button" tabindex="0" aria-label="展开侧边伙伴">
+      <div class="mirally-companion__rail" role="button" tabindex="0" aria-label="展开侧边伙伴" aria-expanded="false" aria-controls="mirally-companion-panel" title="悬停快速查看，单击保持展开；右键更多操作">
         <span class="mirally-companion__mark"><img alt="Mirally"></span>
         <span class="mirally-companion__pet" aria-hidden="true"></span>
         <span class="mirally-companion__rail-state"><span class="mirally-companion__pulse"></span><span data-slot="rail-state"></span></span>
@@ -506,7 +550,7 @@
         <span class="mirally-companion__rail-hint">与你并肩</span>
         <span class="mirally-companion__drop-hint">带上材料</span>
       </div>
-      <div class="mirally-companion__panel">
+      <div class="mirally-companion__panel" id="mirally-companion-panel" inert>
         <section class="mirally-companion__notice" aria-label="新回复">
           <div class="mirally-companion__notice-header"><span data-slot="notice-title" role="status" aria-live="polite"></span>
             <button class="mirally-companion__icon-button" data-action="notice-close" title="关闭回复气泡" aria-label="关闭回复气泡">×</button>
@@ -518,22 +562,22 @@
           <span class="mirally-companion__mark"><img alt=""></span><span class="mirally-companion__brand">Mirally</span>
           <button type="button" class="mirally-companion__pet mirally-companion__pet--header" data-action="pet" aria-label="和伙伴打个招呼"></button>
           <button class="mirally-companion__drag-hint" data-action="drag" title="拖动伙伴的位置" aria-label="拖动伙伴的位置">⠿</button>
-          <button class="mirally-companion__target-handle" title="拖向页面，带回工作材料" aria-label="拖向页面，带回工作材料">◎</button>
           <div class="mirally-companion__actions">
-            <button class="mirally-companion__icon-button" data-action="workspace" title="打开完整工作台" aria-label="打开完整工作台">↗</button>
-            <button class="mirally-companion__icon-button" data-action="collapse" title="收起浮窗" aria-label="收起浮窗">⌃</button>
-            <button class="mirally-companion__icon-button" data-action="minimize" title="最小化到任务栏" aria-label="最小化到任务栏">−</button>
+            <button class="mirally-companion__icon-button" data-action="pin" aria-pressed="false" title="固定面板，移开后保持展开" aria-label="固定面板，移开后保持展开"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v6l3 4v2H6v-2l3-4zM12 15v6"/></svg></button>
+            <button class="mirally-companion__text-button" data-action="collapse" title="收起到侧边，保留草稿和工作" aria-label="收起到侧边">收起 <span aria-hidden="true">›</span></button>
           </div>
         </header>
         <div class="mirally-companion__quick-header"><span data-slot="mini-status"></span><div class="mirally-companion__actions">
-          <button class="mirally-companion__icon-button" data-action="attach" title="添加材料" aria-label="添加材料">＋</button>
-          <button class="mirally-companion__icon-button" data-action="detail" title="查看工作进展与选项" aria-label="查看工作进展与选项">↗</button>
-          <button class="mirally-companion__icon-button" data-action="collapse" title="收起" aria-label="收起">×</button>
+          <button class="mirally-companion__icon-button" data-action="pin" aria-pressed="false" title="固定面板，移开后保持展开" aria-label="固定面板，移开后保持展开"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v6l3 4v2H6v-2l3-4zM12 15v6"/></svg></button>
+          <button class="mirally-companion__icon-button" data-action="menu" title="更多操作和伙伴外观" aria-label="更多操作">⋯</button>
+          <button class="mirally-companion__text-button" data-action="collapse" title="收起到侧边，保留草稿和工作" aria-label="收起到侧边">收起 <span aria-hidden="true">›</span></button>
         </div></div>
-        <div class="mirally-companion__menu-actions" role="menu" aria-label="伙伴选项">
-          <button data-action="quick" role="menuitem">说一句或补充要求 <span>↗</span></button>
-          <button data-action="detail" role="menuitem">查看工作进展 <span>↗</span></button>
-          <button data-action="workspace" role="menuitem">打开完整工作台 <span>↗</span></button>
+        <p class="mirally-companion__peek-title" data-slot="peek-title"></p>
+        <div class="mirally-companion__menu-actions" role="group" aria-label="伙伴操作">
+          <button data-action="quick">快速对话 <span>↵</span></button>
+          <button data-action="detail">展开面板 <span>‹</span></button>
+          <button data-action="workspace">返回主窗口 <span>↗</span></button>
+          <button data-action="minimize" title="最小化到任务栏，点击任务栏或托盘图标恢复">最小化到任务栏 <span>−</span></button>
         </div>
         <div class="mirally-companion__appearance">
           <nav class="mirally-companion__form-switch" aria-label="伙伴形态"><button data-form="rail" aria-pressed="true">侧栏</button><button data-form="badge" aria-pressed="false">图标</button><button data-form="pet" aria-pressed="false">伙伴</button></nav>
@@ -568,15 +612,16 @@
         <div class="mirally-companion__delivery-actions" hidden><button data-action="reply" title="查看完整回复">查看回复</button><button data-action="resolve-report" title="准备确认草稿，修改后发送" hidden>补充确认</button><button data-action="files" title="打开工作区与成果">查看成果 ↗</button></div>
         <form class="mirally-companion__composer">
           <textarea data-slot="draft" aria-label="和 Mirally 说一句，或补充正在进行的工作" placeholder="和我说一句，或补充要求…" rows="2"></textarea>
-          <div class="mirally-companion__composer-footer"><span data-slot="receipt" role="status"></span><button class="mirally-companion__send" data-action="send" type="submit">发送 ↗</button></div>
+          <div class="mirally-companion__composer-footer"><button type="button" data-action="attach" class="mirally-companion__icon-button" title="添加文件或图片" aria-label="添加材料">＋</button><button type="button" class="mirally-companion__target-handle" title="按住并拖到目标窗口，截图后核对再发送" aria-label="拖到目标窗口截图">◎</button><span data-slot="receipt" role="status"></span><button class="mirally-companion__send" data-action="send" type="submit">发送 ↗</button></div>
         </form>
+        <nav class="mirally-companion__navigation" aria-label="伙伴窗口操作"><button data-action="workspace">返回主窗口 <span aria-hidden="true">↗</span></button><button data-action="detail">展开面板 <span aria-hidden="true">‹</span></button><button data-action="menu">更多 <span aria-hidden="true">⋯</span></button></nav>
       </div>`;
     surface.querySelectorAll('img').forEach(image => { image.src = MARK; });
     setForm(surfaceMode, false);
     setPet(petType, false);
     document.body.append(surface);
     window.__mirallyContext?.bind($('.mirally-companion__target-handle'),{
-      onStart:()=>text('[data-slot="receipt"]','正在读取窗口画面…'),
+      onStart:()=>{setPinned(true);text('[data-slot="receipt"]','正在读取窗口画面…');},
       onReady:async result=>{
         if(!await window.__mirallyIntake.attach([result.file]))throw new Error('画面暂未加入，请重试。');
         setView('detail');text('[data-slot="receipt"]','已带上「'+result.title+'」'+(result.source==='visible-area'?'的可见区域，请核对截图和遮挡。':'的画面，核对后再补充要求。'));schedule();
@@ -590,7 +635,7 @@
     entry.querySelector('[data-entry="dock"]').onclick = dock;
     entry.querySelector('[data-entry="office"]').onclick = openOffice;
     document.body.append(entry);
-    let leaveTimer, reactionTimer, keyboardFocus=false, hoverSuppressed=false, menuPointer, lastPointer, menuMoved=false;
+    let leaveTimer, enterTimer, reactionTimer, keyboardFocus=false, hoverSuppressed=false, suppressedPointer, menuPointer, lastPointer, menuMoved=false;
     const rememberPointer = event => {
       if (Number.isFinite(event.screenX) && Number.isFinite(event.screenY)) lastPointer={x:event.screenX,y:event.screenY,space:'screen'};
       if (surface.dataset.view!=='menu' || !menuPointer) return;
@@ -602,18 +647,20 @@
       surface.dataset.reaction=value;
       reactionTimer=setTimeout(()=>delete surface.dataset.reaction,value==='drag'?900:1100);
     };
-    const holdOpen = () => surface.dataset.view === 'reply' || (surface.dataset.view === 'menu' && !menuMoved) || (document.hasFocus() && (document.activeElement === $('[data-slot="draft"]') ||
+    const holdOpen = () => surface.dataset.view === 'reply' || (surface.dataset.view === 'menu' ? !menuMoved : pinned) ||
+      (document.hasFocus() && ((!getSelection()?.isCollapsed && surface.contains(getSelection()?.anchorNode)) || document.activeElement === $('[data-slot="draft"]') ||
       (keyboardFocus && surface.contains(document.activeElement)))) || surface.dataset.dragover==='true';
     const cancelLeave = () => { clearTimeout(leaveTimer); leaveTimer=null; };
-    const compact = () => {
-      cancelLeave(); keyboardFocus=false; hoverSuppressed=true; menuPointer=null; menuMoved=false;
-      if (surface.dataset.view === 'reply') dismissReply();
-      if (surface.contains(document.activeElement)) document.activeElement.blur();
+    const cancelEnter = () => { clearTimeout(enterTimer); enterTimer=null; };
+    const compact = ({restoreFocus = true} = {}) => {
+      cancelEnter();cancelLeave(); keyboardFocus=false; hoverSuppressed=surface.matches(':hover'); suppressedPointer=lastPointer;menuPointer=null; menuMoved=false;
+      dismissReply();
       expand(false);
+      if (restoreFocus && mode === 'companion') $('.mirally-companion__rail').focus({preventScroll:true});
     };
     const openMenu = nativePoint => {
       if (mode !== 'companion') return false;
-      hoverSuppressed=false; cancelLeave();
+      hoverSuppressed=false; cancelEnter();cancelLeave();
       if (surface.dataset.view !== 'menu') {
         menuPointer=lastPointer || nativePoint;menuMoved=false;
         setView('menu');
@@ -639,41 +686,49 @@
     };
     const leave = () => {
       cancelLeave();
-      // WebView's rounded native region follows the growing CSS surface. A
-      // brief grace covers intermediate leave events while crossing its edge.
-      leaveTimer=setTimeout(()=>{ if (!surface.matches(':hover') && !holdOpen()) expand(false); },100);
+      // Crossing the transparent gap, reading or visiting a system dialog must
+      // not race a 100ms close. Only an uncommitted preview auto-hides.
+      leaveTimer=setTimeout(()=>{ if (!surface.matches(':hover') && !holdOpen()) expand(false); },400);
     };
-    const collapseAfterFocus = () => requestAnimationFrame(() => {
-      if (!surface.matches(':hover') && !holdOpen()) leave();
-    });
+    const collapseAfterFocus = () => {
+      if (mode !== 'companion') return;
+      requestAnimationFrame(() => { if (!surface.matches(':hover') && !holdOpen()) leave(); });
+    };
     surface.addEventListener('pointerenter', event => {
       rememberPointer(event);
+      if (hoverSuppressed && suppressedPointer && lastPointer && Math.hypot(lastPointer.x-suppressedPointer.x,lastPointer.y-suppressedPointer.y)>2) hoverSuppressed=false;
       cancelLeave();
-      if (!hoverSuppressed) {
-        if (surface.dataset.view === 'compact' && surfaceMode !== 'pet') expand(true);
+      cancelEnter();
+      if (event.pointerType === 'mouse' && !hoverSuppressed) {
         if (surfaceMode === 'pet') react('hello');
+        else if (surface.dataset.view === 'compact') enterTimer=setTimeout(()=>{
+          enterTimer=null;
+          if (mode==='companion' && surface.matches(':hover') && !hoverSuppressed && surface.dataset.view==='compact') setView('quick',{preview:true});
+        },140);
       }
     });
     surface.addEventListener('pointerleave', event => {
       rememberPointer(event);
-      hoverSuppressed=false;
+      cancelEnter();
+      if (!suppressedPointer || !lastPointer || Math.hypot(lastPointer.x-suppressedPointer.x,lastPointer.y-suppressedPointer.y)>2) hoverSuppressed=false;
       dragStart=null;
       if (!holdOpen()) leave();
     });
-    surface.addEventListener('focusin',cancelLeave);
+    surface.addEventListener('focusin',event=>{cancelLeave();if(event.target===$('[data-slot="draft"]'))setPinned(true);});
     surface.addEventListener('keydown',()=>{ keyboardFocus=true; },true);
     surface.addEventListener('keydown',event=>{ if (event.key==='Escape') { event.preventDefault(); compact(); } });
     surface.addEventListener('focusout', collapseAfterFocus);
+    document.addEventListener('selectionchange', collapseAfterFocus);
     $('.mirally-companion__rail').onkeydown = event => {
       if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
         event.preventDefault(); openMenu(); $('.mirally-companion__menu-actions button').focus();
       } else if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
         if (surfaceMode === 'pet') react('poke');
-        else { expand(true); $('[data-slot="draft"]').focus(); }
+        expand(true); $('[data-slot="draft"]').focus();
       }
     };
-    $('[data-slot="draft"]').oninput = event => pane?.state?.handleChatDraftChange(event.target.value);
+    $('[data-slot="draft"]').oninput = event => {setPinned(true);pane?.state?.handleChatDraftChange(event.target.value);};
     $('[data-slot="draft"]').onkeydown = event => {
       if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); send(); }
     };
@@ -694,21 +749,24 @@
       if (event.detail && movedAt && performance.now()-movedAt<350) { movedAt=0; event.preventDefault(); return; }
       movedAt=0;
       if (event.target.closest('.mirally-companion__rail')) {
-        hoverSuppressed=false; cancelLeave();
+        hoverSuppressed=false; cancelEnter();cancelLeave();
         if (surfaceMode === 'pet') react('poke');
-        else { expand(true); $('[data-slot="draft"]').focus(); }
+        expand(true); $('[data-slot="draft"]').focus();
       }
       const form = event.target.closest('button[data-form]')?.dataset.form;
       if (form) { setForm(form); compact(); }
       const pet = event.target.closest('button[data-pet]')?.dataset.pet;
       if (pet) { setPet(pet); compact(); }
       const action = event.target.closest('[data-action]')?.dataset.action;
+      if (action && !['pin','menu','collapse','notice-close','minimize'].includes(action)) setPinned(true);
       if (action === 'pet') react('poke');
       if (action === 'quick') { setView('quick'); $('[data-slot="draft"]').focus(); }
       if (action === 'reply-compose') { dismissReply(); setView('quick'); $('[data-slot="draft"]').focus(); }
       if (action === 'detail') setView('detail');
       if (action === 'workspace' || action === 'reply') workspace(() => experience ? experience.showChat() : window.__mirallyWork?.close());
-      if (action === 'minimize') post('minimize');
+      if (action === 'pin') {setPinned(!pinned);if(!pinned&&!surface.matches(':hover'))leave();}
+      if (action === 'menu') {if(surface.dataset.view==='menu')compact();else openMenu();}
+      if (action === 'minimize') {compact({restoreFocus:false});post('minimize');}
       if (action === 'collapse' || action === 'notice-close') compact();
       if (action === 'attention') nativeAttention();
       if (action === 'stop') pane?.state?.handleAbortChat?.();
@@ -751,7 +809,7 @@
       }
     });
     for (const event of ['pointerup','pointercancel','blur']) window.addEventListener(event,()=>{ dragStart=null; });
-    window.addEventListener('blur',()=>{ keyboardFocus=false; menuMoved=true; if (mode==='companion' && surface.dataset.view==='menu') compact(); else if (mode==='companion') leave(); });
+    window.addEventListener('blur',()=>{ cancelEnter();keyboardFocus=false; menuMoved=true; if (mode==='companion' && surface.dataset.view==='menu') compact({restoreFocus:false}); else if (mode==='companion'&&!pinned) leave(); });
     surface.querySelectorAll('details').forEach(node => node.addEventListener('toggle', schedule));
     surface.addEventListener('dragover', event => {
       if ([...event.dataTransfer?.types||[]].some(type=>['Files','text/plain','text/uri-list'].includes(type))) {

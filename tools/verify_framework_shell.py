@@ -1,7 +1,8 @@
 """Verify the retained Control UI desktop with an isolated test-mode Host.
 
 Run this Windows/WebView2 check separately from other GUI checks. Only the
-current process's HWND and its Chromium child receive messages. It neither
+current process's HWND and Chromium child receive native messages; delayed
+hover uses trusted CDP input in the same WebView2. It neither
 moves the system pointer nor sends global keys, captures the user's desktop,
 starts Activity collection, or invokes an external model.
 """
@@ -159,7 +160,7 @@ def main() -> int:
                 from System import Action, Array, Object
                 from System.Drawing import Point, Rectangle
                 from System.Reflection import BindingFlags
-                from System.Windows.Forms import FormWindowState, MenuStrip, MouseButtons, MouseEventArgs
+                from System.Windows.Forms import FormWindowState, MenuStrip, MouseButtons, MouseEventArgs, Screen
                 from mirally.control_ui_shell import _frame_style
                 form = shell.window.native
                 def js(source):
@@ -177,6 +178,9 @@ def main() -> int:
                             topmost=bool(form.TopMost), title=str(form.Text), show_icon=bool(form.ShowIcon),
                             has_icon=form.Icon is not None, strips=sum(isinstance(control, MenuStrip) for control in form.Controls),
                             dpi=int(form.DeviceDpi), view_size=[int(form.webview.ClientSize.Width), int(form.webview.ClientSize.Height)],
+                            client_size=[int(form.ClientSize.Width), int(form.ClientSize.Height)],
+                            managed_border_style=str(form.FormBorderStyle),
+                            working_area=[int(getattr(Screen.FromControl(form).WorkingArea, key)) for key in ("X", "Y", "Width", "Height")],
                             bounds=[int(form.Bounds.X), int(form.Bounds.Y), int(form.Bounds.Width), int(form.Bounds.Height)])
                     form.Invoke(Action(inspect))
                     return value
@@ -310,12 +314,38 @@ def main() -> int:
                     position = wintypes.POINT(converted["x"], converted["y"])
                     assert user.ScreenToClient(render, ctypes.byref(position))
                     assert user.PostMessageW(render, message, buttons, (position.x & 0xffff) | ((position.y & 0xffff) << 16))
+                def browser_mouse_move(where):
+                    # Delayed hover requires Chromium's own pointer state.
+                    # Posting WM_MOUSEMOVE without moving the physical cursor
+                    # can be followed by a Windows-generated WM_MOUSELEAVE.
+                    # CDP injects trusted browser input and leaves the user's
+                    # system pointer alone. Native Region hit testing is still
+                    # checked separately by point() against the actual Form.
+                    pending = {}
+                    def start():
+                        pending["task"] = form.webview.CoreWebView2.CallDevToolsProtocolMethodAsync(
+                            "Input.dispatchMouseEvent", json.dumps({"type": "mouseMoved",
+                                "x": where["x"], "y": where["y"], "button": "none", "buttons": 0,
+                                "pointerType": "mouse"}))
+                    form.Invoke(Action(start))
+                    task = pending["task"]
+                    deadline = time.monotonic() + 5
+                    # Never block the UI thread on its own async completion.
+                    while not task.IsCompleted and time.monotonic() < deadline:
+                        time.sleep(.01)
+                    assert task.IsCompleted, "WebView2 pointer dispatch did not complete"
+                    assert not task.IsFaulted and not task.IsCanceled, "WebView2 pointer dispatch failed"
+                    return json.loads(str(task.Result))
                 def right_click(where):
                     post(0x200, where)
                     time.sleep(.08)
                     post(0x204, where, 2)
                     time.sleep(.06)
                     post(0x205, where)
+                def left_click(where):
+                    post(0x200, where)
+                    post(0x201, where, 1)
+                    post(0x202, where)
                 def menu_visible():
                     return shell._surface_view == "menu" and js("document.querySelector('.mirally-companion').dataset.view==='menu'")
                 def check_menu(label):
@@ -351,6 +381,123 @@ def main() -> int:
                     wait_for(lambda: shell._workspace is None and not native()["region"], appearance + " did not restore workbench")
                     restored = native()
                     assert restored["hwnd"] == hwnd and restored["bounds"] == initial["bounds"] and not restored["topmost"], restored
+
+                # Hover previews no longer morph the outer layout every frame.
+                # Measure bridge traffic and frame cadence in the real WebView;
+                # frame timing is reported, not compared to this machine's FPS.
+                for appearance in ("rail", "badge"):
+                    js(f"window.__mirallyCompanion.setForm('{appearance}',false);window.__mirallyCompanion.dock()")
+                    wait_for(lambda: shell._workspace is not None and shell._surface_mode == appearance,
+                        appearance + " preview dock did not finish")
+                    # The preceding menu test can leave Chromium's pointer over
+                    # the next anchor. Start outside, then measure an actual
+                    # compact -> preview transition with trusted browser input.
+                    browser_mouse_move({"x":5,"y":5})
+                    time.sleep(.55)
+                    assert js("document.querySelector('.mirally-companion').dataset.view==='compact'"), "Preview probe did not start compact"
+                    compact = native()
+                    baseline = sum(item["action"] == "shape" for item in messages)
+                    js("""(() => {
+                        const probe = window.__shellMotionProbe = {last: null, deltas: [], active: true};
+                        requestAnimationFrame(function sample(now) {
+                            if (probe.last !== null) probe.deltas.push(now - probe.last);
+                            probe.last = now;
+                            if (probe.active) requestAnimationFrame(sample);
+                        });
+                    })()""")
+                    browser_mouse_move(target('.mirally-companion__rail'))
+                    wait_for(lambda: js("document.querySelector('.mirally-companion').dataset.view==='quick'"),
+                        appearance + " native hover did not open a quick preview")
+                    assert js("document.querySelector('.mirally-companion').dataset.preview==='true' && document.querySelector('.mirally-companion').dataset.pinned==='false'"), "Hover acted like an explicitly pinned panel"
+                    time.sleep(.2)
+                    preview_shapes = sum(item["action"] == "shape" for item in messages) - baseline
+                    assert 1 <= preview_shapes <= 4, "Preview produced per-frame native clipping traffic: " + str(preview_shapes)
+
+                    # Selecting text protects reading while this real document
+                    # owns focus. Minimize only our Form to produce a native
+                    # blur; a stale selection must not keep a preview alive in
+                    # the background. Never stub document.hasFocus().
+                    def focus_companion():
+                        form.Activate()
+                        form.webview.Focus()
+                    form.Invoke(Action(focus_companion))
+                    wait_for(lambda: js("document.hasFocus()"), "Companion did not receive actual native focus")
+                    selected = js("""(() => {
+                        const text = document.querySelector('.mirally-companion [data-slot=mini-status]');
+                        const range = document.createRange();
+                        range.selectNodeContents(text);
+                        const selection = getSelection();
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                        return {text: selection.toString(), focused: document.hasFocus(),
+                            pinned: document.querySelector('.mirally-companion').dataset.pinned};
+                    })()""")
+                    assert selected["text"] and selected["focused"] and selected["pinned"] == "false", "Text selection accidentally pinned or failed to focus the preview"
+                    browser_mouse_move({"x":5,"y":5})
+                    time.sleep(.6)
+                    assert js("document.hasFocus() && !getSelection().isCollapsed && document.querySelector('.mirally-companion').dataset.view==='quick'"), "Focused text selection did not protect preview reading after pointer leave"
+                    before_minimize = native()
+                    form.Invoke(Action(lambda: setattr(form, "WindowState", FormWindowState.Minimized)))
+                    wait_for(lambda: native()["minimized"] and not js("document.hasFocus()"), "Minimized companion retained document focus")
+                    wait_for(lambda: js("document.querySelector('.mirally-companion').dataset.view==='compact'"),
+                        "Unfocused selection kept a minimized preview open")
+                    minimized = native()
+                    tray_left_click()
+                    wait_for(lambda: native()["visible"] and not native()["minimized"], "Selection test did not restore companion from tray")
+                    restore_samples = []
+                    restore_started = time.monotonic()
+                    for delay in (0, .1, .3, .6):
+                        time.sleep(max(0, delay - (time.monotonic() - restore_started)))
+                        restore_samples.append({"seconds_after_restore": time.monotonic() - restore_started, **native()})
+                    results.append({"case": appearance + " native focus and selection boundary geometry",
+                        "before_minimize": before_minimize, "while_minimized": minimized,
+                        "restore_samples": restore_samples})
+                    js("getSelection().removeAllRanges()")
+                    browser_mouse_move({"x":5,"y":5})
+                    browser_mouse_move(target('.mirally-companion__rail'))
+                    wait_for(lambda: js("document.querySelector('.mirally-companion').dataset.view==='quick'"),
+                        "Preview did not reopen after actual blur and tray restoration")
+                    # Focus then checks the editor's held-open contract while
+                    # subsequent native button messages replace browser input.
+                    js("document.querySelector('[data-slot=draft]').focus()")
+                    time.sleep(.3)
+                    assert native()["bounds"] == compact["bounds"], "Preview or minimize/restore changed the native WebView host: " + json.dumps({"before": compact, "after": native()})
+                    editor = target('[data-slot=draft]')
+                    assert editor["width"] > 0 and point(editor)["clipped"], "Quick preview editor was clipped"
+                    detail = target('.mirally-companion__navigation [data-action=detail]')
+                    assert detail["width"] > 0 and point(detail)["clipped"], "Preview detail action was clipped"
+                    left_click(detail)
+                    wait_for(lambda: js("document.querySelector('.mirally-companion').dataset.view==='detail'"),
+                        appearance + " explicit detail action did not open progress")
+                    assert js("document.querySelector('.mirally-companion').dataset.pinned==='true' && document.querySelector('.mirally-companion').dataset.preview==='false'"), "Explicit detail did not pin the interaction"
+                    js("document.querySelector('[data-slot=draft]').focus()")
+                    time.sleep(.3)
+                    assert native()["bounds"] == compact["bounds"], "Detail resized the native WebView host"
+                    stable_shapes = sum(item["action"] == "shape" for item in messages)
+                    time.sleep(.5)
+                    assert stable_shapes == sum(item["action"] == "shape" for item in messages), "Stable detail kept sending native clipping messages"
+                    left_click(target('.mirally-companion__header [data-action=collapse]'))
+                    wait_for(lambda: js("document.querySelector('.mirally-companion').dataset.view==='compact'"),
+                        appearance + " explicit collapse did not return to the anchor")
+                    assert js("document.querySelector('.mirally-companion').dataset.pinned==='false' && document.activeElement===document.querySelector('.mirally-companion__rail')"), "Collapse lost keyboard return focus or its pinned lock"
+                    time.sleep(.25)
+                    assert native()["bounds"] == compact["bounds"], "Collapse resized the native WebView host"
+                    motion = js("""(() => {
+                        const probe = window.__shellMotionProbe;
+                        probe.active = false;
+                        const deltas = probe.deltas.filter(Number.isFinite).sort((a,b) => a-b);
+                        return {frames: deltas.length, p95_ms: deltas[Math.floor(deltas.length*.95)] ?? null,
+                            maximum_ms: deltas.at(-1) ?? null};
+                    })()""")
+                    results.append({"case": appearance + " native quick preview, explicit detail and collapse",
+                        "fixed_host_bounds": True, "preview_shape_messages": preview_shapes,
+                        "native_editor_and_controls_visible": True, "stable_detail_has_no_shape_traffic": True,
+                        "focused_selection_protects_reading": True, "native_minimize_blur_releases_stale_selection": True,
+                        "hover_input": "WebView2 CDP Input.dispatchMouseEvent (trusted browser input)",
+                        "frame_cadence": motion})
+                    js("window.__mirallyCompanion.workspace()")
+                    wait_for(lambda: shell._workspace is None and not native()["region"], "Preview did not restore workbench")
+                    assert native()["bounds"] == initial["bounds"], "Preview changed saved workbench bounds"
 
                 # Suppress only the page's two context-menu event handlers so a
                 # real right-click must pass through native WebView2 fallback.
@@ -403,17 +550,31 @@ def main() -> int:
                     form.Invoke(Action(lambda: form.SetDesktopLocation(100, 140)))
                     js("window.__mirallyCompanion.setView('detail')")
                     if not arguments.close_exit:
+                        companion_before_minimize = native()
                         js("document.querySelector('.mirally-companion [data-action=minimize]').click()")
                         wait_for(lambda: native()["minimized"], appearance + " companion minimize did not finish")
                         tray_left_click()
                         wait_for(lambda: not native()["minimized"] and native()["visible"], appearance + " companion tray restore did not finish")
+                        time.sleep(.2)
+                        assert native()["bounds"] == companion_before_minimize["bounds"], appearance + " tray restore changed companion outer bounds: " + json.dumps({"before": companion_before_minimize, "after": native()})
+                        assert native()["hwnd"] == hwnd and native()["region"], "Tray restore replaced the clipped companion window"
+                        # Windows taskbar restoration bypasses _show_window.
+                        # Exercise the actual WM_SYSCOMMAND path as well.
+                        assert user.PostMessageW(hwnd, 0x112, 0xF020, 0)
+                        wait_for(lambda: native()["minimized"], "Native SC_MINIMIZE did not minimize the companion")
+                        assert user.PostMessageW(hwnd, 0x112, 0xF120, 0)
+                        wait_for(lambda: not native()["minimized"] and native()["visible"], "Native SC_RESTORE did not restore the companion")
+                        time.sleep(.2)
+                        assert native()["bounds"] == companion_before_minimize["bounds"], appearance + " native SC_RESTORE changed companion outer bounds: " + json.dumps({"before": companion_before_minimize, "after": native()})
+                        assert native()["hwnd"] == hwnd and native()["region"], "Taskbar restore replaced the clipped companion window"
                     js("document.querySelector('.mirally-companion [data-action=workspace]').click()")
                     wait_for(lambda: shell._workspace is None and js("document.documentElement.dataset.mirallyMode==='workspace'"), appearance + " normal control did not restore workspace")
                     restored = native()
                     assert restored["bounds"] == custom_normal["bounds"] and restored["window_state"] == "Normal", snapshot()
                     assert restored["restore_bounds"] == custom_normal["bounds"] and not restored["region"] and not restored["topmost"], snapshot()
                     results.append({"case": appearance + " moved/minimized companion restores user-sized normal workbench", "restored": True,
-                        "normal_bounds": restored["bounds"], "companion_minimize_restore": not arguments.close_exit})
+                        "normal_bounds": restored["bounds"], "companion_minimize_restore": not arguments.close_exit,
+                        "tray_and_native_sc_restore_preserve_companion_bounds": not arguments.close_exit})
                 form.Invoke(Action(lambda: setattr(form, "Bounds", Rectangle(*initial["bounds"]))))
 
                 # Restore both the current maximized presentation and the
@@ -503,7 +664,7 @@ def main() -> int:
             if previous_owner is not None:
                 previous_owner.close()
     report = {"results": results, "native_context_events": native_context, "failures": failures,
-        "scope": "Real retained frontend/control-ui + FrameworkShell + temporary test-mode Host + WebView2; only own HWND messages",
+        "scope": "Real retained frontend/control-ui + FrameworkShell + temporary test-mode Host + WebView2; own HWND messages and trusted WebView2 CDP hover input",
         "limits": ["No physical mouse/keyboard or multi-monitor/DPI changes", "No desktop capture, Activity collection, external model, or production profile", "Tray callbacks tested through actual NotifyIcon MouseClick event and menu; notification-area pointer hit testing is not exercised"]}
     arguments.output.parent.mkdir(parents=True, exist_ok=True)
     arguments.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

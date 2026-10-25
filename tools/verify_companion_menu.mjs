@@ -43,9 +43,8 @@ try{
     const anchorBox=await anchor.boundingBox();
     await page.mouse.move(anchorBox.x+anchorBox.width/2,anchorBox.y+anchorBox.height/2);
     if(form==='rail'){
-      await page.waitForFunction(()=>document.querySelector('.mirally-companion').dataset.view==='detail');
-      const header=page.locator('.mirally-companion__header');
-      await header.click({button:'right',position:{x:12,y:14}});
+      await page.waitForFunction(()=>document.querySelector('.mirally-companion').dataset.view==='quick');
+      await anchor.click({button:'right'});
     }else await anchor.click({button:'right'});
     await page.waitForFunction(()=>document.querySelector('.mirally-companion').dataset.view==='menu');
     await page.waitForTimeout(850);
@@ -72,7 +71,7 @@ try{
     return [window.__mirallyCompanion.requestContextMenu(20,20),window.__mirallyCompanion.requestContextMenu(NaN,1),window.__mirallyCompanion.requestContextMenu(r.x+10,r.y+10),window.__mirallyCompanion.requestContextMenu(r.x+10,r.y+10)];
   });assert.deepEqual(nativeResult,[false,false,true,false]);
   await page.waitForTimeout(850);assert.equal(await surface.getAttribute('data-view'),'menu');
-  await page.mouse.move(1260,450);await page.mouse.move(300,50);await page.waitForTimeout(250);
+  await page.mouse.move(1260,450);await page.mouse.move(300,50);await page.waitForTimeout(550);
   assert.equal(await surface.getAttribute('data-view'),'compact','real movement away closes the menu');
   await page.evaluate(()=>window.__mirallyCompanion.openMenu());
   await page.evaluate(()=>window.dispatchEvent(new Event('blur')));
@@ -98,7 +97,7 @@ try{
   await nativeOnly.waitForTimeout(850);
   assert.equal(await nativeOnly.locator('.mirally-companion').getAttribute('data-view'),'menu','native-only menu survives a geometry leave at its initial CSS position');
   await nativeOnly.mouse.move(nativeOnlyPoint.x,nativeOnlyPoint.y);
-  await nativeOnly.mouse.move(300,50);await nativeOnly.waitForTimeout(250);
+  await nativeOnly.mouse.move(300,50);await nativeOnly.waitForTimeout(550);
   assert.equal(await nativeOnly.locator('.mirally-companion').getAttribute('data-view'),'compact','native-only menu closes after real movement outside');
   await nativeOnly.close();
   findings.push('fresh native-only entry without pointer history survives geometry leave and closes on real movement away');

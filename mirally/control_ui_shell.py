@@ -580,14 +580,10 @@ class ControlUIShell:
                 px, py, pw, ph, corner = part
                 if pw <= 0 or ph <= 0 or corner < 0 or px < x-1 or py < y-1 or px+pw > x+width+1 or py+ph > y+height+1:
                     return
-            parts_key = (key, self._surface_mode, tuple(tuple(part) for part in parts))
-            if message.get('view') in {'compact', 'quick', 'menu', 'detail', 'reply'}:
-                self._surface_view = message['view']
-                self._companion_background()
-            if parts_key == self._shape_parts_key or right <= left or bottom <= top:
-                return
-            region = Region()
-            region.MakeEmpty()
+            # DSH/UI messages use fractional CSS pixels. Compare the geometry
+            # Windows actually paints: tiny sub-pixel layout changes must not
+            # rebuild a GDI Region that resolves to exactly the same pixels.
+            native_parts = []
             for px, py, pw, ph, corner in parts:
                 pl, pt = ox + round(px*sx), oy + round(py*sy)
                 pr, pb = ox + round((px+pw)*sx), oy + round((py+ph)*sy)
@@ -595,6 +591,18 @@ class ControlUIShell:
                 padding = max(1, math.ceil(sx)) if self._surface_mode == 'badge' and pw <= 64 and ph <= 64 else 0
                 pl, pt, pr, pb = pl-padding, pt-padding, pr+padding, pb+padding
                 radius = min(round(corner*sx)+padding, (pr-pl)//2, (pb-pt)//2)
+                if pr <= pl or pb <= pt:
+                    return
+                native_parts.append((pl, pt, pr, pb, radius))
+            parts_key = tuple(native_parts)
+            if message.get('view') in {'compact', 'quick', 'menu', 'detail', 'reply'}:
+                self._surface_view = message['view']
+                self._companion_background()
+            if parts_key == self._shape_parts_key or right <= left or bottom <= top:
+                return
+            region = Region()
+            region.MakeEmpty()
+            for pl, pt, pr, pb, radius in native_parts:
                 diameter = radius*2
                 path = GraphicsPath()
                 if diameter < 2:
@@ -627,7 +635,7 @@ class ControlUIShell:
             'rail': (80, 300), 'badge': (48, 48), 'pet': (80, 96),
         }[self._surface_mode]
         if self._surface_view in {'quick', 'menu', 'reply'}:
-            bubble_width, bubble_height = {'quick': (248, 148), 'menu': (220, 252), 'reply': (296, 228)}[self._surface_view]
+            bubble_width, bubble_height = {'quick': (248, 188), 'menu': (220, 304), 'reply': (296, 228)}[self._surface_view]
             width, height = anchor_width + 8 + bubble_width, max(anchor_height, bubble_height)
             parts = [[vw-2-anchor_width, (vh-anchor_height)/2, anchor_width, anchor_height, min(25, anchor_width/2)],
                      [vw-2-width, (vh-bubble_height)/2, bubble_width, bubble_height, 18]]
