@@ -4,6 +4,15 @@ export type MirallyReadModelApi = { rpc(method: string, params?: Data): Promise<
 export type MirallyReadModelResult = { handled: false } | { handled: true; value: unknown };
 export const MIRALLY_READ_METHODS = ["cron.status", "cron.list", "cron.get"] as const;
 
+/** Presentation resolves the same product route as generation; default stays legacy-compatible. */
+export function selectedProductModel(settings: Data, purpose = 'chat'): Data {
+  const id = settings.model_routes?.[purpose] ?? 'default';
+  if (id === 'default') return settings.model ?? {};
+  const connection = settings.model_connections?.[id];
+  if (!connection) throw new Error('已选择的模型连接不存在，请刷新模型设置。');
+  return connection.model;
+}
+
 const unsupported = (method: string, detail = "当前 Mirally 内核尚未提供此读取能力"): never => {
   throw Object.assign(new Error(`${detail}：${method}`), {
     code: "METHOD_NOT_FOUND", gatewayCode: "METHOD_NOT_FOUND",

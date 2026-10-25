@@ -3,6 +3,15 @@ import {setTimeout as delay} from 'node:timers/promises';
 import {LlmAdapter, resolveImageAttachmentAccess} from '@deepseek-ai/dsh-llm';
 import {PiAiAdapter, resolveProfiles, credentialStoreFrom, authContextFrom} from '@deepseek-ai/dsh-llm-pi-ai';
 
+/** Resolve one product-owned connection; never fall back from a missing explicit route. */
+export function resolveProductConnection(settings, {purpose = 'chat', connectionId} = {}) {
+  if (!['chat', 'background'].includes(purpose)) throw Object.assign(new Error('Unsupported model purpose'), {code: 'invalid_model_purpose'});
+  const id = connectionId ?? settings.model_routes?.[purpose] ?? 'default';
+  const connection = id === 'default' ? {name: '默认连接', model: settings.model ?? {}} : settings.model_connections?.[id];
+  if (!connection) throw Object.assign(new Error('模型连接不存在，请刷新设置。'), {code: 'model_connection_not_found'});
+  return {id, name: connection.name, model: {...connection.model}};
+}
+
 /** Protocol facts, not a second model loop. Keep service-default distinct from off. */
 export function productModelRoute(model) {
   const protocols = {'openai-chat': 'openai-completions', 'openai-responses': 'openai-responses',
@@ -77,28 +86,42 @@ export class ProductModels {
 
   sync(settings) {
     if (this.testMode) return this.options;
-    const model = settings.model ?? {};
-    if (!model.model_id || !model.base_url) {
-      this.options = undefined;
-      return undefined;
-    }
-    const fingerprint = createHash('sha256').update(JSON.stringify(model)).digest('hex');
+    const snapshot = {model: settings.model ?? {}, connections: settings.model_connections ?? {}, routes: settings.model_routes ?? {}};
+    const fingerprint = createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
     if (fingerprint === this.fingerprint) return this.options;
-    const keyReference = `MIRALLY_MODEL_${fingerprint.slice(0, 20).toUpperCase()}`;
-    const route = productModelRoute(model);
-    const profile = {...route.profile, apiKeyEnv: keyReference};
-    const next = resolveProfiles({mirally: profile});
-    this.keys.set(keyReference, model.api_key ?? '');
+    const declared = {}, options = new Map(), keys = new Map();
+    for (const id of ['default', ...Object.keys(snapshot.connections)]) {
+      const {model} = resolveProductConnection(settings, {connectionId: id});
+      if (!model.model_id || !model.base_url) continue;
+      const provider = id === 'default' ? 'mirally' : `mirally-${id}`;
+      const keyReference = `MIRALLY_MODEL_${createHash('sha256').update(JSON.stringify([id, model])).digest('hex').slice(0, 24).toUpperCase()}`;
+      const route = productModelRoute(model);
+      declared[provider] = {...route.profile, apiKeyEnv: keyReference};
+      options.set(id, {...route.options, provider});
+      keys.set(keyReference, model.api_key ?? '');
+    }
+    const next = resolveProfiles(declared);
+    for (const [ref, key] of keys) this.keys.set(ref, key);
     this.profiles = next;
-    if (!this.registration) this.registration = this.ctx.llm.registerAdapter(['mirally'], this.adapter);
+    if (!this.registration && next.size) this.registration = this.ctx.llm.registerAdapter([...next.keys()], this.adapter);
+    else this.registration?.replace([...next.keys()]);
     this.fingerprint = fingerprint;
-    this.options = route.options;
+    this.connectionOptions = options;
+    this.settings = settings;
+    this.options = options.get(resolveProductConnection(settings).id);
     return this.options;
   }
 
-  requireOptions() {
-    if (!this.options) throw Object.assign(new Error('请先在设置中配置模型、服务地址和凭据'), {code: 'model_not_configured'});
-    return {...this.options};
+  requireOptions(purpose = 'chat', connectionId) {
+    const options = this.testMode ? this.options : this.connectionOptions?.get(resolveProductConnection(this.settings ?? {}, {purpose, connectionId}).id);
+    if (!options) throw Object.assign(new Error('请先为该用途在设置中配置模型、服务地址和凭据'), {code: 'model_not_configured'});
+    return {...options};
+  }
+
+  assertImageInput(purpose = 'chat', connectionId) {
+    if (this.testMode) return;
+    const {model} = resolveProductConnection(this.settings ?? {}, {purpose, connectionId});
+    if (!model.image_enabled) throw Object.assign(new Error('当前用途的模型连接未启用图片输入，请选择支持视觉的连接后再发送图片。'), {code: 'unsupported_image_input', status: 400});
   }
 
   dispose() { this.registration?.(); this.keys.clear(); }

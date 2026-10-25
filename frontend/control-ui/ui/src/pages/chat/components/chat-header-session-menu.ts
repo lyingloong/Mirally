@@ -7,6 +7,7 @@ import {
   type BoardWidgetPageMenu,
 } from "../../../components/board/board-widget-cell-render.ts";
 import { icons } from "../../../components/icons.ts";
+import {renderMirallySessionOrganization} from '../../../components/mirally-session-organization.ts';
 import { activateMenuShortcut } from "../../../components/menu-shortcuts.ts";
 import {
   EMPTY_SESSION_MENU_DATA,
@@ -379,6 +380,7 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
             `
           : nothing
       }
+      ${renderMirallySessionOrganization(this.session, this.actionDisabledReasons, this.archiveAllowed)}
       ${this.renderQuickActions("panels", this.panelActions)}
       ${this.renderQuickActions("layout", this.layoutActions)}
       ${

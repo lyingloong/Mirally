@@ -191,6 +191,7 @@ export function buildSidebarSessionNavigationState(input: {
     return {
       key: row.key,
       agentId: resolveUiSessionRowAgentId(row, defaultAgentId),
+      metadataVersion: row.metadataVersion,
       sessionId: row.sessionId,
       displayName: row.displayName,
       incognito: row.incognito === true,

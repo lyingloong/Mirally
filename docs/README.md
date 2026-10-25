@@ -1,6 +1,6 @@
 # Mirally 文档导航
 
-当前重构分支的目标和验收见[重构实施计划](framework-refactor-plan.md)。下列运行文档仍描述 OpenClaw 基线；产品框架与扩展文档描述待实现的目标，阶段通过后再更新对应运行说明。
+当前默认运行 Mirally 自有框架与同仓 DSH；安装、接口、默认行为见[框架第一版](framework-v1.md)，本轮[迁移收尾与维护切换](framework-migration-closure.md)和[实际验收](framework-v1-validation.md)说明已迁移体验与边界。长期方案不等同于全部功能已实现。旧 OpenClaw/UFO 接入文档保留历史，后续只维护新产品。
 
 Mirally 是面向 Windows 的对话与桌面助手，名称取自 MIRA + ally。当前正式图标为蓝青渐变的「相伴 M」。Python 包统一使用 `mirally`，产品配置位于 `config/mirally/`，产品环境变量使用 `MIRALLY_` 前缀。
 
@@ -9,6 +9,9 @@ Mirally 是面向 Windows 的对话与桌面助手，名称取自 MIRA + ally。
 | 需要了解什么 | 文档 |
 | --- | --- |
 | 安装、配置模型、启动与日常使用 | [项目 README](../README.md) |
+| 新框架模块、运行边界、迁移与接口 | [框架第一版](framework-v1.md) |
+| 原体验迁入与旧分支冻结范围 | [迁移收尾](framework-migration-closure.md) / [体验对照](framework-experience-migration.md) |
+| 新框架真实测试、外部模型与未覆盖边界 | [验收记录](framework-v1-validation.md) |
 | 从旧包名迁移本机配置、会话和启动路径 | [Mirally 名称迁移](mirally-name-migration.md) |
 | 用户可见功能与版本变化 | [更新记录](../CHANGELOG.md) |
 | 按时间追踪产品发现、想法、设计原则、方向和文案 | [产品思考记录](product-notes.md) |
@@ -49,9 +52,9 @@ Mirally 是面向 Windows 的对话与桌面助手，名称取自 MIRA + ally。
 
 ## 文档范围
 
-项目 README 和套壳文档说明当前的完整 OpenClaw 入口。旧 UFO 专用界面及独立 Tk 客户端已删除，历史说明页只保留索引。体验目标保留历史设计原则和规划，不能把其中的建议视为新系统的规则或已实现功能。历史设计目录记录当时的选择，当前正式图标以「相伴 M」与生产资源为准。
+项目 README 和框架第一版说明当前 Mirally/DSH 入口。OpenClaw 套壳、宿主配置和 UFO 委派文档只描述冻结的旧路线，不是当前默认能力清单。旧 UFO 专用界面及独立 Tk 客户端已删除。体验目标保留历史原则和规划，不能把建议视为已实现功能；当前正式图标以「相伴 M」与生产资源为准。
 
-架构文档按文首标注的源码 commit 核对。当前只提供 OpenClaw Control UI 对话入口，主 Agent 通过 `sessions_spawn` 委派内部 UFO 桌面子代理，见 [接入说明](ufo-openclaw-agent.md)。执行器适配见 [接入详解](ufo-integration.md)，界面组件与离线测试不等于真实模型质量保证。
+架构文档按文首标注的源码 commit 核对。当前前端自主维护固定来源组件，DSH 是唯一会话与模型主链，本阶段不接入 UFO。旧委派与执行器说明可作后续 Windows 适配参考，不能据此向新产品开放旧入口。
 
 [原生执行链路补齐方案](native-runtime-plan.md) 记录本轮已经落实的协议、控制边界、验证结果和剩余限制；其中旧界面相关内容仅作历史参考。后续设计可以覆盖其中的建议，但要同步更新实际语义和验收结果。
 

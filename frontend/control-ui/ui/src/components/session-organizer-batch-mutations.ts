@@ -20,7 +20,7 @@ import { formatBatchSessionRemovalError } from "./session-workspace-recovery.run
 export type SessionActionRow = Pick<
   SidebarRecentSession,
   "key" | "agentId" | "sessionId" | "label" | "pinned" | "archived" | "active" | "category"
-> & { gatewayHasActiveRun?: boolean; hasActiveRun?: boolean };
+> & { gatewayHasActiveRun?: boolean; hasActiveRun?: boolean; metadataVersion?: number };
 
 export type SessionActionHost = Pick<
   SessionOrganizerControllerHost,

@@ -44,6 +44,7 @@ export type SessionPatchOptions = {
   agentId?: string;
   /** Durable identity observed with the row before the action or edit began. */
   expectedSessionId?: string;
+  expectedMetadataVersion?: number;
   /** Explicit unread marker observed by an automatic read acknowledgement. */
   expectedMarkedUnreadAt?: number | null;
   /** Keep optimistic model state bound to the UI owner that initiated the patch. */

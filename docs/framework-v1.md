@@ -27,7 +27,7 @@ npm --prefix frontend/control-ui run build
 
 数据默认放在 `%LOCALAPPDATA%/Mirally/framework`，可用 `MIRALLY_HOME` 或 `--home` 覆盖。首次到原「设置 → 模型」填写自己的服务基础地址、API 格式、模型 ID 和凭据；没有默认服务商密钥或可用的生产假模型。支持 OpenAI Chat Completions、Responses、Anthropic Messages 的原生适配，实际兼容性取决于所选服务。API Key 留空保留已有值，不写入浏览器存储。
 
-模型连接页可明确选择 DeepSeek 预设、读取服务模型列表及声明能力、设置推理强度与上下文窗口，并对保存后的连接发起固定短文字测试。声明能力与实际验收分别展示；空配置不自动采用预设。DeepSeek Flash 的视觉、推理与工具续轮实测范围见[连接与能力验证](deepseek-compatibility.md)。
+模型连接页可保存独立命名连接，为对话和后台整理/主动联系分别分配模型；原连接保留为默认项。每项可明确选择 DeepSeek 预设、读取服务模型列表及声明能力、设置推理强度与上下文窗口，并对保存后的指定连接发起固定短文字测试。已被用途引用的连接不能直接删除；更换服务来源不暗中复用旧密钥。声明能力与实际验收分别展示；空配置不自动采用预设。DeepSeek Flash 的视觉、推理与工具续轮实测范围见[连接与能力验证](deepseek-compatibility.md)。
 
 `run.ps1 --browser` 在浏览器打开产品页面；`--headless` 只运行本机宿主。「设置 → 通用 → 关闭主窗口时」可选隐藏到系统托盘或退出 Mirally，默认隐藏到可用托盘并继续维护提醒与已开启的工作。单击托盘图标恢复原窗口和伙伴形态，右键提供退出；托盘不可用时关闭会退出。从托盘或设置页明确「退出 Mirally」会停止窗口、自己连接的宿主和后台，包含复用已有宿主的情形；关闭浏览器标签页不等于停止宿主。退出、休眠或设备关机期间无法实时投递，重新启动会检查仍有效的提醒。
 
@@ -50,13 +50,19 @@ flowchart LR
 ```
 
 - `mirally/framework_host.py` 管理 Node 宿主、桌面窗口与托盘，解析工具链和产品 home。`kernel/dsh/packages/mirally/mirally-product/` 是可直接修改的本机 Host、原生会话适配和模型桥；它加载明确的内核组合，未挂载上游通用 shell 工具。
-- `mirally/framework/service.py` 拥有设置、逻辑 Conversation 与原生 Session 引用、命令回执、来源版本、明确偏好、提醒、主动候选、投递与已读状态。产品 schema 当前为 2，可从早期开发 schema 1 原地升级，拒绝未来版本。
+- `mirally/framework/service.py` 拥有设置、逻辑 Conversation 与原生 Session 引用、命令回执、来源版本、明确偏好、提醒、主动候选、投递与已读状态。产品 schema 当前为 3，可从早期 schema 1/2 原地升级，拒绝未来版本；会话标题/固定/归档带元数据版本，不改 transcript。
 - DSH Session 是唯一 transcript。产品库只保存引用、代次和命令内容哈希。停止或撤回来源会冻结旧代次；后续用户输入创建新的原生 Session，历史仍通过代次引用读取。启动恢复不会盲目重放旧输入、脚本或桌面动作。
 - `mirally/framework/context.py` 按需只读组合记忆、活动、偏好和来源缺口。`mirally/framework_workers.py` 监督获准的 Activity 子进程和 Memory 维护 owner；查询不启动采集。后台语义任务通过本机模型桥调用同一原生模型适配。
 - `frontend/control-ui/ui/src/` 复用原 Lit 壳、对话和外观组件，`pages/mirally/` 维护自有内容页与产品 API；`mirally/assets/control-ui-*` 继续提供既有 Mirally 皮肤、工作和伙伴交互。`ui/src/app/mirally-client.ts` 注入原客户端工厂，将已实现操作映射到本机鉴权 HTTP/RPC 与 SSE。`mirally/framework_ui/legacy-native-bridge.js` 适配活动/记忆、材料成果等产品消息，`mirally-product/src/presentation.mjs` 提供原皮肤资源。`mirally/framework_ui/app.js` 的简化页面不再是默认前端。
 - 原 Context 与组件仍管理页面草稿和状态；DSH Session 保留唯一聊天事实。未映射的旧宿主操作明确返回尚未支持，页面存在不代表对应 OpenClaw 后台能力已经接通。原 Gateway service worker 不参与新宿主的缓存与生命周期。
 
 边界使用有名操作和 JSON 数据，Python worker 采用带 ID 的 JSONL 请求/回执；HTTP 仅公开白名单。原生扩展在同一 Cordis 生命周期中组合。无需引入第二个模型主循环或通用事件总线。
+
+原会话菜单提供重命名、固定、归档/恢复。活跃工作先停止再归档，归档拒绝新输入；并发版本冲突保留用户改名草稿。历史材料和工具结果从所有原生代次恢复，附件下载只接受实际属于该逻辑会话的引用。设置 → 关于可分页查看旧档案，不能在只读档案上继续执行。
+
+设置 → 通用可授权最多 20 个只读文件夹，默认只读取 home 内工作区；列表最多 200 项、单文件 8 MiB，文字搜索最多 1000 个文件/目录、16 MiB、50 个命中。工作区文字写入默认关闭，开启后仍需本次工作选择保存文件；不能写入其他授权目录，覆盖需先读并提供匹配指纹。成果文件与工作区写入是两个明确接口，工作区文件不会伪装为会话成果。
+
+网页研究默认关闭。开启并选定已配置的 DeepSeek 官方连接后，模型可使用搜索与正文工具，查询/URL 发送到该服务并可能产生费用；单次响应最多 2 MiB，正文最多 60000 字符。模型调用原生工具，服务实现通过独立 search/fetch 接口组合；其他网页服务可用 MCP/插件适配。这里没有通用终端、浏览器自动操作或任意本机文件权限。
 
 ## 默认行为、主动联系与执行
 
@@ -96,7 +102,7 @@ MCP 支持 stdio 与 Streamable HTTP，同一受监督连接提供 tools、resou
 
 ## 数据切换与回退
 
-默认不会扫描或导入现有机器的 OpenClaw 私有配置。旧入口仍为 `run.ps1 --openclaw`，旧维护分支已推送到 `2eeb778a`。迁移必须先停止旧 Gateway、采集和 Memory 维护；使用明确导出的独立 JSON 配置，不跟随 include 或解析隐藏环境凭据。
+默认不会扫描或导入现有机器的 OpenClaw 私有配置。旧入口仍为 `run.ps1 --openclaw`，历史分支已推送到 `2eeb778a`，迁移验收后冻结为回退参考，后续只维护新框架，见[维护切换](framework-migration-closure.md)。迁移必须先停止旧 Gateway、采集和 Memory 维护；使用明确导出的独立 JSON 配置，不跟随 include 或解析隐藏环境凭据。
 
 ```powershell
 .\.venv\Scripts\python.exe -m mirally.framework.migration --home "新的空数据目录" --memory-profile "显式旧 memory.yaml" --activity-profile "显式旧 activity.yaml" --openclaw-config "独立配置导出.json" --legacy-history "旧会话目录"
@@ -104,7 +110,7 @@ MCP 支持 stdio 与 Streamable HTTP，同一受监督连接提供 tools、resou
 # --apply --confirm-stopped
 ```
 
-目标必须不存在或为空，拒绝覆盖与链接/目录联接。SQLite backup 包含已提交 WAL；截图资产复制并核对哈希，源前后指纹一致才原子发布。旧会话只建立只读索引，不伪造 DSH transcript。设置页提供当前运行状态，旧会话索引目前仅有本机迁移文件与读取接口，专门查看入口尚待接回。新 home 内生成迁移清单，凭据保存在新产品库中，不输出到预览或普通 HTTP。
+目标必须不存在或为空，拒绝覆盖与链接/目录联接。SQLite backup 包含已提交 WAL；截图资产复制并核对哈希，源前后指纹一致才原子发布。旧会话复制到新 home 的 `framework/legacy-sessions/`，索引保留来源与内容指纹，不伪造 DSH transcript。设置 → 关于提供分页只读查看；早期索引可以明确复制归档，之后读取不再依赖原目录。新 home 内生成迁移清单，凭据保存在新产品库中，不输出到预览或普通 HTTP。
 
 ```powershell
 .\.venv\Scripts\python.exe -m mirally.framework.migration --home "新数据目录" --rollback

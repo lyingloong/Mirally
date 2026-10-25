@@ -41,7 +41,7 @@ test('native tool observers emit owned real argument/result receipts and preserv
   assert.strictEqual(await callbacks.get('tools/execute')(exec, async () => result), result);
   callbacks.get('tools/result')(exec, result);
   assert.deepEqual(frames.map(frame => [frame.type, frame.session_id, frame.command_id, frame.id, frame.state]),
-    [['tool', 'one', 'command-one', 'call-one', 'running'], ['tool', 'one', 'command-one', 'call-one', 'completed']]);
+    [['tool', 'one', 'command-one', 'mirally-tool:native-one:id:call-one', 'running'], ['tool', 'one', 'command-one', 'mirally-tool:native-one:id:call-one', 'completed']]);
   assert.deepEqual(JSON.parse(JSON.stringify(frames[0].args)), exec.arguments);
   assert.deepEqual(frames[1].result, {content: result.content});
   assert.equal(frames[1].result_truncated, false);

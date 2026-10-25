@@ -470,7 +470,7 @@ export abstract class ChatPaneBase extends OpenClawLightDomElement {
     }
   >();
   protected headerRenameInitialValue = "";
-  protected headerRenameSession: Pick<GatewaySessionRow, "key" | "sessionId" | "label"> | null =
+  protected headerRenameSession: Pick<GatewaySessionRow, "key" | "sessionId" | "label" | "metadataVersion"> | null =
     null;
   protected headerCopiedTimer: number | null = null;
   protected composerPrefillAttentionTimer: number | null = null;

@@ -168,7 +168,8 @@ class WorkerSupervisor:
         if not settings.get("memory_config_path"):
             memory["database_path"] = str(self.home / "memory/memory.sqlite3")
             memory["projection_database_path"] = str(self.home / "memory/activity-projection.sqlite3")
-        memory["semantics"] = {**memory.get("semantics", {}), "enabled": bool(settings.get("background_enabled", False)) and not self._source_blocked(settings), "model": settings.get("model", {}).get("model_id") or None, **{"max_calls_per_hour": 4, "max_tokens_per_day": 24000, "max_output_tokens": 1500, **settings.get("memory_semantics", {})}}
+        from mirally.framework.model_connections import selected_connection_model
+        memory["semantics"] = {**memory.get("semantics", {}), "enabled": bool(settings.get("background_enabled", False)) and not self._source_blocked(settings), "model": selected_connection_model(settings).get("model_id") or None, **{"max_calls_per_hour": 4, "max_tokens_per_day": 24000, "max_output_tokens": 1500, **settings.get("memory_semantics", {})}}
         _write_yaml(memory_path, memory)
         return activity_path, memory_path
 

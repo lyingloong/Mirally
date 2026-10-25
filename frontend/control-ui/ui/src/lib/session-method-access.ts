@@ -65,7 +65,9 @@ export function readSessionMethodAccess(
       cause: "disconnected",
     };
   }
-  if (isGatewayMethodAdvertised(snapshot, request.method) !== true) {
+  const metadataAccess = snapshot.client as unknown as {supportsSessionPatch?: (params: unknown) => boolean};
+  if (isGatewayMethodAdvertised(snapshot, request.method) !== true || request.method === 'sessions.patch'
+    && metadataAccess.supportsSessionPatch && !metadataAccess.supportsSessionPatch(request.params)) {
     return {
       allowed: false,
       requiredScope,

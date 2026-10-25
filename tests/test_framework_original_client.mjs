@@ -99,6 +99,17 @@ test('normalized request destinations reject foreign origins before attaching cr
   assert.equal(f.calls[0].headers.get('authorization'), 'Bearer explicit-transport-token');
 });
 
+test('model presentation follows the selected chat connection without exposing another route key', async t => {
+  const f=fixture(t);
+  f.settings.model_routes={chat:'named',background:'default'};
+  f.settings.model_connections={named:{name:'Named chat',model:{provider:'different',model_id:'named-model',base_url:'https://named.invalid/v1',api_format:'openai-chat',api_key_configured:true}}};
+  await f.start();
+  const models=await f.client.request('models.list',{});assert.equal(models.models[0].id,'named-model');
+  const sessions=await f.client.request('sessions.list',{});assert.equal(sessions.defaults.model,'named-model');
+  const config=await f.client.request('config.get',{});assert.equal(config.config.agents.defaults.model.primary,'different/named-model');
+  assert.equal(JSON.stringify(config).includes('private-provider-secret'),false);
+});
+
 test('startup authenticates before health, advertises supported methods, and stop cancels its stream', async t => {
   const f = fixture(t); await f.start();
   assert.deepEqual(f.calls.slice(0, 2).map(item => item.path), ['/api/auth', '/api/health']);
@@ -193,6 +204,24 @@ test('session lookup and transcript use the product conversation identity, never
   const before = f.calls.filter(item => item.path.endsWith('/history')).length;
   await assert.rejects(f.client.request('sessions.resolve', {key: conversationKey('missing')}), /会话不存在/);
   assert.equal(f.calls.filter(item => item.path.endsWith('/history')).length, before);
+});
+
+test('native history materials and completed tool blocks survive original-client normalization', async t => {
+  const f = fixture(t), prefix = '/api/sessions/one/attachments/';
+  const image = {type: 'image', url: prefix + 'image/' + 'a'.repeat(64), fileName: '窗口.png', mimeType: 'image/png', width: 1, height: 1};
+  const attachment = {type: 'attachment', attachment: {kind: 'document', label: '资料.txt', url: prefix + 'file/' + 'b'.repeat(64)}};
+  const tool = {toolCallId: 'native-call', id: 'native-call', role: 'toolResult', time: 2,
+    __openclaw: {id: 'native-call', seq: 3, runId: 'command-one'}, content: [
+      {type: 'toolcall', id: 'native-call', name: 'mirally_reminders', arguments: {}},
+      {type: 'toolresult', id: 'native-call', name: 'mirally_reminders', text: '{"commitments":[]}', isError: false}]};
+  f.histories.set('one', [{id: 'material-user', role: 'user', text: '查看材料', content: [{type: 'text', text: '查看材料'}, image, attachment]}, tool]);
+  const history = await f.client.request('chat.history', {sessionKey: conversationKey('one')});
+  assert.deepEqual(history.messages[0].content.slice(1), [
+    {...image,url:new URL(image.url,f.location.origin).href},
+    {...attachment,attachment:{...attachment.attachment,url:new URL(attachment.attachment.url,f.location.origin).href}},
+  ],'Native receipt URLs are HTTP resources, never old host filesystem paths');
+  assert.equal(history.messages[1].toolCallId, 'native-call'); assert.deepEqual(history.messages[1].content, tool.content);
+  assert.equal(history.messages[1].__openclaw.runId, 'command-one');
 });
 
 test('new-session parameters preserve the original UI display title and initial attachment ownership', async t => {

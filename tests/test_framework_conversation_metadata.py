@@ -1,0 +1,121 @@
+"""Conversation organization uses its real SQLite owner, not UI-only state."""
+from pathlib import Path
+import concurrent.futures
+import tempfile
+import unittest
+
+from mirally.framework import FrameworkError, FrameworkService
+
+
+class ConversationMetadataTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="mirally 会话 metadata ")
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.home = self.root / "product home"
+        self.now = 1000
+        self.service = FrameworkService(self.root, self.home, clock=lambda: self.now)
+        self.addCleanup(lambda: self.service.close())
+
+    def create(self, identity="one"):
+        self.service.call("conversation.ensure", {"conversation_id": identity, "title": "原来的对话"})
+        return self.service.call("conversation.bind", {"conversation_id": identity, "session_id": "native-" + identity})
+
+    def patch(self, patch, version=1, identity="one"):
+        return self.service.call("conversation.patch", {"conversation_id": identity, "expected_version": version, "patch": patch})
+
+    def test_title_pin_archive_restore_survive_restart_without_changing_native_ownership(self):
+        original = self.create()
+        self.now += 100
+        changed = self.patch({"title": "计划与生活", "pinned": True, "archived": True})
+        self.assertEqual(changed["metadata_version"], 2)
+        self.assertEqual(changed["session_id"], original["session_id"])
+        self.assertEqual(changed["generation"], original["generation"])
+        self.service.close()
+        self.service = FrameworkService(self.root, self.home, clock=lambda: self.now)
+        persisted = self.service.call("conversation.get", {"conversation_id": "one"})
+        self.assertEqual(persisted, changed)
+        restored = self.patch({"archived": False}, 2)
+        self.assertFalse(restored["archived"])
+        self.assertTrue(restored["pinned"])
+        self.assertIsNone(restored["archived_at"])
+        self.assertEqual(restored["title"], "计划与生活")
+        self.assertEqual(self.service.call("conversation.history_refs", {"conversation_id": "one"})["generations"][0]["session_id"], "native-one")
+
+    def test_concurrent_metadata_writes_compare_the_observed_version(self):
+        self.create()
+        def edit(title):
+            service = FrameworkService(self.root, self.home)
+            try:
+                return service.call("conversation.patch", {"conversation_id": "one", "expected_version": 1, "patch": {"title": title}})
+            except FrameworkError as error:
+                return error.code
+            finally:
+                service.close()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            outcomes = list(pool.map(edit, ("first", "second")))
+        self.assertEqual(sum(isinstance(item, dict) for item in outcomes), 1)
+        self.assertEqual(outcomes.count("CONFLICT"), 1)
+        current = self.service.call("conversation.get", {"conversation_id": "one"})
+        self.assertEqual(current["metadata_version"], 2)
+
+    def test_archive_blocks_new_commands_and_actions_until_explicit_restore(self):
+        self.create()
+        self.patch({"archived": True})
+        with self.assertRaisesRegex(FrameworkError, "restore"):
+            self.service.call("command.admit", {"conversation_id": "one", "command_id": "new", "text": "误发"})
+        guard = self.service.call("guard.check", {"conversation_id": "one"})
+        self.assertFalse(guard["allow"])
+        self.assertIn("conversation_archived", guard["reasons"])
+        self.patch({"archived": False}, 2)
+        admitted = self.service.call("command.admit", {"conversation_id": "one", "command_id": "new", "text": "恢复后的需求"})
+        self.assertTrue(admitted["should_dispatch"])
+        with self.assertRaisesRegex(FrameworkError, "stop the active"):
+            self.patch({"archived": True}, 3)
+        self.assertFalse(self.service.call("conversation.get", {"conversation_id": "one"})["archived"])
+
+    def test_filters_pins_pagination_and_point_reads_include_old_conversations(self):
+        for number in range(205):
+            self.now += 1
+            self.create(str(number))
+        self.patch({"pinned": True}, identity="0")
+        self.patch({"archived": True}, identity="1")
+        active = self.service.call("conversation.list", {"archived_filter": "active", "limit": 1000})["conversations"]
+        self.assertEqual(active[0]["conversation_id"], "0")
+        self.assertEqual(len(active), 204)
+        self.assertEqual(self.service.call("conversation.get", {"conversation_id": "2"})["session_id"], "native-2")
+        archived = self.service.call("conversation.list", {"archived_filter": "archived"})["conversations"]
+        self.assertEqual([item["conversation_id"] for item in archived], ["1"])
+        self.assertEqual(len(self.service.call("conversation.list", {"offset": 200})["conversations"]), 5)
+
+    def test_metadata_rejects_unknown_fields_types_stale_versions_and_keeps_noops_stable(self):
+        self.create()
+        for patch in ({}, {"permissionMode": "full"}, {"archived": 1}, {"pinned": "yes"}, {"title": " "}, {"title": "x" * 513}):
+            with self.subTest(patch=patch), self.assertRaises(FrameworkError):
+                self.patch(patch)
+        with self.assertRaises(FrameworkError):
+            self.patch({"title": "new"}, True)
+        self.assertEqual(self.patch({"title": "原来的对话"})["metadata_version"], 1)
+        self.patch({"title": "new"})
+        with self.assertRaisesRegex(FrameworkError, "refresh"):
+            self.patch({"pinned": True})
+
+    def test_schema_two_upgrade_preserves_commands_title_and_references(self):
+        self.create()
+        self.service.call("command.admit", {"conversation_id": "one", "command_id": "before", "text": "原始消息"})
+        self.service.call("command.ack", {"conversation_id": "one", "command_id": "before", "state": "completed"})
+        for column in ("pinned", "archived", "metadata_version", "metadata_updated_at", "pinned_at", "archived_at"):
+            self.service.db.execute("ALTER TABLE conversations DROP COLUMN " + column)
+        self.service.db.execute("PRAGMA user_version=2")
+        self.service.close()
+        self.service = FrameworkService(self.root, self.home)
+        current = self.service.call("conversation.get", {"conversation_id": "one"})
+        self.assertEqual(current["title"], "原来的对话")
+        self.assertFalse(current["pinned"])
+        self.assertFalse(current["archived"])
+        self.assertEqual(current["metadata_version"], 1)
+        self.assertEqual(self.service.call("command.list", {"conversation_id": "one"})["commands"][0]["command_id"], "before")
+
+
+if __name__ == "__main__":
+    unittest.main()

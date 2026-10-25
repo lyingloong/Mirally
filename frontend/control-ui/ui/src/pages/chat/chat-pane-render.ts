@@ -550,7 +550,7 @@ export class ChatPane extends ChatPaneLayoutRender {
         modelAuthStatusResult: state.modelAuthStatusResult,
       },
       composerControls: composerControls?.composerControls ?? nothing,
-      permissionPicker: isGatewayMethodAdvertised(gatewaySnapshot, "sessions.patch") === true
+      permissionPicker: mutationAccess.permission.allowed
         ? composerControls?.permissionPicker
         : undefined,
       backgroundTasks: catalogKey ? undefined : backgroundTasks,

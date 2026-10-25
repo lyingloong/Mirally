@@ -292,12 +292,16 @@ class MigrationPlan:
                 manifest = {"version": 1, "status": "copied", "created_at_utc_ms": time.time_ns() // 1_000_000,
                             "home": str(self.home), "profiles": self.profiles, "databases": database_results,
                             "asset_count": len(self.assets), "assets": [{"destination": str(relative), "sha256": _hash(stage / relative)} for _, relative in self.assets],
-                            "source_fingerprints": self.fingerprint, "legacy_session_count": len(self.history),
+                            "source_fingerprints": self.fingerprint, "legacy_session_count": len(self.history), "legacy_sessions_archived": True,
                             "preference_count": len(self.preferences), "model_imported": self.model is not None,
                             "owner_locks_checked": True, "sources_modified": False, "transcript_conversion": False,
                             "rollback": "stop the new host, run --rollback, then use the saved old launcher/config; keep this home for new data"}
                 (stage / "framework" / "migration-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
                 (stage / "framework" / "legacy-history.json").write_text(json.dumps(self.history, ensure_ascii=False, indent=2), encoding="utf-8")
+                # Keep old records independently readable after the original
+                # runtime/source folder has been retired. No transcript conversion.
+                from .legacy_history import archive
+                archive(stage)
                 self._target_empty()
                 existed_empty = self.home.exists()
                 if existed_empty:

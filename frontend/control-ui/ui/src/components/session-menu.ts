@@ -5,6 +5,7 @@ import { t } from "../i18n/index.ts";
 import { mirallyNavigationText } from "../app-navigation.ts";
 import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
 import { DropdownMenuController } from "./dropdown-menu-controller.ts";
+import {renderMirallySessionOrganization} from './mirally-session-organization.ts';
 import { icons } from "./icons.ts";
 import { activateMenuShortcut, menuShortcutHint } from "./menu-shortcuts.ts";
 import { promoteToPopoverTopLayer } from "./menu-surface.ts";
@@ -81,6 +82,8 @@ class SessionMenu extends OpenClawLightDomElement {
 
   private runAction(action: SessionMenuAction) {
     if (this.disabled || this.selectionCount !== 1 || this.actionDisabledReasons[action.kind]) return;
+    if (action.kind === 'toggle-pin' && (this.session.archived || this.session.isChild || this.session.pinnable === false)) return;
+    if (action.kind === 'toggle-archived' && (this.session.archiving || !this.session.archived && !this.archiveAllowed)) return;
     if (action.kind === "copy-markdown" && !this.copyMarkdownAllowed) return;
     if (["copy-session-link", "open-new-tab"].includes(action.kind) && !this.navigationAllowed) return;
     this.onClose();
@@ -103,7 +106,7 @@ class SessionMenu extends OpenClawLightDomElement {
     }
     // Mirally has one native conversation owner. Unsupported lifecycle actions
     // must not fall through to the old method-level sessions.create contract.
-    if (value === "copy-markdown" || value === "copy-session-link" || value === "open-new-tab") {
+    if (value === "copy-markdown" || value === "copy-session-link" || value === "open-new-tab" || value === 'rename' || value === 'toggle-pin' || value === 'toggle-archived') {
       this.runAction({ kind: value });
     }
   };
@@ -150,6 +153,7 @@ class SessionMenu extends OpenClawLightDomElement {
         ${batch ? html`
           <div class="session-menu__info">${mirallyNavigationText("选择一个对话以复制或打开。", "Select one conversation to copy or open it.")}</div>
         ` : html`
+          ${renderMirallySessionOrganization(session, this.actionDisabledReasons, this.archiveAllowed, this.disabled)}
           <wa-dropdown-item
             class="session-menu__item"
             value="copy-markdown"

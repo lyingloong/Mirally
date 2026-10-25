@@ -16,6 +16,9 @@
     mirally_context: '整理相关记忆与活动', mirally_preferences: '读取你的偏好',
     mirally_reminders: '查看提醒', mirally_set_preference: '保存你的偏好',
     mirally_create_reminder: '创建提醒', mirally_create_file: '保存交付文件',
+    mirally_workspace_roots: '查看授权文件夹', mirally_list_files: '查看文件目录',
+    mirally_read_file: '阅读文件', mirally_search_files: '查找文件内容',
+    mirally_write_workspace_file: '保存工作区文件', mirally_web_search: '搜索网页资料', mirally_web_fetch: '阅读网页正文',
     read: '读取资料', write: '整理文件', edit: '修改内容', exec: '执行后台操作',
     browser: '处理网页', web_search: '查找资料', web_fetch: '阅读网页',
   };

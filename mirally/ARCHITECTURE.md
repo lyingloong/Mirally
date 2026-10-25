@@ -2,6 +2,8 @@
 
 当前默认入口 `python -m mirally` → `framework_host.py` → 同仓 `kernel/dsh/packages/mirally/mirally-product/start.mjs`。新主链不依赖 OpenClaw；显式 `--openclaw` 保留旧维护路线。
 
+迁移验收后，旧路线冻结为历史/显式回退，后续只开发新框架。`framework/model_connections.py` 管理独立连接和对话/后台路由；`framework/capabilities.py` 管理文件范围与网页开关，原生基础工具包在唯一 DSH 工具管线执行；`framework/legacy_history.py` 读取独立归档，不生成新会话。历史材料与工具详情从 DSH transcript 投影，不建立第二份聊天存储。范围见[迁移收尾](../docs/framework-migration-closure.md)。
+
 - `framework/`：产品业务 owner 与 SQLite，持久设置、会话代次引用、命令和来源回执、偏好、提醒、主动候选及收件箱；不复制原生 transcript。
 - `framework/context.py`：按需只读组合现有 Activity 与 Memory owner，保留来源版本和缺口。
 - `framework_workers.py`：有开关和预算的采集、维护和语义任务生命周期；完成请求经同一原生模型桥。

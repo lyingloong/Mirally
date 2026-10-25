@@ -101,6 +101,20 @@ try{
     await test('model-reasoning').selectOption(effort);await save();await page.reload();await ready();
     assert.equal(await test('model-reasoning').inputValue(),effort);assert.equal((await settings()).model.reasoning_effort,effort);
   }
+  await test('connection-new').click();
+  await test('connection-name').fill('独立后台连接');await test('model-base-url').fill(base);
+  await test('model-id').fill('fixture-text');await test('model-key').fill('second-fixture-key');await save();
+  const connectionId=await test('connection-select').inputValue();assert.notEqual(connectionId,'default');
+  assert.equal((await settings()).model_connections[connectionId].name,'独立后台连接');
+  assert.equal(JSON.stringify(await settings()).includes('second-fixture-key'),false);
+  await test('route-background').selectOption(connectionId);await test('notice').filter({hasText:'用途已保存'}).waitFor();await ready();
+  assert.equal((await settings()).model_routes.background,connectionId);assert.equal(await test('connection-delete').isDisabled(),true);
+  await test('model-test').click();await test('model-test-result').waitFor();await ready();
+  assert.equal(calls.filter(call=>call.body).at(-1).auth,'Bearer second-fixture-key','named probe uses that connection key');
+  await test('route-background').selectOption('default');await test('notice').filter({hasText:'用途已保存'}).waitFor();await ready();
+  await test('connection-delete').click();await test('connection-delete-confirm').click();await test('notice').filter({hasText:'连接已删除'}).waitFor();await ready();
+  assert.equal((await settings()).model_connections[connectionId],undefined);assert.equal(await test('connection-select').inputValue(),'default');
+  findings.push('Named connections save independent keys, assign background purpose, probe the selected connection, refuse deletion while assigned and delete after explicit confirmation.');
   await page.setViewportSize({width:480,height:900});await page.screenshot({path:join(output,'model-connection-narrow.png'),fullPage:true});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false,'narrow page fits viewport');
   assert.deepEqual(errors,[]);

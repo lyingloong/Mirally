@@ -50,6 +50,8 @@ class FixtureProvider(BaseHTTPRequestHandler):
             tool, args = "fixture_plugin_echo", {"text": "plugin value"}
         elif not is_result and "create deliverable" in last:
             tool, args = "mirally_create_file", {"name": "迁移成果.md", "content": "# 实际交付\n\n复用原有 Mirally 产品体验。\n"}
+        elif not is_result and "Use the mirally_reminders tool" in last:
+            tool, args = "mirally_reminders", {}
         if tool and tool not in names:
             raise AssertionError("Expected product tool was not offered by the real native runtime: " + tool)
         self.send_response(200)
@@ -123,7 +125,7 @@ class Client:
         return result
 
 
-def verify(root: Path, home: Path, *, browser_files: bool = False) -> list[str]:
+def verify(root: Path, home: Path, *, browser_files: bool = False, browser_history: bool = False) -> list[str]:
     checks = []
     provider = ThreadingHTTPServer(("127.0.0.1", 0), FixtureProvider)
     thread = threading.Thread(target=provider.serve_forever, daemon=True)
@@ -202,6 +204,10 @@ def verify(root: Path, home: Path, *, browser_files: bool = False) -> list[str]:
         client.send(session, 'main-image', 'read supplied image', materials=[image_material['id']])
         assert 'data:image/png;base64' in json.dumps(FixtureProvider.calls[-1])
         checks.append('real material extraction and native multimodal message, file permission refusal, deliverable receipt/preview and replay deduplication')
+        if browser_history:
+            subprocess.run([str(discover_node(root)), str(root / "tools/verify_framework_history_browser.mjs"),
+                str(home / "runtime.json"), str(root / ".artifacts/migration-closeout/history-browser"), "--live"], cwd=root, check=True)
+            checks.append("original history shows actual attachment pixels/bytes and tool details after reload and a fresh client")
         client.send(session, "preference-1", "remember my preference")
         assert any(item["key"] == "tone" for item in client.rpc("preference.list")["preferences"])
         client.send(session, "reminder-1", "create a reminder")
@@ -334,13 +340,14 @@ def main():
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--home", type=Path)
     parser.add_argument("--browser-files", action="store_true", help="Also verify the retained Files UI in headless Edge against the real loopback tool artifact")
+    parser.add_argument("--browser-history", action="store_true", help="Also verify actual native material/tool history in Edge using the loopback provider")
     args = parser.parse_args()
     if args.home:
         assert not args.home.exists() or not any(args.home.iterdir()), "Acceptance requires a fresh isolated home"
-        checks = verify(args.root.resolve(), args.home.resolve(), browser_files=args.browser_files)
+        checks = verify(args.root.resolve(), args.home.resolve(), browser_files=args.browser_files, browser_history=args.browser_history)
     else:
         with tempfile.TemporaryDirectory(prefix="mirally-acceptance-") as temporary:
-            checks = verify(args.root.resolve(), Path(temporary) / "product home", browser_files=args.browser_files)
+            checks = verify(args.root.resolve(), Path(temporary) / "product home", browser_files=args.browser_files, browser_history=args.browser_history)
     for check in checks:
         print("PASS " + check)
     return 0

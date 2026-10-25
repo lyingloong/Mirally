@@ -52,10 +52,12 @@ function responsesFrames() {
 function productModels(t) {
   let registrations = 0, disposals = 0;
   const owner = new ProductModels({get: () => undefined, llm: {registerAdapter(routes, adapter) {
-    assert.deepEqual(routes, ['mirally']);
+    assert.ok(routes.includes('mirally'));
     assert.ok(adapter);
     registrations++;
-    return () => {disposals++;};
+    const dispose = () => {disposals++;};
+    dispose.replace = routes => {assert.ok(Array.isArray(routes));};
+    return dispose;
   }}}, {testMode: false});
   t.after(() => {
     owner.dispose();
@@ -68,7 +70,7 @@ function productModels(t) {
 
 const user = () => createUserMessage({source: {kind: 'user'}, content: [{type: 'text', text: 'Reply with the connection result.'}]});
 async function generate(owner, extra = {}) {
-  const options = owner.requireOptions(), assembler = new BlockAssembler();
+  const options = owner.requireOptions(extra.purpose ?? 'chat', extra.connectionId), assembler = new BlockAssembler();
   for await (const chunk of owner.adapter.stream({...options, messages: [user()], signal: AbortSignal.timeout(5000), ...extra})) {
     assembler.push(chunk);
   }
@@ -118,6 +120,32 @@ test('ProductModels DeepSeek Chat settings reach the actual PiAI HTTP request', 
     assert.equal(result.message.content.find(block => block.type === 'reasoning')?.text, 'Check the requested value.');
   });
   assert.equal(endpoint.requests.length, efforts.length);
+});
+
+test('named chat/background routes reach independent HTTP services and freeze credential generations', async t => {
+  const first=await provider(t,()=>chatFrames()), second=await provider(t,()=>chatFrames());
+  const owner=productModels(t);
+  const configured={...settings(first.url,'openai-chat',{api_key:'chat-secret',model_id:'chat-model'}),
+    model_connections:{worker:{name:'Background',model:{...settings(second.url,'openai-chat',{}).model,api_key:'background-secret',model_id:'background-model'}}},
+    model_routes:{chat:'default',background:'worker'}};
+  owner.sync(configured);
+  await generate(owner);await generate(owner,{purpose:'background'});
+  assert.equal(first.requests[0].auth,'Bearer chat-secret');assert.equal(first.requests[0].body.model,'chat-model');
+  assert.equal(second.requests[0].auth,'Bearer background-secret');assert.equal(second.requests[0].body.model,'background-model');
+  const oldOptions=owner.requireOptions('background');
+  const prepared=await owner.adapter.prepareCall(oldOptions.provider,oldOptions.model);
+  const next=structuredClone(configured);next.model_connections.worker.model.api_key='next-secret';next.model_connections.worker.model.base_url=first.url;
+  owner.sync(next);
+  for await(const chunk of prepared.stream({...oldOptions,messages:[user()],signal:AbortSignal.timeout(5000)})){}
+  assert.equal(second.requests.at(-1).auth,'Bearer background-secret','prepared calls keep their original endpoint and credential');
+  await generate(owner,{purpose:'background'});assert.equal(first.requests.at(-1).auth,'Bearer next-secret');
+  owner.sync({...next,model_routes:{chat:'worker',background:'default'}});
+  assert.equal(owner.requireOptions().model,'background-model');
+  assert.equal(owner.requireOptions('background').model,'chat-model');
+  assert.throws(()=>owner.requireOptions('background','missing'),error=>error.code==='model_connection_not_found');
+  const count=first.requests.length;
+  await assert.rejects(async()=>{for await(const _ of owner.adapter.stream({...owner.requireOptions(),messages:[{role:'user',content:[{type:'image',attachment:{id:'fake'}}]}],signal:AbortSignal.timeout(5000)})){}}, /does not support image/);
+  assert.equal(first.requests.length,count,'text-only routes must reject images before sending a misleading request');
 });
 
 test('ProductModels DeepSeek Responses settings reach the actual PiAI HTTP request', async t => {

@@ -9,11 +9,14 @@ import {mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, openSync
 import {readFile, realpath} from 'node:fs/promises';
 import {resolve, join, extname, sep} from 'node:path';
 import {ProductSidecar} from './sidecar.mjs';
-import {ProductModels} from './models.mjs';
+import {ProductModels, resolveProductConnection} from './models.mjs';
 import {discoverProductModels} from './model-probe.mjs';
 import {ProductMaterials} from './materials.mjs';
 import {originalPresentation} from './presentation.mjs';
 import {toolDisplayValue, toolResultDisplay} from './tool-presentation.mjs';
+import {installBasicCapabilities} from './basic-capabilities.mjs';
+import {projectMessages, nativeUserAttachments, toolPresentationId} from './history-presentation.mjs';
+export {projectMessages} from './history-presentation.mjs';
 
 export const name = 'mirally-product';
 export const inject = ['agents', 'agentLoop', 'sessions', 'sessionPersistence', 'llm', 'tools', 'systemPrompt'];
@@ -25,17 +28,20 @@ export const Config = z.object({
 
 const PUBLIC_METHODS = new Set([
   'system.status', 'settings.get', 'settings.update', 'conversation.list', 'conversation.history_refs', 'command.list',
+  'model.connections.list', 'model.connection.save', 'model.connection.remove', 'model.routes.set',
   'source.set', 'source.list', 'context.read', 'preference.set', 'preference.list', 'memory.correct',
   'commitment.create', 'commitment.cancel', 'commitment.list', 'initiative.offer', 'initiative.list',
   'initiative.dismiss', 'delivery.list', 'inbox.list', 'inbox.ack',
   'extensions.list', 'extensions.configure', 'extensions.disable', 'extensions.prompt', 'extensions.runScript',
   'skills.list', 'skills.read', 'mcp.resources.list', 'mcp.resources.read', 'mcp.resources.templates',
   'mcp.prompts.list', 'mcp.prompts.get', 'mcp.tools.call', 'mcp.tools.list', 'scripts.run',
-  'memory.search', 'memory.read', 'migration.status', 'legacy.history',
+  'memory.search', 'memory.read', 'migration.status', 'legacy.history', 'legacy.history.read', 'legacy.archive',
+  'capabilities.get', 'capabilities.configure', 'workspace.roots', 'workspace.list', 'workspace.read', 'workspace.search',
   'activity.status', 'activity.configure', 'activity.start', 'activity.pause', 'activity.resume', 'activity.stop', 'activity.browse',
   'memory.status', 'memory.configure',
 ]);
-const INVALIDATING_METHODS = new Set(['source.set', 'memory.correct', 'preference.set', 'settings.update',
+const INVALIDATING_METHODS = new Set(['source.set', 'memory.correct', 'preference.set', 'settings.update', 'capabilities.configure',
+  'model.connection.save', 'model.connection.remove', 'model.routes.set',
   'activity.configure', 'activity.start', 'activity.pause', 'activity.resume', 'activity.stop']);
 const MIME = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon'};
@@ -70,65 +76,6 @@ function textOf(content) {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return '';
   return content.filter(block => block.type === 'text').map(block => block.text).join('');
-}
-
-/** Preserve visible provider reasoning as a separate presentation block. */
-function messageContent(content, role) {
-  if (typeof content === 'string') return [{type: 'text', text: content}];
-  if (!Array.isArray(content)) return [];
-  return content.flatMap(block => {
-    if (block.type === 'text' && typeof block.text === 'string') return [{type: 'text', text: block.text}];
-    if (role === 'assistant' && block.type === 'reasoning' && typeof block.text === 'string' && block.text)
-      return [{type: 'thinking', thinking: block.text}];
-    return [];
-  });
-}
-
-/** Derives display messages from native history, keeping the native log as the sole transcript. */
-export function projectMessages(events, commands = [], sequenceOffset = 0) {
-  const result = [], seenUsers = new Set(), assistantByTurn = new Map();
-  const commandIds = new Map(commands.filter(command => command.runtime_request_id)
-    .map(command => [command.runtime_request_id, command.command_id]));
-  let consumedCommand;
-  const append = (message, event, role, commandId) => {
-    if (role === 'user') {
-      if (message.source?.kind !== 'user' || seenUsers.has(message.id)) return;
-      seenUsers.add(message.id);
-    }
-    const text = textOf(message.content);
-    const content = messageContent(message.content, role);
-    if (!text && !content.some(block => block.type === 'thinking')) return;
-    const id = message.id ?? String(event.seq);
-    // DSH's physical log starts at zero; the retained UI protocol requires a
-    // positive sequence. Closed predecessor logs occupy the preceding range.
-    const seq = sequenceOffset + event.seq + 1;
-    const projected = {id, role, text, content, seq, native_seq: event.seq, time: event.time, timestamp: event.time,
-      ...(commandId ? {command_id: commandId} : {}),
-      __openclaw: {id, seq, ...(commandId ? {runId: commandId,
-        ...(role === 'user' ? {idempotencyKey: `${commandId}:user`} : {})} : {})}};
-    result.push(projected);
-    if (role === 'assistant' && event.data.turn !== undefined) assistantByTurn.set(event.data.turn, projected);
-  };
-  for (const event of events) {
-    if (event.type === 'agent/inbox/spliced') {
-      // Admission is durable before a busy agent consumes the input. Keep its
-      // first native receipt stable when user/message later repeats that ID.
-      for (const message of event.data.inserted ?? []) append(message, event, 'user', commandIds.get(message.id));
-    } else if (event.type === 'user/message') {
-      const message = event.data.message ?? event.data;
-      if (message.source?.kind === 'user') consumedCommand = commandIds.get(message.id);
-      append(message, event, 'user', commandIds.get(message.id));
-    } else if (event.type === 'assistant/message') {
-      append(event.data.message ?? event.data, event, 'assistant', consumedCommand);
-    } else if (event.type === 'turn/end') {
-      const terminal = assistantByTurn.get(event.data.turn);
-      if (terminal) {
-        terminal.__openclaw.runTerminal = true;
-        terminal.stopReason = ({completed: 'stop', 'max-tokens': 'length', aborted: 'aborted', error: 'error'})[event.data.reason?.kind] ?? 'stop';
-      }
-    }
-  }
-  return result;
 }
 
 /** Native Agent controller and product transport; domain persistence remains in the sidecar. */
@@ -263,10 +210,8 @@ export class MirallyProduct extends Service {
   }
 
   async conversation(id) {
-    const result = await this.rpc('conversation.list');
-    const found = result.conversations.find(item => item.conversation_id === id);
-    if (!found) throw failure('Conversation not found', 'conversation_not_found', 404);
-    return found;
+    try { return await this.rpc('conversation.get', {conversation_id: id}); }
+    catch (error) { if (error.code === 'NOT_FOUND') throw failure('Conversation not found', 'conversation_not_found', 404); throw error; }
   }
 
   summary(conversation) {
@@ -274,12 +219,15 @@ export class MirallyProduct extends Service {
     const active = native?.status === 'running' && !conversation.frozen && this.activeCommands.get(conversation.session_id);
     return {id: conversation.conversation_id, conversation_id: conversation.conversation_id,
       session_id: conversation.session_id, title: conversation.title, status: native?.status ?? 'idle',
+      pinned: conversation.pinned, archived: conversation.archived, metadata_version: conversation.metadata_version,
+      pinned_at: conversation.pinned_at, archived_at: conversation.archived_at, metadata_updated_at: conversation.metadata_updated_at,
       active_command_ids: active ? [active] : [],
       updated_at: conversation.updated_at ?? conversation.created_at, generation: conversation.generation,
       frozen: conversation.frozen};
   }
 
   async ensureNative(conversation, {forInput = false} = {}) {
+    if (forInput && conversation.archived) throw failure('请先恢复已归档的对话，再发送消息。', 'conversation_archived', 409);
     if (forInput && conversation.frozen) {
       conversation = await this.rpc('conversation.rotate', {conversation_id: conversation.conversation_id, reason: 'explicit_user_input'});
     }
@@ -340,7 +288,8 @@ export class MirallyProduct extends Service {
           try { snapshot = await reader.read(); }
           finally { await reader.close(); }
         }
-        messages.push(...projectMessages(snapshot.events, commands.filter(command => command.session_id === nativeId), sequenceOffset)
+        messages.push(...projectMessages(snapshot.events, commands.filter(command => command.session_id === nativeId), sequenceOffset,
+          {conversationId: id, nativeSessionId: nativeId})
           .map(message => ({...message, generation: generation.generation, native_session_id: nativeId})));
         if (includeEvents) events.push(...snapshot.events.map(event => ({...event, native_session_id: nativeId})));
         sequenceOffset += snapshot.events.length;
@@ -371,6 +320,32 @@ export class MirallyProduct extends Service {
     throw failure('Native session is not owned by this conversation');
   }
 
+  async readConversationAttachment(id, kind, digest) {
+    if (!['image', 'file'].includes(kind) || !/^[a-f0-9]{64}$/.test(digest)) throw failure('Invalid attachment identity');
+    // The native log proves both ownership and explicit admission. An upload
+    // alone, a source's embedded path or a tool-produced link grants no read.
+    const history = await this.history(id, true);
+    const found = nativeUserAttachments(history.events).find(item => item.kind === kind && item.ref.attachmentId === `sha256:${digest}`);
+    if (!found) throw failure('This conversation does not own the requested attachment', 'attachment_not_found', 404);
+    const ref = found.ref, limit = 8 * 1024 * 1024;
+    if (!Number.isSafeInteger(ref.bytes) || ref.bytes < 0 || ref.bytes > limit) throw failure('Attachment exceeds the history read limit', 'attachment_too_large', 413);
+    const store = this.ctx.get('attachments');
+    if (!store) throw failure('Native attachment service is unavailable', 'attachment_unavailable', 503);
+    let data;
+    if (kind === 'image') data = Buffer.from((await store.readImage(ref)).data);
+    else {
+      const chunks = []; let length = 0;
+      for await (const chunk of store.readFileStream(ref)) {
+        length += chunk.byteLength;
+        if (length > limit) throw failure('Attachment exceeds the history read limit', 'attachment_too_large', 413);
+        chunks.push(Buffer.from(chunk));
+      }
+      data = Buffer.concat(chunks);
+    }
+    if (data.length !== ref.bytes) throw failure('Attachment byte receipt does not match', 'attachment_integrity', 409);
+    return {ref, data};
+  }
+
   consumedCommandId(agent) {
     // Queued inbox insertions are visible user rows, but do not own a model
     // attempt until the loop has actually appended their user/message.
@@ -390,6 +365,7 @@ export class MirallyProduct extends Service {
       const materialContent = await this.materials.content(materialIds, id);
       await this.refreshModels();
       this.models.requireOptions();
+      if (materialContent.some(block => block.type === 'image')) this.models.assertImageInput?.('chat');
       const {conversation, handle} = await this.ensureNative(await this.conversation(id), {forInput: true});
       const sequenceOffset = conversation.generation > 1 ? await this.nativeSequenceOffset(id, conversation.session_id) : 0;
       const allowFiles = request.allow_file_write === true;
@@ -475,21 +451,28 @@ export class MirallyProduct extends Service {
 
   installNativeObservers() {
     const attempts = new Map();
+    const toolExecutions = new Map();
+    const toolOwner = exec => {
+      const call = (exec.agent?.session?.snapshotEvents?.() ?? []).toReversed().find(event => event.type === 'tool/call' && event.data.callId === exec.callId);
+      return {id: toolPresentationId(exec.agent?.id, call?.seq, exec.callId), commandId: this.consumedCommandId(exec.agent)};
+    };
     this.ctx.on('tools/execute', async (exec, next) => {
       const conversation = this.nativeConversations.get(exec.agent?.id);
       if (conversation) {
+        const owner = toolOwner(exec); toolExecutions.set(exec.token ?? exec, owner);
         const args = toolDisplayValue(exec.arguments);
-        this.broadcast('tool', {session_id: conversation.conversation_id, command_id: this.consumedCommandId(exec.agent),
-          name: exec.name, id: exec.callId, state: 'running', args: args.value, args_truncated: args.truncated});
+        this.broadcast('tool', {session_id: conversation.conversation_id, command_id: owner.commandId,
+          name: exec.name, id: owner.id, state: 'running', args: args.value, args_truncated: args.truncated});
       }
       return next();
     });
     this.ctx.on('tools/result', (exec, result) => {
       const conversation = this.nativeConversations.get(exec.agent?.id);
       if (conversation) {
+        const owner = toolExecutions.get(exec.token ?? exec) ?? toolOwner(exec); toolExecutions.delete(exec.token ?? exec);
         const display = toolResultDisplay(result);
-        this.broadcast('tool', {session_id: conversation.conversation_id, command_id: this.consumedCommandId(exec.agent), name: exec.name,
-          id: exec.callId, state: result.isError ? 'failed' : 'completed', result: display.value, result_truncated: display.truncated});
+        this.broadcast('tool', {session_id: conversation.conversation_id, command_id: owner.commandId, name: exec.name,
+          id: owner.id, state: result.isError ? 'failed' : 'completed', result: display.value, result_truncated: display.truncated});
       }
     });
     this.ctx.on('agent/created', async ({agent, source}) => {
@@ -531,6 +514,7 @@ export class MirallyProduct extends Service {
   }
 
   installProductTools() {
+    installBasicCapabilities(this);
     this.ctx.tools.register({name: 'mirally_create_file', description: 'Save a requested deliverable in the conversation workspace. Only available when the human allowed file output in this command. Return its real artifact receipt.',
       parameters: {type: 'object', properties: {name: {type: 'string'}, content: {type: 'string'}}, required: ['name', 'content'], additionalProperties: false},
       output: {schema: {type: 'object', additionalProperties: true}, render: (_args, result) => [{type: 'text', text: JSON.stringify(result)}]},
@@ -577,9 +561,9 @@ export class MirallyProduct extends Service {
       });
   }
 
-  async modelCall({system, messages, prompt, max_tokens, signal}) {
+  async modelCall({system, messages, prompt, max_tokens, signal, purpose = 'background', connection_id}) {
     await this.refreshModels();
-    const options = this.models.requireOptions();
+    const options = this.models.requireOptions(purpose, connection_id);
     const input = messages ?? [{role: 'user', content: prompt ?? ''}];
     const normalized = [];
     const systemText = [system, ...input.filter(message => ['system', 'developer'].includes(message.role)).map(message => textOf(message.content))].filter(Boolean).join('\n\n');
@@ -589,6 +573,7 @@ export class MirallyProduct extends Service {
       for (const block of typeof message.content === 'string' ? [{type: 'text', text: message.content}] : message.content ?? []) {
         if (block.type === 'text') content.push({type: 'text', text: block.text});
         else if (block.type === 'image_url') {
+          this.models.assertImageInput?.(purpose, connection_id);
           const match = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=\s]+)$/.exec(block.image_url?.url ?? '');
           if (!match) throw failure('Auxiliary image input requires an inline image data URL');
           const attachments = this.ctx.get('attachments');
@@ -683,7 +668,7 @@ export class MirallyProduct extends Service {
         });
       } else result = await service.request(method, params);
     } else result = await this.rpc(method, params);
-    if (method === 'settings.update') {
+    if (method === 'settings.update' || ['model.connection.save', 'model.connection.remove', 'model.routes.set'].includes(method)) {
       await this.refreshModels(); this.lastInitiativeCheck = 0;
       this.broadcast('configuration', {fields: Object.keys(params.patch || {})});
     }
@@ -731,7 +716,7 @@ export class MirallyProduct extends Service {
       const input = await body(request);
       const controller = new AbortController();
       response.once('close', () => { if (!response.writableEnded) controller.abort(); });
-      const result = await this.modelCall({...input, signal: controller.signal});
+      const result = await this.modelCall({...input, purpose: 'background', connection_id: undefined, signal: controller.signal});
       return json(response, 200, {...result, usage: {prompt_tokens: result.usage.inputTokens ?? 0,
         completion_tokens: result.usage.outputTokens ?? 0,
         total_tokens: (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0)},
@@ -760,7 +745,8 @@ export class MirallyProduct extends Service {
     }
     if (['/api/models/discover', '/api/models/test'].includes(pathname) && request.method === 'POST') {
       const input = await body(request);
-      if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length) throw failure('模型检查只使用已保存的连接，请先保存设置。');
+      if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => key !== 'connection_id')
+        || (input.connection_id !== undefined && (typeof input.connection_id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(input.connection_id)))) throw failure('模型检查只使用已保存的连接，请先保存设置。');
       const disconnected = new AbortController();
       const disconnect = () => { if (!response.writableEnded) disconnected.abort(new Error('Client disconnected')); };
       response.once('close', disconnect);
@@ -768,17 +754,32 @@ export class MirallyProduct extends Service {
         const result = await this.runEffect('model-settings-probe', async stopping => {
           const signal = AbortSignal.any([stopping, disconnected.signal, AbortSignal.timeout(pathname.endsWith('/discover') ? 20_000 : 90_000)]);
           if (pathname.endsWith('/discover')) {
-            const {model} = await this.rpc('internal.settings.get');
+            const {model} = resolveProductConnection(await this.rpc('internal.settings.get'), {connectionId: input.connection_id ?? 'default'});
             return discoverProductModels(model, signal);
           }
           const start = Date.now();
-          const result = await this.modelCall({prompt: 'Reply with exactly: Mirally connection OK', max_tokens: 512, signal});
+          const result = await this.modelCall({prompt: 'Reply with exactly: Mirally connection OK', max_tokens: 512, signal, connection_id: input.connection_id ?? 'default'});
           return {...result, elapsed_ms: Date.now() - start, scope: 'text_generation', mode: this.config.testMode ? 'test' : 'normal'};
         });
         return json(response, 200, result);
       } finally { response.off('close', disconnect); }
     }
-    if (pathname === '/api/materials' && request.method === 'POST') return json(response, 201, await this.materials.upload(await body(request)));
+    if (pathname === '/api/materials' && request.method === 'POST') {
+      const input = await body(request);
+      const uploaded = await this.serial(input.conversation_id, async () => {
+        if ((await this.conversation(input.conversation_id)).archived) throw failure('请先恢复已归档的对话，再添加材料。', 'conversation_archived', 409);
+        return this.materials.upload(input);
+      });
+      return json(response, 201, uploaded);
+    }
+    const historyAttachment = /^\/api\/sessions\/([^/]+)\/attachments\/(image|file)\/([a-f0-9]{64})$/.exec(pathname);
+    if (historyAttachment && request.method === 'GET') {
+      const {ref, data} = await this.readConversationAttachment(decodeURIComponent(historyAttachment[1]), historyAttachment[2], historyAttachment[3]);
+      response.writeHead(200, {'Content-Type': historyAttachment[2] === 'image' ? ref.mediaType : 'application/octet-stream',
+        'Content-Disposition': `${historyAttachment[2] === 'image' ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(ref.name || 'image')}`,
+        'Content-Length': data.length, 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; sandbox", 'Cache-Control': 'no-store'});
+      response.end(data); return;
+    }
     if (pathname === '/api/ui-preferences' && ['GET', 'POST'].includes(request.method)) {
       const input = request.method === 'POST' ? await body(request) : null;
       const path = join(this.home, 'ui-preferences.json'); let preferences = {};
@@ -804,7 +805,10 @@ export class MirallyProduct extends Service {
       response.writeHead(200, {'Content-Type': 'application/octet-stream', 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(record.name)}`, 'Cache-Control': 'no-store'}); response.end(data); return;
     }
     if (pathname === '/api/sessions' && request.method === 'GET') {
-      return json(response, 200, {sessions: (await this.rpc('conversation.list')).conversations.map(item => this.summary(item))});
+      const archived_filter = url.searchParams.get('archived') ?? 'all';
+      const limit = Number(url.searchParams.get('limit') ?? 1000), offset = Number(url.searchParams.get('offset') ?? 0);
+      const sessions = (await this.rpc('conversation.list', {archived_filter, limit, offset})).conversations.map(item => this.summary(item));
+      return json(response, 200, {sessions, has_more: sessions.length === limit, next_offset: offset + sessions.length});
     }
     if (pathname === '/api/sessions' && request.method === 'POST') {
       const input = await body(request);
@@ -813,6 +817,17 @@ export class MirallyProduct extends Service {
       const conversation = await this.rpc('conversation.ensure', {title: input.title, ...(stableId ? {conversation_id: stableId} : {})});
       const result = await this.serial(conversation.conversation_id, async () => this.ensureNative(await this.conversation(conversation.conversation_id)));
       return json(response, 201, this.summary(result.conversation));
+    }
+    const metadataPath = /^\/api\/sessions\/([^/]+)$/.exec(pathname);
+    if (metadataPath && request.method === 'PATCH') {
+      const id = decodeURIComponent(metadataPath[1]), input = await body(request);
+      if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !['expected_version', 'patch'].includes(key))) throw failure('Only explicit conversation metadata can be changed');
+      const changed = await this.serial(id, async () => {
+        try { return await this.rpc('conversation.patch', {conversation_id: id, expected_version: input.expected_version, patch: input.patch}); }
+        catch (error) { throw failure(error.message, error.code ?? 'metadata_failed', error.code === 'CONFLICT' ? 409 : error.code === 'NOT_FOUND' ? 404 : 400); }
+      });
+      this.broadcast('session-metadata', {session_id: id, metadata_version: changed.metadata_version});
+      return json(response, 200, this.summary(changed));
     }
     const matched = /^\/api\/sessions\/([^/]+)\/(history|messages|cancel)$/.exec(pathname);
     if (matched) {

@@ -186,6 +186,7 @@ export abstract class ChatPaneSessionMenu extends ChatPaneContext {
     const owner = this.headerOutcomeOwner;
     const toActionSession = (candidate: GatewaySessionRow) => ({
       key: candidate.key,
+      metadataVersion: candidate.metadataVersion,
       sessionId: candidate.sessionId,
       label:
         normalizeOptionalString(candidate.label) ??
@@ -462,7 +463,7 @@ export abstract class ChatPaneSessionMenu extends ChatPaneContext {
       return;
     }
     // The edit belongs to this instance, even if a replacement reuses its key.
-    this.headerRenameSession = { key: row.key, sessionId: row.sessionId, label: row.label };
+    this.headerRenameSession = { key: row.key, sessionId: row.sessionId, label: row.label, metadataVersion: row.metadataVersion };
     this.headerRenameInitialValue = resolveSessionRenameValue(row);
     this.headerRenameValue = this.headerRenameInitialValue;
     this.headerEditing = true;
@@ -507,6 +508,7 @@ export abstract class ChatPaneSessionMenu extends ChatPaneContext {
       .patch(session.key, patch, {
         agentId: resolveChatAgentId(state),
         expectedSessionId: session.sessionId,
+        expectedMetadataVersion: session.metadataVersion,
       })
       .catch((error: unknown) => this.publishHeaderError(error, owner));
   }

@@ -1,4 +1,5 @@
 import type { WorktreesRemoveResult } from "../../../packages/gateway-protocol/src/index.js";
+import type { SessionsPatchResult } from "../api/types.ts";
 import { loadSettings, patchSettings } from "../app/settings.ts";
 import { t } from "../i18n/index.ts";
 import { registerNewSessionSetupEnglish } from "../i18n/locales/en-new-session-setup.ts";
@@ -53,7 +54,10 @@ export async function patchSession(
   session: SessionActionRow,
   patch: SidebarSessionPatch,
   scope: SidebarSessionMutationScope,
-  refresh: { deferListRefresh?: boolean } = {},
+  refresh: {
+    deferListRefresh?: boolean;
+    onConfirmed?: (entry: SessionsPatchResult["entry"]) => void;
+  } = {},
 ): Promise<SidebarSessionMutationResult> {
   if (!host.sessionData.isSessionMutationScopeCurrent(scope)) {
     return "stale";
@@ -81,6 +85,7 @@ export async function patchSession(
     const request = () =>
       scope.sessions.patch(session.key, patch, {
         agentId,
+        ...(session.metadataVersion === undefined ? {} : {expectedMetadataVersion: session.metadataVersion}),
         ...(session.sessionId ? { expectedSessionId: session.sessionId } : {}),
         ...(refresh.deferListRefresh ? { deferListRefresh: true } : {}),
       });
@@ -105,11 +110,12 @@ export async function patchSession(
     }
     // Unpin from any surface (menu, pin button, drag) retires the session's
     // persisted zone slot; leaving it would resurrect stale synced entries.
-    // Archiving implicitly unpins server-side (sessions-patch clears
-    // pinnedAt), so it retires the slot too.
+    // An archived row also leaves the active sidebar zone. Its durable pin may
+    // survive archival, so restoring it can recover the same organization.
     if (patch.pinned === false || (patch.archived === true && session.pinned)) {
       host.pruneSidebarSessionEntry(session.key);
     }
+    refresh.onConfirmed?.(patched.entry);
     if (!refresh.deferListRefresh && host.sidebarSessionStatusFilter() !== "active") {
       await host.sessionData.refreshSidebarSessions(agentId);
       if (!host.sessionData.isSessionMutationScopeCurrent(scope)) {
@@ -158,8 +164,15 @@ export async function archiveSessionWithUndo(
     return;
   }
   let result: SidebarSessionMutationResult;
+  let archivedSession = session;
   try {
-    result = await patchSession(host, session, { archived: true }, scope);
+    result = await patchSession(host, session, { archived: true }, scope, {
+      onConfirmed: (entry) => {
+        // Undo must fence the receipt produced by this archive, while retaining
+        // the original row for other surfaces and rejecting intervening edits.
+        archivedSession = { ...session, metadataVersion: entry.metadataVersion };
+      },
+    });
   } finally {
     finishArchive();
   }
@@ -169,7 +182,7 @@ export async function archiveSessionWithUndo(
   showToast({
     message: t("sessionsView.sessionArchived"),
     actionLabel: t("common.undo"),
-    onAction: archiveUndoAction(host, [{ session, pinned: session.pinned }], scope),
+    onAction: archiveUndoAction(host, [{ session: archivedSession, pinned: session.pinned }], scope),
   });
 }
 
@@ -431,18 +444,19 @@ export async function renameSession(
   session: SidebarRecentSession,
   scope: SidebarSessionMutationScope,
 ): Promise<void> {
-  const value = await showInputDialog({
+  await showInputDialog({
     signal: scope.signal,
     title: t("sessionsView.renameSessionPrompt"),
     defaultValue: session.renameValue,
+    submit: async (value) => {
+      const patch = resolveSessionRenamePatch(value, session.renameValue, session.userLabel);
+      if (!patch) return null;
+      const result = await patchSession(host, session, patch, scope);
+      return result === "completed" || result === "stale"
+        ? null
+        : formatUiError(scope.sessions.state.error || t("common.refresh"));
+    },
   });
-  if (value === null) {
-    return;
-  }
-  const patch = resolveSessionRenamePatch(value, session.renameValue, session.userLabel);
-  if (patch) {
-    await patchSession(host, session, patch, scope);
-  }
 }
 
 export async function assignSessionOwner(

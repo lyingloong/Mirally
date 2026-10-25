@@ -41,7 +41,11 @@
 
 - 2026-10-25：模型设置提供显式 DeepSeek 预设、上下文窗口和推理强度，以及真实模型列表发现和文字连接检查。`mirally-product/src/model-probe.mjs` 有界读取已保存服务的 `/models` 元数据，禁止重定向；固定文字检查复用现有 LLM 调用，不建立测试会话，随断连和 Host 停止取消。设置保存继续由 Python 产品 owner 负责，能力声明与实测结果分开呈现。
 
+- 2026-10-25：命名模型连接与 `chat` / `background` 用途路由由 Python 产品 owner 持久化，原 `settings.model` 保留为隐式 default 连接。一个 PiAI 适配器组合各连接和冻结凭据代次，后台记忆与主动联系通过原模型桥选择 background。模型列表与文字检查可明确指定保存的连接；新图片在所选连接未声明支持时由产品入口拒绝，避免内核通用文本降级被当作识图成功。
+
 ## 验证范围
+
+2026-10-26 迁移收尾：Conversation 元数据由 Python owner 持久化，Host 提供带版本校验的 PATCH；历史材料和工具由 `history-presentation.mjs` 从原生所有代次派生，并以真实引用授权附件。`basic-capabilities.mjs` 在原工具管线组合文件授权根、工作区文字写入与可选网页 search/fetch；不新增终端、浏览器或模型主循环。旧档案由产品侧独立只读归档，不伪造原生会话。具体范围及新旧维护切换见根[迁移收尾](../../docs/framework-migration-closure.md)。
 
 2026-10-25 模型与呈现补充：`mirally-product` 明确区分服务默认、关闭与推理档位，将 DeepSeek Chat 方言和 Responses 字段交给现有 PiAI 实现；修复旧 `off: ''` 的非法推理声明，保留协议回放和凭据代次。原生 reasoning 块与工具参数/结果投影给产品 UI，不增设聊天事实来源；辅助模型调用须检查原生终止错误，不能把失败当作空文字成功。实际供应商与离线 wire 验证范围另见根 [DeepSeek 实测](../../docs/deepseek-compatibility.md)。
 

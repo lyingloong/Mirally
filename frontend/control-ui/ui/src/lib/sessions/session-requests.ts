@@ -191,6 +191,7 @@ export function requestSessionPatch(
   options: {
     agentId?: string | null;
     expectedSessionId?: string | null;
+    expectedMetadataVersion?: number;
     expectedMarkedUnreadAt?: number | null;
   } = {},
 ): Promise<SessionsPatchResult> {
@@ -198,6 +199,7 @@ export function requestSessionPatch(
   const params = {
     ...buildSessionRequestParams(key, options.agentId),
     ...(expectedSessionId ? { expectedSessionId } : {}),
+    ...(options.expectedMetadataVersion === undefined ? {} : {expectedMetadataVersion: options.expectedMetadataVersion}),
     ...(options.expectedMarkedUnreadAt !== undefined
       ? { expectedMarkedUnreadAt: options.expectedMarkedUnreadAt }
       : {}),

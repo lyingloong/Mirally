@@ -221,6 +221,8 @@ export type SessionWorkspaceListResult = ProtocolSessionsFilesListResult & {
 
 export type GatewaySessionRow = Omit<GatewayWireSessionRow, "archivedBy" | "updatedAt"> &
   Pick<SessionRow, "archivedBy" | "updatedAt"> & {
+      /** Mirally's authoritative conversation metadata revision. */
+      metadataVersion?: number;
     /** Transient UI-owned Swarm note overlays, not persisted session fields. */
     swarmPhase?: string;
     swarmPhaseRank?: number;
@@ -247,6 +249,7 @@ export type SessionsBranchesSwitchResult =
 
 export type SessionsPatchResult = SessionsPatchResultBase<{
   sessionId: string;
+  metadataVersion?: number;
   category?: GatewaySessionRow["category"];
   updatedAt?: number;
   createdAt?: number;

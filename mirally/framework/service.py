@@ -24,7 +24,7 @@ from urllib.parse import urlsplit
 from .context import ContextReader, memory_config
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 INITIATIVE_RUNS_SCHEMA = """CREATE TABLE initiative_runs (id TEXT PRIMARY KEY,lease_token TEXT NOT NULL,
     created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,status TEXT NOT NULL,sources_json TEXT NOT NULL)"""
 DEFAULT_SETTINGS = {
@@ -33,6 +33,7 @@ DEFAULT_SETTINGS = {
     "memory_semantics": {"max_calls_per_hour": 4, "max_tokens_per_day": 24000, "max_output_tokens": 1500},
     "general_initiative_enabled": False, "memory_enabled": True,
     "do_not_disturb": False, "memory_config_path": None, "activity_config_path": None, "extensions": [],
+    "model_connections": {}, "model_routes": {"chat": "default", "background": "default"},
     "model": {"provider": "openai-compatible", "base_url": "", "api_format": "openai-chat",
               "api_key": "", "model_id": "", "image_enabled": False, "reasoning_enabled": False,
               "reasoning_budget": 0, "reasoning_effort": "", "context_window": 128000,
@@ -79,7 +80,7 @@ class FrameworkService:
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.execute("PRAGMA busy_timeout=10000")
         try:
-            if self.db.execute("PRAGMA user_version").fetchone()[0] not in (0, 1, SCHEMA_VERSION):
+            if self.db.execute("PRAGMA user_version").fetchone()[0] not in (0, 1, 2, SCHEMA_VERSION):
                 raise FrameworkError("SCHEMA_VERSION", "unsupported product database schema")
             self.db.execute("PRAGMA journal_mode=WAL")
             self.db.execute("PRAGMA synchronous=FULL")
@@ -87,6 +88,8 @@ class FrameworkService:
             self.reader = ContextReader(self.root, self.home)
             from .activity_experience import ActivityExperience
             self.experience = ActivityExperience(self)
+            from .model_connections import ModelConnections
+            self.model_connections = ModelConnections(self)
             with self._transaction():
                 # A process died after reserving an external effect. Reconcile
                 # the provider; never turn this back into pending automatically.
@@ -99,19 +102,27 @@ class FrameworkService:
 
     def _initialize(self) -> None:
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, SCHEMA_VERSION):
+        if version not in (0, 1, 2, SCHEMA_VERSION):
             raise FrameworkError("SCHEMA_VERSION", "unsupported product database schema")
         if version == SCHEMA_VERSION:
             return
-        if version == 1:
+        if version in (1, 2):
             with self._transaction():
-                self.db.execute(INITIATIVE_RUNS_SCHEMA)
+                if version == 1:
+                    self.db.execute(INITIATIVE_RUNS_SCHEMA)
+                for column in ("pinned INTEGER NOT NULL DEFAULT 0", "archived INTEGER NOT NULL DEFAULT 0",
+                               "metadata_version INTEGER NOT NULL DEFAULT 1", "metadata_updated_at INTEGER NOT NULL DEFAULT 0",
+                               "pinned_at INTEGER", "archived_at INTEGER"):
+                    self.db.execute("ALTER TABLE conversations ADD COLUMN " + column)
+                self.db.execute("UPDATE conversations SET metadata_updated_at=created_at")
                 self.db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             return
         with self._transaction():
             statements = (
                 "CREATE TABLE settings (key TEXT PRIMARY KEY,value_json TEXT NOT NULL)",
-                "CREATE TABLE conversations (id TEXT PRIMARY KEY,title TEXT NOT NULL,current_generation INTEGER NOT NULL,created_at INTEGER NOT NULL)",
+                """CREATE TABLE conversations (id TEXT PRIMARY KEY,title TEXT NOT NULL,current_generation INTEGER NOT NULL,created_at INTEGER NOT NULL,
+                    pinned INTEGER NOT NULL DEFAULT 0,archived INTEGER NOT NULL DEFAULT 0,metadata_version INTEGER NOT NULL DEFAULT 1,
+                    metadata_updated_at INTEGER NOT NULL DEFAULT 0,pinned_at INTEGER,archived_at INTEGER)""",
                 """CREATE TABLE generations (conversation_id TEXT NOT NULL REFERENCES conversations(id),generation INTEGER NOT NULL,
                     session_id TEXT UNIQUE,frozen INTEGER NOT NULL DEFAULT 0,reason TEXT NOT NULL,created_at INTEGER NOT NULL,
                     PRIMARY KEY(conversation_id,generation))""",
@@ -167,8 +178,12 @@ class FrameworkService:
         routes = {
             "system.status": self.status, "settings.get": self.settings_get,
             "settings.update": self.settings_update, "internal.settings.get": self.settings_internal,
+            "model.connections.list": self.model_connections.list, "model.connection.save": self.model_connections.save,
+            "model.connection.remove": self.model_connections.remove, "model.routes.set": self.model_connections.set_routes,
             "conversation.ensure": self.conversation_ensure, "conversation.bind": self.conversation_bind,
             "conversation.rotate": self.conversation_rotate, "conversation.list": self.conversation_list,
+            "conversation.patch": self.conversation_patch,
+            "conversation.get": self.conversation_get,
             "conversation.history_refs": self.conversation_history_refs,
             "command.admit": self.command_admit, "command.ack": self.command_ack, "command.list": self.command_list,
             "interaction.stop": self.interaction_stop, "source.set": self.source_set, "source.list": self.source_list,
@@ -188,6 +203,11 @@ class FrameworkService:
             "delivery.claim": self.delivery_claim, "delivery.ack": self.delivery_ack,
             "inbox.list": self.inbox_list, "inbox.ack": self.inbox_ack,
             "migration.status": self.migration_status, "legacy.history": self.legacy_history,
+            "legacy.history.read": self.legacy_history_read, "legacy.archive": self.legacy_archive,
+            "capabilities.get": self.capabilities_get, "capabilities.configure": self.capabilities_configure,
+            "workspace.roots": self.workspace_roots, "workspace.list": self.workspace_list,
+            "workspace.read": self.workspace_read, "workspace.search": self.workspace_search,
+            "internal.workspace.write": self.workspace_write,
         }
         if method not in routes:
             raise FrameworkError("METHOD_NOT_FOUND", "unknown product method")
@@ -210,9 +230,45 @@ class FrameworkService:
         return {"migrated": True, "manifest": json.loads(path.read_text(encoding="utf-8"))}
 
     def legacy_history(self) -> dict[str, Any]:
-        path = self.home / "framework" / "legacy-history.json"
-        return {"sessions": json.loads(path.read_text(encoding="utf-8")) if path.is_file() else [],
+        from .legacy_history import entries
+        return {"sessions": entries(self.home),
                 "readonly": True, "transcript_conversion": False}
+
+    def legacy_history_read(self, record_id: str, cursor: int = 0, limit: int = 50) -> dict[str, Any]:
+        from .legacy_history import read
+        return read(self.home, record_id, cursor, limit)
+
+    def legacy_archive(self) -> dict[str, Any]:
+        from .legacy_history import archive
+        return archive(self.home)
+
+    def capabilities_get(self):
+        from .capabilities import get
+        return get(self)
+
+    def capabilities_configure(self, expected_revision, patch):
+        from .capabilities import configure
+        return configure(self, expected_revision, patch)
+
+    def workspace_roots(self):
+        from .capabilities import roots
+        return {"roots":roots(self)}
+
+    def workspace_list(self, root_id="workspace", path="."):
+        from .capabilities import list_files
+        return list_files(self,root_id,path)
+
+    def workspace_read(self, root_id="workspace", path=""):
+        from .capabilities import read_file
+        return read_file(self,root_id,path)
+
+    def workspace_search(self, query, root_id="workspace", path="."):
+        from .capabilities import search_files
+        return search_files(self,query,root_id,path)
+
+    def workspace_write(self, path, content, expected_sha256=None):
+        from .capabilities import write_file
+        return write_file(self,path,content,expected_sha256)
 
     def status(self) -> dict[str, Any]:
         workers = self._controller_status()
@@ -249,7 +305,7 @@ class FrameworkService:
         value = copy.deepcopy(DEFAULT_SETTINGS)
         for row in self.db.execute("SELECT key,value_json FROM settings"):
             saved = json.loads(row["value_json"])
-            if row["key"] in {"model", "activity_capture", "memory_semantics"}:
+            if row["key"] in {"model", "activity_capture", "memory_semantics", "model_routes"}:
                 value[row["key"]].update(saved)
             else:
                 value[row["key"]] = saved
@@ -260,6 +316,9 @@ class FrameworkService:
         result = copy.deepcopy(value)
         key = result["model"].pop("api_key", "")
         result["model"]["api_key_configured"] = bool(key)
+        for connection in result.get("model_connections", {}).values():
+            model = connection["model"]
+            model["api_key_configured"] = bool(model.pop("api_key", ""))
         def redact(item: Any) -> Any:
             if isinstance(item, list):
                 return [redact(child) for child in item]
@@ -285,38 +344,43 @@ class FrameworkService:
         """Private stdio only. HTTP must never forward internal.* methods."""
         return self._settings()
 
+    def _model_update(self, current: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
+        updated = copy.deepcopy(current)
+        if not isinstance(item, dict) or set(item) - set(DEFAULT_SETTINGS["model"]):
+            raise FrameworkError("INVALID_PARAMS", "unsupported model settings field")
+        for field, setting in item.items():
+            default = DEFAULT_SETTINGS["model"][field]
+            if isinstance(default, bool):
+                if not isinstance(setting, bool):
+                    raise FrameworkError("INVALID_PARAMS", f"model.{field} must be boolean")
+            elif field == "context_window":
+                _integer(setting, "model.context_window", 128, 10000000)
+            elif field in {"max_tokens", "reasoning_budget"}:
+                _integer(setting, f"model.{field}", 128 if field == "max_tokens" else 0, 262144)
+            elif field == "temperature":
+                if isinstance(setting, bool) or not isinstance(setting, (int, float)) or not math.isfinite(setting) or not 0 <= setting <= 2:
+                    raise FrameworkError("INVALID_PARAMS", "model.temperature must be between zero and two")
+            else:
+                _text(setting, f"model.{field}", 16384 if field == "api_key" else 2048, empty=field in {"api_key", "base_url", "model_id", "reasoning_effort"})
+            if field == "base_url" and setting:
+                parsed = urlsplit(setting)
+                if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+                    raise FrameworkError("INVALID_PARAMS", "model.base_url must be an HTTP(S) URL without credentials")
+            if field == "api_format" and setting not in {"openai-chat", "openai-completions", "openai-responses", "anthropic", "anthropic-messages"}:
+                raise FrameworkError("INVALID_PARAMS", "unsupported model API format")
+            if field == "reasoning_effort" and setting not in {"", "default", "off", "low", "medium", "high", "max"}:
+                raise FrameworkError("INVALID_PARAMS", "unsupported model reasoning effort")
+            updated[field] = setting
+        return updated
+
     def settings_update(self, patch: dict[str, Any]) -> dict[str, Any]:
-        if not isinstance(patch, dict) or set(patch) - set(DEFAULT_SETTINGS):
+        if not isinstance(patch, dict) or set(patch) - set(DEFAULT_SETTINGS) or set(patch) & {"model_connections", "model_routes"}:
             raise FrameworkError("INVALID_PARAMS", "unsupported settings field")
         value = self._settings()
         previous = copy.deepcopy(value)
         for key, item in patch.items():
             if key == "model":
-                if not isinstance(item, dict) or set(item) - set(DEFAULT_SETTINGS["model"]):
-                    raise FrameworkError("INVALID_PARAMS", "unsupported model settings field")
-                for field, setting in item.items():
-                    default = DEFAULT_SETTINGS["model"][field]
-                    if isinstance(default, bool):
-                        if not isinstance(setting, bool):
-                            raise FrameworkError("INVALID_PARAMS", f"model.{field} must be boolean")
-                    elif field == "context_window":
-                        _integer(setting, "model.context_window", 128, 10000000)
-                    elif field in {"max_tokens", "reasoning_budget"}:
-                        _integer(setting, f"model.{field}", 128 if field == "max_tokens" else 0, 262144)
-                    elif field == "temperature":
-                        if isinstance(setting, bool) or not isinstance(setting, (int, float)) or not math.isfinite(setting) or not 0 <= setting <= 2:
-                            raise FrameworkError("INVALID_PARAMS", "model.temperature must be between zero and two")
-                    else:
-                        _text(setting, f"model.{field}", 16384 if field == "api_key" else 2048, empty=field in {"api_key", "base_url", "model_id", "reasoning_effort"})
-                    if field == "base_url" and setting:
-                        parsed = urlsplit(setting)
-                        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
-                            raise FrameworkError("INVALID_PARAMS", "model.base_url must be an HTTP(S) URL without credentials")
-                    if field == "api_format" and setting not in {"openai-chat", "openai-completions", "openai-responses", "anthropic", "anthropic-messages"}:
-                        raise FrameworkError("INVALID_PARAMS", "unsupported model API format")
-                    if field == "reasoning_effort" and setting not in {"", "default", "off", "low", "medium", "high", "max"}:
-                        raise FrameworkError("INVALID_PARAMS", "unsupported model reasoning effort")
-                    value["model"][field] = setting
+                value["model"] = self._model_update(value["model"], item)
             elif key == "activity_capture":
                 from .activity_experience import validate_capture_patch
                 try:
@@ -365,14 +429,16 @@ class FrameworkService:
         return result
 
     def _conversation(self, conversation_id: str) -> dict[str, Any]:
-        row = self.db.execute("""SELECT c.id AS conversation_id,c.title,c.created_at,
-            COALESCE((SELECT MAX(updated_at) FROM commands WHERE conversation_id=c.id),c.created_at) AS updated_at,
+        row = self.db.execute("""SELECT c.id AS conversation_id,c.title,c.created_at,c.pinned,c.archived,
+            c.metadata_version,c.metadata_updated_at,c.pinned_at,c.archived_at,
+            MAX(c.metadata_updated_at,COALESCE((SELECT MAX(updated_at) FROM commands WHERE conversation_id=c.id),c.created_at)) AS updated_at,
             c.current_generation AS generation,g.session_id,g.frozen
             FROM conversations c JOIN generations g ON g.conversation_id=c.id AND g.generation=c.current_generation WHERE c.id=?""", (conversation_id,)).fetchone()
         if row is None:
             raise FrameworkError("NOT_FOUND", "conversation not found")
         result = dict(row)
         result["frozen"] = bool(result["frozen"])
+        result["pinned"], result["archived"] = bool(result["pinned"]), bool(result["archived"])
         result["needs_session"] = result["session_id"] is None or result["frozen"]
         return result
 
@@ -381,9 +447,14 @@ class FrameworkService:
         _text(title, "title", 512)
         with self._transaction():
             if not self.db.execute("SELECT 1 FROM conversations WHERE id=?", (identity,)).fetchone():
-                self.db.execute("INSERT INTO conversations VALUES(?,?,1,?)", (identity, title, self.clock()))
+                now = self.clock()
+                self.db.execute("INSERT INTO conversations(id,title,current_generation,created_at,metadata_updated_at) VALUES(?,?,1,?,?)", (identity, title, now, now))
                 self.db.execute("INSERT INTO generations VALUES(?,1,NULL,0,'initial',?)", (identity, self.clock()))
         return self._conversation(identity)
+
+    def conversation_get(self, conversation_id: str) -> dict[str, Any]:
+        _text(conversation_id, "conversation_id")
+        return self._conversation(conversation_id)
 
     def conversation_bind(self, conversation_id: str, session_id: str, generation: int | None = None) -> dict[str, Any]:
         _text(session_id, "session_id")
@@ -408,9 +479,43 @@ class FrameworkService:
             self.db.execute("UPDATE conversations SET current_generation=? WHERE id=?", (generation, conversation_id))
         return self._conversation(conversation_id)
 
-    def conversation_list(self) -> dict[str, Any]:
+    def conversation_patch(self, conversation_id: str, expected_version: int, patch: dict[str, Any]) -> dict[str, Any]:
+        _integer(expected_version, "expected_version", 1)
+        if not isinstance(patch, dict) or not patch or set(patch) - {"title", "pinned", "archived"}:
+            raise FrameworkError("INVALID_PARAMS", "conversation patch supports only title, pinned and archived")
+        if "title" in patch:
+            _text(patch["title"], "title", 512)
+        for field in ("pinned", "archived"):
+            if field in patch and not isinstance(patch[field], bool):
+                raise FrameworkError("INVALID_PARAMS", field + " must be boolean")
+        with self._transaction():
+            current = self._conversation(conversation_id)
+            if current["metadata_version"] != expected_version:
+                raise FrameworkError("CONFLICT", "conversation changed; refresh before editing again")
+            if patch.get("archived") and not current["archived"] and self.db.execute(
+                    "SELECT 1 FROM commands WHERE conversation_id=? AND state IN ('admitted','submitted','applied') LIMIT 1", (conversation_id,)).fetchone():
+                raise FrameworkError("CONFLICT", "stop the active conversation before archiving")
+            changed = {field: value for field, value in patch.items() if value != current[field]}
+            if changed:
+                now = self.clock()
+                if "pinned" in changed:
+                    changed["pinned_at"] = now if changed["pinned"] else None
+                if "archived" in changed:
+                    changed["archived_at"] = now if changed["archived"] else None
+                fields = ",".join(field + "=?" for field in changed)
+                self.db.execute(f"UPDATE conversations SET {fields},metadata_version=metadata_version+1,metadata_updated_at=? WHERE id=?",
+                                [*changed.values(), now, conversation_id])
+        return self._conversation(conversation_id)
+
+    def conversation_list(self, archived_filter: str = "all", limit: int = 200, offset: int = 0) -> dict[str, Any]:
+        if archived_filter not in {"all", "active", "archived"}:
+            raise FrameworkError("INVALID_PARAMS", "unsupported conversation archive filter")
+        _integer(limit, "limit", 1, 1000)
+        _integer(offset, "offset", 0, 2**31 - 1)
+        clause = {"all": "1=1", "active": "c.archived=0", "archived": "c.archived=1"}[archived_filter]
         return {"conversations": [self._conversation(row[0]) for row in self.db.execute("""SELECT c.id FROM conversations c
-            ORDER BY COALESCE((SELECT MAX(updated_at) FROM commands WHERE conversation_id=c.id),c.created_at) DESC,c.id DESC LIMIT 200""")]}
+            WHERE """ + clause + """ ORDER BY c.pinned DESC,MAX(c.metadata_updated_at,
+            COALESCE((SELECT MAX(updated_at) FROM commands WHERE conversation_id=c.id),c.created_at)) DESC,c.id DESC LIMIT ? OFFSET ?""", (limit, offset))]}
 
     def conversation_history_refs(self, conversation_id: str) -> dict[str, Any]:
         self._conversation(conversation_id)
@@ -470,6 +575,8 @@ class FrameworkService:
                     raise FrameworkError("CONFLICT", "command_id is already bound to different content")
                 return self._command(conversation_id, command_id)
             current = self._conversation(conversation_id)
+            if current["archived"]:
+                raise FrameworkError("CONFLICT", "restore the archived conversation before sending")
             refs = self._refs(sources)
             if current["needs_session"]:
                 raise FrameworkError("CONFLICT", "conversation requires a bound active session")
@@ -579,6 +686,8 @@ class FrameworkService:
         if conversation_id is not None:
             try:
                 current = self._conversation(conversation_id)
+                if current["archived"]:
+                    reasons.append("conversation_archived")
                 target = current["generation"] if generation is None else generation
                 row = self.db.execute("SELECT frozen FROM generations WHERE conversation_id=? AND generation=?", (conversation_id, target)).fetchone()
                 if row is None or row[0] or target != current["generation"]:

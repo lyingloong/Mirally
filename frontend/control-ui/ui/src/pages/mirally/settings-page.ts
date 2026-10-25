@@ -14,10 +14,15 @@ import {errorMessage, openProductPage, requestProduct, rpcProduct, type ProductD
 import {modelDraft, deepSeekPreset, adoptDiscoveredModel, isDeepSeekEndpoint, modelCapabilityText,
   type ModelSettings, type ModelDraft, type DiscoveredModel} from "./model-settings.ts";
 import "./product.css";
+import "./legacy-history.ts";
+import "./capabilities-settings.ts";
 
 type SettingsPageId = "general" | "profile" | "model" | "initiative" | "about";
 type ProductSettings = {
   model: ModelSettings; memory_enabled: boolean; background_enabled: boolean;
+  model_connections?: Record<string, {name: string; model: ModelSettings}>;
+  model_routes?: {chat: string; background: string};
+  capabilities?: {web_enabled: boolean; search_connection: string};
   general_initiative_enabled: boolean; do_not_disturb: boolean;
   memory_semantics?: {max_calls_per_hour: number; max_tokens_per_day: number; max_output_tokens: number};
 };
@@ -63,6 +68,10 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
   @state() private preferences: Preference[] = [];
   @state() private closeBehavior: 'tray' | 'exit' = 'tray';
   @state() private model: ModelDraft | null = null;
+  @state() private connectionId = 'default';
+  @state() private connectionName = '默认连接';
+  @state() private deletingConnection = false;
+  @state() private clearModelKey = false;
   @state() private discoveredModels: DiscoveredModel[] | null = null;
   @state() private modelTest: {text: string; model: string; elapsed_ms: number; mode: string} | null = null;
   @state() private budget: BudgetDraft | null = null;
@@ -143,7 +152,11 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
       // Probe results belong to their original saved connection, not this one.
       this.discoveredModels = null; this.modelTest = null;
       this.closeBehavior = presentation.preferences?.['mirally.window.closeBehavior'] === 'exit' ? 'exit' : 'tray';
-      if (!this.modelDirty) this.model = modelDraft(settings.model || {});
+      if (!this.modelDirty) {
+        if (this.connectionId !== 'default' && !settings.model_connections?.[this.connectionId]) this.connectionId = 'default';
+        this.model = modelDraft(this.savedConnectionModel);
+        this.connectionName = this.connectionId === 'default' ? '默认连接' : settings.model_connections![this.connectionId].name;
+      }
       if (!this.budgetDirty) {
         const saved = settings.memory_semantics;
         this.budget = {
@@ -213,6 +226,7 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
 
   private generalPage() {
     return html`
+      <mirally-capabilities-settings></mirally-capabilities-settings>
       ${renderSettingsSection({title: "桌面窗口"}, renderSettingsRow({title: "关闭主窗口时", description: "仅影响 Mirally 桌面窗口。隐藏后点击托盘图标可返回；选择「退出 Mirally」始终会停止宿主与后台。",
         control: html`<select class="settings-input" aria-label="关闭主窗口时" data-testid="mirally-settings-close-behavior" .value=${live(this.closeBehavior)} ?disabled=${this.busy || this.loading}
           @change=${(event: Event) => {const value=(event.target as HTMLSelectElement).value;void this.mutate(()=>requestProduct('/api/ui-preferences',{method:'POST',body:JSON.stringify({key:'mirally.window.closeBehavior',value})}), '关闭方式已保存。');}}>
@@ -261,6 +275,36 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
     this.modelDirty = true; this.modelTest = null;
   }
 
+  private get savedConnectionModel(): ModelSettings {
+    return this.connectionId === 'default' ? this.settings?.model || {} : this.settings?.model_connections?.[this.connectionId]?.model || {};
+  }
+
+  private selectConnection(id: string) {
+    this.clearSecret(); this.connectionId = id; this.deletingConnection = false; this.clearModelKey = false;
+    this.discoveredModels = null; this.modelTest = null; this.error = ''; this.notice = '';
+    this.connectionName = id === 'new' ? '' : id === 'default' ? '默认连接' : this.settings?.model_connections?.[id]?.name || '';
+    this.model = modelDraft(this.savedConnectionModel); this.modelDirty = id === 'new';
+  }
+
+  private connectionSection() {
+    const connections = [{id: 'default', name: '默认连接'}, ...Object.entries(this.settings?.model_connections || {}).map(([id, item]) => ({id, name: item.name}))];
+    const uses = Object.entries(this.settings?.model_routes || {chat: 'default', background: 'default'}).filter(([,id])=>id===this.connectionId).map(([purpose])=>purpose==='chat'?'对话':'后台整理与主动联系');
+    if (this.settings?.capabilities?.web_enabled && this.settings.capabilities.search_connection===this.connectionId) uses.push('网页研究');
+    return renderSettingsSection({title: '模型连接与用途', description: '分别为对话和后台整理选择已保存的连接。每个连接独立保存服务地址、能力和凭据；默认连接兼容原单模型设置。'}, html`
+      ${this.field('编辑连接', html`<select class="settings-input" aria-label="编辑连接" data-testid="mirally-settings-connection-select" .value=${live(this.connectionId)} ?disabled=${this.busy || this.loading || this.modelDirty}
+        @change=${(event:Event)=>this.selectConnection((event.target as HTMLSelectElement).value)}>${connections.map(item=>html`<option value=${item.id}>${item.name}</option>`)}${this.connectionId==='new'?html`<option value="new">新连接</option>`:nothing}</select>`)}
+      ${renderSettingsRow({title: this.modelDirty ? '有未保存的更改' : '管理连接', description: uses.length ? `当前用于：${uses.join('、')}` : '该连接尚未分配用途。', control: html`
+        <button class="btn btn--sm" type="button" data-testid="mirally-settings-connection-new" ?disabled=${this.busy||this.loading||this.modelDirty} @click=${()=>this.selectConnection('new')}>添加连接</button>
+        ${this.modelDirty?html`<button class="btn btn--sm" type="button" data-testid="mirally-settings-connection-discard" ?disabled=${this.busy||this.loading} @click=${()=>this.selectConnection(this.connectionId==='new'?'default':this.connectionId)}>放弃更改</button>`:nothing}
+        ${!['default','new'].includes(this.connectionId)?html`<button class="btn btn--sm" type="button" data-testid="mirally-settings-connection-delete" ?disabled=${this.busy||this.loading||this.modelDirty||uses.length>0} @click=${()=>{this.deletingConnection=true;}}>删除连接</button>`:nothing}`})}
+      ${this.deletingConnection ? renderSettingsRow({title:'确认删除连接', description:'将删除此连接与本地保存的凭据，操作无法撤销。', control:html`
+        <button class="btn btn--sm" type="button" data-testid="mirally-settings-connection-delete-confirm" ?disabled=${this.busy||this.loading} @click=${()=>{const id=this.connectionId;void this.mutate(()=>rpcProduct('model.connection.remove',{connection_id:id}),'连接已删除。',()=>this.selectConnection('default'));}}>确认删除</button>
+        <button class="btn btn--sm" type="button" ?disabled=${this.busy||this.loading} @click=${()=>{this.deletingConnection=false;}}>取消</button>`}) : nothing}
+      ${(['chat','background'] as const).map(purpose=>this.field(purpose==='chat'?'对话使用':'后台整理与主动联系使用',html`<select class="settings-input" aria-label=${purpose==='chat'?'对话使用':'后台整理与主动联系使用'} data-testid=${`mirally-settings-route-${purpose}`} .value=${live(this.settings?.model_routes?.[purpose]||'default')} ?disabled=${this.busy||this.loading||this.modelDirty}
+        @change=${(event:Event)=>{const id=(event.target as HTMLSelectElement).value;void this.mutate(()=>rpcProduct('model.routes.set',{routes:{[purpose]:id}}),'用途已保存。');}}>${connections.map(item=>html`<option value=${item.id}>${item.name}</option>`)}</select>`))}
+    `);
+  }
+
   private modelInput(name: "base_url" | "model_id" | "max_tokens" | "context_window" | "temperature", label: string, type = "text", options: {min?: number; max?: number; step?: string; placeholder?: string; description?: string} = {}) {
     return this.field(label, html`<input class="settings-input" type=${type} aria-label=${label} data-testid=${`mirally-settings-model-${name==='model_id'?'id':name.replaceAll("_", "-")}`}
       .value=${live(this.model?.[name] || "")} ?disabled=${this.busy || this.loading} required
@@ -278,8 +322,13 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
     const model: ProductData = {provider: draft.provider, base_url: draft.base_url.trim(), api_format: draft.api_format, model_id: draft.model_id.trim(),
       max_tokens: Number(draft.max_tokens), context_window: Number(draft.context_window), temperature: Number(draft.temperature),
       image_enabled: draft.image_enabled, reasoning_effort: draft.reasoning_effort, reasoning_enabled: !['off'].includes(draft.reasoning_effort)};
-    if (secret) model.api_key = secret;
-    void this.mutate(() => rpcProduct("settings.update", {patch: {model}}), "模型连接已保存。可读取模型列表或测试文字回复。", () => {this.modelDirty = false; this.modelTest = null; this.discoveredModels = null;});
+    if (this.clearModelKey) model.api_key = '';
+    else if (secret) model.api_key = secret;
+    let savedId = this.connectionId;
+    void this.mutate(async () => {
+      const saved = await rpcProduct<{connection_id:string}>('model.connection.save', {model, name:this.connectionName, ...(this.connectionId==='new'?{}:{connection_id:this.connectionId})});
+      savedId = saved.connection_id;
+    }, "模型连接已保存。可读取模型列表或测试文字回复。", () => {this.connectionId=savedId;this.clearModelKey=false;this.modelDirty = false; this.modelTest = null; this.discoveredModels = null;});
   }
 
   private async discoverModels() {
@@ -287,7 +336,7 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
     const view = this.viewEpoch, load = this.loadEpoch;
     this.discoveredModels = null;
     await this.mutate(async () => {
-      const result = await requestProduct<{models: DiscoveredModel[]; truncated?: boolean}>("/api/models/discover", {method: "POST", body: "{}"});
+      const result = await requestProduct<{models: DiscoveredModel[]; truncated?: boolean}>("/api/models/discover", {method: "POST", body: JSON.stringify({connection_id:this.connectionId})});
       if (this.isConnected && view === this.viewEpoch && load === this.loadEpoch) this.discoveredModels = result.models;
     }, "已读取服务提供的模型信息。选择模型后请保存；列表声明不等于逐项能力测试通过。", undefined, false);
   }
@@ -297,7 +346,7 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
     const view = this.viewEpoch, load = this.loadEpoch;
     this.modelTest = null;
     await this.mutate(async () => {
-      const result = await requestProduct<{text: string; model: string; elapsed_ms: number; mode: string}>("/api/models/test", {method: "POST", body: "{}"});
+      const result = await requestProduct<{text: string; model: string; elapsed_ms: number; mode: string}>("/api/models/test", {method: "POST", body: JSON.stringify({connection_id:this.connectionId})});
       if (this.isConnected && view === this.viewEpoch && load === this.loadEpoch) this.modelTest = result;
     }, "模型请求已完成。此检查只验证文字生成，图片与工具等能力需在对应场景验证。", undefined, false);
   }
@@ -308,7 +357,8 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
     const levels = deepseek ? ['default', 'off', 'low', 'high', 'max'] : ['default', 'off', 'low', 'medium', 'high', 'max'];
     if (this.model?.reasoning_effort && !levels.includes(this.model.reasoning_effort)) levels.push(this.model.reasoning_effort);
     const labels: Record<string, string> = {default: '服务默认', off: '关闭', low: 'Low · 低', medium: 'Medium · 中', high: 'High · 高', max: 'Max · 最高'};
-    return html`<form data-testid="mirally-settings-model-form" @submit=${(event: SubmitEvent) => this.saveModel(event)}>
+    return html`${this.connectionSection()}<form data-testid="mirally-settings-model-form" @submit=${(event: SubmitEvent) => this.saveModel(event)}>
+      ${this.connectionId !== 'default' ? renderSettingsSection({title:'连接名称'},this.field('名称',html`<input class="settings-input" data-testid="mirally-settings-connection-name" aria-label="连接名称" required maxlength="128" .value=${live(this.connectionName)} ?disabled=${this.busy||this.loading} @input=${(event:Event)=>{this.connectionName=(event.target as HTMLInputElement).value;this.modelDirty=true;}}>`)) : nothing}
       ${renderSettingsSection({title: "连接信息", description: "配置对话与后台整理共用的服务。预设只在你选择时填入；API Key 留空保留已保存的凭据。"}, html`
         ${this.field("服务预设", html`<select class="settings-input" aria-label="服务预设" data-testid="mirally-settings-model-preset"
           .value=${live(deepseek ? 'deepseek' : 'custom')} ?disabled=${this.busy || this.loading}
@@ -325,8 +375,9 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
         ${this.modelInput("base_url", "服务地址", "url", {placeholder: "https://api.example.com/v1"})}
         ${this.modelInput("model_id", "模型 ID", "text", {placeholder: "填写服务支持的模型 ID"})}
         ${this.field("API Key", html`<input class="settings-input" type="password" aria-label="API Key" data-testid="mirally-settings-model-key" autocomplete="new-password" spellcheck="false"
-          placeholder=${this.settings?.model.api_key_configured ? "已保存，留空保持不变" : "填写 API Key（本地服务可留空）"} ?disabled=${this.busy || this.loading}
-          @input=${() => {this.modelDirty = true; this.modelTest = null;}}>`, this.settings?.model.api_key_configured ? "凭据已保存；输入内容发送后会立即从此输入框清空。" : "输入内容发送后会立即清空，保存失败时请重新输入。")}
+          placeholder=${this.savedConnectionModel.api_key_configured ? "已保存，留空保持不变" : "填写 API Key（本地服务可留空）"} ?disabled=${this.busy || this.loading}
+          @input=${() => {this.modelDirty = true; this.modelTest = null;}}>`, this.savedConnectionModel.api_key_configured ? "凭据已保存；输入内容发送后会立即从此输入框清空。" : "输入内容发送后会立即清空，保存失败时请重新输入。")}
+        ${this.savedConnectionModel.api_key_configured ? renderSettingsRow({title:'清除已保存凭据', description:'启用后保存将删除此连接的 API Key；不会影响其它连接。',control:html`<span data-testid="mirally-settings-model-clear-key">${renderSettingsToggle({checked:this.clearModelKey,disabled:this.busy||this.loading,ariaLabel:'清除已保存凭据',onChange:value=>{this.clearModelKey=value;this.modelDirty=true;}})}</span>`}) : nothing}
       `)}
       ${renderSettingsSection({title: "模型能力", description: "选项决定请求方式，不会让服务获得额外能力。服务列表未声明的能力请查阅对应模型文档。"}, html`
         ${this.modelInput("max_tokens", "最大输出 token", "number", {min: 128, max: 262144, step: "1", description: "包含服务计入输出的推理 token；设得过低可能只有推理而没有完整回复。"})}
@@ -339,13 +390,13 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
           ${levels.map(level => html`<option value=${level}>${labels[level]}</option>`)}
         </select>`, deepseek ? "关闭会明确关闭思考；服务默认遵从接口默认值。Low / High / Max 对应 DeepSeek 实际推理档位。" : "按模型实际支持档位选择。服务默认不指定强度，关闭由兼容服务支持情况决定。")}
       `)}
-      ${renderSettingsSection({}, renderSettingsRow({title: this.settings?.model.model_id ? `当前保存：${this.settings.model.model_id}` : "尚未配置模型", description: this.modelDirty ? "有未保存的更改。保存后才能检查这组连接。" : "设置已保存，检查操作使用当前保存的连接。",
+      ${renderSettingsSection({}, renderSettingsRow({title: this.savedConnectionModel.model_id ? `当前保存：${this.savedConnectionModel.model_id}` : "尚未配置模型", description: this.modelDirty ? "有未保存的更改。保存后才能检查这组连接。" : "设置已保存，检查操作使用当前保存的连接。",
         control: html`<button class="btn primary" type="submit" data-testid="mirally-settings-model-save" ?disabled=${this.busy || this.loading || !this.model}>保存连接</button>`}))}
     </form>
     ${renderSettingsSection({title: "检查连接", description: "读取模型列表不发起推理；测试文字回复会向已保存服务发送一条固定短消息，可能产生少量费用，不发送会话或材料。"}, html`
       ${renderSettingsRow({title: "模型列表与文字测试", control: html`
-        <button class="btn btn--sm" type="button" data-testid="mirally-settings-model-discover" ?disabled=${this.busy || this.loading || this.modelDirty || !this.settings?.model.base_url} @click=${() => void this.discoverModels()}>读取可用模型</button>
-        <button class="btn btn--sm" type="button" data-testid="mirally-settings-model-test" ?disabled=${this.busy || this.loading || this.modelDirty || !this.settings?.model.model_id} @click=${() => void this.testModel()}>测试文字回复</button>`})}
+        <button class="btn btn--sm" type="button" data-testid="mirally-settings-model-discover" ?disabled=${this.busy || this.loading || this.modelDirty || !this.savedConnectionModel.base_url} @click=${() => void this.discoverModels()}>读取可用模型</button>
+        <button class="btn btn--sm" type="button" data-testid="mirally-settings-model-test" ?disabled=${this.busy || this.loading || this.modelDirty || !this.savedConnectionModel.model_id} @click=${() => void this.testModel()}>测试文字回复</button>`})}
       ${this.modelTest ? html`<div data-testid="mirally-settings-model-test-result">${renderSettingsRow({title: `${this.modelTest.mode === 'test' ? '离线测试模型' : '文字请求完成'} · ${this.modelTest.model} · ${(this.modelTest.elapsed_ms / 1000).toFixed(1)} 秒`, description: this.modelTest.text || "服务已响应，但未返回文字。可提高最大输出 token，或关闭推理后再试。"})}</div>` : nothing}
       ${this.discoveredModels ? this.discoveredModels.length ? html`
         ${this.field("服务提供的模型", html`<select class="settings-input" aria-label="服务提供的模型" data-testid="mirally-settings-model-catalog" .value=${live(selected?.id || '')} ?disabled=${this.busy || this.loading}
@@ -383,10 +434,11 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
 
   private aboutPage() {
     return html`
+      <mirally-legacy-history></mirally-legacy-history>
       ${renderSettingsSection({title: "Mirally", description: "在生活与工作中持续理解、记住和陪伴你，提供有分寸的主动协作。"}, html`
         ${renderSettingsRow({title: "产品框架", control: renderSettingsValue("Mirally")})}
         ${renderSettingsRow({title: "会话内核", control: renderSettingsValue(this.status?.transcript_owner === "dsh" ? "DSH（同仓维护）" : "尚未确认")})}
-        ${renderSettingsRow({title: "主模型", control: renderSettingsValue(this.settings?.model.model_id || "尚未配置")})}
+        ${renderSettingsRow({title: "对话模型", control: renderSettingsValue((this.settings?.model_routes?.chat && this.settings.model_routes.chat !== 'default' ? this.settings.model_connections?.[this.settings.model_routes.chat]?.model : this.settings?.model)?.model_id || "尚未配置")})}
         ${renderSettingsRow({title: "当前运行状态", control: renderSettingsStatus({kind: this.status?.ready ? "ok" : "warn", label: this.status?.ready ? "已就绪" : "尚未确认"})})}
       `)}
       ${renderSettingsSection({title: "诊断信息"}, renderSettingsRow({title: "本机运行详情", description: "目录、后台 worker 状态与时间，用于排查问题。",

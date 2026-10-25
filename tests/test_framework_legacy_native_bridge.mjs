@@ -118,7 +118,14 @@ test('semantic edits save actual budgets atomically and report asynchronous appl
   assert.equal(reply.result.saved, true); assert.equal(reply.result.applied, false);
   assert.deepEqual(f.calls[0], {method: 'settings.update', params: {patch: {background_enabled: true, memory_semantics: {max_calls_per_hour: 7, max_tokens_per_day: 30000}}}});
   const unsupported = await f.send('set-semantic-model', {model: 'another/provider', maxOutputTokens: 2000});
-  assert.match(unsupported.error, /尚未实现/); assert.equal(f.calls.length, 1);
+  assert.match(unsupported.error, /模型连接页选择后台用途/); assert.equal(f.calls.length, 1);
+});
+
+test('legacy semantic status reads the assigned background connection instead of the chat default', async () => {
+  const f=fixture();f.settings.model_routes={chat:'default',background:'worker'};
+  f.settings.model_connections={worker:{name:'Background',model:{model_id:'background-only'}}};
+  assert.equal((await f.send('model-settings')).result.effective_model,'background-only');
+  assert.equal((await f.send('status')).result.memory.semantics.effective_model,'background-only');
 });
 
 test('candidate reads require an explicit candidate search and retain real pagination/filter names', async () => {

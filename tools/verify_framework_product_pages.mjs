@@ -71,7 +71,7 @@ try{
   const methodOffset=seenMethods.length;
   await page.locator(`openclaw-app-sidebar .sidebar-recent-session[data-session-key="${session.key}"]`).click({button:'right'});
   const menu=page.locator('openclaw-session-menu');await menu.locator('wa-dropdown-item').first().waitFor();
-  assert.deepEqual(await menu.locator('wa-dropdown-item').evaluateAll(items=>items.map(item=>item.getAttribute('value'))),['copy-markdown','copy-session-link','open-new-tab']);
+  assert.deepEqual(await menu.locator('wa-dropdown-item').evaluateAll(items=>items.map(item=>item.getAttribute('value'))),['rename','toggle-pin','toggle-archived','copy-markdown','copy-session-link','open-new-tab']);
   assert.ok(!seenMethods.slice(methodOffset).includes('users.list'));
   await page.keyboard.press('Escape');
 

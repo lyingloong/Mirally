@@ -26,6 +26,11 @@
   const artifactSummary = (artifact, sessionKey) => ({id: artifact.id, type: 'file', title: artifact.name,
     mimeType: mime(artifact.name), sizeBytes: artifact.bytes, sessionKey, source: 'mirally', download: {mode: 'bytes'}});
 
+  function backgroundModel(settings) {
+    const id = settings.model_routes?.background || "default";
+    return id === "default" ? settings.model : settings.model_connections?.[id]?.model;
+  }
+
   function projectStatus(activity, memory, settings) {
     const workers = workersOf(activity.workers), memoryWorkers = workersOf(memory.workers);
     const worker = workers.activity || {}, health = memoryWorkers.memory?.health || memory;
@@ -57,7 +62,7 @@
       config_path: memory.profiles?.memory, database: memory.profiles?.database,
       activity_config_path: health.settings?.activity_config_path,
       health, runtime, semantics: {...memory.semantics, ...settings.memory_semantics,
-        enabled: settings.background_enabled === true, model: '', effective_model: settings.model?.model_id || null},
+        enabled: settings.background_enabled === true, model: '', effective_model: backgroundModel(settings)?.model_id || null},
       raw_retention: health.raw_retention || memory.raw_retention,
       controls: {'set-semantics': true}}, profiles: {owner: 'mirally-framework', warning: ''}};
   }
@@ -114,9 +119,9 @@
       return {...result, opened: true};
     }
     async function saveSemantics(message, modelOnly = false) {
-      // The owned framework currently routes all background semantics through
-      // the configured main model. Do not pretend an unimplemented route saved.
-      if (Object.hasOwn(message, 'model') && message.model !== '') throw new Error('当前内核的活动记忆整理沿用主对话模型；独立整理模型路由尚未实现。请留空。');
+      // Named connections are selected by product identity in model settings;
+      // this legacy scalar field cannot safely identify a connection or its key.
+      if (Object.hasOwn(message, 'model') && message.model !== '') throw new Error('请在模型连接页选择后台用途；此兼容入口仅维护整理开关与预算。');
       const patch = {}, budget = {};
       if (!modelOnly) {
         if (typeof message.enabled !== 'boolean') throw new Error('整理开关必须是布尔值。');
@@ -159,7 +164,7 @@
         case 'memory-read': return rpc('memory.read', {memory_id: message.memory_id, from_line: message.from_line ?? 1, line_count: message.line_count ?? 100, include_candidates: candidates.has(message.memory_id)});
         case 'model-settings': {
           const settings = await rpc('settings.get');
-          return {enabled: settings.background_enabled === true, model: '', effective_model: settings.model?.model_id || null, ...settings.memory_semantics, canSave: true};
+          return {enabled: settings.background_enabled === true, model: '', effective_model: backgroundModel(settings)?.model_id || null, ...settings.memory_semantics, canSave: true};
         }
         case 'set-semantics': return saveSemantics(message);
         case 'set-semantic-model': return saveSemantics(message, true);

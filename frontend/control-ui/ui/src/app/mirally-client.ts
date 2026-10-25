@@ -1,13 +1,28 @@
 /** HTTP/SSE transport for the retained Control UI. Mirally/DSH own every fact. */
 import type { GatewayBrowserClient, GatewayBrowserClientOptions, GatewayHelloOk, GatewayEventFrame } from "../api/gateway.ts";
 
-import {readMirallyModel, MIRALLY_READ_METHODS} from "./mirally-read-models.ts";
+import {readMirallyModel, MIRALLY_READ_METHODS, selectedProductModel} from "./mirally-read-models.ts";
 
 type Data = Record<string, any>;
 const key = (id: string) => `agent:main:${id}`;
 const identity = (value: string) => String(value ?? "").replace(/^agent:main:/, "");
 const unsupported = (method: string): never => { throw Object.assign(new Error(`当前 Mirally 内核尚未提供此操作：${method}`), {code: "METHOD_NOT_FOUND", gatewayCode: "METHOD_NOT_FOUND"}); };
 const METHODS = [...MIRALLY_READ_METHODS, "themes.list", "themes.get", "health", "status", "agents.list", "agents.identity.get", "agent.identity.get", "sessions.list", "sessions.resolve", "sessions.create", "sessions.get", "sessions.abort", "sessions.subscribe", "sessions.unsubscribe", "sessions.messages.subscribe", "sessions.messages.unsubscribe", "chat.history", "chat.startup", "chat.metadata", "chat.send", "chat.abort", "config.get", "config.patch", "models.list", "models.authStatus", "sessions.describe", "sessions.files.list", "sessions.files.get", "artifacts.list", "artifacts.get", "artifacts.download"];
+
+METHODS.push('sessions.patch');
+const METADATA_FIELDS = new Set(['title', 'label', 'pinned', 'archived']);
+const PATCH_CONTEXT = new Set(['key', 'sessionKey', 'agentId', 'expectedSessionId', 'expectedMetadataVersion']);
+// Retained media components interpret bare slash paths as old host filesystem
+// references. Only our exact authenticated receipt routes become same-origin
+// HTTP resources; no old media resolver or machine path is involved.
+function historyMedia(block: Data): Data {
+  const resource = (value: unknown) => typeof value === 'string'
+    && /^\/api\/sessions\/[^/]+\/attachments\/(?:image|file)\/[a-f0-9]{64}$/.test(value)
+    ? new URL(value, location.origin).href : value;
+  if (block.type === 'image') return {...block, url: resource(block.url)};
+  if (block.type === 'attachment' && block.attachment) return {...block, attachment: {...block.attachment, url: resource(block.attachment.url)}};
+  return block;
+}
 
 export class MirallyBrowserClient {
   readonly instanceId = crypto.randomUUID();
@@ -30,6 +45,12 @@ export class MirallyBrowserClient {
   private agentSequence = 0;
   private configHash = "";
   private preferences: Data = {};
+  private metadataRows = new Map<string, Data>();
+  supportsSessionPatch(params: unknown) {
+    if (!params || typeof params !== 'object' || Array.isArray(params)) return false;
+    const fields = Object.keys(params).filter(field => !PATCH_CONTEXT.has(field));
+    return fields.length > 0 && fields.every(field => METADATA_FIELDS.has(field));
+  }
   constructor(private opts: GatewayBrowserClientOptions) {
     this.token = opts.token || new URLSearchParams(location.hash.slice(1)).get("token") || "";
     const host = {request: this.http.bind(this), rpc: this.rpc.bind(this),
@@ -161,25 +182,35 @@ export class MirallyBrowserClient {
     }
   }
   private async sessions() {
-    const {sessions} = await this.http("/api/sessions");
-    const {model} = await this.rpc('settings.get');
+    const sessions: Data[] = [];
+    let page = await this.http('/api/sessions');
+    for (;;) {
+      sessions.push(...page.sessions);
+      if (!page.has_more) break;
+      page = await this.http(`/api/sessions?offset=${page.next_offset}`);
+    }
+    const model = selectedProductModel(await this.rpc('settings.get'));
+    for (const session of sessions) this.metadataRows.set(session.id, session);
     return sessions.map((s: Data) => ({...s, key: key(s.id), sessionId: s.session_id, displayName: s.title, label: s.title,
+      metadataVersion: s.metadata_version, pinnedAt: s.pinned ? s.pinned_at : undefined, archivedAt: s.archived ? s.archived_at : undefined,
       // The retained UI separates display policy from generation effort. Allow
       // real thinking blocks (including old history) through its second gate;
       // chatShowThinking remains the user's visibility toggle.
       reasoningLevel: 'on', agentId: "main", kind: "direct", updatedAt: s.updated_at, hasActiveRun: s.status === "running", activeRunIds: [...new Set([...(s.active_command_ids || []), ...this.activeRuns(s.id)])], modelProvider: model.provider, model: model.model_id}));
   }
   private message(message: Data) { return {id: message.id, role: message.role, timestamp: message.time, __openclaw: message.__openclaw,
-    native_session_id: message.native_session_id, native_seq: message.native_seq,
+    native_session_id: message.native_session_id, native_seq: message.native_seq, ...(message.toolCallId ? {toolCallId: message.toolCallId} : {}),
     content: Array.isArray(message.content) ? message.content.filter((block: Data) => block.type === 'text' && typeof block.text === 'string'
-      || message.role === 'assistant' && block.type === 'thinking' && typeof block.thinking === 'string') : [{type: "text", text: message.text || ""}], stopReason: message.stopReason ?? "stop"}; }
+      || message.role === 'assistant' && block.type === 'thinking' && typeof block.thinking === 'string'
+      || message.role === 'toolResult' && ['toolcall', 'toolresult'].includes(block.type)
+      || message.role === 'user' && ['image', 'attachment', 'attachment_error'].includes(block.type)).map(historyMedia) : [{type: "text", text: message.text || ""}], stopReason: message.stopReason ?? "stop"}; }
   private async history(id: string): Promise<Data> {
     const session = (await this.sessions()).find((item: Data) => identity(item.key) === id);
     if (!session) return {sessionKey: key(id), messages: [], sessionId: undefined, hasMore: false};
     const result = await this.http(`/api/sessions/${encodeURIComponent(id)}/history`);
     return {sessionKey: key(id), sessionId: session.sessionId, sessionInfo:session, messages: result.messages.map(this.message), hasMore: false,
       ...(result.in_flight ? {inFlightRun:{runId:result.in_flight.command_id, startedAt:result.in_flight.started_at, sessionAbortable:true}} : {}),
-      activeRunIds: session.activeRunIds, model: (await this.rpc("settings.get")).model.model_id};
+      activeRunIds: session.activeRunIds, model: selectedProductModel(await this.rpc("settings.get")).model_id};
   }
   private async consume(event: Data, generation = this.generation) {
     if (this.stopped || generation !== this.generation) return;
@@ -187,6 +218,7 @@ export class MirallyBrowserClient {
     const id = event.session_id; if (!id) { if (["artifact", "action", "inbox"].includes(event.type)) window.dispatchEvent(new CustomEvent("mirally-product-event", {detail: event})); return; }
     const runId = event.command_id || this.activeRuns(id).at(-1);
     const partialKey = `${id}:${runId || ""}`;
+    if (event.type === 'session-metadata') {this.emit('sessions.changed', {key: key(id), agentId: 'main', reason: 'metadata'}); return;}
     if (event.type === "assistant-start") {
       this.partials.set(partialKey, "");
       this.assistantAttempts.set(partialKey, {id: event.attempt_id || 'unframed', fresh: true, closed: false});
@@ -253,9 +285,38 @@ export class MirallyBrowserClient {
           ...(prefs.theme ? {id:prefs.theme} : {}), ...(prefs.themeMode ? {mode:prefs.themeMode} : {})}},
           theme, ...(method === 'themes.list' ? {themes:BUILTIN_THEMES} : {})};
       }
-      case "agents.list": {const {model}=await this.rpc('settings.get'); return {defaultId: "main", mainKey: "main", scope: "per-sender", agents: [{id: "main", name: "Mirally", model: {primary:model.model_id ? `${model.provider}/${model.model_id}` : ''}, identity: {name: "Mirally", avatar: "/experience/mirally-128.png"}}]};}
+      case "agents.list": {const model=selectedProductModel(await this.rpc('settings.get')); return {defaultId: "main", mainKey: "main", scope: "per-sender", agents: [{id: "main", name: "Mirally", model: {primary:model.model_id ? `${model.provider}/${model.model_id}` : ''}, identity: {name: "Mirally", avatar: "/experience/mirally-128.png"}}]};}
       case "agent.identity.get": case "agents.identity.get": return {agentId: "main", name: "Mirally", avatar: "/experience/mirally-128.png"};
-      case "sessions.list": { const sessions = await this.sessions(), {model}=await this.rpc('settings.get'); return {ts: Date.now(), count: sessions.length, defaults: {modelProvider: model.provider, model: model.model_id}, sessions}; }
+      case "sessions.list": {
+        let sessions = await this.sessions();
+        if (p.archived !== 'all') sessions = sessions.filter((s: Data) => (s.archived === true) === (p.archived === true));
+        if (p.search) sessions = sessions.filter((s: Data) => s.title.toLocaleLowerCase().includes(String(p.search).toLocaleLowerCase()));
+        const count = sessions.length;
+        if (Number.isSafeInteger(p.limit) && p.limit > 0) sessions = sessions.slice(0, p.limit);
+        const model=selectedProductModel(await this.rpc('settings.get'));
+        return {ts: Date.now(), count, defaults: {modelProvider: model.provider, model: model.model_id}, sessions};
+      }
+      case 'sessions.patch': {
+        if (!this.supportsSessionPatch(p)) throw new Error('当前 Mirally 仅支持对话名称、置顶与归档；本次未修改其他设置。');
+        if (p.agentId && p.agentId !== 'main') throw new Error('当前 Mirally 仅支持主伙伴的对话。');
+        if (!this.metadataRows.has(id)) await this.sessions();
+        const observed = this.metadataRows.get(id);
+        if (!observed) throw new Error('会话不存在，请刷新。');
+        if (p.expectedSessionId && p.expectedSessionId !== observed.session_id) throw new Error('会话已变更，请刷新后重试。');
+        const patch: Data = {};
+        for (const field of ['pinned', 'archived']) if (Object.hasOwn(p, field)) patch[field] = p[field];
+        if (Object.hasOwn(p, 'title')) patch.title = p.title;
+        if (Object.hasOwn(p, 'label')) {
+          const title = p.label === null || p.label === '' ? '新对话' : p.label;
+          if (Object.hasOwn(patch, 'title') && patch.title !== title) throw new Error('title 和 label 不能指定不同名称。');
+          patch.title = title;
+        }
+        await this.http(`/api/sessions/${encodeURIComponent(id)}`, {method: 'PATCH', body: JSON.stringify({
+          expected_version: p.expectedMetadataVersion ?? observed.metadata_version, patch})});
+        const entry = (await this.sessions()).find((s: Data) => identity(s.key) === id);
+        this.emit('sessions.changed', {key: key(id), agentId: 'main', reason: 'metadata'});
+        return {ok: true, key: key(id), entry};
+      }
       case "sessions.describe": return {session: (await this.sessions()).find((s: Data) => identity(s.key) === id) || null};
       case "sessions.get": case "sessions.resolve": { const session = (await this.sessions()).find((s: Data) => identity(s.key) === id); if (!session) { if (p.allowMissing) return {ok:false}; throw new Error("会话不存在"); } return {ok:true, key: session.key, entry: session, sessionId: session.sessionId, agentId:"main"}; }
       case "sessions.create": {
@@ -290,6 +351,7 @@ export class MirallyBrowserClient {
       }
       case "chat.send": {
         if (id === 'main') await this.http('/api/sessions', {method:'POST',body:JSON.stringify({conversationId:'main',title:'对话'})});
+        if (this.metadataRows.get(id)?.archived) throw new Error('请先恢复已归档的对话，再发送消息或材料。');
         const runId = p.idempotencyKey || crypto.randomUUID();
         const materials = [];
         for (const [index, attachment] of (p.attachments || []).entries()) {
@@ -313,18 +375,18 @@ export class MirallyBrowserClient {
         if (!bridge) throw new Error("成果入口尚未准备完成"); return bridge.requestNative(method, p);
       }
       case "models.authStatus": {
-        const {model} = await this.rpc("settings.get");
+        const model = selectedProductModel(await this.rpc("settings.get"));
         return {ts: Date.now(), providers: model.model_id ? [{provider: model.provider, displayName: model.provider,
           status: model.api_key_configured ? 'static' : 'missing', profiles: [], ...(model.api_key_configured ? {apiKey:{source:'config'}} : {})}] : [], providerCapabilities: []};
       }
-      case "models.list": { const {model} = await this.rpc("settings.get"); return {models: model.model_id ? [{id: model.model_id, name: model.model_id, provider: model.provider, available:!!model.base_url, input: model.image_enabled ? ["text", "image"] : ["text"], reasoning: model.reasoning_enabled}] : []}; }
+      case "models.list": { const model = selectedProductModel(await this.rpc("settings.get")); return {models: model.model_id ? [{id: model.model_id, name: model.model_id, provider: model.provider, available:!!model.base_url, input: model.image_enabled ? ["text", "image"] : ["text"], reasoning: model.reasoning_enabled}] : []}; }
       case "config.get": return this.config();
       case "config.patch": return this.patchConfig(p);
       default: {const result = await readMirallyModel(method, p, {rpc:this.rpc.bind(this)}); return result.handled ? result.value : unsupported(method);}
     }
   }
   private async config() {
-    const {model} = await this.rpc("settings.get"), provider = model.provider || "service";
+    const model = selectedProductModel(await this.rpc("settings.get")), provider = model.provider || "service";
     const config = {ui: {prefs: this.preferences['control-ui'] || {}}, models: {providers: model.model_id ? {[provider]: {baseUrl: model.base_url, api: model.api_format === "openai-chat" ? "openai-completions" : model.api_format, models: [{id: model.model_id, name: model.model_id, input: model.image_enabled ? ["text", "image"] : ["text"], reasoning: model.reasoning_enabled, maxTokens: model.max_tokens}]}} : {}},
       agents: {defaults: {model: {primary: model.model_id ? `${provider}/${model.model_id}` : ""}}, list: [{id: "main", name: "Mirally"}]}};
     const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(config))))).map(x => x.toString(16).padStart(2, "0")).join(""); this.configHash = hash;
@@ -343,14 +405,17 @@ export class MirallyBrowserClient {
     const defaults = patch.agents?.defaults;
     if (defaults && Object.keys(defaults).some(name => name !== 'model')) return unsupported('config.patch agent defaults');
     const providers = patch.models?.providers || {};
-    const names = Object.keys(providers); if (names.length > 1) throw new Error("当前内核只维护一个模型连接，请一次修改一个服务。");
+    const names = Object.keys(providers); if (names.length > 1) throw new Error("此兼容入口一次只修改一个模型连接；更多连接请在模型设置中管理。");
     const name = names[0], provider = providers[name], model = provider?.models?.[0];
     if (model?.compat && Object.keys(model.compat).length) return unsupported('config.patch model compatibility');
     if (!provider || !model?.id || provider.models.length !== 1) throw new Error("当前内核需要一个明确的服务和模型连接。");
     const value: Data = {provider: name, base_url: provider.baseUrl, model_id: model.id, api_format: provider.api === "openai-completions" ? "openai-chat" : provider.api, image_enabled: model.input?.includes("image") || false, reasoning_enabled: !!model.reasoning};
     if (model.maxTokens) value.max_tokens = model.maxTokens;
     if (provider.apiKey) value.api_key = provider.apiKey;
-    await this.rpc("settings.update", {patch: {model: value}}); return {ok: true, config: (await this.config()).config};
+    const settings = await this.rpc("settings.get"), connectionId = settings.model_routes?.chat || "default";
+    if (connectionId === "default") await this.rpc("settings.update", {patch: {model: value}});
+    else await this.rpc("model.connection.save", {connection_id: connectionId, model: value});
+    return {ok: true, config: (await this.config()).config};
   }
 }
 export function createMirallyBrowserClient(opts: GatewayBrowserClientOptions): GatewayBrowserClient { return new MirallyBrowserClient(opts) as unknown as GatewayBrowserClient; }

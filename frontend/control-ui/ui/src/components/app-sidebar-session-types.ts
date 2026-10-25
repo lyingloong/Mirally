@@ -93,6 +93,7 @@ export function summarizeSidebarSessionAttention(
 }
 
 export type SidebarRecentSession = {
+  metadataVersion?: number;
   key: string;
   agentId?: string;
   sessionId?: string;

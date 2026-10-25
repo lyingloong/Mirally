@@ -1,3 +1,49 @@
+# 迁移收尾与单一框架验收
+
+日期：2026-10-26，Asia/Shanghai。对应 PN-0027 和[迁移收尾](framework-migration-closure.md)。此前记录保留为历史；下表为本轮最终源码的验证范围。
+
+| 验证 | 结果 | 范围 |
+| --- | --- | --- |
+| 固定来源 / 正式前端构建 | 2672 文件、55 个登记维护文件、20 catalog；708 浏览器模块通过 | 保留原组件和视觉，无未打包 import；未宣称全量 TypeScript 类型检查 |
+| Node 完整回归 | 440 项通过，0 跳过 | 含 CJS 原体验、原客户端、真实模型路由/冷启/工具、历史、授权范围与取消；全部为本机回环或离线 |
+| Framework Python 定向 | 153 项通过 | Schema 1/2→3、元数据并发、旧记录迁移独立归档、文件授权/联接拒绝、模型连接/路由、共享 Shell |
+| 根 Python 全套 | 本轮中途 1021 项：1018 通过、2 跳过、1 失败 | 失败仍为历史 UFO 路线 pythonw.exe 的原生导入超过 20 秒，与此前已记录问题一致；未改断言、跳过或修改 UFO 内核。之后新增的能力测试由上述最终 Framework 定向覆盖 |
+| 会话组织真实页面 | 通过，无 pageerror | 原侧栏与标题改名、固定与刷新、并发改名冲突保留草稿、归档→Undo、筛选→恢复、native身份不变 |
+| 历史与真实附件页面 | 通过，无 pageerror | 普通 Host / PiAI / 本机provider，实际图片像素、文件字节与工具参数/结果；刷新和全新浏览器保持同一回执、一张工具卡。完整冷启与多代次在 Node 实际 Host 验收通过 |
+| 模型连接真实页面与路由 | 通过，无 pageerror | 新建连接/独立key/选中连接probe、background改派、使用中禁删/确认删除、保存重载；双本机provider验证主Agent与后台桥各走选定连接，图像不支持在入队和网络前拒绝 |
+| 旧档案与访问范围页面 | 通过，无 pageerror | 实际索引、30条分页、文字转义、复制归档、移走原文件后刷新仍可读、不创建新会话；目录授权、独立开关、保存/刷新及480px布局 |
+| 原聊天/工作/伙伴/产品页 | 通过，无 pageerror | Markdown/代码、两轮/刷新、材料/纯附件/草稿、十工作起点/四输出、三形态/造型/主题、Activity/Memory、偏好/提醒/收件箱/扩展和丢响应重试 |
+| 原生端到端与 Files | 通过 | 实际DSH/PiAI/SQLite/MCP/脚本/插件、停止、冷启、失败owner、真实成果预览/字节下载及文件授权重试；默认不加载 UFO |
+| 实际 WebView2 | 17 组通过，0 失败 | 开屏首绘、同HWND、三形态裁剪/返回尺寸和位置、最大化/最小化/托盘与明确退出；未采集桌面 |
+| DeepSeek 网页服务实际请求 | Search / Fetch 各1次通过 | 所存连接的凭据副本，只发公开查询和官方文档URL；搜索返回真实来源，正文4250字符。为实际服务适配器验证，未宣称全部网页/供应商或长期成本通过 |
+
+回归发现并修复：新会话页不能因恢复 sessions.patch 元数据操作就展示未实现的旧权限模式；旧组件会将斜杠附件URL误解为旧宿主本机文件，需要在自有客户端把确切原生回执路由映射为当前Host同源HTTP资源。地址每次读取重建，冷启换端口不保留旧连接地址。没有放宽媒体路径或开放任意旧文件读取。
+
+本轮 GUI 顺序运行，只操作隔离 Host、自身 WebView2 和 Edge。没有更改用户原配置或采集桌面。真实网页验证只有两次公开请求，临时凭据副本已删除，日志/截图/私有测试home不提交。根全套的旧 UFO 失败保留；当前新框架不加载该执行器。未覆盖全新Windows安装、签名发布、多屏/DPI物理切换、全部外部供应商、语音/跨设备与长期陪伴质量。
+
+复现（GUI顺序执行）：
+
+```powershell
+npm --prefix frontend/control-ui run verify:source
+npm --prefix frontend/control-ui run build
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p '*framework*.py' -q
+node --test tests/test_*.mjs tests/test_*.cjs integrations/openclaw/*.test.mjs kernel/dsh/packages/mirally/mirally-product/tests/*.test.mjs kernel/dsh/packages/mirally/mirally-extensions/tests/*.test.mjs
+.\.venv\Scripts\python.exe tools/verify_framework.py --browser-files --browser-history
+.\.venv\Scripts\python.exe tools/verify_framework_model_connections.py
+node tools/verify_framework_model_settings.mjs
+node tools/verify_framework_archive_browser.mjs
+.\.venv\Scripts\python.exe tools/verify_framework_shell.py
+# 对自己创建的 --test-mode --home 隔离宿主再顺序运行：
+node tools/verify_framework_session_organization.mjs <隔离home/runtime.json>
+node tools/verify_framework_browser.mjs <隔离home/runtime.json>
+node tools/verify_framework_experience.mjs <隔离home/runtime.json>
+node tools/verify_framework_product_pages.mjs <隔离home/runtime.json>
+```
+
+`verify_framework.py --browser-history` 使用本机合成provider驱动真实原生链和界面；直接对已配置外部模型运行 history_browser 的 `--live` 才会消耗该服务用量。完整历史读取本身不调用模型或重执行工具。
+
+---
+
 # 伙伴还原、模型能力与体验迁移验收
 
 日期：2026-10-25，Asia/Shanghai。对应用户的侧边返回、DeepSeek 连接能力和旧功能迁移反馈。本节为当前结果，下方同日品牌与退出结果作为上一轮记录保留。
