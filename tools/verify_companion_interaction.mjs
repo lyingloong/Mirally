@@ -328,6 +328,52 @@ try {
   await preserve(page,draft,['material-a']);
   findings.push('more menu exposes explicit minimize and main-window actions without losing the chat draft');
 
+  const tooltip=page.locator('.mirally-companion-tip');
+  const checkTip=async(expectedParts)=>{
+    const value=await page.evaluate(()=>{
+      const r=document.querySelector('.mirally-companion-tip').getBoundingClientRect();
+      return {box:[r.x,r.y,r.width,r.height],shape:window.__posts.filter(item=>item.action==='shape').at(-1),
+        width:innerWidth,height:innerHeight};
+    });
+    assert.equal(value.shape.parts.length,expectedParts);
+    for(const [x,y,w,h]of [value.shape.rect,...value.shape.parts])
+      assert.ok(x>=0&&y>=0&&x+w<=value.width+1&&y+h<=value.height+1,`tooltip clip fits viewport: ${JSON.stringify(value)}`);
+    assert.ok(value.shape.parts.some(part=>value.box.every((n,index)=>Math.abs(n-part[index])<.1)),'native shape must include the actual tooltip');
+    return value;
+  };
+  await outside(page);
+  await page.evaluate(()=>{window.__mirallyCompanion.setForm('pet');window.__mirallyCompanion.dock();});
+  await waitView(page,'compact');await enter(page);await tooltip.waitFor({state:'visible'});
+  const tipBox=(await checkTip(2)).box,anchorBox=await rail(page).boundingBox();
+  assert.ok(tipBox[0]+tipBox[2]<=anchorBox.x,'compact hint is readable outside the pet boundary');
+  assert.equal(await tooltip.evaluate(node=>node.parentElement===document.body),true);
+  assert.equal(await rail(page).getAttribute('title'),null,'no duplicate clipped native title');
+  assert.match(await rail(page).getAttribute('aria-describedby'),/mirally-companion-tip/);
+  await page.mouse.move(tipBox[0]+tipBox[2]/2,tipBox[1]+tipBox[3]/2);await page.waitForTimeout(550);
+  assert.equal(await tooltip.isVisible(),true,'a hint remains available while the pointer reads it');
+  await image(page,'08-tip-outside-pet');
+  await outside(page);await tooltip.waitFor({state:'hidden'});
+  assert.equal(await rail(page).getAttribute('aria-describedby'),null);
+
+  await page.evaluate(()=>{window.__mirallyCompanion.setForm('rail');window.__mirallyCompanion.setView('quick');});
+  await action(page,'pin').hover();await tooltip.waitFor({state:'visible'});await checkTip(3);
+  await outside(page);await page.waitForTimeout(70);await action(page,'pin').hover();await page.waitForTimeout(230);
+  assert.equal(await tooltip.isVisible(),true,'returning to the same control cancels tooltip dismissal');
+  await page.keyboard.press('Escape');await tooltip.waitFor({state:'hidden'});
+  assert.equal(await view(page),'quick','first Escape dismisses the hint without closing the panel');
+  await page.keyboard.press('Escape');await waitView(page,'compact');
+  await page.waitForTimeout(550);assert.equal(await tooltip.isVisible(),false,'collapse focus does not immediately reopen the dismissed hint');
+
+  for(const width of [400,267,235]){
+    await page.setViewportSize({width,height:454});
+    await page.evaluate(()=>{window.__mirallyCompanion.setForm('rail');window.__mirallyCompanion.setView('detail');});
+    await page.waitForTimeout(220);
+    await action(page,'collapse').hover();await tooltip.waitFor({state:'visible'});await checkTip(2);
+    await outside(page);await tooltip.waitFor({state:'hidden'});
+  }
+  await page.setViewportSize({width:1280,height:900});
+  findings.push('body-level hints extend beyond companion edges, join native clipping, survive re-entry, dismiss with Escape and fit narrow viewports');
+
   const reducedContext=await context({reducedMotion:'reduce'}),reduced=await ready(reducedContext);
   await reduced.evaluate(()=>window.__startProbe('reduced-motion-hover-open'));
   await enter(reduced);await waitView(reduced,'quick');stableBounds(await collectProbe(reduced),'quick');

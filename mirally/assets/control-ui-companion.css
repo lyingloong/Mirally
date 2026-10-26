@@ -24,6 +24,14 @@ html[data-mirally-mode="companion"] body { background:transparent!important; ove
   transition:border-color 160ms;
 }
 .mirally-companion *, .mirally-handoff * { box-sizing:border-box; }
+.mirally-companion-tip {
+  position:fixed; z-index:1200; box-sizing:border-box; max-width:276px; max-height:calc(100vh - 16px); overflow:auto;
+  padding:8px 11px; border:1px solid var(--border,#e1e8ef); border-radius:10px;
+  background:var(--bg-elevated,#fff); color:var(--text,#192b3a);
+  font:12px/1.6 "Segoe UI","Microsoft YaHei",sans-serif; overflow-wrap:anywhere;
+  box-shadow:0 3px 12px #102b451a; user-select:text; cursor:default;
+}
+.mirally-companion-tip[hidden] { display:none!important; }
 .mirally-companion[data-view="detail"] { width:min(376px,calc(100vw - 4px)); height:560px; }
 :root[data-theme="dark"] .mirally-companion { --mc-warning:#e6b65e; --mc-error:#f18c97; }
 .mirally-companion[data-state="waiting"] { border-color:var(--mc-warning); }

@@ -32,6 +32,14 @@
 
 最小化验收暴露了 WinForms 的另一个边界：伙伴移除原生边框后，托管 Form 仍缓存 Sizable 的客户区换算，恢复时会把边框再次计入尺寸。本轮在新 FrameworkShell 的原生 Resize 边界保存最小化前外框矩形，恢复栈结束后单次还原；托盘入口同步收尾，任务栏的原生恢复也走同一约定。校验同一伙伴 owner、关闭/释放和再次最小化，迟到回调不覆盖新窗口状态；不重建 HWND，不干预普通窗口 resize。
 
+## 提示与截图显示（2026-10-26补充）
+
+按钮和成果名称提示使用挂在body的单例浮层；只把提示矩形作为额外独立Region part纳入同一窗口裁剪，而不把外包矩形整片变成鼠标拦截区域。提示不改surface布局或原生Bounds，450ms停留后显示，可移入阅读，靠近视口边缘自动换位置；点击/滚动/切视图/失焦时隐藏。Escape先关闭提示，再次按下收起伙伴。`role=tooltip`与触发项`aria-describedby`参考[W3C Tooltip模式](https://www.w3.org/WAI/ARIA/apg/patterns/tooltip/)的交互建议。
+
+设置 → 通用 → 桌面窗口的「截图/录屏时隐藏侧边伙伴」保存布尔偏好`mirally.companion.hideFromCapture`，缺省开启。保存后Host广播偏好变更，当前桌面客户端通知壳重读落盘值，立即更新已展开的伙伴；连接恢复和重新进入伙伴也重新应用。主窗口保持普通捕获行为；用户主动拖动截图时临时隐藏伙伴以免遮挡目标，独立于此开关。
+
+底层复用[Windows SetWindowDisplayAffinity](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowdisplayaffinity)，设置同一HWND的`WDA_EXCLUDEFROMCAPTURE`，因此提示也属于这一窗口。完整排除值自Windows10 2004起支持，依赖DWM和采集软件采用的API；此开关不承诺全部截图/录屏软件遵守。验收读取真实系统affinity与偏好链路，不据此声称所有外部录屏软件已实测。
+
 ## 验证
 
 专用真实 DOM 工具 `tools/verify_companion_interaction.mjs` 加载本仓 JS/CSS、品牌和桌宠资源，测试悬浮/点击/输入/固定/键盘/触控/减少动画及草稿归属；边界只替代 native bridge 与最小会话状态。记录 rAF 间隔和截图，断言稳定布局与有界消息，不以机器固定FPS当作通过门槛。

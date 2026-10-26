@@ -67,6 +67,7 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
   @state() private status: ProductStatus | null = null;
   @state() private preferences: Preference[] = [];
   @state() private closeBehavior: 'tray' | 'exit' = 'tray';
+  @state() private hideCompanionFromCapture = true;
   @state() private model: ModelDraft | null = null;
   @state() private connectionId = 'default';
   @state() private connectionName = '默认连接';
@@ -152,6 +153,7 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
       // Probe results belong to their original saved connection, not this one.
       this.discoveredModels = null; this.modelTest = null;
       this.closeBehavior = presentation.preferences?.['mirally.window.closeBehavior'] === 'exit' ? 'exit' : 'tray';
+      this.hideCompanionFromCapture = presentation.preferences?.['mirally.companion.hideFromCapture'] !== false;
       if (!this.modelDirty) {
         if (this.connectionId !== 'default' && !settings.model_connections?.[this.connectionId]) this.connectionId = 'default';
         this.model = modelDraft(this.savedConnectionModel);
@@ -227,11 +229,14 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
   private generalPage() {
     return html`
       <mirally-capabilities-settings></mirally-capabilities-settings>
-      ${renderSettingsSection({title: "桌面窗口"}, renderSettingsRow({title: "关闭主窗口时", description: "仅影响 Mirally 桌面窗口。隐藏后点击托盘图标可返回；选择「退出 Mirally」始终会停止宿主与后台。",
+      ${renderSettingsSection({title: "桌面窗口"}, html`${renderSettingsRow({title: "关闭主窗口时", description: "仅影响 Mirally 桌面窗口。隐藏后点击托盘图标可返回；选择「退出 Mirally」始终会停止宿主与后台。",
         control: html`<select class="settings-input" aria-label="关闭主窗口时" data-testid="mirally-settings-close-behavior" .value=${live(this.closeBehavior)} ?disabled=${this.busy || this.loading}
           @change=${(event: Event) => {const value=(event.target as HTMLSelectElement).value;void this.mutate(()=>requestProduct('/api/ui-preferences',{method:'POST',body:JSON.stringify({key:'mirally.window.closeBehavior',value})}), '关闭方式已保存。');}}>
           <option value="tray">隐藏到系统托盘</option><option value="exit">退出 Mirally</option>
-        </select>`}))}
+        </select>`})}
+        ${renderSettingsRow({title: "截图/录屏时隐藏侧边伙伴", description: "默认开启，保存后立即作用于侧栏、悬浮球和桌宠；返回主窗口后正常显示。仅适用于支持 Windows 窗口排除的截图与录屏软件。Mirally 自己的拖动截图仍会临时隐藏伙伴，避免遮住选区。",
+          control: html`<span data-testid="mirally-settings-hide-companion-from-capture">${renderSettingsToggle({checked: this.hideCompanionFromCapture, disabled: this.busy || this.loading,
+            ariaLabel: "截图/录屏时隐藏侧边伙伴", onChange: value => {void this.mutate(() => requestProduct('/api/ui-preferences', {method: 'POST', body: JSON.stringify({key: 'mirally.companion.hideFromCapture', value})}), '截图与录屏显示方式已保存。'); return false; }})}</span>`})}`)}
       ${renderSettingsSection({title: "了解你与陪伴你"}, html`
         ${this.toggle("memory_enabled", "使用记忆", "在对话中使用已启用的个人记忆。关闭后不再读取这些记忆。", "mirally-settings-memory")}
         ${renderSettingsRow({title: "电脑活动", description: "查看已有记录、采集范围与运行状态，开始采集前需确认当前范围。",

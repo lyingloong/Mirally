@@ -1,3 +1,24 @@
+# 提示越界与截图显示开关验收
+
+日期：2026-10-26，Asia/Shanghai。对应 PN-0029，后面的同日侧边交互验收保留为历史。
+
+| 验证 | 结果 | 范围 |
+| --- | --- | --- |
+| 原前端源码核对/构建 | 通过 | 2672上游文件、55接缝、20locale；708 browser modules，无未捆绑import |
+| Node 完整回归 | 443项通过，0跳过 | `--test-concurrency=4`，含布尔偏好保存/拒绝非法值、Host通知、真实浏览器shim和原生桥包装、连接恢复及唯一SSE |
+| Framework Python + 裁剪 | 162 + 6项通过 | 截图偏好读取/同源刷新、共享壳与原生恢复；第三提示part独立Union，隐藏后释放，不填充透明间隙 |
+| 伙伴真实DOM | 13组通过，无pageerror | 原12组及body提示、aria-describedby、移入阅读/返入、首Esc关闭提示、次Esc收起、400/267/235px视口 |
+| 实际产品页面 | 通过，无pageerror | 设置开关缺省开启→关闭→API落盘→完整刷新仍关闭→重新开启；原消息、提醒、记忆、Activity确认、Skill/MCP及窄布局回归 |
+| 实际 WebView2 | 24组通过，0失败 | 原21组及pet compact两part/快速面板三part提示、9个可见Region采样、窄视口不遮触点、间隙穿透、隐藏/切view释放、固定Bounds；真实系统affinity即时切换 |
+
+原生捕获排除通过独立HTTP调用保存偏好，再由Host SSE→现有客户端→同源原生桥自动生效，工具没有直接调用刷新方法。`GetWindowDisplayAffinity`观测到：缺省伙伴为`0x11`，关闭后已展开伙伴为`0`，重新进入仍为`0`，开启后为`0x11`，主窗口为`0`。没有实际截取桌面或运行外部录屏软件，不能将系统标志通过当成所有采集软件已实测。
+
+默认并发Node首轮有1项原会话组织用例在第二次Host启动时sidecar退出；保持原断言单项复验通过后，采用4文件并发完整重跑443项通过。没有改超时、跳过用例或放宽该断言。根Python全套本轮未重跑，旧UFO路线的历史超时保持原记录。
+
+GUI顺序运行，只用隔离test-mode Host、自身窗口、合成数据与本机API，未改用户配置或采集桌面。物理屏幕/多DPI切换与外部采集软件矩阵未覆盖。复现沿用下节命令，Node完整命令增加`--test-concurrency=4`；产品设置页由`tools/verify_framework_product_pages.mjs <隔离home/runtime.json>`验证。设计及官方依据见[伙伴交互](companion-interaction.md)。
+
+---
+
 # 侧边伙伴交互与窗口性能验收
 
 日期：2026-10-26，Asia/Shanghai。对应 PN-0028 与[伙伴交互设计及官方调研来源](companion-interaction.md)。本节为本轮最终源码结果，下方迁移验收保留为历史。

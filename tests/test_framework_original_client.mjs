@@ -3,7 +3,7 @@
  */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {stripTypeScriptTypes} from 'node:module';
+import {stripTypeScriptTypes, createRequire} from 'node:module';
 import {readFileSync, existsSync} from 'node:fs';
 import {mkdtemp, readFile, readdir, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -13,6 +13,9 @@ import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import {setTimeout as delay} from 'node:timers/promises';
 import vm from 'node:vm';
+
+const require = createRequire(import.meta.url);
+const {createLegacyNativeBridge} = require('../mirally/framework_ui/legacy-native-bridge.js');
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const clientPath = join(root, 'frontend/control-ui/ui/src/app/mirally-client.ts');
@@ -147,6 +150,46 @@ test('event subscribers share the existing SSE and unsubscribe independently', a
   assert.equal(f.calls.filter(call => call.path === '/api/events').length, 1,
     'Board subscriptions must reuse the sole transport connection');
   assert.equal(f.closes.length, 0);
+});
+
+test('capture exclusion refreshes native policy on connect and saved preference SSE without another stream', async t => {
+  const f = fixture(t), nativeMessages = [];
+  f.window.chrome = {webview: {postMessage: value => nativeMessages.push(value)}};
+  const bridge = createLegacyNativeBridge(f.window, f.host).install();
+  t.after(() => bridge.dispose());
+  await f.start();
+  const refresh = {type: 'mirally-framework', action: 'refresh-capture-preference'};
+  assert.deepEqual(nativeMessages, [refresh]);
+  f.push({type: 'ui-preference', key: 'mirally.companion.hideFromCapture', value: false});
+  await until(() => nativeMessages.length === 2, 'live capture preference');
+  assert.equal(f.host.getUiPreference('mirally.companion.hideFromCapture'), false);
+  assert.deepEqual(nativeMessages[1], refresh, 'Native reads durable preference; no wire value is forwarded');
+  f.push({type: 'ui-preference', key: 'mirally.companion.form', value: 'pet'});
+  await until(() => f.host.getUiPreference('mirally.companion.form') === 'pet', 'other presentation preference');
+  assert.equal(nativeMessages.length, 2);
+  assert.equal(f.calls.filter(call => call.path === '/api/events').length, 1);
+  assert.equal(f.events.length, 0, 'Presentation changes do not become conversation events');
+  f.client.stop();
+  assert.equal(nativeMessages.length, 2);
+  f.client.start();
+  await until(() => nativeMessages.length === 3 && f.streams.length === 2, 'capture policy after reconnect');
+  assert.deepEqual(nativeMessages[2], refresh);
+});
+
+test('ordinary browser shim never receives native capture refresh during connect or preference SSE', async t => {
+  const f = fixture(t), notices = [];
+  f.host.notify = value => notices.push(value);
+  const bridge = createLegacyNativeBridge(f.window, f.host).install();
+  t.after(() => bridge.dispose());
+  assert.equal(f.window.chrome.webview.__mirallyBrowserOnly, true);
+  await f.start();
+  f.push({type: 'ui-preference', key: 'mirally.companion.hideFromCapture', value: false});
+  await until(() => f.host.getUiPreference('mirally.companion.hideFromCapture') === false, 'browser capture preference');
+  assert.equal(f.client.connected, true); assert.equal(f.closes.length, 0);
+  assert.deepEqual(notices, [], 'Changing a preference in a browser does not claim or request an OS window effect');
+  f.push({type: 'token', session_id: 'one', command_id: 'after-capture-preference', text: '仍然连接'});
+  await until(() => f.events.length === 1, 'stream after browser preference');
+  assert.equal(f.events[0].event, 'chat');
 });
 
 test('throwing event callbacks do not interrupt the owner, other subscribers, or SSE', async t => {

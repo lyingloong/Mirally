@@ -14,6 +14,7 @@
   let replyNotice, dismissedReply;
   let surfaceMode = 'rail';
   let pinned = false, shapeSignature = '', presentationAnimations = [];
+  let tip, tipAnchor, tipTimer, tipLeaveTimer;
   try { const saved=experience ? experience.getPreference(FORM_KEY) : window.__mirallyLegacyHost?.getUiPreference(FORM_KEY) ?? localStorage.getItem(FORM_KEY); if (['rail','badge','pet'].includes(saved)) surfaceMode=saved; } catch {}
   const savePreference = (key, value) => {
     try {
@@ -28,6 +29,41 @@
     if (node.textContent !== value) node.textContent = value;
   };
   const post = (action, extra = {}) => chrome.webview.postMessage({type:'mirally-companion', action, ...extra});
+  function hideTip({sync = true} = {}) {
+    clearTimeout(tipTimer);clearTimeout(tipLeaveTimer);
+    if (tipAnchor) {
+      const ids=(tipAnchor.getAttribute('aria-describedby')||'').split(/\s+/).filter(id=>id && id!=='mirally-companion-tip');
+      if(ids.length)tipAnchor.setAttribute('aria-describedby',ids.join(' '));else tipAnchor.removeAttribute('aria-describedby');
+    }
+    tipAnchor=null;
+    if(tip&&!tip.hidden){tip.hidden=true;if(sync)syncShape();}
+  }
+  function showTip(target) {
+    if(mode!=='companion'||tipAnchor!==target||!target.isConnected||!target.getClientRects().length ||
+        !(target.matches(':hover')||target.matches(':focus-visible')))return hideTip();
+    tip.textContent=target.dataset.tip;
+    const r=target.getBoundingClientRect();
+    const beside=target.classList.contains('mirally-companion__rail')&&r.left-18>=120;
+    tip.style.maxWidth=Math.min(276,beside?r.left-18:innerWidth-16)+'px';
+    tip.style.left='0px';tip.style.top='0px';
+    tip.hidden=false;
+    const box=tip.getBoundingClientRect();
+    const clamp=(value,maximum)=>Math.max(8,Math.min(value,maximum-8));
+    let x=beside?r.left-box.width-10:r.left+(r.width-box.width)/2;
+    let y=beside?r.top+(r.height-box.height)/2:r.bottom+8;
+    if(!beside && y+box.height>innerHeight-8)y=r.top-box.height-8;
+    tip.style.left=clamp(x,innerWidth-box.width)+'px';
+    tip.style.top=clamp(y,innerHeight-box.height)+'px';
+    const ids=new Set((target.getAttribute('aria-describedby')||'').split(/\s+/).filter(Boolean));
+    ids.add(tip.id);target.setAttribute('aria-describedby',[...ids].join(' '));
+    syncShape();
+  }
+  function queueTip(target) {
+    if(!target?.dataset.tip)return;
+    if(target===tipAnchor&&tip&&!tip.hidden){clearTimeout(tipLeaveTimer);return;}
+    hideTip();tipAnchor=target;
+    tipTimer=setTimeout(()=>showTip(target),450);
+  }
   const message = row => row.message ?? row;
   const content = row => {
     const m = message(row);
@@ -98,8 +134,9 @@
     surface.dataset.preview = String(!pinned && ['quick','detail'].includes(surface.dataset.view));
     surface.querySelectorAll('[data-action="pin"]').forEach(button => {
       button.setAttribute('aria-pressed',String(pinned));
-      button.title = pinned ? '取消固定，移开后自动收起' : '固定面板，移开后保持展开';
-      button.setAttribute('aria-label',button.title);
+      button.dataset.tip = pinned ? '取消固定，移开后自动收起' : '固定面板，移开后保持展开';
+      button.setAttribute('aria-label',button.dataset.tip);
+      if(tipAnchor===button&&tip&&!tip.hidden&&tip.textContent!==button.dataset.tip)showTip(button);
     });
   }
   function animatePresentation(value) {
@@ -124,6 +161,7 @@
     if (['quick','detail'].includes(value)) setPinned(!preview);
     else if (value === 'compact' || value === 'reply') setPinned(false);
     if (surface.dataset.view === value) { schedule(); return; }
+    hideTip({sync:false});
     const ownedFocus=surface.contains(document.activeElement);
     surface.dataset.fromView = surface.dataset.view;
     surface.dataset.view = value;
@@ -164,6 +202,7 @@
     }
   }
   function setMode(value) {
+    hideTip({sync:false});
     mode = value;
     document.documentElement.dataset.mirallyMode = value;
     surface.hidden = value !== 'companion';
@@ -179,6 +218,7 @@
   }
   function setForm(value, remember = true) {
     if (!['rail','badge','pet'].includes(value)) return;
+    hideTip({sync:false});
     surfaceMode = value;
     surface.dataset.form = value;
     surface.querySelectorAll('[data-form]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.form===value)));
@@ -196,10 +236,15 @@
   }
   function syncShape() {
     if (mode !== 'companion' || !surface) return;
-    const rect = surface.getBoundingClientRect();
+    let rect = surface.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
     const nodes = ['quick','menu','reply'].includes(surface.dataset.view) ?
       [$('.mirally-companion__rail'),$('.mirally-companion__panel')] : [surface];
+    if(tip&&!tip.hidden){
+      nodes.push(tip);
+      const r=tip.getBoundingClientRect(),x=Math.min(rect.x,r.x),y=Math.min(rect.y,r.y);
+      rect={x,y,width:Math.max(rect.right,r.right)-x,height:Math.max(rect.bottom,r.bottom)-y};
+    }
     const parts = nodes.map(node => {
       const r = node.getBoundingClientRect();
       return [r.x,r.y,r.width,r.height,parseFloat(getComputedStyle(node).borderTopLeftRadius) || 0];
@@ -339,7 +384,7 @@
     node.replaceChildren(...items.map(item => {
       const button = document.createElement('button');
       button.textContent = item.title;
-      button.title = item.label;
+      button.dataset.tip = item.label;
       if (item.kind === 'modified' && items.filter(other => other.title === item.title).length > 1) {
         button.textContent += ' · ' + item.label.split(/[\\/]/).at(-2);
       }
@@ -527,6 +572,7 @@
     }
     $('[data-action="send"]').disabled = state.connected === false || !!state.chatSending || (!input.value.trim() && !attachments.length);
     recent(state);
+    if(tipAnchor&&!tipAnchor.isConnected)hideTip();
   }
   function schedule() { if (!frame) frame = requestAnimationFrame(sync); }
   function mount() {
@@ -617,9 +663,11 @@
         <nav class="mirally-companion__navigation" aria-label="伙伴窗口操作"><button data-action="workspace">返回主窗口 <span aria-hidden="true">↗</span></button><button data-action="detail">展开面板 <span aria-hidden="true">‹</span></button><button data-action="menu">更多 <span aria-hidden="true">⋯</span></button></nav>
       </div>`;
     surface.querySelectorAll('img').forEach(image => { image.src = MARK; });
+    surface.querySelectorAll('[title]').forEach(node=>{node.dataset.tip=node.title;node.removeAttribute('title');});
     setForm(surfaceMode, false);
     setPet(petType, false);
     document.body.append(surface);
+    tip=document.createElement('div');tip.id='mirally-companion-tip';tip.className='mirally-companion-tip';tip.hidden=true;tip.setAttribute('role','tooltip');document.body.append(tip);
     window.__mirallyContext?.bind($('.mirally-companion__target-handle'),{
       onStart:()=>{setPinned(true);text('[data-slot="receipt"]','正在读取窗口画面…');},
       onReady:async result=>{
@@ -635,7 +683,7 @@
     entry.querySelector('[data-entry="dock"]').onclick = dock;
     entry.querySelector('[data-entry="office"]').onclick = openOffice;
     document.body.append(entry);
-    let leaveTimer, enterTimer, reactionTimer, keyboardFocus=false, hoverSuppressed=false, suppressedPointer, menuPointer, lastPointer, menuMoved=false;
+    let leaveTimer, enterTimer, reactionTimer, keyboardFocus=false, restoringAnchorFocus=false, hoverSuppressed=false, suppressedPointer, menuPointer, lastPointer, menuMoved=false;
     const rememberPointer = event => {
       if (Number.isFinite(event.screenX) && Number.isFinite(event.screenY)) lastPointer={x:event.screenX,y:event.screenY,space:'screen'};
       if (surface.dataset.view!=='menu' || !menuPointer) return;
@@ -648,6 +696,7 @@
       reactionTimer=setTimeout(()=>delete surface.dataset.reaction,value==='drag'?900:1100);
     };
     const holdOpen = () => surface.dataset.view === 'reply' || (surface.dataset.view === 'menu' ? !menuMoved : pinned) ||
+      (tip&&!tip.hidden&&tip.matches(':hover')) ||
       (document.hasFocus() && ((!getSelection()?.isCollapsed && surface.contains(getSelection()?.anchorNode)) || document.activeElement === $('[data-slot="draft"]') ||
       (keyboardFocus && surface.contains(document.activeElement)))) || surface.dataset.dragover==='true';
     const cancelLeave = () => { clearTimeout(leaveTimer); leaveTimer=null; };
@@ -656,7 +705,11 @@
       cancelEnter();cancelLeave(); keyboardFocus=false; hoverSuppressed=surface.matches(':hover'); suppressedPointer=lastPointer;menuPointer=null; menuMoved=false;
       dismissReply();
       expand(false);
-      if (restoreFocus && mode === 'companion') $('.mirally-companion__rail').focus({preventScroll:true});
+      if (restoreFocus && mode === 'companion') {
+        restoringAnchorFocus=true;
+        $('.mirally-companion__rail').focus({preventScroll:true});
+        restoringAnchorFocus=false;
+      }
     };
     const openMenu = nativePoint => {
       if (mode !== 'companion') return false;
@@ -719,6 +772,27 @@
     surface.addEventListener('keydown',event=>{ if (event.key==='Escape') { event.preventDefault(); compact(); } });
     surface.addEventListener('focusout', collapseAfterFocus);
     document.addEventListener('selectionchange', collapseAfterFocus);
+    surface.addEventListener('pointerover',event=>{
+      if(event.pointerType==='mouse'&&!event.buttons)queueTip(event.target.closest('[data-tip]'));
+    });
+    surface.addEventListener('pointerout',event=>{
+      if(!tipAnchor||tipAnchor.contains(event.relatedTarget)||tip.contains(event.relatedTarget))return;
+      clearTimeout(tipTimer);clearTimeout(tipLeaveTimer);tipLeaveTimer=setTimeout(()=>hideTip(),180);
+    });
+    surface.addEventListener('focusin',event=>{if(!restoringAnchorFocus&&event.target.matches('[data-tip]:focus-visible'))queueTip(event.target);});
+    surface.addEventListener('focusout',()=>hideTip());
+    tip.addEventListener('pointerenter',()=>{clearTimeout(tipLeaveTimer);cancelLeave();});
+    tip.addEventListener('pointerleave',()=>{hideTip();if(!surface.matches(':hover')&&!holdOpen())leave();});
+    document.addEventListener('keydown',event=>{
+      if(event.key==='Escape'&&tip&&!tip.hidden){hideTip();event.preventDefault();event.stopPropagation();}
+    },true);
+    document.addEventListener('keydown',event=>{
+      if(mode==='companion'&&event.key==='Escape'&&!event.defaultPrevented){event.preventDefault();compact();}
+    });
+    document.addEventListener('scroll',event=>{if(!tip.contains(event.target))hideTip();},true);
+    window.addEventListener('pointerdown',()=>hideTip(),true);
+    window.addEventListener('blur',()=>hideTip());
+    window.addEventListener('resize',()=>hideTip());
     $('.mirally-companion__rail').onkeydown = event => {
       if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
         event.preventDefault(); openMenu(); $('.mirally-companion__menu-actions button').focus();
@@ -842,7 +916,7 @@
       // Ignore our own rendering so updates cannot form a loop.
       if (records.some(record => {
         const target = record.target.nodeType === Node.ELEMENT_NODE ? record.target : record.target.parentElement;
-        return target && !target.closest('.mirally-companion, .mirally-companion-entry, .mirally-work');
+        return target && !target.closest('.mirally-companion, .mirally-companion-tip, .mirally-companion-entry, .mirally-work');
       })) schedule();
     });
     observer.observe(document.body, {childList:true, subtree:true, characterData:true, attributes:true, attributeFilter:['class']});

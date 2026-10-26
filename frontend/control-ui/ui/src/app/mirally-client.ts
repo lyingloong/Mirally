@@ -130,6 +130,7 @@ export class MirallyBrowserClient {
       this.preferences = (await this.http('/api/ui-preferences')).preferences || {};
       await this.loadPresentation();
       if (this.stopped || generation !== this.generation) return;
+      this.refreshNativeCapturePreference();
       this.connected = true; this.recoveryScopeReady = true;
       this.opts.onHello?.({type: "hello-ok", protocol: 3, server: {version: "Mirally", connId: this.instanceId, controlUiBuildSource: "configured"},
         features: {methods: METHODS, events: ["chat", "agent", "sessions.changed", "config.changed"]},
@@ -214,6 +215,11 @@ export class MirallyBrowserClient {
   }
   private async consume(event: Data, generation = this.generation) {
     if (this.stopped || generation !== this.generation) return;
+    if (event.type === 'ui-preference') {
+      this.preferences[event.key] = event.value;
+      if (event.key === 'mirally.companion.hideFromCapture') this.refreshNativeCapturePreference();
+      return;
+    }
     if (event.type === 'configuration') { this.emit('config.changed', {paths:event.fields || []}); return; }
     const id = event.session_id; if (!id) { if (["artifact", "action", "inbox"].includes(event.type)) window.dispatchEvent(new CustomEvent("mirally-product-event", {detail: event})); return; }
     const runId = event.command_id || this.activeRuns(id).at(-1);
@@ -267,6 +273,12 @@ export class MirallyBrowserClient {
       const activeRunIds = this.activeRuns(id);
       this.emit("sessions.changed", {key:key(id), agentId:"main", hasActiveRun:!!history.sessionInfo?.hasActiveRun || activeRunIds.length > 0, activeRunIds, reason:"completed"}); this.partials.delete(partialKey);
     }
+  }
+  private refreshNativeCapturePreference() {
+    // The native shell reads the persisted product preference itself. A wire
+    // event only invalidates it; no incoming value controls a native window.
+    const native = (window as Window & {chrome?: {webview?: {__mirallyBrowserOnly?: boolean; postMessage(value: object): void}}}).chrome?.webview;
+    if (native && native.__mirallyBrowserOnly !== true) native.postMessage({type: 'mirally-framework', action: 'refresh-capture-preference'});
   }
   async request<T = unknown>(method: string, params: Data = {}, options?: {signal?: AbortSignal}): Promise<T> {
     options?.signal?.throwIfAborted();

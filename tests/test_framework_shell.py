@@ -170,6 +170,60 @@ class FrameworkShellTests(unittest.TestCase):
                 self.assertFalse(self.shell._closing())
                 self.assertFalse(self.shell.closed.is_set())
 
+    def test_capture_preference_keeps_existing_default_and_requires_explicit_false(self):
+        self.assertTrue(self.shell._companion_capture_excluded())
+        self.host.home.mkdir(parents=True)
+        preference = self.host.home / "ui-preferences.json"
+        for value, expected in ((False, False), (True, True), ("false", True), (0, True), (None, True)):
+            with self.subTest(value=value):
+                preference.write_text(json.dumps({"mirally.companion.hideFromCapture": value}), encoding="utf-8")
+                self.assertEqual(self.shell._companion_capture_excluded(), expected)
+        for raw in ("{broken", "[]", " " * 65537):
+            preference.write_text(raw, encoding="utf-8")
+            self.assertTrue(self.shell._companion_capture_excluded())
+
+    def test_capture_preference_event_reads_saved_value_for_open_companion_only(self):
+        self.host.home.mkdir(parents=True)
+        preference = self.host.home / "ui-preferences.json"
+        self.shell._gateway_origin = ("http", "127.0.0.1:37281")
+        event = {"type": "mirally-framework", "action": "refresh-capture-preference", "value": True}
+        with patch("mirally.control_ui_shell._capture_affinity") as affinity:
+            self.shell._web_message(None, self.frame(event))
+            affinity.assert_not_called()
+            self.shell._workspace = object()
+            preference.write_text(json.dumps({"mirally.companion.hideFromCapture": False}), encoding="utf-8")
+            self.shell._web_message(None, self.frame(event))
+            affinity.assert_called_once_with(self.shell.window.native, False)
+            preference.write_text(json.dumps({"mirally.companion.hideFromCapture": True}), encoding="utf-8")
+            self.shell._web_message(None, self.frame(event))
+            self.assertEqual(affinity.call_args.args, (self.shell.window.native, True))
+            affinity.reset_mock()
+            self.shell._web_message(None, self.frame(event, "http://127.0.0.1:37282/"))
+            self.shell._web_message(None, self.frame(event, "https://untrusted.invalid/"))
+            affinity.assert_not_called()
+            self.shell.closed.set()
+            self.shell._web_message(None, self.frame(event))
+            affinity.assert_not_called()
+
+    def test_docking_uses_the_saved_capture_preference(self):
+        modules = {"System.Drawing": SimpleNamespace(**{name: MagicMock() for name in ("Color", "Point", "Rectangle", "Region", "Size")}),
+            "System.Drawing.Drawing2D": SimpleNamespace(GraphicsPath=MagicMock()),
+            "System.Windows.Forms": SimpleNamespace(FormWindowState=SimpleNamespace(Normal="normal"), Screen=MagicMock())}
+        form = self.shell.window.native
+        form.DeviceDpi = 96
+        form.webview.ClientSize.Width, form.webview.ClientSize.Height = 1280, 860
+        modules["System.Windows.Forms"].Screen.FromControl.return_value.WorkingArea = SimpleNamespace(
+            Width=1920, Height=1080, Right=1920, Top=0)
+        self.host.home.mkdir(parents=True)
+        (self.host.home / "ui-preferences.json").write_text(json.dumps({"mirally.companion.hideFromCapture": False}), encoding="utf-8")
+        with patch.dict("sys.modules", modules), \
+             patch("mirally.control_ui_shell._frame_style", return_value=0x16cf0000), \
+             patch("mirally.control_ui_shell._frame_composition"), \
+             patch.object(self.shell, "_initial_companion_shape"), \
+             patch("mirally.control_ui_shell._capture_affinity") as affinity:
+            self.shell._companion_action({"action": "dock", "viewport": [1280, 860]})
+        affinity.assert_called_once_with(form, False)
+
     def show_modules(self, state="minimized"):
         form = self.shell.window.native
         form.IsDisposed = False
@@ -259,8 +313,9 @@ class FrameworkShellTests(unittest.TestCase):
                      patch("mirally.control_ui_shell._frame_style", side_effect=frame_style), \
                      patch("mirally.control_ui_shell._frame_composition"), \
                      patch("mirally.control_ui_shell._client_glass"), \
-                     patch("mirally.control_ui_shell._capture_affinity"):
+                     patch("mirally.control_ui_shell._capture_affinity") as affinity:
                     self.shell._companion_action({"action": "workspace"})
+                affinity.assert_called_once_with(form, False)
                 self.assertEqual(form.WindowState, state)
                 self.assertEqual(form.Bounds, expected)
                 self.assertEqual(form.RestoreBounds, normal)
@@ -548,7 +603,7 @@ for (const [page, script] of Object.entries(input.scripts)) {
   const context = vm.createContext({window, document, surface,
     dismissReply() { events.push(['dismiss']); },
     post(value) { events.push(['native', value]); },
-    schedule() {}, expand() {}, requestAnimationFrame(callback) { frames.push(callback); }});
+    schedule() {}, expand() {}, hideTip() {}, requestAnimationFrame(callback) { frames.push(callback); }});
   vm.runInContext('let mode = "companion";\n' + input.set_mode + input.workspace
     + '\nwindow.__mirallyCompanion = {workspace};', context);
   vm.runInContext(script, context);

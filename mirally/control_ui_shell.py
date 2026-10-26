@@ -469,6 +469,10 @@ class ControlUIShell:
         if value == "FilesDropped" or isinstance(value, list) and len(value) == 3:
             self.window.native.browser.on_script_notify(sender, args)
 
+    def _companion_capture_excluded(self) -> bool:
+        """The product shell may override its floating-window capture policy."""
+        return True
+
     def _companion_action(self, message: dict) -> None:
         """Window-only messages from our authenticated, same-origin presentation.
 
@@ -496,7 +500,7 @@ class ControlUIShell:
             form.MinimumSize = Size(0, 0)
             _frame_style(form, _frame_style(form) & ~0x00C40000)
             _frame_composition(form, 1)
-            _capture_affinity(form, True)
+            _capture_affinity(form, self._companion_capture_excluded())
             form.webview.DefaultBackgroundColor = Color.Transparent
             form.PerformLayout()
             area = Screen.FromControl(form).WorkingArea
@@ -570,7 +574,7 @@ class ControlUIShell:
             right, bottom = ox + round((x + width) * sx), oy + round((y + height) * sy)
             key = (left, top, right, bottom)
             parts = message.get('parts', [[x, y, width, height, min(25, width / 2, height / 2)]])
-            if not isinstance(parts, list) or not 1 <= len(parts) <= 2:
+            if not isinstance(parts, list) or not 1 <= len(parts) <= 3:
                 return
             for part in parts:
                 if not isinstance(part, list) or len(part) != 5 or any(

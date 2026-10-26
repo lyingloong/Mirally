@@ -310,15 +310,29 @@ class FrameworkShell(ControlUIShell):
 
     def _close_behavior(self) -> str:
         """Read the product preference at the gesture, without network/UI calls."""
+        return "exit" if self._presentation_preferences().get("mirally.window.closeBehavior") == "exit" else "tray"
+
+    def _presentation_preferences(self) -> dict:
+        """Read the same bounded presentation file owned by the product API."""
         try:
             with (self.host.home / "ui-preferences.json").open(encoding="utf-8") as stream:
                 raw = stream.read(65537)
             preferences = json.loads(raw) if len(raw) <= 65536 else {}
-            if isinstance(preferences, dict) and preferences.get("mirally.window.closeBehavior") == "exit":
-                return "exit"
+            if isinstance(preferences, dict):
+                return preferences
         except (OSError, ValueError):
             pass
-        return "tray"
+        return {}
+
+    def _companion_capture_excluded(self) -> bool:
+        # Existing profiles keep the former hidden-from-capture default. Only
+        # an explicitly saved boolean false disables Windows window exclusion.
+        return self._presentation_preferences().get("mirally.companion.hideFromCapture") is not False
+
+    def _refresh_capture_preference(self) -> None:
+        if self._workspace is not None and self.window is not None and not self.closed.is_set():
+            from mirally.control_ui_shell import _capture_affinity
+            _capture_affinity(self.window.native, self._companion_capture_excluded())
 
     def _closing(self) -> bool:
         if not self._quitting.is_set() and self._tray_ready.is_set() and self._close_behavior() == "tray":
@@ -522,6 +536,8 @@ class FrameworkShell(ControlUIShell):
                     self._retry()
                 elif action == "show-page":
                     self._dispatch_window_action(lambda: self._navigate(value.get("page")))
+                elif action == "refresh-capture-preference":
+                    self._refresh_capture_preference()
                 return
         # Keep the WebView's own file/drop/JS bridge protocol. A remote page may
         # not invoke it through navigation; startup can initialize its bridge.

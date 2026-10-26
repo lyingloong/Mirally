@@ -18,6 +18,7 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -117,6 +118,8 @@ def main() -> int:
     user.GetMenuItemID.argtypes = [wintypes.HMENU, ctypes.c_int]
     user.GetMenuItemID.restype = wintypes.UINT
     user.GetMenuStringW.argtypes = [wintypes.HMENU, wintypes.UINT, wintypes.LPWSTR, ctypes.c_int, wintypes.UINT]
+    user.GetWindowDisplayAffinity.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    user.GetWindowDisplayAffinity.restype = wintypes.BOOL
 
     results, failures, native_context, messages = [], [], [], []
     timeline, startup, saved = {}, {}, {}
@@ -148,8 +151,9 @@ def main() -> int:
             if first_paint:
                 timeline["first_paint"] = time.monotonic() - began
                 startup.update(opacity_before=float(shell.window.native.Opacity), source=str(args.Source))
-            if isinstance(value, dict) and value.get("type") in {"mirally-companion", "mirally-ufo-input"}:
-                messages.append({"type": value["type"], "action": value.get("action"), "editing": value.get("editing")})
+            if isinstance(value, dict) and value.get("type") in {"mirally-companion", "mirally-framework", "mirally-ufo-input"}:
+                messages.append({"type": value["type"], "action": value.get("action"), "editing": value.get("editing"),
+                    "parts": value.get("parts"), "rect": value.get("rect"), "viewport": value.get("viewport"), "view": value.get("view")})
             original_message(sender, args)
             if first_paint:
                 startup.update(opacity_after=float(shell.window.native.Opacity), gate=shell._startup_visible.is_set())
@@ -314,7 +318,7 @@ def main() -> int:
                     position = wintypes.POINT(converted["x"], converted["y"])
                     assert user.ScreenToClient(render, ctypes.byref(position))
                     assert user.PostMessageW(render, message, buttons, (position.x & 0xffff) | ((position.y & 0xffff) << 16))
-                def browser_mouse_move(where):
+                def browser_input(method, parameters):
                     # Delayed hover requires Chromium's own pointer state.
                     # Posting WM_MOUSEMOVE without moving the physical cursor
                     # can be followed by a Windows-generated WM_MOUSELEAVE.
@@ -324,9 +328,7 @@ def main() -> int:
                     pending = {}
                     def start():
                         pending["task"] = form.webview.CoreWebView2.CallDevToolsProtocolMethodAsync(
-                            "Input.dispatchMouseEvent", json.dumps({"type": "mouseMoved",
-                                "x": where["x"], "y": where["y"], "button": "none", "buttons": 0,
-                                "pointerType": "mouse"}))
+                            method, json.dumps(parameters))
                     form.Invoke(Action(start))
                     task = pending["task"]
                     deadline = time.monotonic() + 5
@@ -336,6 +338,44 @@ def main() -> int:
                     assert task.IsCompleted, "WebView2 pointer dispatch did not complete"
                     assert not task.IsFaulted and not task.IsCanceled, "WebView2 pointer dispatch failed"
                     return json.loads(str(task.Result))
+                def browser_mouse_move(where):
+                    return browser_input("Input.dispatchMouseEvent", {"type": "mouseMoved",
+                        "x": where["x"], "y": where["y"], "button": "none", "buttons": 0, "pointerType": "mouse"})
+                def browser_escape():
+                    for kind in ("keyDown", "keyUp"):
+                        browser_input("Input.dispatchKeyEvent", {"type": kind, "key": "Escape", "code": "Escape",
+                            "windowsVirtualKeyCode": 27, "nativeVirtualKeyCode": 27})
+                def affinity():
+                    value = wintypes.DWORD()
+                    assert user.GetWindowDisplayAffinity(hwnd, ctypes.byref(value)), "GetWindowDisplayAffinity failed: " + str(ctypes.get_last_error())
+                    return value.value
+                def write_capture_preference(value):
+                    # An independent HTTP caller must reach the existing dock
+                    # through Host SSE and its browser bridge. Do not call a
+                    # presentation refresh helper from the verification code.
+                    request = urllib.request.Request(host.runtime["url"] + "/api/ui-preferences",
+                        data=json.dumps({"key": "mirally.companion.hideFromCapture", "value": value}).encode("utf-8"),
+                        headers={"Authorization": "Bearer " + host.runtime["token"], "Content-Type": "application/json"})
+                    with urllib.request.urlopen(request, timeout=5) as response:
+                        result = json.loads(response.read(65536))
+                    assert result["preferences"]["mirally.companion.hideFromCapture"] is value
+                def latest_shape():
+                    return next(item for item in reversed(messages) if item["action"] == "shape")
+                def tooltip_visible():
+                    return js("!!document.querySelector('#mirally-companion-tip:not([hidden])')")
+                def check_tooltip_clip(expected_parts):
+                    tip_box = target('#mirally-companion-tip')
+                    assert tip_box["width"] > 0 and tip_box["height"] > 0, "Tooltip has no visible bounds"
+                    assert tip_box["x"] - tip_box["width"] / 2 >= 0 and tip_box["x"] + tip_box["width"] / 2 <= tip_box["vw"], "Tooltip extends outside the horizontal viewport"
+                    assert tip_box["y"] - tip_box["height"] / 2 >= 0 and tip_box["y"] + tip_box["height"] / 2 <= tip_box["vh"], "Tooltip extends outside the vertical viewport"
+                    wait_for(lambda: len(latest_shape()["parts"] or []) == expected_parts, "Tooltip native shape parts were not delivered")
+                    # Check painted edge midpoints and points inside all four
+                    # rounded corners, rather than the deliberately cut corners
+                    # of the tip's rectangular bounding box.
+                    for fx, fy in ((.5, .04), (.5, .96), (.04, .5), (.96, .5), (.1, .25), (.9, .25), (.1, .75), (.9, .75), (.5, .5)):
+                        assert point(target('#mirally-companion-tip', fx, fy))["clipped"], "Native Region cuts off a painted tooltip sample"
+                    assert js("(() => { const tip=document.querySelector('#mirally-companion-tip'); return tip.getAttribute('role')==='tooltip' && tip.textContent.trim() && tip.scrollWidth<=tip.clientWidth+1 && tip.scrollHeight<=tip.clientHeight+1; })()"), "Tooltip text is truncated or has lost its tooltip role"
+                    return tip_box
                 def right_click(where):
                     post(0x200, where)
                     time.sleep(.08)
@@ -381,6 +421,95 @@ def main() -> int:
                     wait_for(lambda: shell._workspace is None and not native()["region"], appearance + " did not restore workbench")
                     restored = native()
                     assert restored["hwnd"] == hwnd and restored["bounds"] == initial["bounds"] and not restored["topmost"], restored
+
+                # Floating tooltips live outside the clipped surface DOM. They
+                # remain separate native Region parts, so their transparent
+                # gap must not turn into an invisible input-catching rectangle.
+                js("window.__mirallyCompanion.setForm('pet',false);window.__mirallyCompanion.dock()")
+                wait_for(lambda: shell._workspace is not None and shell._surface_mode == "pet", "Tooltip pet dock did not finish")
+                browser_mouse_move({"x":5,"y":5})
+                time.sleep(.25)
+                wait_for(lambda: len(latest_shape()["parts"] or []) == 1, "Compact pet did not start with its anchor-only native clip")
+                tip_bounds = native()["bounds"]
+                original_parts = shell._shape_parts_key
+                assert affinity() == 0x11, "New companion profile did not default to hidden from capture"
+                anchor = target('.mirally-companion__rail')
+                browser_mouse_move(anchor)
+                wait_for(tooltip_visible, "Pet anchor did not reveal its delayed tooltip")
+                tip_box = check_tooltip_clip(2)
+                assert js("document.querySelector('.mirally-companion').dataset.view==='compact'"), "Pet tooltip opened the work panel"
+                anchor_left = anchor["x"] - anchor["width"] / 2
+                tip_right = tip_box["x"] + tip_box["width"] / 2
+                assert tip_right < anchor_left, "Pet tooltip does not extend independently outside the anchor: " + json.dumps({"anchor": anchor, "tip": tip_box, "shape": latest_shape(), "native": native()})
+                gap = {"x": (tip_right + anchor_left) / 2, "y": anchor["y"], "vw": anchor["vw"], "vh": anchor["vh"]}
+                assert not point(gap)["clipped"], "Tooltip-to-anchor gap captures desktop input"
+                assert native()["bounds"] == tip_bounds, "Showing a tooltip resized the native host"
+                browser_escape()
+                wait_for(lambda: not tooltip_visible() and shell._shape_parts_key == original_parts,
+                    "Escape did not remove the tooltip's separate native clip")
+                assert native()["bounds"] == tip_bounds, "Hiding a tooltip changed native bounds"
+                assert not point(tip_box)["clipped"], "Hidden tooltip left a native hit-test island behind"
+                results.append({"case": "pet compact tooltip escapes anchor clip without capturing its gap",
+                    "tooltip_native_parts": 2, "rounded_tip_samples_visible": True, "gap_is_click_through": True,
+                    "escape_restores_original_clip": True, "fixed_native_bounds": True, "default_display_affinity": "0x11"})
+                browser_mouse_move({"x":5,"y":5})
+                js("window.__mirallyCompanion.workspace()")
+                wait_for(lambda: shell._workspace is None and not native()["region"], "Tooltip pet did not restore workbench")
+
+                js("window.__mirallyCompanion.setForm('badge',false);window.__mirallyCompanion.dock()")
+                wait_for(lambda: shell._workspace is not None and shell._surface_mode == "badge", "Tooltip quick dock did not finish")
+                browser_mouse_move({"x":5,"y":5})
+                js("window.__mirallyCompanion.setView('quick')")
+                wait_for(lambda: shell._surface_view == "quick", "Explicit quick view did not reach native clipping")
+                quick_bounds = native()["bounds"]
+                browser_mouse_move(target('.mirally-companion__composer-footer [data-action=attach]'))
+                wait_for(tooltip_visible, "Quick attachment action did not reveal its tooltip")
+                check_tooltip_clip(3)
+                assert native()["bounds"] == quick_bounds, "Quick tooltip changed native bounds"
+                browser_escape()
+                wait_for(lambda: not tooltip_visible() and len(latest_shape()["parts"] or []) == 2,
+                    "Quick tooltip did not release its third native Region part")
+                assert js("document.querySelector('.mirally-companion').dataset.view==='quick'"), "First Escape closed the quick view along with its tooltip"
+                # A view transition must retire delayed/visible tooltip state.
+                browser_mouse_move({"x":5,"y":5})
+                browser_mouse_move(target('.mirally-companion__composer-footer [data-action=attach]'))
+                wait_for(tooltip_visible, "Quick tooltip did not reopen for view-transition validation")
+                js("window.__mirallyCompanion.setView('detail')")
+                wait_for(lambda: not tooltip_visible() and len(latest_shape()["parts"] or []) == 1,
+                    "Changing view left the tooltip or its native hit-test island behind")
+                assert native()["bounds"] == quick_bounds, "Tooltip view transition changed native host bounds"
+                results.append({"case": "quick tooltip is an independent third native clip part",
+                    "tooltip_native_parts": 3, "rounded_tip_samples_visible": True, "inside_viewport": True,
+                    "escape_keeps_quick_view": True, "view_change_clears_tip": True, "fixed_native_bounds": True})
+                js("window.__mirallyCompanion.workspace()")
+                wait_for(lambda: shell._workspace is None and not native()["region"], "Quick tooltip did not restore workbench")
+
+                # Exercise live preference changes through the same HTTP/SSE
+                # route used by another connected settings window. Reading
+                # display affinity tests policy without taking a screenshot.
+                assert affinity() == 0, "Workspace kept companion-only capture exclusion"
+                js("window.__mirallyCompanion.setForm('pet',false);window.__mirallyCompanion.dock()")
+                wait_for(lambda: shell._workspace is not None and affinity() == 0x11, "Companion did not apply the default capture preference")
+                bridge_before = sum(item["action"] == "refresh-capture-preference" for item in messages)
+                write_capture_preference(False)
+                wait_for(lambda: affinity() == 0 and sum(item["action"] == "refresh-capture-preference" for item in messages) > bridge_before,
+                    "External preference save did not make the dock capturable through SSE")
+                assert json.loads((home / "ui-preferences.json").read_text(encoding="utf-8"))["mirally.companion.hideFromCapture"] is False
+                js("window.__mirallyCompanion.workspace()")
+                wait_for(lambda: shell._workspace is None and affinity() == 0, "Workspace did not clear display affinity")
+                js("window.__mirallyCompanion.dock()")
+                wait_for(lambda: shell._workspace is not None, "Persisted capture-off redock did not finish")
+                assert affinity() == 0, "Redock ignored persisted capture visibility"
+                bridge_before = sum(item["action"] == "refresh-capture-preference" for item in messages)
+                write_capture_preference(True)
+                wait_for(lambda: affinity() == 0x11 and sum(item["action"] == "refresh-capture-preference" for item in messages) > bridge_before,
+                    "External preference save did not restore capture exclusion through SSE")
+                js("window.__mirallyCompanion.workspace()")
+                wait_for(lambda: shell._workspace is None and affinity() == 0, "Returning to workspace kept capture exclusion")
+                results.append({"case": "live companion capture preference uses HTTP, SSE and native display affinity",
+                    "default": "0x11", "saved_false_while_docked": "0x0", "persisted_false_after_redock": "0x0",
+                    "saved_true_while_docked": "0x11", "workspace": "0x0", "direct_refresh_called": False,
+                    "actual_screen_capture_performed": False})
 
                 # Hover previews no longer morph the outer layout every frame.
                 # Measure bridge traffic and frame cadence in the real WebView;

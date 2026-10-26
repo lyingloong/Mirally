@@ -24,6 +24,16 @@ const runTag=crypto.randomUUID().slice(0,8),reminderTitle='响应丢失后仍只
 page.on('request',request=>{if(!request.url().endsWith('/api/rpc'))return;try{const data=request.postDataJSON();seenMethods.push(data.method);if(data.method==='commitment.create')seenReminderRequests.push(data.params.request_id);if(data.method==='memory.correct')seenMemoryRequests.push(data.params.request_id);}catch{}});
 try{
   await page.goto(runtime.url+'/settings/general#token='+runtime.token);await ready();await settled('mirally-settings-general');
+  const captureSwitch=test('mirally-settings-hide-companion-from-capture').locator('wa-switch');
+  assert.equal(await captureSwitch.evaluate(node=>node.checked),true,'capture exclusion retains its enabled default');
+  await captureSwitch.click();await settled('mirally-settings-general');
+  await page.waitForFunction(()=>document.querySelector('[data-testid="mirally-settings-hide-companion-from-capture"] wa-switch')?.checked===false);
+  const presentation=await page.request.get(runtime.url+'/api/ui-preferences',{headers:{Authorization:'Bearer '+runtime.token}});
+  assert.equal(presentation.status(),200);assert.equal((await presentation.json()).preferences['mirally.companion.hideFromCapture'],false);
+  await page.reload();await ready();await settled('mirally-settings-general');
+  assert.equal(await captureSwitch.evaluate(node=>node.checked),false,'capture preference survives a full page reload');
+  await captureSwitch.click();await settled('mirally-settings-general');
+  await page.waitForFunction(()=>document.querySelector('[data-testid="mirally-settings-hide-companion-from-capture"] wa-switch')?.checked===true);
   await page.screenshot({path:join(output,'mirally-settings.png')});
   await go('/inbox');await page.locator('mirally-messages-page').waitFor();
   await page.locator('openclaw-app-sidebar .nav-item').filter({hasText:'消息'}).waitFor();

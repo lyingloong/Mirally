@@ -133,6 +133,21 @@ class CompanionGeometryTests(unittest.TestCase):
         self.assertEqual(message["parts"][1][2:4], [248, 188])
         self.assertEqual(self.shell._surface_view, "quick")
 
+    def test_third_tooltip_part_extends_visible_region_without_filling_transparent_gaps(self):
+        self.message.update(rect=[0, 30, 200, 200], parts=[
+            [20, 30, 100, 200, 18], [128, 60, 48, 48, 24], [0, 164, 160, 40, 10]])
+        self.apply()
+        self.assertEqual(len(self.paths), 3)
+        self.assertEqual(self.form.Region.Union.call_count, 3)
+        self.assertEqual(self.shell._shape_parts_key[-1], (0, 246, 240, 306, 15))
+        self.form.Region.Union.assert_any_call(self.paths[-1])
+        first = self.form.Region
+        self.message["parts"] = self.message["parts"][:2]
+        self.apply()
+        self.assertEqual(len(self.paths), 5)
+        first.Dispose.assert_called_once_with()
+        self.assertEqual(len(self.shell._shape_parts_key), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
