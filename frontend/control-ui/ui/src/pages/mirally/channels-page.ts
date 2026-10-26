@@ -10,6 +10,7 @@ import {renderSettingsWorkspace} from '../../components/settings-workspace.ts';
 import {OpenClawLightDomElement} from '../../lit/openclaw-element.ts';
 import {rpcProduct, type ProductData} from './api.ts';
 import './product.css';
+import './mobile-settings.ts';
 
 type ConnectionState = 'unbound' | 'waiting_scan' | 'scanned' | 'need_verifycode'
   | 'awaiting_confirmation' | 'connected' | 'reconnecting' | 'disconnected'
@@ -230,7 +231,7 @@ export class MirallyChannelsPage extends OpenClawLightDomElement {
 
   override render() {
     const status = this.status, state = status?.state;
-    return html`${renderSettingsPageHeader({title: '消息渠道', subtitle: '通过微信，与这台电脑上的 Mirally 继续交流。', actions: html`
+    return html`${renderSettingsPageHeader({title: '消息渠道', subtitle: '通过微信与手机网页，接续这台电脑上的 Mirally。', actions: html`
       <button class="btn btn--sm" data-testid="mirally-weixin-refresh" ?disabled=${this.loading || this.busy} @click=${() => void this.refresh(true)}>${this.loading ? '正在刷新…' : '刷新'}</button>`})}
       ${renderSettingsWorkspace(renderSettingsPage(html`<div class="mirally-settings-content" data-testid="mirally-weixin-page" aria-busy=${this.loading || this.busy ? 'true' : 'false'}>
         ${this.error ? html`<div class="callout danger" role="alert" data-testid="mirally-weixin-error">${this.error}</div>` : nothing}
@@ -252,6 +253,7 @@ export class MirallyChannelsPage extends OpenClawLightDomElement {
           ${renderSettingsRow({title: '送达待确认', description: '无法确定微信是否已收到，不会自动重复发送。', control: renderSettingsValue(String(status.outbox.unknown || 0))})}
           ${renderSettingsRow({title: '发送失败', description: '可以在对应 Mirally 会话查看回复。', control: renderSettingsValue(String(status.outbox.failed || 0))})}
         `) : nothing}
+        <mirally-mobile-settings></mirally-mobile-settings>
       </div>`))}`;
   }
 }

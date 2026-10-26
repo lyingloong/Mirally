@@ -16,6 +16,7 @@ type NavigationPresentation = readonly [icon: IconName, titleKey: string, subtit
 // Keep the original customizable sidebar and session list, with destinations
 // owned by Mirally. Legacy route ids stay stable for saved links and preferences.
 export const SIDEBAR_NAV_ROUTES = [
+  "tasks",
   "custodian",
   "cron",
   "activity",
@@ -338,6 +339,7 @@ const MIRALLY_NAVIGATION_COPY: Partial<Record<NavigationRouteId, MirallyNavigati
   dashboard: ["对话", "Chat", "与 Mirally 一起处理生活和工作中的事情", "Work through life and work with Mirally"],
   "new-session": ["新对话", "New conversation", "从一件想聊、想做的事开始", "Start with something to discuss or do"],
   custodian: ["消息", "Inbox", "查看 Mirally 的主动联系与提醒投递", "Review messages and reminders from Mirally"],
+  tasks: ["工作", "Work", "关注进展、确认运行并查看成果", "Follow progress, approve runs, and review results"],
   cron: ["提醒", "Reminders", "管理约定、到期时间与提醒状态", "Manage commitments, due dates, and reminder status"],
   activity: ["活动", "Activity", "选择允许 Mirally 了解的活动范围", "Choose which activities Mirally may understand"],
   memory: ["记忆", "Memory", "查看与管理 Mirally 记住的信息", "Review and manage what Mirally remembers"],

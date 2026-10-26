@@ -1,3 +1,32 @@
+# 手机工作与会话第一版验收
+
+日期：2026-10-27，Asia/Shanghai（+08:00）。对应 PN-0040、PN-0041；下方记录保留为历史。实际使用与未覆盖边界见[手机工作说明](mobile-work-guide.md)。
+
+| 验证 | 结果 | 范围 |
+| --- | --- | --- |
+| 完整 Python | 1095 项，1092 通过、3 跳过 | schema 1–4 升级到 5、真实受监督脚本、固定审批字节、进程树取消、产物、来源撤权与通知归属；跳过包括当前 Windows 符号链接权限，另有真实 Junction 防越权验证通过 |
+| 完整 Node | 305 项通过，0 跳过 | `--test-concurrency=4`；手机隔离服务、配对/撤销、呈现偏好、同一会话、微信完整审批、绑定换代去重与侧栏支持列表 |
+| 真实 Host / DSH / Python | 10 组通过 | 独立回环手机入口、工作来源、偏好分层、会话接续、桌面准备后手机批准并执行实际脚本、日志/成果、进程取消、收件箱、冷重启与撤销 |
+| 真实浏览器 | 6 组通过，无 pageerror | 桌面配对、手机工作/状态/脚本/下载、会话发送/改名/归档/恢复、用户与设备设置、320/390/736px 布局与深色主题；实际构建和真实隔离后端，无页面 API mock |
+| 原功能回归 | 18 组通过，无 pageerror | 原聊天、真实材料与成果、历史刷新、取消/重启、Skill、MCP、可信插件、模型桥及本机收件箱；含原 Files 与历史的真实浏览器验收 |
+
+真实脚本使用隔离 home 内的临时文件。未调用外部模型、登录或发送真实微信消息；新微信命令由实际 Python sidecar 与本机协议 fixture 验证，既有账号文字往返仍以下方用户验收为依据。私人 HTTPS 转发、实体手机、移动网络和微信内置浏览器未验收；本机预览不能代替这些结果。QQ、媒体与桌面接管没有接入。
+
+离线与浏览器验收后，确认原正常 home 没有活动 owner，先用 SQLite backup 留存 schema 4，再启动新版正常桌面宿主。实际升级到 schema 5，已有会话数与微信绑定/启用/目标会话均保持，独立手机服务就绪；未新增演示工作、改动已有模型连接或发送微信测试消息。备份只保留在本机忽略的 `.artifacts/`。
+
+完整 Python 本轮通过了下方曾超时的既有 UFO 导入测试，未改动该测试或接入 UFO。Node 首次无限制文件并发有一次旧会话组织测试的 sidecar 启动失败；原断言单项复验通过，限制 4 文件并发后完整 305 项通过，未放宽断言。最终日志为 `.artifacts/mobile-work-python-final.log`、`.artifacts/mobile-work-node-final.log`。
+
+```powershell
+.\.venv\Scripts\python.exe tools/verify_framework_mobile_work.py --browser
+.\.venv\Scripts\python.exe tools/verify_framework.py --browser-files --browser-history
+node --test --test-concurrency=4 tests/test_*.mjs
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+GUI 顺序运行，报告和截图留在忽略的 `.artifacts/`，不提交配对码、凭据或用户数据。
+
+---
+
 # 微信文字入口第一版验收
 
 日期：2026-10-26，Asia/Shanghai。对应 PN-0034；以下同日记录保留为历史。

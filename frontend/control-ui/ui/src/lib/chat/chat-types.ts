@@ -122,6 +122,8 @@ export type ChatQueueItem = {
   id: string;
   /** Mirally: explicit Work output permission, retained with this exact input. */
   mirallyAllowFileWrite?: boolean;
+  /** Product work reference is bound to this exact outbox admission. */
+  mirallyWork?: { title: string; goal: string };
   /** UI question associated with this input; delivery and retry stay outbox-owned. */
   asyncQuestionItemId?: string;
   workContext?: ChatWorkContext;

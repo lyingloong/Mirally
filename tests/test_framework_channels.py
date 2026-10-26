@@ -291,7 +291,7 @@ class FrameworkChannelsTests(unittest.TestCase):
         self.service.db.execute("DROP TABLE channel_weixin")
         self.service.db.execute("PRAGMA user_version=3")
         self.restart()
-        self.assertEqual(self.service.db.execute("PRAGMA user_version").fetchone()[0], 4)
+        self.assertEqual(self.service.db.execute("PRAGMA user_version").fetchone()[0], 5)
         self.assertTrue(self.service.call("settings.get")["do_not_disturb"])
         self.assertIsNone(self.state()["installation_id"])
         self.service.db.execute("PRAGMA user_version=99")

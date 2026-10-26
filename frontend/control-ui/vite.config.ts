@@ -18,7 +18,8 @@ export default defineConfig({
     'globalThis.OPENCLAW_CONTROL_UI_BUILD_INFO': JSON.stringify({version:'0.1.0',commit:null,buildId:'mirally-frontend-0.1.0',builtAt:null}),
   },
   resolve: {alias:[{find:'json5',replacement:require.resolve('json5/dist/index.mjs')}]},
-  build: {outDir:path.join(root,'dist'),emptyOutDir:true,sourcemap:false,chunkSizeWarningLimit:1600},
+  build: {outDir:path.join(root,'dist'),emptyOutDir:true,sourcemap:false,chunkSizeWarningLimit:1600,
+    rollupOptions:{input:{main:path.join(root,'ui/index.html'),mobile:path.join(root,'ui/mobile.html')}}},
   plugins: [
     {
       name:'mirally-browser-shared-sources',

@@ -90,6 +90,7 @@ registerChatGoalsEnglish();
 export type ChatSendSubmitOptions = {
   /** Mirally Work's explicit file output selection; never inferred from text. */
   mirallyAllowFileWrite?: boolean;
+  mirallyWork?: {title: string; goal: string};
   asyncQuestionItemId?: string;
   intent?: ChatSendIntent;
   attachmentsOverride?: readonly ChatAttachment[];
@@ -590,6 +591,8 @@ export async function handleSendChat(
     let queued = submission.item;
     if (opts?.mirallyAllowFileWrite === true || resumedEdit?.source.mirallyAllowFileWrite === true)
       queued.mirallyAllowFileWrite = true;
+    const mirallyWork = resumedEdit?.source.mirallyWork ?? opts?.mirallyWork;
+    if (mirallyWork) queued.mirallyWork = {title: mirallyWork.title, goal: mirallyWork.goal};
     queued.asyncQuestionItemId =
       resumedEdit?.source.asyncQuestionItemId ?? opts?.asyncQuestionItemId;
     if (queued.attachments?.length) {

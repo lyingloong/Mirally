@@ -174,6 +174,7 @@
       // A message override keeps the native chat draft. Attachments must be
       // explicit: the native override deliberately does not inherit them.
       const result = await state.handleSendChat(request,{attachmentsOverride:attachments,mentionsOverride:[],onOutboxAdmitted:accepted,
+        ...(window.__mirallyLegacyHost ? {mirallyWork:{title:(draft.goal.trim() || office.workflows.find(item=>item.id===draft.workflow)?.title || '新工作').slice(0,512),goal:request.slice(0,16000)}} : {}),
         ...(window.__mirallyLegacyHost ? {mirallyAllowFileWrite: draft.output !== 'reply'} : {}),
         ...(experience ? {allow_file_write: draft.output !== 'reply'} : {}),
         ...(pane.runActivity?.working ? {followUpMode:'steer'} : {})});

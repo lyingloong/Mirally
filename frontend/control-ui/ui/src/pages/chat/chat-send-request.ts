@@ -22,6 +22,7 @@ export async function requestChatSend(
   params: {
     message: string;
     mirallyAllowFileWrite?: boolean;
+    mirallyWork?: {title: string; goal: string};
     workContext?: ChatWorkContext;
     mentions?: readonly HumanMention[];
     attachments?: ChatAttachment[];
@@ -52,6 +53,7 @@ export async function requestChatSend(
     ...(controlUiReconnectResume ? { __controlUiReconnectResume: true } : {}),
     message: params.message,
     ...(params.mirallyAllowFileWrite === true ? { mirallyAllowFileWrite: true } : {}),
+    ...(params.mirallyWork ? { mirallyWork: params.mirallyWork } : {}),
     ...(params.workContext ? { workContext: params.workContext } : {}),
     ...(params.mentions?.length ? { mentions: params.mentions } : {}),
     ...(params.intent ? { intent: params.intent } : {}),

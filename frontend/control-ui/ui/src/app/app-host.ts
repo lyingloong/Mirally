@@ -727,7 +727,7 @@ class OpenClawShell
   }
 
   enabledRouteIds(): readonly RouteId[] {
-    return ["chat", "new-session", "custodian", "cron", "activity", "memory", "plugins", "config", "profile", "model-providers", "appearance", "notifications", "about"];
+    return ["chat", "new-session", "tasks", "custodian", "cron", "activity", "memory", "plugins", "config", "profile", "model-providers", "appearance", "notifications", "about"];
   }
 
   /** Agent targeted by the open new-session route, keyed off its ?agent param. */

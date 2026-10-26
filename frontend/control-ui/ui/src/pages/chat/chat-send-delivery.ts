@@ -366,6 +366,7 @@ async function sendPreparedChatMessage(
       message,
       workContext: prepared.workContext,
       mirallyAllowFileWrite: prepared.mirallyAllowFileWrite,
+      mirallyWork: prepared.mirallyWork,
       mentions: submitted.mentions,
       attachments: attachments.length ? attachments : undefined,
       runId,

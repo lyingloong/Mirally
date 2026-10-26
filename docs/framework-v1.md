@@ -35,6 +35,12 @@ npm --prefix frontend/control-ui run build
 
 ## 各模块如何协作
 
+### 工作与手机入口
+
+桌面侧栏“工作”进入 `/tasks`，新增持久工作、JSON/日志观察、精确审批后的后台 Python 运行、取消、日志及小型成果下载。原准备页、材料、草稿和会话保留，提交可建立关联工作。手机接入位于“设置 → 消息渠道”，独立页面支持工作、正文会话管理、消息和可设置首页/导航。异地手机访问需配置私人 HTTPS 转发，服务仍只监听回环；未配置时仅可在电脑预览。
+
+数据库当前 schema 5，原地升级 1–4；`framework/work.py` 拥有工作与执行事实，Node 组合具名入口和唯一 DSH。受信脚本以当前用户权限执行，路径范围不是操作系统沙箱。功能、准备步骤及限制见[手机工作使用说明](mobile-work-guide.md)。微信/手机模型工具继续受限，脚本动作走本人精确审批，不开放通用远程工具链。
+
 ```mermaid
 flowchart LR
   UI[原 Mirally 页面与皮肤] --> Client[Mirally HTTP/SSE 适配]
@@ -50,7 +56,7 @@ flowchart LR
 ```
 
 - `mirally/framework_host.py` 管理 Node 宿主、桌面窗口与托盘，解析工具链和产品 home。`kernel/dsh/packages/mirally/mirally-product/` 是可直接修改的本机 Host、原生会话适配和模型桥；它加载明确的内核组合，未挂载上游通用 shell 工具。
-- `mirally/framework/service.py` 拥有设置、逻辑 Conversation 与原生 Session 引用、命令回执、来源版本、明确偏好、提醒、主动候选、投递与已读状态。产品 schema 当前为 4，可从早期 schema 1/2/3 原地升级，拒绝未来版本；会话标题/固定/归档带元数据版本，不改 transcript。微信收发状态由独立 `framework/channels.py` 管理。
+- `mirally/framework/service.py` 拥有设置、逻辑 Conversation 与原生 Session 引用、命令回执、来源版本、明确偏好、提醒、主动候选、投递与已读状态。产品 schema 当前为 5，可从早期 schema 1/2/3/4 原地升级，拒绝未来版本；会话标题/固定/归档带元数据版本，不改 transcript。微信收发状态由独立 `framework/channels.py` 管理。
 - DSH Session 是唯一 transcript。产品库只保存引用、代次和命令内容哈希。停止或撤回来源会冻结旧代次；后续用户输入创建新的原生 Session，历史仍通过代次引用读取。启动恢复不会盲目重放旧输入、脚本或桌面动作。
 - `mirally/framework/context.py` 按需只读组合记忆、活动、偏好和来源缺口。`mirally/framework_workers.py` 监督获准的 Activity 子进程和 Memory 维护 owner；查询不启动采集。后台语义任务通过本机模型桥调用同一原生模型适配。
 - `frontend/control-ui/ui/src/` 复用原 Lit 壳、对话和外观组件，`pages/mirally/` 维护自有内容页与产品 API；`mirally/assets/control-ui-*` 继续提供既有 Mirally 皮肤、工作和伙伴交互。`ui/src/app/mirally-client.ts` 注入原客户端工厂，将已实现操作映射到本机鉴权 HTTP/RPC 与 SSE。`mirally/framework_ui/legacy-native-bridge.js` 适配活动/记忆、材料成果等产品消息，`mirally-product/src/presentation.mjs` 提供原皮肤资源。`mirally/framework_ui/app.js` 的简化页面不再是默认前端。
@@ -78,7 +84,7 @@ flowchart LR
 
 连接由桌面主动 HTTPS 长轮询，无需开放本机公网端口。关闭到托盘可以继续收发，退出、关机和睡眠时不能执行。仅明确关联的助手正文经持久队列回发，过滤思考与原始工具信息；长回复顺序分段，部分失败后停止余下段落。接口接受与手机实收/已读分开，未知发送不自动重发。平台窗口/凭据失效时查看桌面结果，再向微信发新文字或重新登录。
 
-持久渠道入站及发送投影用于去重与恢复，不是第二份可继续执行的聊天历史。重启不重放旧模型输入；首版仅核对最多 200 条排队/未知记录，无法核实或已有失败回执时保留状态，不承诺自动整理全部历史积压。图片、语音、文件收发、实验状态源、QQ、远程命令及桌面接管仍是后续能力。
+持久渠道入站及发送投影用于去重与恢复，不是第二份可继续执行的聊天历史。重启不重放旧模型输入；首版仅核对最多 200 条排队/未知记录，无法核实或已有失败回执时保留状态，不承诺自动整理全部历史积压。图片、语音、文件收发、QQ、任意终端及桌面接管仍是后续能力；工作状态源及精确审批的 Python 运行见上方手机工作说明。
 
 协议客户端依据固定腾讯官方版本独立实现，未加载 OpenClaw Gateway/SDK，来源与限制见[渠道说明](../kernel/dsh/packages/mirally/mirally-product/src/channels/README.md)。当前用户已完成真实账号扫码与一次文字往返；这不代表所有账号、全部消息格式或长期主动发送均已通过。可运行以下离线链路：
 

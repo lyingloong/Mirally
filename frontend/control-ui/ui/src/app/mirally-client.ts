@@ -372,7 +372,7 @@ export class MirallyBrowserClient {
         }
         this.rememberRun(id, runId);
         try {
-          const result = await this.http(`/api/sessions/${encodeURIComponent(id)}/messages`, {method: "POST", body: JSON.stringify({commandId: runId, text: p.message || "请查看我提供的材料。", materials, allow_file_write: p.mirallyAllowFileWrite === true})});
+          const result = await this.http(`/api/sessions/${encodeURIComponent(id)}/messages`, {method: "POST", body: JSON.stringify({commandId: runId, text: p.message || "请查看我提供的材料。", materials, allow_file_write: p.mirallyAllowFileWrite === true, ...(p.mirallyWork ? {work:p.mirallyWork} : {})})});
           if (result.replay && ['completed','cancelled','rejected','unknown'].includes(result.command?.state)) {
             this.forgetRun(id, runId);
             const state = result.command.state === 'completed' ? 'final' : result.command.state === 'cancelled' ? 'aborted' : 'error';

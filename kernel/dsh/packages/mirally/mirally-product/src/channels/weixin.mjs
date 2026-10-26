@@ -1,10 +1,11 @@
 /** Product channel: no model loop, transcript or authority is owned here. */
 import {randomUUID} from 'node:crypto';
 import {WeixinApi, validateWeixinBaseUrl} from './weixin-api.mjs';
+import {WeixinWorks, WORK_HELP} from './weixin-work.mjs';
 
 const MAX_AGE = 10 * 60_000;
 const LOGIN_TTL = 5 * 60_000;
-const HELP = '这是你的 Mirally 微信入口（第一版支持文字私聊）。\n/new 新建会话\n/sessions 列出会话\n/use 编号 切换会话\n/status 查看当前会话\n/stop 停止当前回复\n/help 查看帮助\n模型工具目前仅允许明确的只读查询。';
+const HELP = '这是你的 Mirally 微信入口（第一版支持文字私聊）。\n/new 新建会话\n/sessions 列出会话\n/use 编号 切换会话\n/status 查看当前会话\n/stop 停止当前回复\n/help 查看帮助\n对话工具仅允许明确的只读查询；工作执行须单独确认。\n' + WORK_HELP;
 const blocked = () => Object.assign(new Error('微信绑定或会话已改变，请重新发起。'), {code: 'weixin_scope_revoked', status: 403});
 const pause = (ms, signal) => new Promise(resolve => {
   if (signal?.aborted) return resolve();
@@ -41,6 +42,7 @@ export class WeixinChannel {
     this.jobs = new Set();
     this.closed = false;
     this.management = Promise.resolve();
+    this.works = new WeixinWorks(this);
   }
 
   async state() { return (await this.product.rpc('channel.weixin.get')).state; }
@@ -274,9 +276,12 @@ export class WeixinChannel {
       if (message.context_token) await this.reply(event, '当前只支持新收到的文字消息，请重新发送文字。', {control: true});
       return;
     }
-    if (text.startsWith('/')) {
-      try { await this.control(event, state); }
-      catch { await this.reply(event, '这项会话操作未完成，请在桌面检查当前绑定与会话状态。', {control: true}); }
+    if (text.startsWith('/') || this.works.handles(text)) {
+      try {
+        if (this.works.handles(text)) await this.works.control(event);
+        else await this.control(event, state);
+      }
+      catch { await this.reply(event, '这项操作未完成，请在桌面检查当前绑定与状态。', {control: true}); }
       await this.store('event', {installation_id: event.installation_id, event_id: id, state: 'completed'});
       return;
     }
@@ -351,6 +356,58 @@ export class WeixinChannel {
     });
   }
 
+  async notifyWorks() {
+    if (this.closed || !this.product.workRequest) return;
+    const state = await this.state();
+    if (!state.bound || !state.enabled || !state.context_token || this.phase === 'login_required') return;
+    const {settings} = await this.product.rpc('work.settings.get');
+    if (settings.channels?.weixin !== true) return;
+    const {events} = await this.product.rpc('work.notifications', {limit: 20, channel: 'weixin', installation_id: state.installation_id, revision: state.revision});
+    for (const event of events) {
+      const eventTime = Number(event.created_at);
+      // Notifications have a bounded useful life. They remain queryable in
+      // work history but are never blindly replayed after a long outage.
+      if (!Number.isFinite(eventTime) || this.now() - eventTime > MAX_AGE || eventTime > this.now() + 60000) {
+        await this.product.rpc('work.notifications.ack', {event_id: event.event_id, channel: 'weixin', status: 'suppressed',
+          installation_id: state.installation_id, revision: state.revision});
+        continue;
+      }
+      if (settings.notifications?.[event.kind] === false || event.work?.notifications?.[event.kind] === false) continue;
+      try {
+        await this.authorize({...state, conversation_id: state.conversation_id});
+        const claimed = await this.product.rpc('work.notifications.claim', {event_id: event.event_id, channel: 'weixin',
+          installation_id: state.installation_id, revision: state.revision});
+        const destination = claimed.event?.deliveries?.weixin;
+        if (destination?.status !== 'queued' || destination.installation_id !== state.installation_id || destination.revision !== state.revision) continue;
+        await this.authorize({...state, conversation_id: state.conversation_id});
+        // Repeating this exact immutable enqueue is safe even after a crash
+        // between destination claim and insertion. Outbox terminal rows survive
+        // and cannot become another send; another destination never adopts it.
+        const {delivery} = await this.store('enqueue', {installation_id: state.installation_id, revision: state.revision,
+          key: `work-notification:${event.event_id}`, text: boundedReply(`${event.title}\n${event.text}\n/work ${event.work_id} 查看详情`),
+          });
+        if (['sent', 'failed', 'unknown', 'cancelled'].includes(delivery.status))
+          await this.product.rpc('work.notifications.ack', {event_id: event.event_id, channel: 'weixin', installation_id: state.installation_id, revision: state.revision,
+            status: delivery.status === 'cancelled' ? 'suppressed' : delivery.status});
+      } catch (error) {
+        if (['CONFLICT', 'weixin_scope_revoked'].includes(error.code)) return;
+        throw error;
+      }
+    }
+  }
+
+  async canDeliverWork(delivery) {
+    if (!delivery.key?.startsWith('work-notification:')) return true;
+    const {settings} = await this.product.rpc('work.settings.get');
+    if (settings.channels?.weixin !== true) return false;
+    const {event} = await this.product.rpc('work.notifications.get', {event_id: delivery.key.slice('work-notification:'.length)});
+    const destination = event?.deliveries?.weixin;
+    return Boolean(event && destination?.status === 'queued' && destination.installation_id === delivery.installation_id
+      && destination.revision === delivery.revision && event.work?.intent === 'watching'
+      && event.eligible_channels?.weixin !== false && !event.work?.observation?.withdrawn && this.now() - Number(event.created_at) <= MAX_AGE
+      && settings.notifications?.[event.kind] !== false && event.work?.notifications?.[event.kind] !== false);
+  }
+
   async reconcile(state) {
     const {events} = await this.store('events', {installation_id: state.installation_id, states: ['queued', 'unknown'], limit: 200});
     for (const event of events) {
@@ -386,7 +443,7 @@ export class WeixinChannel {
       let status = 'unknown', receipt, acceptedParts = 0, failedPart;
       try {
         await this.authorize({...delivery, conversation_id: delivery.state.conversation_id});
-        if (delivery.command_id && !await this.product.canDeliverWeixin(delivery)) {
+        if (delivery.command_id && !await this.product.canDeliverWeixin(delivery) || !await this.canDeliverWork(delivery)) {
           status = 'cancelled';
         } else {
           const controller = new AbortController(); this.sendController = controller;
@@ -394,7 +451,7 @@ export class WeixinChannel {
           for (let index = 0; index < parts.length; index++) {
             failedPart = index;
             await this.authorize({...delivery, conversation_id: delivery.state.conversation_id});
-            if (delivery.command_id && !await this.product.canDeliverWeixin(delivery)) throw blocked();
+            if (delivery.command_id && !await this.product.canDeliverWeixin(delivery) || !await this.canDeliverWork(delivery)) throw blocked();
             await this.api(delivery.state.base_url).sendText({token: delivery.state.token, to: delivery.state.peer_id,
               text: parts[index], contextToken: delivery.context_token || delivery.state.context_token,
               clientId: `${delivery.delivery_id}:${index}`, signal: AbortSignal.any([controller.signal, this.connection.signal])});
@@ -410,6 +467,9 @@ export class WeixinChannel {
         else this.error = status === 'unknown' ? '有回复未能确认发送，请在桌面查看；不会自动重发。' : '有回复未能送出，请在桌面查看发送状态。';
       } finally { this.sendController = null; }
       await this.store('ack', {delivery_id: delivery.delivery_id, status, ...(receipt ? {receipt} : {})});
+      if (delivery.key?.startsWith('work-notification:')) await this.product.rpc('work.notifications.ack', {
+        event_id: delivery.key.slice('work-notification:'.length), channel: 'weixin',
+        installation_id: delivery.installation_id, revision: delivery.revision, status: status === 'cancelled' ? 'suppressed' : status});
       if (status !== 'sent') return;
     }
   }

@@ -1,0 +1,41 @@
+/* The phone uses Mirally's existing theme, typography and controls. */
+html.mirally-mobile-document {height:auto;min-height:100%;overflow:auto;overscroll-behavior-y:auto;}
+body.mirally-mobile-body { margin:0; overflow:auto; height:auto; min-height:100dvh; }
+mirally-mobile-app {display:block; min-height:100dvh; width:100%;}
+.mirally-mobile-shell { max-width:860px; margin:0 auto; padding-bottom:calc(80px + env(safe-area-inset-bottom)); }
+.mirally-mobile-header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:24px 20px 16px; border-bottom:1px solid var(--border); }
+.mirally-mobile-brand { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px; }
+.mirally-mobile-header h1 { margin:8px 0 0; font-size:26px; line-height:1.3; letter-spacing:-.02em; }
+.mirally-mobile-connection { border:0; background:transparent; color:var(--muted); font:inherit; text-align:right; font-size:12px; cursor:pointer; }
+.mirally-mobile-connection[data-connected="true"] { color:var(--success, #4caf81); }
+.mirally-mobile-connection small {display:block; color:var(--muted); font-size:10px; max-width:150px;}
+.mirally-mobile-main { padding:20px; }
+.mirally-mobile-main > .callout {margin-bottom:16px;}
+.mirally-mobile-nav { position:fixed; z-index:20; bottom:0; left:0; right:0; display:flex; justify-content:space-around; padding:10px 12px calc(10px + env(safe-area-inset-bottom)); gap:8px; border-top:1px solid var(--border); background:var(--chrome-strong,var(--bg)); }
+.mirally-mobile-nav .btn {flex:1; min-height:44px; max-width:180px; border-color:transparent; background:transparent;}
+.mirally-mobile-nav .btn[aria-current="page"] {color:var(--accent);background:var(--accent-subtle,var(--bg-hover));}
+.mirally-mobile-more {position:fixed;z-index:21;bottom:calc(78px + env(safe-area-inset-bottom));right:12px;display:flex;flex-direction:column;gap:8px;padding:12px;background:var(--popover);border:1px solid var(--border-strong);border-radius:var(--radius-lg,12px);box-shadow:0 8px 28px #0004;min-width:160px;}
+.mirally-mobile-pair { width:min(100%,480px); margin:8vh auto 0; padding:24px; box-sizing:border-box; }
+.mirally-mobile-pair h1 {font-size:26px; line-height:1.4;}
+.mirally-mobile-pair .mirally-product-form {padding:16px 0;}
+.mirally-mobile-settings {display:flex; flex-direction:column; gap:20px;}
+.mirally-mobile-nav-setting {display:flex; align-items:center; justify-content:space-between; gap:8px;}
+.mirally-mobile-nav-setting > div {display:flex; align-items:center; gap:8px;}
+.mirally-mobile-search {margin:20px 0;}
+.mirally-mobile-main input:not([type="checkbox"]),.mirally-mobile-main select,.mirally-mobile-main textarea,
+.mirally-mobile-pair input {border:1px solid var(--border-strong);border-radius:var(--radius-md,8px);background:var(--bg-elevated);color:var(--text-strong);padding:10px 12px;min-height:44px;font:inherit;max-width:100%;box-sizing:border-box;}
+.mirally-mobile-main input[type="checkbox"] {width:18px;height:18px;vertical-align:middle;margin-inline-end:8px;accent-color:var(--accent);}
+.mirally-mobile-main button {min-height:42px;}
+.mirally-mobile-main .mirally-product-form {gap:16px;}
+.mirally-mobile-transcript {display:flex; flex-direction:column; gap:20px; margin:24px 0;}
+.mirally-mobile-message {padding:16px 0;overflow-wrap:anywhere;}
+.mirally-mobile-message[data-role="user"] {background:var(--bg-elevated);padding:16px;border-radius:var(--radius-lg,12px);}
+.mirally-mobile-message .markdown {margin-top:8px;}
+.mirally-mobile-message pre {overflow:auto;max-width:100%;}
+.mirally-mobile-message table {display:block;overflow:auto;max-width:100%;}
+.mirally-mobile-message img {max-width:100%;height:auto;}
+.mirally-mobile-composer {display:flex;flex-direction:column;gap:12px;margin-top:24px;}
+.mirally-mobile-composer textarea {min-height:100px;resize:vertical;}
+.mirally-mobile-conversation {min-width:0;}
+@media (max-width:380px) {.mirally-mobile-main{padding:16px 12px;}.mirally-mobile-header{padding:20px 12px 16px;}.mirally-mobile-nav{gap:2px;padding-inline:6px;}.mirally-mobile-nav .btn{padding-inline:8px;}}
+@media (prefers-reduced-motion:reduce) {.mirally-mobile-body *{scroll-behavior:auto!important;transition:none!important;animation:none!important;}}

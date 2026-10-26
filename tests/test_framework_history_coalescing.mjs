@@ -12,7 +12,10 @@ test('original UI coalesces durable and late live tool projections by the exact 
   const {build} = await import(pathToFileURL(require.resolve('vite')));
   const result = await build({configFile: join(root, 'frontend/control-ui/vite.config.ts'), logLevel: 'error',
     build: {write: false, minify: false, lib: {entry: join(root, 'frontend/control-ui/ui/src/pages/chat/chat-tool-activity-coalesce.ts'), formats: ['es']},
-      rolldownOptions: {output: {codeSplitting: false}}}});
+      // The product has desktop and phone document entries; this library fixture
+      // deliberately bundles only the coalescer and its real dependencies.
+      rollupOptions: {input: join(root, 'frontend/control-ui/ui/src/pages/chat/chat-tool-activity-coalesce.ts')},
+      rolldownOptions: {input: join(root, 'frontend/control-ui/ui/src/pages/chat/chat-tool-activity-coalesce.ts'), output: {codeSplitting: false}}}});
   const code = (Array.isArray(result) ? result[0] : result).output.find(file => file.type === 'chunk' && file.isEntry).code;
   const {coalesceToolActivityMessages} = await import('data:text/javascript;base64,' + Buffer.from(code + '\n//# sourceURL=original-tool-coalescer-test.mjs').toString('base64'));
   const log = [{seq: 0, time: 1, type: 'user/message', data: {id: 'user', source: {kind: 'user'}, content: [{type: 'text', text: '查看提醒'}]}},

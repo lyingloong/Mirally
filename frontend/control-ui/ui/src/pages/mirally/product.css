@@ -22,6 +22,25 @@ mirally-extensions-page, mirally-channels-page { display: block; min-width: 0; w
 .mirally-weixin-qr { display: inline-flex; background: #fff; padding: var(--space-4); border-radius: var(--radius-md, 8px); }
 .mirally-weixin-qr wa-qr-code { display: block; width: 200px; height: 200px; }
 mirally-channels-page .settings-input { max-width: 100%; }
+mirally-work-panel, mirally-work-page, mirally-mobile-settings {display:block;min-width:0;}
+.mirally-work-panel, .mirally-work-detail {display:flex;flex-direction:column;gap:20px;}
+.mirally-work-list {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px;margin-top:20px;}
+.mirally-work-card {background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg,12px);min-width:0;overflow-wrap:anywhere;}
+.mirally-work-card h2,.mirally-work-card h3,.mirally-work-card h4 {margin:0;}
+.mirally-work-list-item {display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:20px;text-align:start;color:var(--text);font:inherit;cursor:pointer;transition:background 120ms,border-color 120ms;}
+.mirally-work-list-item:hover {border-color:var(--border-hover);background:var(--bg-hover);}
+.mirally-work-list-item strong {font-size:16px;color:var(--text-strong);}
+.mirally-work-status {color:var(--muted);font-size:12px;}
+.mirally-work-status[data-status="needs_approval"],.mirally-work-status[data-status="failed"],.mirally-work-status[data-status="unknown"] {color:var(--warning, #dca75a);}
+.mirally-work-status[data-status="running"] {color:var(--accent);}
+.mirally-work-facts {display:grid;grid-template-columns:minmax(65px,auto) minmax(0,1fr);gap:12px;margin:0;}
+.mirally-work-facts dt {color:var(--muted);}.mirally-work-facts dd {margin:0;overflow-wrap:anywhere;}
+.mirally-work-log {font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere;overflow:auto;max-height:360px;margin:0;background:var(--bg);padding:12px;border-radius:8px;}
+.mirally-work-detail > button {align-self:flex-start;}
+.mirally-work-desktop {max-width:1100px;margin:0 auto;padding:var(--space-6,24px);}
+.mirally-work-card summary {cursor:pointer;padding:12px 16px;}
+.mirally-mobile-device {padding:16px 0;border-top:1px solid var(--border);}
+.mirally-mobile-pair-code {font-size:28px;letter-spacing:.14em;font-weight:600;overflow-wrap:anywhere;}
 @media (max-width: 380px) {
   .mirally-weixin-qr { padding: var(--space-2); }
 }

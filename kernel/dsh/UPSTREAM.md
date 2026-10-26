@@ -2,6 +2,8 @@
 
 本目录是用户授权直接修改的内核源码，随 Mirally 在同一个 Git 仓库维护。上游项目是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)。
 
+2026-10-27：产品宿主增加 `work-host.mjs`、`mobile.mjs` 与微信工作适配，接入 Python 工作/真实脚本监督、独立手机配对与有限 RPC。远程消息沿用唯一 DSH 历史和实际 command 的工具边界，模型不能签发运行审批；工作结果不复制另一份 transcript。手机前端复用原主题与组件，私人 HTTPS 转发另配置。未修改上游许可证、UFO、gitlink 或 `.gitmodules`；实际边界及验证见[手机工作说明](../../docs/mobile-work-guide.md)。
+
 | 项目 | 初始基线 |
 | --- | --- |
 | Tag | `dsh-v0.2.1-rc.2` |
