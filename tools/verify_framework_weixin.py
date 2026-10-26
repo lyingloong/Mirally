@@ -12,6 +12,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
+import re
 import sqlite3
 import sys
 import tempfile
@@ -190,6 +191,9 @@ def verify(root, home):
     with test_environment(fixture.url):
         try:
             client = Client(host.start())
+            mobile = client.rpc("mobile.configure", enabled=False, external_url="")
+            assert mobile["enabled"] is False and mobile["ready"] is False
+            record(checks, "WeChat runs with the optional mobile webpage service disabled")
             initial = client.status()
             assert initial["state"] == "unbound" and not initial["bound"]
             assert client.call("/api/health")["mode"] == "test"
@@ -268,6 +272,57 @@ def verify(root, home):
             wait_until(lambda: client.status()["conversation_id"] == original)
             assert any(item["text"] == phone_text for item in client.history(original))
             record(checks, "/new, /sessions and /use route real conversations without moving history")
+
+            history_before = len(client.history(original))
+            before = len(fixture.sent_texts())
+            fixture.push("查看历史")
+            recalled = fixture.wait_reply("当前会话的文字历史", after=before)
+            assert desktop_text in recalled and phone_text in recalled
+            assert len(client.history(original)) == history_before
+            before = len(fixture.sent_texts())
+            fixture.push("菜单")
+            menu = fixture.wait_reply("无需自建云服务器或打开网页", after=before)
+            assert "/work-notify" in menu and "/work-logs" in menu and "/history" in menu
+            assert len(client.history(original)) == history_before
+            record(checks, "WeChat menu and canonical history work without a webpage or another model turn")
+
+            workspace = home / "workspace"
+            workspace.mkdir(exist_ok=True)
+            (workspace / "微信任务.py").write_text("print('微信实际日志', flush=True)\n", encoding="utf-8")
+            capabilities = client.rpc("capabilities.get")
+            client.rpc("capabilities.configure", expected_revision=capabilities["revision"], patch={"workspace_write_enabled": True})
+            before = len(fixture.sent_texts())
+            fixture.push("/work-new 微信端到端脚本")
+            fixture.wait_reply("已建立工作", after=before)
+            work = next(item for item in client.rpc("work.list")["works"] if item["title"] == "微信端到端脚本")
+            before = len(fixture.sent_texts())
+            fixture.push('/work-run ' + work["id"] + ' {"script":"微信任务.py","arguments":[]}')
+            review = fixture.wait_reply("尚未执行", after=before)
+            assert "微信任务.py" in review and "指纹" in review
+            confirmation = re.search(r"/work-approve ([A-F0-9]+)", review).group(1)
+            before = len(fixture.sent_texts())
+            fixture.push("/work-approve " + confirmation)
+            fixture.wait_reply("运行已接纳", after=before)
+            def completed_run():
+                runs = client.rpc("work.get", work_id=work["id"])["runs"]
+                return runs[0] if runs and runs[0]["status"] == "completed" else None
+            run = wait_until(completed_run, label="WeChat-approved real script")
+            before = len(fixture.sent_texts())
+            fixture.push("/work-logs " + run["id"])
+            logs = fixture.wait_reply("运行日志：", after=before)
+            assert "微信实际日志" in logs and "下一偏移" in logs
+            original_settings = client.rpc("work.settings.get")["settings"]
+            for option in ("", " on", " off"):
+                before = len(fixture.sent_texts())
+                fixture.push("/work-notify" + option)
+                fixture.wait_reply("微信工作通知：", after=before)
+                settings = client.rpc("work.settings.get")["settings"]
+                assert settings["channels"]["weixin"] is (option == " on")
+                assert settings["notifications"] == original_settings["notifications"]
+                assert settings["channels"]["inbox"] == original_settings["channels"]["inbox"]
+                if not option:
+                    assert settings["revision"] == original_settings["revision"]
+            record(checks, "WeChat alone creates work, reviews and executes a real script, reads logs and changes only its notification channel")
 
             slow_text = "停止验收" + "较长的流式内容" * 180
             slow_id = fixture.push(slow_text)

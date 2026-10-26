@@ -62,6 +62,13 @@ try {
   assert.ok(!(await page.locator('#control-ui-main').innerText()).includes('OpenClaw'));
   checks.push('actual Mirally settings navigation and shared design language');
 
+  const entryText = await test('mirally-weixin-page').innerText();
+  assert.match(entryText, /无需自建云服务器或端口映射/);
+  assert.match(entryText, /手机网页（可选扩展）/);
+  assert.match(entryText, /不是微信的使用前置/);
+  for (const command of ['/works', '/work-review', '/work-logs', '/work-notify']) assert.ok(entryText.includes(command));
+  checks.push('WeChat-only setup needs no server or webpage; optional web and real chat commands are clear');
+
   await test('mirally-weixin-login').evaluate(button => {button.click(); button.click();});
   await test('mirally-weixin-qr').waitFor(); await settled();
   assert.equal(calls.filter(call => call.method === 'weixin.login.start').length, 1);
@@ -91,6 +98,8 @@ try {
   assert.equal(status.conversation_id, 'fixture-existing');
   assert.equal(await test('mirally-weixin-conversation').inputValue(), 'fixture-existing');
   assert.equal(await test('mirally-weixin-code').count(), 0);
+  assert.match(await test('mirally-weixin-page').innerText(), /\/history/);
+  assert.match(await test('mirally-weixin-page').innerText(), /菜单/);
   checks.push('verification code, explicit local binding, existing conversation identity');
 
   await test('mirally-weixin-conversation').selectOption(''); await test('mirally-weixin-select').click(); await settled();

@@ -374,3 +374,74 @@ test('Weixin unbind cancels pending work and makes stale routes unusable; stop c
   await f.channel.stop();
   assert.equal(f.channel.closed, true); assert.equal(f.channel.connection, null); assert.equal(f.channel.jobs.size, 0);
 });
+
+test('Weixin history reads canonical text in bounded earlier pages without a new model turn', async t => {
+  const f = fixture(t);
+  f.product.history = async id => {
+    assert.equal(id, f.state().conversation_id);
+    return {messages: [
+      {role: 'system', seq: 0, text: 'hidden-system'},
+      ...Array.from({length: 12}, (_, index) => ({seq: index + 1, role: index % 2 ? 'assistant' : 'user',
+        text: '正文-' + (index + 1), reasoning: 'hidden-reasoning', content: [{type: 'tool_result', text: 'hidden-tool'}]})),
+      {role: 'tool', seq: 13, text: 'hidden-tool'}], gaps: []};
+  };
+  await f.channel.receive(f.state(), inbound('history-latest', '查看历史'));
+  const latest = [...f.deliveries.values()].at(-1).text;
+  assert.match(latest, /正文-7\b/); assert.match(latest, /正文-12\b/);
+  assert.doesNotMatch(latest, /正文-6\b|hidden-/);
+  assert.match(latest, /更早记录：\/history 7/);
+  await f.channel.receive(f.state(), inbound('history-older', '/history 7'));
+  const older = [...f.deliveries.values()].at(-1).text;
+  assert.match(older, /正文-1\b/); assert.match(older, /正文-6\b/);
+  assert.doesNotMatch(older, /正文-7\b|hidden-/);
+  assert.match(older, /已到当前可读取历史的开头/);
+  assert.equal(f.calls.some(call => call.kind === 'submit'), false);
+});
+
+test('Weixin history clips long Unicode text, states gaps and validates the cursor', async t => {
+  const f = fixture(t); let reads = 0;
+  f.product.history = async () => {reads++; return {messages: [{seq: 1, role: 'assistant', text: '😀'.repeat(2000)}],
+    gaps: [{reason: 'private-path-error'}], active_command_ids: ['active']};};
+  await f.channel.receive(f.state(), inbound('history-long', '/history'));
+  const text = [...f.deliveries.values()].at(-1).text;
+  assert.equal(Array.from(text).filter(char => char === '😀').length, 1600);
+  assert.match(text, /本条正文已截取/); assert.match(text, /并非完整记录/); assert.match(text, /仍在回复/);
+  assert.doesNotMatch(text, /private-path-error|\uFFFD/);
+  for (const value of ['-1', '1.5', '9007199254740992', '1 extra'])
+    await f.channel.receive(f.state(), inbound('history-invalid-' + value, '/history ' + value));
+  assert.equal(reads, 1);
+  assert.match([...f.deliveries.values()].at(-1).text, /用法/);
+});
+
+test('Weixin history cannot send after the current route changes during the read', async t => {
+  const f = fixture(t), read = deferred();
+  let reading = false;
+  f.product.history = () => {reading = true; return read.promise;};
+  const operation = f.channel.receive(f.state(), inbound('history-stale', '/history'));
+  await waitFor(() => reading);
+  await f.channel.request('weixin.unbind', {expected_revision: f.state().revision});
+  read.resolve({messages: [{seq: 1, role: 'user', text: 'stale-private-text'}], gaps: []});
+  await operation;
+  assert.equal(f.deliveries.size, 0);
+});
+
+test('Weixin Chinese menu is deterministic and requires no mobile webpage', async t => {
+  const f = fixture(t);
+  await f.channel.receive(f.state(), inbound('menu', '菜单'));
+  const text = [...f.deliveries.values()].at(-1).text;
+  assert.match(text, /无需自建云服务器或打开网页/);
+  for (const command of ['/works', '/history', '/sessions']) assert.ok(text.includes(command));
+  assert.equal(f.calls.some(call => call.kind === 'submit'), false);
+});
+
+test('Weixin can switch to a complete short legacy conversation ID without allowing short ambiguous prefixes', async t => {
+  const f = fixture(t), rpc = f.product.rpc;
+  f.product.rpc = (method, params) => method === 'conversation.list'
+    ? {conversations: [{conversation_id: 'main', title: '主会话'}, {conversation_id: 'main-other', title: '其他'}]}
+    : rpc(method, params);
+  await f.channel.receive(f.state(), inbound('use-too-short-prefix', '/use mai'));
+  assert.equal(f.state().conversation_id, 'conversation-one');
+  await f.channel.receive(f.state(), inbound('use-exact-main', '/use main'));
+  assert.equal(f.state().conversation_id, 'main');
+  assert.match([...f.deliveries.values()].at(-1).text, /已切换到/);
+});

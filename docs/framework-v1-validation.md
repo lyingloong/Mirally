@@ -1,3 +1,21 @@
+# 微信作为当前手机主入口的验收
+
+日期：2026-10-27，Asia/Shanghai（+08:00）。对应 PN-0042。网页仍保留可选，使用微信不要求自建云服务器或网页可达。
+
+- 完整 Node **316 项通过、0 跳过**，含真实 Python sidecar 的脚本日志、微信通知开关、跨路由拒绝、正文历史分页与旧 `main` 会话切换；日志 `.artifacts/weixin-primary-node.log`。
+- `tools/verify_framework_weixin.py` **12 组通过**：启动真实构建 Host/DSH/Python，明确关闭可选网页服务，经本机 iLink fixture 登录/绑定、继续同一历史、文字菜单/历史、微信新建工作、审阅并批准实际脚本、查询实际日志、查询/开关通知且保留其他设置、停止/重连/重启/解绑。没有外部微信消息或模型调用；报告 `.artifacts/weixin-primary-acceptance.json`。
+- 真实 Edge **9 组通过、无 pageerror**：实际原前端，微信协议 RPC 为 fixture；增加无需云/网页、可选网页、历史/工作命令文案验证，保留扫码、确认、会话、断线和 480px 布局。报告 `.artifacts/weixin-primary-browser/report.json`。源码核对与 715 模块构建通过。
+- 本轮不修改 Python 产品行为或 schema，未重复执行根 Python 全量；下方上一轮 1095 项结果保留。当前用户账号的新命令尚未实发验收，不将本机协议 fixture 当作真实微信实收证明。
+
+```powershell
+node --test --test-concurrency=4 tests/test_*.mjs
+.\.venv\Scripts\python.exe tools/verify_framework_weixin.py
+# 对独立 --test-mode --home 宿主，顺序运行 GUI：
+node tools/verify_framework_weixin_browser.mjs <隔离home/runtime.json>
+```
+
+---
+
 # 手机工作与会话第一版验收
 
 日期：2026-10-27，Asia/Shanghai（+08:00）。对应 PN-0040、PN-0041；下方记录保留为历史。实际使用与未覆盖边界见[手机工作说明](mobile-work-guide.md)。

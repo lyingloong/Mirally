@@ -58,6 +58,25 @@ test('channels renders local QR, requires explicit bind, and never renders proto
   assert.doesNotMatch(bind, /secret-token|remote-body/); assert.equal(f.calls.length, 0);
 });
 
+test('Weixin setup explains the server-free path and existing work controls without requiring the optional webpage', () => {
+  const f = fixture();
+  f.page.status = {...baseStatus, state: 'connected', bound: true, enabled: true};
+  const rendered = f.render(f.page);
+  assert.match(rendered, /无需自建云服务器或端口映射/);
+  assert.match(rendered, /保持联网并运行 Mirally/);
+  assert.match(rendered, /私人 HTTPS 和手机网页配对都不是微信的使用前置/);
+  for (const command of ['/history [更早游标]', '/works', '/work 工作编号', '/work-use 工作编号', '/work-review 完整审批编号', '/work-approve 确认码', '/work-cancel 完整运行编号', '/work-logs 完整运行编号 [字节偏移]', '/work-notify [on|off]', '/stop']) {
+    assert.ok(rendered.includes(command), `The real settings should introduce ${command}`);
+  }
+  assert.match(rendered, /不会停止后台运行/);
+  assert.match(rendered, /“菜单”或“帮助”查看全部命令/);
+  assert.match(rendered, /当前会话最近正文，每页最多 6 条，长消息会节选/);
+  assert.match(rendered, /只调整微信工作通知，不改消息页通知，也不停止工作/);
+  assert.match(rendered, /不需要开启下方的手机网页/);
+  assert.doesNotMatch(rendered, /暂不执行命令/);
+  assert.equal(f.calls.length, 0, 'Reading instructions must not configure or execute anything');
+});
+
 test('verification challenges and expired credentials have distinct recovery controls', () => {
   const f = fixture();
   f.page.status = {...baseStatus, state: 'need_verifycode', login: {id: 'challenge', needs_verify_code: true}};

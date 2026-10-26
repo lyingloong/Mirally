@@ -2,7 +2,7 @@
 import {randomBytes} from 'node:crypto';
 import {shortWorkId, workSummary} from '../work-host.mjs';
 
-export const WORK_HELP = '工作入口：\n/works 工作列表\n/work 编号 查看工作\n/work-new 目标 新建工作\n/work-use 编号 在微信继续这项工作\n/work-status 当前会话关联的工作\n/work-run 工作编号 {"script":"任务.py","arguments":[]} 准备运行\n/work-review 审批编号 审阅桌面准备的动作\n/work-approve 确认码 批准并启动具体运行\n/work-cancel 完整运行编号 停止真实运行\n停止回复用 /stop，不会停止后台运行。';
+export const WORK_HELP = '工作入口：\n/works 工作列表\n/work 编号 查看工作\n/work-new 目标 新建工作\n/work-use 编号 在微信继续这项工作\n/work-status 当前会话关联的工作\n/work-run 工作编号 {"script":"任务.py","arguments":[]} 准备运行\n/work-review 审批编号 审阅桌面准备的动作\n/work-approve 确认码 批准并启动具体运行\n/work-cancel 完整运行编号 停止真实运行\n/work-logs 完整运行编号 [字节偏移] 查看真实日志\n/work-notify [on|off] 查看或切换微信工作通知\n停止回复用 /stop，不会停止后台运行。';
 const plainLists = new Set(['我的工作怎么样了', '我的工作怎么样了？', '我的工作怎么样了?', '我的工作', '工作列表', '查看工作', '查看我的工作']);
 const controlError = message => Object.assign(new Error(message), {code: 'invalid_work_control'});
 
@@ -33,7 +33,7 @@ export class WeixinWorks {
       || !Number.isSafeInteger(approval.expires_at) || approval.expires_at <= this.channel.now())
       throw controlError('审批详情不完整或已失效，不能生成确认码；请在桌面重新准备。');
     if (Array.from(JSON.stringify(summary)).length > 10000)
-      throw controlError('动作详情过长，无法在微信完整审阅；请通过手机页面或桌面审阅。');
+      throw controlError('动作详情过长，无法在微信完整审阅；请缩小本次动作参数，或回电脑审阅。');
     for (const [key, entry] of this.approvals) if (entry.expires <= this.channel.now()) this.approvals.delete(key);
     if (this.approvals.size >= 100) this.approvals.delete(this.approvals.keys().next().value);
     const code = randomBytes(5).toString('hex').toUpperCase();
@@ -73,8 +73,10 @@ export class WeixinWorks {
           const result = await this.request('work.observe', {work_id: workId}, event);
           const detail = await this.request('work.get', {work_id: workId}, event);
           const pending = detail.work?.pending_approvals ?? [];
+          const latestRun = detail.runs?.[0] ?? detail.work?.latest_run;
           await this.reply(event, workSummary(result.work, {...detail, observation: result.observation, detail: true})
-            + (pending.length ? '\n待确认动作：\n' + pending.slice(0, 5).map(a => `/work-review ${a.approval_id ?? a.id} 审阅`).join('\n') : ''));
+            + (latestRun ? `\n查看真实日志：/work-logs ${latestRun.run_id ?? latestRun.id} 0` : '')
+            + (pending.length ? '\n待确认动作，复制命令审阅：\n' + pending.slice(0, 5).map(a => `/work-review ${a.approval_id ?? a.id}`).join('\n') : ''));
         }
       } else if (name === '/work-status') {
         const {works} = await this.request('work.list', {limit: 200}, event);
@@ -113,6 +115,36 @@ export class WeixinWorks {
         // Keep the exact receipt until expiry so a repeated confirmation gets
         // the same run, never a newly authorized action.
         await this.reply(event, `运行已接纳：${run.run_id ?? run.id}\n查看：/work ${run.work_id}\n停止真实运行：/work-cancel ${run.run_id ?? run.id}`);
+      } else if (name === '/work-logs') {
+        const [runId, rawOffset = '0', ...extra] = words;
+        if (!/^run_[a-f0-9]{32}$/.test(runId ?? '') || !/^\d+$/.test(rawOffset) || extra.length)
+          throw controlError('用法：/work-logs 完整运行编号 [字节偏移]。从 /work 工作编号 获取可复制命令。');
+        const offset = Number(rawOffset);
+        if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1024 * 1024)
+          throw controlError('日志偏移须为 0 到 1048576 的整数。');
+        const result = await this.request('work.run.logs', {run_id: runId, offset, limit: 4096}, event);
+        if (typeof result.text !== 'string' || Array.from(result.text).length > 4096
+          || !Number.isSafeInteger(result.next_offset) || result.next_offset < offset || result.next_offset > 1024 * 1024)
+          throw controlError('日志响应不完整，请稍后重试；未改变任何运行。');
+        await this.reply(event, `运行日志：${runId}\n状态：${result.run?.status ?? result.run?.state ?? 'unknown'}\n字节范围：${offset}–${result.next_offset}\n`
+          + (result.text || '此偏移当前暂无日志。')
+          + (result.truncated ? '\n日志超过保存上限，部分内容未保留。' : '')
+          + `\n下一偏移：${result.next_offset}\n继续或稍后复查：/work-logs ${runId} ${result.next_offset}`);
+      } else if (name === '/work-notify') {
+        if (words.length > 1 || !['', 'on', 'off'].includes(value))
+          throw controlError('用法：/work-notify 查看；/work-notify on 开启，/work-notify off 关闭微信工作通知。');
+        let {settings} = await this.request('work.settings.get', {}, event);
+        if (!Number.isSafeInteger(settings?.revision) || typeof settings?.channels?.weixin !== 'boolean')
+          throw controlError('未能读取当前通知设置，请稍后重试。');
+        if (value && settings.channels.weixin !== (value === 'on')) {
+          ({settings} = await this.request('work.settings.update', {expected_revision: settings.revision,
+            patch: {channels: {weixin: value === 'on'}}}, event));
+        }
+        const categories = [['completed', '完成'], ['failed', '异常'], ['approval', '待确认']]
+          .map(([key, label]) => `${label}：${settings.notifications?.[key] ? '开' : '关'}`).join('；');
+        await this.reply(event, `微信工作通知：${settings.channels.weixin ? '已开启' : '已关闭'}\n${categories}\n`
+          + '此开关只影响微信渠道，保留通知类别与其他渠道设置；关闭通知不会停止工作。\n'
+          + `\n${settings.channels.weixin ? '关闭' : '开启'}微信通知：\n/work-notify ${settings.channels.weixin ? 'off' : 'on'}`);
       } else if (name === '/work-cancel') {
         if (!value || /\s/.test(value)) throw controlError('请提供要停止的完整运行编号；/stop 只停止回复。');
         const {run} = await this.request('work.run.cancel', {run_id: value}, event);

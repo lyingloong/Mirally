@@ -5,7 +5,8 @@ import {WeixinWorks, WORK_HELP} from './weixin-work.mjs';
 
 const MAX_AGE = 10 * 60_000;
 const LOGIN_TTL = 5 * 60_000;
-const HELP = '这是你的 Mirally 微信入口（第一版支持文字私聊）。\n/new 新建会话\n/sessions 列出会话\n/use 编号 切换会话\n/status 查看当前会话\n/stop 停止当前回复\n/help 查看帮助\n对话工具仅允许明确的只读查询；工作执行须单独确认。\n' + WORK_HELP;
+const HELP = '这是你的 Mirally 微信入口。电脑保持 Mirally 联网运行即可，无需自建云服务器或打开网页。\n会话：\n/new 新建会话\n/sessions 列出会话\n/use 编号 切换会话\n/history [更早游标] 回看当前会话正文\n/status 查看当前会话\n/stop 停止当前回复\n/help 或“菜单”查看帮助\n对话工具仅允许明确的只读查询；工作执行须单独确认。\n' + WORK_HELP;
+const TEXT_CONTROLS = new Map([['菜单', '/help'], ['帮助', '/help'], ['会话列表', '/sessions'], ['查看历史', '/history']]);
 const blocked = () => Object.assign(new Error('微信绑定或会话已改变，请重新发起。'), {code: 'weixin_scope_revoked', status: 403});
 const pause = (ms, signal) => new Promise(resolve => {
   if (signal?.aborted) return resolve();
@@ -276,7 +277,7 @@ export class WeixinChannel {
       if (message.context_token) await this.reply(event, '当前只支持新收到的文字消息，请重新发送文字。', {control: true});
       return;
     }
-    if (text.startsWith('/') || this.works.handles(text)) {
+    if (text.startsWith('/') || TEXT_CONTROLS.has(text) || this.works.handles(text)) {
       try {
         if (this.works.handles(text)) await this.works.control(event);
         else await this.control(event, state);
@@ -300,7 +301,8 @@ export class WeixinChannel {
   }
 
   async control(event, state) {
-    const [name, ...arguments_] = event.text.trim().split(/\s+/);
+    const text = event.text.trim();
+    const [name, ...arguments_] = (TEXT_CONTROLS.get(text) ?? text).split(/\s+/);
     const value = arguments_.join(' ');
     const current = await this.authorize(event);
     if (name === '/stop') {
@@ -313,13 +315,35 @@ export class WeixinChannel {
     } else if (name === '/sessions') {
       const rows = (await this.product.rpc('conversation.list', {archived_filter: 'active', limit: 20})).conversations;
       const shortId = item => item.conversation_id.replace(/^conversation_/, '').slice(0, 12);
-      await this.reply(event, '发送 /use 编号 切换；/new 新建。\n' + rows.map(item => `${shortId(item)}  ${item.title}`).join('\n'), {control: true});
+      await this.reply(event, '最近会话（最多 20 项）。发送 /use 编号 切换；/new 新建。\n' + rows.map(item => `${shortId(item)}  ${item.title}`).join('\n'), {control: true});
+    } else if (name === '/history') {
+      if (value && (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)))) {
+        await this.reply(event, '用法：/history 查看最近正文；更早记录使用上一页给出的 /history 数字游标。', {control: true});
+        return;
+      }
+      const before = value ? Number(value) : undefined;
+      const history = await this.product.history(event.conversation_id);
+      await this.authorize(event);
+      const messages = history.messages.filter(message => ['user', 'assistant'].includes(message.role)
+        && Number.isSafeInteger(message.seq) && message.seq >= 0 && (before === undefined || message.seq < before));
+      const selected = messages.slice(-6);
+      const lines = selected.map(message => {
+        const chars = Array.from(String(message.text ?? ''));
+        return `${message.role === 'user' ? '你' : 'Mirally'}：${chars.slice(0, 1600).join('') || '（此条没有可展示的文字）'}${chars.length > 1600 ? '\n（本条正文已截取）' : ''}`;
+      });
+      const older = messages.length > selected.length ? `\n更早记录：/history ${selected[0].seq}` : '\n已到当前可读取历史的开头。';
+      await this.reply(event, selected.length ? '当前会话的文字历史：\n\n' + lines.join('\n\n') + older
+        + (history.gaps?.length ? '\n部分历史暂时无法读取，以上并非完整记录。' : '')
+        + (history.active_command_ids?.length ? '\n当前仍在回复，最新内容可能尚未完整。' : '')
+        + '\n仅转发用户和助手正文；图片、思考及原始工具信息不在此页。'
+        : '没有更早的可读取文字历史。' + (history.gaps?.length ? '部分历史暂时无法读取。' : ''), {control: true});
     } else if (name === '/new' || name === '/use') {
       let conversationId;
       if (name === '/use') {
-        if (!/^[A-Za-z0-9_-]{8,128}$/.test(value)) throw blocked();
+        if (!/^[A-Za-z0-9_-]{1,128}$/.test(value)) throw blocked();
         const rows = (await this.product.rpc('conversation.list', {archived_filter: 'active', limit: 200})).conversations;
-        const matches = rows.filter(item => item.conversation_id === value || item.conversation_id.replace(/^conversation_/, '').startsWith(value));
+        const exact = rows.filter(item => item.conversation_id === value);
+        const matches = exact.length ? exact : rows.filter(item => value.length >= 8 && item.conversation_id.replace(/^conversation_/, '').startsWith(value));
         if (matches.length !== 1) throw blocked();
         conversationId = matches[0].conversation_id;
       }

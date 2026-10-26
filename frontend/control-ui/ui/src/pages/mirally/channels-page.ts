@@ -211,7 +211,8 @@ export class MirallyChannelsPage extends OpenClawLightDomElement {
     return html`${renderSettingsSection({title: '微信会话', description: '微信与桌面共用聊天记录。在这里选择会话，不会切换桌面正在查看的页面。'}, html`
       ${renderSettingsRow({title: '已绑定微信', control: renderSettingsValue(status.peer_id || '本人微信')})}
       ${renderSettingsRow({title: '当前会话', control: renderSettingsValue(status.conversation_title || '微信会话')})}
-      ${renderSettingsRow({title: '在微信中操作', description: '发送 /help 查看帮助，/new 新建会话，/sessions 查看会话，/stop 停止当前回复。'})}
+      ${renderSettingsRow({title: '会话与帮助', description: '发送“菜单”或“帮助”查看全部命令；/new 新建、/sessions 查看、/use 编号 切换会话。'})}
+      ${renderSettingsRow({title: '回看聊天记录', description: '查看当前会话最近正文，每页最多 6 条，长消息会节选。更早记录可复制回复给出的命令继续读取。', control: html`<code>/history [更早游标]</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '切换或新建会话', control: this.conversationPicker(), stackedOnNarrow: true})}
       ${renderSettingsRow({title: '', control: html`<button class="btn btn--sm" data-testid="mirally-weixin-select" ?disabled=${this.busy || this.loading || (!this.selectionDirty && !!status.conversation_id)}
         @click=${() => void this.mutate('weixin.select', this.bindingParams(), '微信会话已切换。')}>保存会话选择</button>`})}
@@ -229,16 +230,31 @@ export class MirallyChannelsPage extends OpenClawLightDomElement {
       : html`<button class="btn btn--sm" data-testid="mirally-weixin-unbind" ?disabled=${this.busy || this.loading} @click=${() => {this.confirmingUnbind = true;}}>解除绑定</button>`}))}`;
   }
 
+  private workHelpSection() {
+    return renderSettingsSection({title: '在微信查看与控制工作', description: '绑定后，在微信直接发送以下命令。工作编号、审批编号和运行编号会随对应回复给出；不需要开启下方的手机网页。'}, html`
+      ${renderSettingsRow({title: '查看工作列表', description: '列出当前工作，也可以直接发送“我的工作怎么样了”。', control: html`<code>/works</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '查看具体工作', description: '读取最新状态、运行与待确认动作；不会切换微信当前会话。', control: html`<code>/work 工作编号</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '继续这项工作的对话', description: '切换微信后续消息到该工作的主会话，并停止微信此前发起的回复；后台运行继续。', control: html`<code>/work-use 工作编号</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '审阅待确认动作', description: '先查看具体工作中的审批编号，再核对脚本路径、指纹、参数、输出和有效期，获取一次性确认码。', control: html`<code>/work-review 完整审批编号</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '批准并启动这一次运行', description: '使用刚审阅动作的短期确认码。确认码绑定当前微信入口与会话，不代表长期授权。', control: html`<code>/work-approve 确认码</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '停止真实后台运行', description: '请求停止 Mirally 启动的指定运行，实际停止由执行器核实；已发生的效果不会撤销。仅关注的外部程序没有此控制权限。', control: html`<code>/work-cancel 完整运行编号</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '查看运行日志', description: '从工作详情复制完整运行编号；按回复给出的命令继续读取后续日志。', control: html`<code>/work-logs 完整运行编号 [字节偏移]</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '微信工作通知', description: '不带参数查看；on 开启、off 关闭。只调整微信工作通知，不改消息页通知，也不停止工作。', control: html`<code>/work-notify [on|off]</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '只停止当前回复', description: '停止当前微信会话中 Mirally 的模型回复，不会停止后台运行。要停止程序，请使用 /work-cancel。', control: html`<code>/stop</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '创建与准备', description: '发送 /work-new 目标 建立工作；/work-run 工作编号 后附脚本参数 JSON 可准备一次运行。准备不会直接执行，仍需审阅并确认。发送 /help 查看完整用法。'})}
+    `);
+  }
+
   override render() {
     const status = this.status, state = status?.state;
-    return html`${renderSettingsPageHeader({title: '消息渠道', subtitle: '通过微信与手机网页，接续这台电脑上的 Mirally。', actions: html`
+    return html`${renderSettingsPageHeader({title: '消息渠道', subtitle: '在微信接续电脑上的工作与对话；手机网页可按需扩展。', actions: html`
       <button class="btn btn--sm" data-testid="mirally-weixin-refresh" ?disabled=${this.loading || this.busy} @click=${() => void this.refresh(true)}>${this.loading ? '正在刷新…' : '刷新'}</button>`})}
       ${renderSettingsWorkspace(renderSettingsPage(html`<div class="mirally-settings-content" data-testid="mirally-weixin-page" aria-busy=${this.loading || this.busy ? 'true' : 'false'}>
         ${this.error ? html`<div class="callout danger" role="alert" data-testid="mirally-weixin-error">${this.error}</div>` : nothing}
         ${this.notice ? html`<div class="callout" role="status" data-testid="mirally-weixin-notice">${this.notice}</div>` : nothing}
-        ${renderSettingsSection({title: '微信', description: '目前支持本人文字私聊；可读取获准信息，暂不执行命令或控制桌面。'}, html`
+        ${renderSettingsSection({title: '微信', description: '支持本人文字私聊、工作查询，以及明确确认后的脚本运行。普通聊天不会自动启动后台脚本。'}, html`
           ${renderSettingsRow({title: '连接状态', control: renderSettingsStatus({kind: state === 'connected' ? 'ok' : state === 'error' || state === 'login_required' ? 'warn' : 'muted', label: state ? STATES[state] || '状态待确认' : '正在读取…'})})}
-          ${renderSettingsRow({title: '使用方式', description: '需要这台电脑保持 Mirally 运行。微信发送窗口失效时，请再发一条消息后继续。'})}
+          ${renderSettingsRow({title: '使用方式', description: '无需自建云服务器或端口映射。完成微信绑定后，让这台电脑保持联网并运行 Mirally，即可在微信使用。私人 HTTPS 和手机网页配对都不是微信的使用前置。微信发送窗口失效时，请再发一条消息后继续。'})}
           ${status?.last_error ? renderSettingsRow({title: '连接提示', description: state === 'login_required' ? '微信授权已失效，请重新扫码。' : '连接暂时异常，请检查网络或刷新后重新连接。'}) : nothing}
         `)}
         ${!status ? renderSettingsEmpty(this.loading ? '正在读取微信设置…' : '尚未读取到连接状态，请刷新后重试。')
@@ -253,6 +269,7 @@ export class MirallyChannelsPage extends OpenClawLightDomElement {
           ${renderSettingsRow({title: '送达待确认', description: '无法确定微信是否已收到，不会自动重复发送。', control: renderSettingsValue(String(status.outbox.unknown || 0))})}
           ${renderSettingsRow({title: '发送失败', description: '可以在对应 Mirally 会话查看回复。', control: renderSettingsValue(String(status.outbox.failed || 0))})}
         `) : nothing}
+        ${this.workHelpSection()}
         <mirally-mobile-settings></mirally-mobile-settings>
       </div>`))}`;
   }

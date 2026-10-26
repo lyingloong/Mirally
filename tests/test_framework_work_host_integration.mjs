@@ -77,6 +77,24 @@ test('Work Host real sidecar preserves one conversation, reviews desktop action 
   const second = await poll(() => host.request('work.get', {work_id: first.work.id}), value => value.runs[0]?.status === 'completed');
   assert.equal(second.runs.length, 2);
   assert.match((await host.request('work.run.logs', {run_id: second.runs[0].id})).text, /微信审阅的真实参数/);
+  await controls.control({...event, command_id: 'logs', text: `/work-logs ${second.runs[0].id} 0`});
+  assert.match(replies.at(-1), /微信审阅的真实参数/);
+  assert.match(replies.at(-1), /下一偏移：\d+/);
+  assert.ok(replies.at(-1).includes(`/work-logs ${second.runs[0].id}`));
+  const custom = (await host.request('work.settings.update', {expected_revision: settings.revision,
+    patch: {notifications: {failed: false}}})).settings;
+  await controls.control({...event, command_id: 'notify-query', text: '/work-notify'});
+  assert.match(replies.at(-1), /已关闭/);
+  assert.deepEqual((await host.request('work.settings.get')).settings, custom, 'query does not mutate real SQLite settings');
+  await controls.control({...event, command_id: 'notify-on', text: '/work-notify on'});
+  const enabled = (await host.request('work.settings.get')).settings;
+  assert.equal(enabled.channels.weixin, true); assert.equal(enabled.channels.inbox, custom.channels.inbox);
+  assert.deepEqual(enabled.notifications, custom.notifications);
+  await controls.control({...event, command_id: 'notify-off', text: '/work-notify off'});
+  const disabled = (await host.request('work.settings.get')).settings;
+  assert.equal(disabled.channels.weixin, false);
+  assert.equal(disabled.channels.inbox, custom.channels.inbox);
+  assert.deepEqual(disabled.notifications, custom.notifications);
 
   // Temporary credentials only populate the real SQL channel. API construction
   // throws, proving notification admission never contacts the real provider.
@@ -89,7 +107,7 @@ test('Work Host real sidecar preserves one conversation, reviews desktop action 
     return bound.state;
   };
   const oldRoute = await connectFixture('first');
-  await host.request('work.settings.update', {expected_revision: settings.revision, patch: {channels: {weixin: true}}});
+  await host.request('work.settings.update', {expected_revision: disabled.revision, patch: {channels: {weixin: true}}});
   const channel = new WeixinChannel(product, {apiFactory: () => {throw Error('network is forbidden in this test');}});
   await channel.notifyWorks();
   const pendingOutbox = await sidecar.request('channel.weixin.outbox', {installation_id: oldRoute.installation_id});

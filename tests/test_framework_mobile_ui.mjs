@@ -157,3 +157,18 @@ test('every retained Mirally sidebar destination is enabled by the actual shell 
   assert.ok(configured.includes('tasks'),'Work is a real configurable sidebar destination');
   for(const route of configured)assert.ok(enabled.includes(route),`The shell must not filter out the configured ${route} page`);
 });
+test('desktop phone webpage enrollment is an optional independent extension with no Weixin prerequisite',()=>{
+  const f=fixture('pages/mirally/mobile-settings.ts',{
+    renderSettingsSection:(props,content)=>html`${props.title}${props.description}${content}`,
+    renderSettingsRow:props=>html`${props.title}${props.description}${props.control}`,
+    renderSettingsStatus:props=>props.label,timeLabel:value=>String(value),
+  });
+  const panel=f.run('new MirallyMobileSettings()');panel.status={enabled:true,url:'http://127.0.0.1:1234/mobile',external_url:'',devices:[]};
+  const rendered=stringify(panel.render());
+  assert.match(rendered,/手机网页（可选扩展）/);
+  assert.match(rendered,/只通过微信使用时，无需配置本节，也无需私人 HTTPS/);
+  assert.match(rendered,/仅远程打开手机网页需要配置/);
+  assert.match(rendered,/微信可直接使用/);
+  assert.match(rendered,/不影响微信绑定/);
+  assert.equal(panel.status.enabled,true,'Clarifying the optional path must preserve the existing service setting');
+});

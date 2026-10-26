@@ -4,11 +4,13 @@ import {WeixinWorks} from '../kernel/dsh/packages/mirally/mirally-product/src/ch
 import {WeixinChannel} from '../kernel/dsh/packages/mirally/mirally-product/src/channels/weixin.mjs';
 
 const now = 1900000000000;
+const runId = 'run_' + 'a'.repeat(32);
 const work = {intent: 'watching', id: 'work_a12345678901abcd', title: '训练实验', conversation_id: 'work-conversation', status: 'running', updated_at: now};
 const event = (text, extra = {}) => ({text, command_id: `request-${text}`, installation_id: 'install', revision: 2,
   conversation_id: 'conversation', ...extra});
 function fixture() {
   const calls = [], replies = [];
+  let settings = {revision: 7, channels: {weixin: false, inbox: true}, notifications: {completed: true, failed: false, approval: true}};
   let revision = 2, conversationId = 'conversation';
   const channel = {
     now: () => now,
@@ -26,12 +28,19 @@ function fixture() {
         await channel.authorize(principal); calls.push({method, params, principal});
         if (method === 'work.list') return {works: [work]};
         if (method === 'work.observe') return {work, observation: {summary: '第 4 轮，日志更新时间已核实', observed_at: now}};
-        if (method === 'work.get') return {work, runs: [{id: 'run_real', status: 'running'}]};
+        if (method === 'work.get') return {work, runs: [{id: runId, status: 'running'}]};
         if (method === 'work.create') return {work: {...work, title: params.title, goal: params.goal, status: 'idle'}};
         if (method === 'work.run.prepare') return {approval: {approval_id: 'approval', digest: 'd'.repeat(64), expires_at: now + 300000, work_id: params.work_id, spec: {script: params.script, script_sha256: 'a'.repeat(64), arguments: params.arguments ?? [], cwd: params.cwd ?? '.', output_paths: params.output_paths ?? [], timeout_seconds: params.timeout_seconds ?? 300}}};
         if (method === 'work.run.approve') return {approval_token: 'private-token'};
         if (method === 'work.run.start') return {run: {id: 'run_real', work_id: work.id, status: 'running'}};
         if (method === 'work.run.cancel') return {run: {id: params.run_id, work_id: work.id, status: 'cancelling'}};
+        if (method === 'work.run.logs') return {text: '真实日志：训练 4/10\n', next_offset: params.offset + 33, truncated: false, run: {id: params.run_id, status: 'running'}};
+        if (method === 'work.settings.get') return {settings: structuredClone(settings)};
+        if (method === 'work.settings.update') {
+          if (params.expected_revision !== settings.revision) throw Object.assign(Error('通知设置已改变，请刷新'), {code: 'CONFLICT'});
+          settings = {...settings, revision: settings.revision + 1, channels: {...settings.channels, ...params.patch.channels}};
+          return {settings: structuredClone(settings)};
+        }
         throw Error(`unexpected ${method}`);
       }},
   };
@@ -48,6 +57,7 @@ test('Weixin common work questions and IDs return real work facts without anothe
   await f.controls.control(event('/work a12345678901'));
   assert.match(f.replies[0].text, /训练实验/);
   assert.match(f.replies[1].text, /第 4 轮/);
+  assert.ok(f.replies[1].text.includes(`/work-logs ${runId} 0`));
   assert.equal(f.calls.some(c => c.method === 'select'), false, 'viewing never changes the chat route');
 });
 
@@ -127,6 +137,64 @@ test('Weixin refuses to make a confirmation code from missing or clipped approva
     spec: {script: 'x.py', script_sha256: 'a'.repeat(64), arguments: ['x'.repeat(11000)], cwd: '.', output_paths: [], timeout_seconds: 120}};
   await assert.rejects(f.controls.review(event('/work-review x'), work, approval), /过长/);
   assert.equal(f.controls.approvals.size, 0);
+  try { await f.controls.review(event('/work-review x'), work, approval); }
+  catch (error) { assert.doesNotMatch(error.message, /手机页面/); assert.match(error.message, /缩小.*电脑/); }
+});
+
+test('Weixin logs use a bounded real Run RPC and return copyable next byte offsets', async () => {
+  const f = fixture();
+  await f.controls.control(event(`/work-logs ${runId} 64`));
+  assert.deepEqual(f.calls[0].params, {run_id: runId, offset: 64, limit: 4096});
+  assert.equal(f.calls[0].principal.origin, 'weixin');
+  assert.match(f.replies[0].text, /真实日志/);
+  assert.ok(f.replies[0].text.includes(`/work-logs ${runId} 97`));
+  const request = f.channel.product.workRequest;
+  f.channel.product.workRequest = (method, params, principal) => method === 'work.run.logs'
+    ? {text: '', next_offset: params.offset, truncated: true, run: {status: 'completed'}} : request(method, params, principal);
+  await f.controls.control(event(`/work-logs ${runId} 97`));
+  assert.match(f.replies.at(-1).text, /暂无日志/); assert.match(f.replies.at(-1).text, /保存上限/);
+});
+
+test('Weixin log commands reject paths, ambiguous identifiers and invalid offsets before calling Run RPC', async () => {
+  const f = fixture();
+  for (const text of ['/work-logs ../private.log', '/work-logs run_1234', `/work-logs ${runId} -1`,
+    `/work-logs ${runId} 1.5`, `/work-logs ${runId} 1048577`, `/work-logs ${runId} 9007199254740993`, `/work-logs ${runId} 0 extra`])
+    await f.controls.control(event(text));
+  assert.equal(f.calls.length, 0);
+  assert.equal(f.replies.length, 7);
+});
+
+test('Weixin notification query is read-only, and toggling updates only its channel with the observed revision', async () => {
+  const f = fixture();
+  await f.controls.control(event('/work-notify'));
+  assert.deepEqual(f.calls.map(c => c.method), ['work.settings.get']);
+  assert.match(f.replies.at(-1).text, /已关闭/);
+  assert.match(f.replies.at(-1).text, /异常：关/);
+  await f.controls.control(event('/work-notify on'));
+  const update = f.calls.find(c => c.method === 'work.settings.update');
+  assert.deepEqual(update.params, {expected_revision: 7, patch: {channels: {weixin: true}}});
+  assert.match(f.replies.at(-1).text, /已开启/);
+  assert.match(f.replies.at(-1).text, /异常：关/, 'category settings were retained');
+  await f.controls.control(event('/work-notify on'));
+  assert.equal(f.calls.filter(c => c.method === 'work.settings.update').length, 1, 'a repeated desired state needs no write');
+  await f.controls.control(event('/work-notify off'));
+  assert.deepEqual(f.calls.filter(c => c.method === 'work.settings.update')[1].params,
+    {expected_revision: 8, patch: {channels: {weixin: false}}});
+});
+
+test('Weixin notification grammar and concurrent revision conflicts never broaden the settings patch', async () => {
+  const f = fixture();
+  for (const text of ['/work-notify all', '/work-notify on inbox', '/work-notify {"channels":{"inbox":false}}'])
+    await f.controls.control(event(text));
+  assert.equal(f.calls.length, 0);
+  const request = f.channel.product.workRequest;
+  f.channel.product.workRequest = (method, params, principal) => {
+    if (method === 'work.settings.update') throw Object.assign(Error('通知设置已改变，请刷新后重试'), {code: 'CONFLICT'});
+    return request(method, params, principal);
+  };
+  await f.controls.control(event('/work-notify on'));
+  assert.match(f.replies.at(-1).text, /已改变/);
+  assert.equal(f.calls.filter(c => c.method === 'work.settings.get').length, 1, 'no blind conflict retry');
 });
 
 function notificationsFixture() {
