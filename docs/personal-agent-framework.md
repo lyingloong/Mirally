@@ -262,4 +262,6 @@ Mirally 本地启动器与配置
 
 源码内核路线已经用户确认。正式扩展不足不再是放弃条件，可直接修改内核；若实际构建、维护成本、恢复正确性或完整体验不满足产品要求，应先整改、裁剪或调整部署并记录证据。迁移验收前保留 OpenClaw 基线；研究时的其他路线与旧判断在[调研报告](research/personal-agent-architecture-2026-10-22.md)中保留历史上下文，不作为当前禁止修改内核的约束。
 
+2026-10-26 新增的微信/QQ 跨端对话与远程工作需求见[消息与执行 MVP 提案](messaging-execution-mvp.md)：围绕同一逻辑会话和实际工作接入渠道，不要求默认全量同步个人数据；桌面接管仍为待实现能力，不自动恢复 UFO 运行链。
+
 依据与演进见[产品记录](product-notes.md)、[现有模块](../mirally/ARCHITECTURE.md)、[现有 Memory 边界](activity-memory.md)及[调研证据](research/personal-agent-architecture-2026-10-22.md)。本稿是推荐设计，不是实现清单或当前功能承诺。

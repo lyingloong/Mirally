@@ -149,4 +149,6 @@ Mirally 产品贡献采用本文契约；同仓内核可直接改变插件服务
 
 验收至少覆盖：纯说明 Skill、引用资源/带脚本 Skill、本地与远端 MCP 的工具/资源/prompts，以及同时贡献 Skill+MCP+UI 的扩展；分别显示支持、部分支持和不支持。以上是目标兼容契约，本轮未安装技能、连接新 server、执行脚本或改变正式运行链路。
 
+微信/QQ 跨端对话、实验状态与可选桌面接管的具体接口提案见[跨端消息与执行 MVP](messaging-execution-mvp.md)。该提案尚未实现，不改变当前渠道与执行能力范围。
+
 相关：[主框架](personal-agent-framework.md)、[产品记录](product-notes.md)、[先前架构研究](research/personal-agent-architecture-2026-10-22.md)。
