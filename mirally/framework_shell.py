@@ -137,15 +137,19 @@ class FrameworkShell(ControlUIShell):
             return
         if self.closed.is_set() or self.window is None:
             return
-        self._restore_workspace()
-        # Native geometry and the companion's page mode are separate state.
-        # Let its shared workspace transition finish before opening a page.
-        self.window.evaluate_js(
+        # The shared transition exposes the opaque page before unclipping the
+        # native host. Restoring native geometry first reveals its glass clear
+        # color while the renderer is still presenting the transparent companion.
+        transitioned = self.window.evaluate_js(
             "(() => {"
             f"const navigate = () => window.__mirallyFramework?.showPage?.({json.dumps(page)});"
-            "if (window.__mirallyCompanion?.workspace) window.__mirallyCompanion.workspace(navigate);"
-            "else navigate();"
+            "if (window.__mirallyCompanion?.workspace) { window.__mirallyCompanion.workspace(navigate); return true; }"
+            "navigate(); return false;"
             "})()")
+        if transitioned is False:
+            # Startup or an unavailable companion script still needs a usable
+            # native window; the saved dock background protects this fallback.
+            self._restore_workspace()
 
     def _activity_settings_page(self) -> None:
         self._navigate("activity")

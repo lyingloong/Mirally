@@ -32,6 +32,14 @@
 
 最小化验收暴露了 WinForms 的另一个边界：伙伴移除原生边框后，托管 Form 仍缓存 Sizable 的客户区换算，恢复时会把边框再次计入尺寸。本轮在新 FrameworkShell 的原生 Resize 边界保存最小化前外框矩形，恢复栈结束后单次还原；托盘入口同步收尾，任务栏的原生恢复也走同一约定。校验同一伙伴 owner、关闭/释放和再次最小化，迟到回调不覆盖新窗口状态；不重建 HWND，不干预普通窗口 resize。
 
+## 返回主窗口的绘制顺序（2026-10-26补充）
+
+尺寸恢复正确还不等于转换过程正确。旧路径会先解除Region，此时Form仍使用DWM glass的黑色清除底板，WebView仍透明；最后才恢复的原生背景又是固定启动色`#0d1520`，与实际浅/深页面都不同。JS此前先发原生还原再退出透明页面模式，原生菜单还会抢先还原窗口，扩大了中间态暴露的机会。
+
+现在进入伙伴前采样实际页面的opaque RGB，保存给原生作无JS重连的后备；返回时先切回workspace页面样式，再采样当前底色。原生验证RGB后，将Form与WebView设置为同一不透明页面色、撤销全窗口glass，保持旧Region直到frame/Bounds/WindowState恢复完毕才解除裁剪。原生菜单调用共享workspace转换，脚本不可用时保留原生后备。启动色不再被当成产品主题色；截图排除、同HWND及草稿材料的归属不变。
+
+[WebView2背景属性](https://learn.microsoft.com/en-us/dotnet/api/microsoft.web.webview2.core.corewebview2controller.defaultbackgroundcolor)说明透明页面会露出宿主背景，属性更新也可能异步生效，因此Form底板同样必须先准备好。这里的DOM模式切换和rAF导航回调不等于GPU帧提交确认；不靠固定延时或隐藏窗口来掩盖转换。具体取证与未覆盖的像素范围见[验收记录](framework-v1-validation.md)。
+
 ## 提示与截图显示（2026-10-26补充）
 
 按钮和成果名称提示使用挂在body的单例浮层；只把提示矩形作为额外独立Region part纳入同一窗口裁剪，而不把外包矩形整片变成鼠标拦截区域。提示不改surface布局或原生Bounds，450ms停留后显示，可移入阅读，靠近视口边缘自动换位置；点击/滚动/切视图/失焦时隐藏。Escape先关闭提示，再次按下收起伙伴。`role=tooltip`与触发项`aria-describedby`参考[W3C Tooltip模式](https://www.w3.org/WAI/ARIA/apg/patterns/tooltip/)的交互建议。

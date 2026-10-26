@@ -209,12 +209,26 @@
     if (value === 'companion') expand(false);
     schedule();
   }
+  function workspaceBackground() {
+    // The native backplate must match the actual page while WebView2 resizes.
+    // Transparent pixels reveal the host, so never use the companion's clear
+    // background or assume a color from a theme name.
+    for (const node of [document.body, document.documentElement]) {
+      const color = getComputedStyle(node).backgroundColor;
+      const match = /^rgba?\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)(?:\s*,\s*(\d+(?:\.\d+)?))?\s*\)$/.exec(color);
+      if (!match || match[4] !== undefined && Number(match[4]) !== 1) continue;
+      const channels = match.slice(1, 4).map(Number);
+      if (channels.every(value => value >= 0 && value <= 255)) return {background:channels.map(Math.round)};
+    }
+    return {};
+  }
   async function dock() {
     pane = await ensureReady();
     if (!pane) return;
     window.__mirallyWork?.close();
+    const background = workspaceBackground();
     setMode('companion');
-    post('dock', {surfaceMode,view:surface.dataset.view,expanded:surface.dataset.expanded === 'true',viewport:[innerWidth,innerHeight]});
+    post('dock', {...background,surfaceMode,view:surface.dataset.view,expanded:surface.dataset.expanded === 'true',viewport:[innerWidth,innerHeight]});
   }
   function setForm(value, remember = true) {
     if (!['rail','badge','pet'].includes(value)) return;
@@ -256,8 +270,8 @@
   }
   function workspace(callback) {
     dismissReply();
-    post('workspace');
     setMode('workspace');
+    post('workspace', workspaceBackground());
     requestAnimationFrame(() => callback?.());
   }
   async function nativeFiles(target = pane) {

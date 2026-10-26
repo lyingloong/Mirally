@@ -14,11 +14,13 @@ import ctypes
 from ctypes import wintypes
 import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import threading
 import time
 import urllib.request
+from types import MethodType
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -91,6 +93,8 @@ def main() -> int:
     parser.add_argument("--close-exit", action="store_true", help="verify configured Windows Close exits instead of hiding to tray")
     parser.add_argument("--page-quit", action="store_true", help="quit through the real About Mirally page")
     parser.add_argument("--reuse-host", action="store_true", help="connect the shell to an already running isolated Host")
+    parser.add_argument("--workspace-paint-probe", action="store_true", help="record actual workspace transition colors and native clip ordering")
+    parser.add_argument("--workspace-paint-baseline-ref", help="compare the native shell from an explicit local Git revision without editing the working tree")
     arguments = parser.parse_args()
     if sys.platform != "win32":
         raise SystemExit("This verification requires Windows and WebView2.")
@@ -252,6 +256,90 @@ def main() -> int:
                 assert session["key"] and session["message_count"] == 0 and not session["has_run"], session
                 results.append({"case": "real native client creates an empty session", "session": session,
                     "model_request_started": False, "native_chat_pane": True})
+
+                if arguments.workspace_paint_probe:
+                    from mirally.control_ui_shell import ControlUIShell
+                    phase_reports = []
+                    pixel_reports = []
+                    versions = {}
+                    form.Invoke(Action(lambda: versions.update(browser_version=str(form.webview.CoreWebView2.Environment.BrowserVersionString))))
+                    # Read only this HWND's client DC. A contrasting DOM patch
+                    # calibrates whether GDI can see WebView2's GPU surface.
+                    # Failed calibration is not evidence of a black UI frame.
+                    gdi = ctypes.WinDLL("gdi32", use_last_error=True)
+                    user.GetDC.argtypes, user.GetDC.restype = [wintypes.HWND], wintypes.HDC
+                    user.ReleaseDC.argtypes = [wintypes.HWND, wintypes.HDC]
+                    gdi.GetPixel.argtypes, gdi.GetPixel.restype = [wintypes.HDC, ctypes.c_int, ctypes.c_int], wintypes.DWORD
+                    def own_pixel():
+                        location = {}
+                        def locate():
+                            screen = form.webview.PointToScreen(Point(round(128 * form.webview.ClientSize.Width / js_size[0]), round(128 * form.webview.ClientSize.Height / js_size[1])))
+                            local = form.PointToClient(screen)
+                            location.update(x=local.X, y=local.Y)
+                        form.Invoke(Action(locate))
+                        dc = user.GetDC(hwnd)
+                        try:
+                            value = gdi.GetPixel(dc, location["x"], location["y"])
+                            return None if value == 0xffffffff else [value & 255, value >> 8 & 255, value >> 16 & 255]
+                        finally:
+                            if dc: user.ReleaseDC(hwnd, dc)
+                    js_size = js("[innerWidth,innerHeight]")
+                    for patch_color in ([246, 250, 252], [37, 53, 79]):
+                        js("""(() => {let n=document.querySelector('#mirally-paint-calibration');if(!n){n=document.createElement('div');n.id='mirally-paint-calibration';document.body.append(n);}n.style='position:fixed;left:48px;top:48px;width:160px;height:160px;z-index:2147483647;background:rgb(""" + ",".join(map(str, patch_color)) + ");';})()")
+                        time.sleep(.25)
+                        pixel_reports.append({"expected": patch_color, "observed_own_hwnd_dc": own_pixel()})
+                    js("document.querySelector('#mirally-paint-calibration').remove()")
+                    calibrated = all(item["expected"] == item["observed_own_hwnd_dc"] for item in pixel_reports)
+                    implementations = [("current", ControlUIShell._companion_action)]
+                    if arguments.workspace_paint_baseline_ref:
+                        source = subprocess.check_output(["git", "show", arguments.workspace_paint_baseline_ref + ":mirally/control_ui_shell.py"], cwd=ROOT, text=True, encoding="utf-8")
+                        namespace = {"__file__": str(ROOT / "mirally/control_ui_shell.py"), "__name__": "mirally_paint_probe_baseline"}
+                        exec(compile(source, str(ROOT / "mirally/control_ui_shell.py") + "@" + arguments.workspace_paint_baseline_ref, "exec"), namespace)
+                        implementations.insert(0, ("baseline native " + arguments.workspace_paint_baseline_ref, namespace["ControlUIShell"]._companion_action))
+                    original_dispatch = shell._companion_action
+                    original_theme = js("document.documentElement.dataset.theme")
+                    try:
+                        for label, implementation in implementations:
+                            for theme in ("light", "dark"):
+                                js("document.documentElement.dataset.theme=" + json.dumps(theme))
+                                time.sleep(.15)
+                                expected = js("getComputedStyle(document.body).backgroundColor.match(/\\d+/g).slice(0,3).map(Number)")
+                                phases = []
+                                def phase(frame, event, _argument):
+                                    if frame.f_code is implementation.__code__ and event == "line":
+                                        back, web_back = form.BackColor, form.webview.DefaultBackgroundColor
+                                        phases.append({"line": frame.f_lineno, "wall_ms": time.time()*1000,
+                                            "region": form.Region is not None, "glass": shell._glass_active,
+                                            "back": [back.A, back.R, back.G, back.B],
+                                            "webview_back": [web_back.A, web_back.R, web_back.G, web_back.B],
+                                            "bounds": [form.Bounds.X, form.Bounds.Y, form.Bounds.Width, form.Bounds.Height], "state": str(form.WindowState)})
+                                    return phase
+                                def dispatch(_self, value):
+                                    if value.get("action") == "workspace" and shell._workspace is not None:
+                                        previous_trace = sys.gettrace()
+                                        sys.settrace(phase)
+                                        try: return implementation(shell, value)
+                                        finally: sys.settrace(previous_trace)
+                                    return implementation(shell, value)
+                                shell._companion_action = MethodType(dispatch, shell)
+                                js("window.__mirallyCompanion.setForm('rail',false);window.__mirallyCompanion.dock()")
+                                wait_for(lambda: shell._workspace is not None, "Paint probe did not dock")
+                                time.sleep(.15)
+                                js("window.__mirallyCompanion.workspace()")
+                                wait_for(lambda: shell._workspace is None and not native()["region"], "Paint probe did not restore workspace")
+                                released = [row for row in phases if not row["region"]]
+                                matching = bool(released) and all(row["back"] == [255, *expected] and row["webview_back"] == [255, *expected] and not row["glass"] for row in released)
+                                phase_reports.append({"implementation": label, "theme": theme, "expected_css_rgb": expected,
+                                    "release_clip_has_matching_opaque_backplates": matching, "phases": phases})
+                                if label == "current":
+                                    assert matching, "Workspace exposes a clear/startup color during unclipping: " + json.dumps(phase_reports[-1])
+                    finally:
+                        shell._companion_action = original_dispatch
+                        js("document.documentElement.dataset.theme=" + json.dumps(original_theme or "light"))
+                    results.append({"case": "workspace native paint ordering and real page colors", **versions,
+                        "own_hwnd_pixel_calibration": pixel_reports, "dc_can_observe_webview_pixels": calibrated,
+                        "pixel_limit": "DC results are unusable for visual/black-frame conclusions when calibration fails; no desktop capture performed",
+                        "phase_reports": phase_reports, "baseline_scope": "Baseline native implementation only; the real currently built frontend remains in use"})
 
                 menu = user.GetSystemMenu(hwnd, False)
                 items = []

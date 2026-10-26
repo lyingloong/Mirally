@@ -557,19 +557,26 @@ class FrameworkShellTests(unittest.TestCase):
         self.assertFalse(any(worker.is_alive() for worker in self.shell._connect_workers))
         self.shell.window.load_url.assert_not_called()
 
-    def test_page_menu_is_allowlisted_and_restores_workspace_first(self):
-        order = []
-        self.shell.window.evaluate_js.side_effect = lambda _: order.append("navigate")
+    def test_page_menu_is_allowlisted_and_uses_the_shared_workspace_transition(self):
+        self.shell.window.evaluate_js.return_value = True
         with patch.object(self.shell, "_restore_workspace") as restore:
-            restore.side_effect = lambda: order.append("restore")
             self.shell._navigate("memory")
-            restore.assert_called_once()
-        self.assertEqual(order, ["restore", "navigate"])
+            restore.assert_not_called()
         self.assertIn('showPage?.("memory")', self.shell.window.evaluate_js.call_args.args[0])
         self.shell.window.evaluate_js.reset_mock()
         self.shell._navigate("not-a-page")
         self.shell._navigate(["memory"])
         self.shell.window.evaluate_js.assert_not_called()
+
+    def test_page_menu_restores_native_only_when_the_shared_transition_is_explicitly_unavailable(self):
+        for result in (False, True, None):
+            with self.subTest(result=result):
+                order = []
+                self.shell.window.evaluate_js.side_effect = lambda _: order.append("navigate") or result
+                with patch.object(self.shell, "_restore_workspace") as restore:
+                    restore.side_effect = lambda: order.append("restore")
+                    self.shell._navigate("settings")
+                self.assertEqual(order, ["navigate", "restore"] if result is False else ["navigate"])
 
     def test_native_page_menu_exits_shared_companion_mode_before_navigation(self):
         root = Path(__file__).resolve().parents[1]
@@ -593,7 +600,7 @@ const vm = require('node:vm');
 const input = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
 for (const [page, script] of Object.entries(input.scripts)) {
   const frames = [], events = [];
-  const document = {documentElement: {dataset: {mirallyMode: 'companion'}}};
+  const document = {body: {}, documentElement: {dataset: {mirallyMode: 'companion'}}};
   const surface = {hidden: false};
   const window = {__mirallyFramework: {showPage(value) {
     assert.equal(document.documentElement.dataset.mirallyMode, 'workspace');
@@ -602,25 +609,88 @@ for (const [page, script] of Object.entries(input.scripts)) {
   }}};
   const context = vm.createContext({window, document, surface,
     dismissReply() { events.push(['dismiss']); },
-    post(value) { events.push(['native', value]); },
+    getComputedStyle() { return {backgroundColor: document.documentElement.dataset.mirallyMode === 'workspace' ? 'rgb(247, 249, 252)' : 'rgba(0, 0, 0, 0)'}; },
+    post(value, extra) {
+      assert.equal(document.documentElement.dataset.mirallyMode, 'workspace', 'the native host must never unclip a transparent companion page');
+      events.push(['native', value, JSON.parse(JSON.stringify(extra))]);
+    },
     schedule() {}, expand() {}, hideTip() {}, requestAnimationFrame(callback) { frames.push(callback); }});
   vm.runInContext('let mode = "companion";\n' + input.set_mode + input.workspace
     + '\nwindow.__mirallyCompanion = {workspace};', context);
-  vm.runInContext(script, context);
+  assert.equal(vm.runInContext(script, context), true);
   assert.equal(document.documentElement.dataset.mirallyMode, 'workspace');
   assert.equal(surface.hidden, true);
-  assert.deepEqual(events, [['dismiss'], ['native', 'workspace']]);
+  assert.deepEqual(events, [['dismiss'], ['native', 'workspace', {background:[247, 249, 252]}]]);
   assert.equal(frames.length, 1);
   frames.shift()();
   assert.deepEqual(events.at(-1), ['navigate', page]);
   const fallbackPages = [];
   const fallback = vm.createContext({window: {__mirallyFramework: {showPage(value) { fallbackPages.push(value); }}}});
-  vm.runInContext(script, fallback);
+  assert.equal(vm.runInContext(script, fallback), false);
   assert.deepEqual(fallbackPages, [page]);
 }
 """
         result = subprocess.run([str(node), "-e", script],
             input=json.dumps({"scripts": scripts, "set_mode": set_mode, "workspace": workspace}),
+            text=True, encoding="utf-8", capture_output=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_companion_samples_opaque_page_background_before_dock_and_after_workspace_mode(self):
+        root = Path(__file__).resolve().parents[1]
+        try:
+            node = discover_node(root)
+        except RuntimeError as error:
+            self.skipTest(str(error))
+        companion = (root / "mirally/assets/control-ui-companion.js").read_text(encoding="utf-8")
+        functions = (companion[companion.index("  function setMode(value)"):companion.index("  function setForm(value")]
+            + companion[companion.index("  function workspace(callback)"):companion.index("  async function nativeFiles")])
+        script = r"""
+const assert = require('node:assert/strict');
+const vm = require('node:vm');
+const input = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
+(async () => {
+  const cases = [
+    ['rgb(247, 249, 252)', 'rgb(1, 2, 3)', [247,249,252]],
+    ['rgba(17, 27, 41, 1)', 'rgb(1, 2, 3)', [17,27,41]],
+    ['rgba(17, 27, 41, 1.0)', 'rgb(1, 2, 3)', [17,27,41]],
+    ['rgba(0, 0, 0, 0)', 'rgb(20, 30, 40)', [20,30,40]],
+    ['rgba(10, 20, 30, 0.4)', 'rgb(20, 30, 40)', [20,30,40]],
+    ['rgb(600, 0, 0)', 'rgb(20, 30, 40)', [20,30,40]],
+    ['rgb(12.5, 20.25, 240.8)', 'transparent', [13,20,241]],
+    ['transparent', 'rgba(0, 0, 0, 0)', null],
+    ['color(srgb 1 0 0)', 'transparent', null],
+  ];
+  for (const [body, root, expected] of cases) {
+    const events = [], frames = [], pane = {state:{chatMessage:'keep draft',chatAttachments:[{name:'keep.txt'}]}};
+    const document = {body:{}, documentElement:{dataset:{mirallyMode:'workspace'}}};
+    const surface = {hidden:true,dataset:{view:'compact',expanded:'false'}};
+    const context = vm.createContext({document, surface, innerWidth:1280, innerHeight:860,
+      window:{__mirallyWork:{close(){events.push('close');}}},
+      ensureReady:async()=>pane, schedule(){}, expand(){}, hideTip(){}, dismissReply(){},
+      requestAnimationFrame(callback){frames.push(callback);},
+      getComputedStyle(node){
+        return {backgroundColor:document.documentElement.dataset.mirallyMode === 'companion' ? 'rgba(0, 0, 0, 0)' : node===document.body ? body : root};
+      },
+      post(action, extra){events.push({action,extra:JSON.parse(JSON.stringify(extra)),mode:document.documentElement.dataset.mirallyMode});},
+    });
+    vm.runInContext('let mode="workspace",pane;const surfaceMode="rail";\n'+input.functions+'\nthis.dock=dock;this.workspace=workspace;',context);
+    await context.dock();
+    const dock = events.find(value=>value.action==='dock');
+    assert.ok(dock);
+    assert.equal(dock.mode,'companion');
+    assert.deepEqual(dock.extra.background??null,expected,'dock must sample the opaque page before making it transparent');
+    context.workspace();
+    const workspace = events.find(value=>value.action==='workspace');
+    assert.ok(workspace);
+    assert.equal(workspace.mode,'workspace');
+    assert.deepEqual(workspace.extra,expected?{background:expected}:{},'restore must sample the page after leaving companion transparency');
+    assert.equal(frames.length,1,'navigation keeps its existing animation-frame scheduling');
+    assert.equal(pane.state.chatMessage,'keep draft');
+    assert.equal(pane.state.chatAttachments[0].name,'keep.txt');
+  }
+})().catch(error=>{console.error(error);process.exitCode=1;});
+"""
+        result = subprocess.run([str(node), "-e", script], input=json.dumps({"functions": functions}),
             text=True, encoding="utf-8", capture_output=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 

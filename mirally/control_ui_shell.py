@@ -68,6 +68,15 @@ def _capture_affinity(form, exclude: bool) -> None:
     api(int(form.Handle.ToInt64()), 0x11 if exclude else 0)
 
 
+def _opaque_page_background(value):
+    """Accept only opaque RGB channels from the same-origin presentation."""
+    if (not isinstance(value, list) or len(value) != 3
+            or any(type(channel) is not int or not 0 <= channel <= 255 for channel in value)):
+        return None
+    from System.Drawing import Color
+    return Color.FromArgb(255, *value)
+
+
 def _client_glass(form, margin: int) -> None:
     """Let transparent WebView pixels composite through the host client area."""
     class Margins(ctypes.Structure):
@@ -490,10 +499,12 @@ class ControlUIShell:
             self._companion_css_scale = _companion_viewport_scale(
                 (form.webview.ClientSize.Width, form.webview.ClientSize.Height),
                 message.get('viewport'), form.DeviceDpi / 96)
+            background = _opaque_page_background(message.get('background'))
             self._workspace = (form.RestoreBounds if form.WindowState != FormWindowState.Normal else form.Bounds,
                                form.WindowState, form.MinimumSize, form.TopMost,
-                               form.webview.DefaultBackgroundColor, _frame_style(form), _frame_composition(form))
-            self._workspace_backcolor = form.BackColor
+                               background if background is not None else form.webview.DefaultBackgroundColor,
+                               _frame_style(form), _frame_composition(form))
+            self._workspace_backcolor = background if background is not None else form.BackColor
             # pywebview's shadow setup extends a one-pixel client margin.
             self._workspace_glass_margin = 1 if self.window.shadow else 0
             form.WindowState = FormWindowState.Normal
@@ -518,27 +529,31 @@ class ControlUIShell:
             self._workspace = None
             self._shape_key = None
             self._shape_parts_key = None
-            previous = form.Region
-            form.Region = None
-            if previous:
-                previous.Dispose()
+            # Keep the old clip until both renderers have an opaque page-colored
+            # backplate. Region/frame/size changes can expose an unpainted WebView
+            # frame; the glass clear color and startup color are not page colors.
+            current_background = _opaque_page_background(message.get('background'))
+            form.BackColor = current_background if current_background is not None else self._workspace_backcolor
+            form.webview.DefaultBackgroundColor = current_background if current_background is not None else background
+            _client_glass(form, self._workspace_glass_margin)
+            self._workspace_backcolor = None
+            self._glass_active = False
             # WindowState owns minimization/maximization. Reapplying the saved
             # WS_MAXIMIZE/WS_MINIMIZE bits here makes Windows report that state
             # before the real ShowWindow transition, leaving sidebar bounds
             # in place when WindowState is assigned below.
             _frame_style(form, style & ~0x21000000)
             _frame_composition(form, composition)
-            _client_glass(form, self._workspace_glass_margin)
-            form.BackColor = self._workspace_backcolor
-            self._workspace_backcolor = None
-            self._glass_active = False
-            _capture_affinity(form, False)
             form.MinimumSize = minimum
             form.Bounds = bounds
             form.PerformLayout()
             form.WindowState = state
             form.TopMost = topmost
-            form.webview.DefaultBackgroundColor = background
+            previous = form.Region
+            form.Region = None
+            if previous:
+                previous.Dispose()
+            _capture_affinity(form, False)
         elif action == 'surface' and self._workspace is not None:
             self._initial_companion_shape(message)
         elif action == 'drag' and self._workspace is not None:

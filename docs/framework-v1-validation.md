@@ -1,3 +1,31 @@
+# 侧边返回主窗口黑色底板定位与验收
+
+日期：2026-10-26，Asia/Shanghai。对应 PN-0030；以下同日记录保留为历史。
+
+真实 WebView2（Runtime `155.0.4283.62`）对原生代码基线`e981daf2`与修复版分别记录恢复过程：旧版在释放Region时，Form为黑色、WebView背景alpha为0、全窗口glass仍开启；随后恢复的`#0d1520`又与实际页面背景不一致。修复版在释放Region前，浅色`#f7f9fc`与深色`#111923`均已经是Form/WebView一致的opaque底色，glass关闭，Bounds也已恢复完整工作空间。
+
+这是实际窗口的逐阶段状态证据。基线只替换原生方法，前端保持当前构建，因此不能当作完整旧版逐帧回放；Python逐行trace会改变耗时，也不能拿时间差当作黑闪持续时间。自身HWND像素校准未通过：两种受控DOM色块都只读到宿主底色，说明这一DC读法没有观测到WebView合成内容。已拒绝将该读数作为黑帧或视觉消除证明，未截取用户桌面。
+
+| 验证 | 结果 | 范围 |
+| --- | --- | --- |
+| Framework Python | 164项通过 | 含实际JS函数的页面先切模式再发消息、9组RGB/rgba/透明回退、原生菜单共享转换及脚本不可用后备 |
+| Companion Python | 10项通过 | 6项原生裁剪及4项新增底板测试：任意frame/resize/unclip前opaque、合法RGB校验、浅/深颜色、缺字段使用dock缓存 |
+| Node定向 | 61项通过，0跳过 | 原生/浏览器桥、原客户端和隔离Host往返、材料与会话归属 |
+| 真实WebView2 | 25组通过，0失败 | 原24组窗口/焦点/提示/截图偏好/完整退出，以及新增浅/深背景时序基线对照 |
+
+本轮不使用固定sleep、隐藏窗口或双rAF作为绘制修复；导航仍保留原rAF回调，但不将其称为GPU帧确认。没有修改用户配置、外部模型或UFO。未做实际桌面录屏、逐帧DWM画面测量、多屏/DPI切换或全新安装；根Python与Node全量本轮未重跑，上一节结果保持原记录。
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p '*framework*.py' -q
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p 'test_companion*.py' -q
+node --test tests/test_framework_legacy_native_bridge.mjs tests/test_framework_original_client.mjs
+.\.venv\Scripts\python.exe tools/verify_framework_shell.py --workspace-paint-probe --workspace-paint-baseline-ref e981daf2
+```
+
+GUI顺序执行；基线对照需要Git和对应历史提交，不修改工作树。源码与设计见[伙伴交互](companion-interaction.md)。
+
+---
+
 # 提示越界与截图显示开关验收
 
 日期：2026-10-26，Asia/Shanghai。对应 PN-0029，后面的同日侧边交互验收保留为历史。
