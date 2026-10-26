@@ -1,3 +1,17 @@
+# 微信文字入口第一版验收
+
+日期：2026-10-26，Asia/Shanghai。对应 PN-0034；以下同日记录保留为历史。
+
+- 新增微信 API 12、渠道生命周期 19、实际工具边界 6、UI 类行为 9，共 46 项 Node 定向测试通过；全仓 `test_*.mjs` 252 项通过，其中 framework 228 项。Python 微信持久化 17 项通过，含 schema 1/2/3 升级、当前 Windows 用户 DPAPI、密文损坏/跨机器解密失败降级、去重和原子投递。
+- `tools/verify_framework_weixin.py` 启动真实构建 Host、Python sidecar、原生 DSH 与显式离线模型，经本机 HTTP iLink fixture 完成 9 组验收：扫码与本机确认、同一 transcript、陌生人/重复输入、会话管理、停止、重连、冷重启、解绑。报告 `.artifacts/framework-weixin.json`。该模型仅生成文字；强制工具写操作拒绝由真实注册的工具 hook 单测覆盖，不称作真实模型对抗测试。
+- `tools/verify_framework_weixin_browser.mjs` 在独立 test-mode Host 上以 RPC fixture 驱动真实原前端与 Edge，8 组场景通过：本机二维码 Canvas、扫码/验证码/显式确认、切换与新建会话、暂停/重连/解绑、失效与未知发送、重复点击、陈旧响应、轮询/离页及 480px 窄屏。报告 `.artifacts/framework-weixin-browser/report.json`，截图已检查，无 pageerror。前端构建 709 模块与源码验证通过。
+- 原 `tools/verify_framework.py --browser-files --browser-history` 18 组回环与真实浏览器回归通过，覆盖原生工具写入、材料成果、历史、取消/重启、Skill、脚本、MCP、可信插件和本机收件箱；微信只读边界没有改变桌面原有工具能力。
+- 全产品 Python：1069 项，1066 通过、2 跳过、1 失败。唯一失败为既有 `test_ufo_diagnostics.StartupDiagnosticsTests.test_real_worker_imports_with_idle_control_pipe_and_receives_cancel` 的 `pythonw.exe` session_import 20 秒超时，未修改或放宽该测试。日志 `.artifacts/weixin-python-tests.log`。
+
+前述自动化验收未登录真实微信账号或发送微信消息。随后在当前用户正常 Mirally home 启动新版，真实请求二维码；用户手机扫码并明确确认后完成本机绑定。用户发送测试文字并确认收到回复，产品库对应 1 条 completed 入站与 1 条 sent 出站，使用已有模型连接；未打印或提交私人消息及凭据。该结果证明本账号一次文字往返，不证明其他账号、长期推送窗口或全部工具/媒体能力。
+
+用户反馈微信授权页显示 OpenClaw。核对固定官方协议与登录请求后，未发现可用的应用显示名参数；观测字段 `bot_agent` 不控制授权文案。Mirally 扫码页增加说明，保留平台名称，不改变当前 DSH 主链。功能使用与当前边界见[框架第一版](framework-v1.md#微信文字私聊第一版)。
+
 # 侧边返回主窗口黑色底板定位与验收
 
 日期：2026-10-26，Asia/Shanghai。对应 PN-0030；以下同日记录保留为历史。

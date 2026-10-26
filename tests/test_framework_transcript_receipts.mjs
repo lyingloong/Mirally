@@ -83,6 +83,7 @@ test('history maps commands beyond page 200 and keeps sequence ranges across nat
 
 test('send and replay acknowledge the same positive native user receipt and command-owned completion', async () => {
   const product = Object.create(MirallyProduct.prototype), events = [], broadcasts = [];
+  product.commandPolicies = new Map();
   let finish;
   const idle = new Promise(resolve => {finish = resolve;}), conversation = {conversation_id: 'one', session_id: 'native-one', generation: 1, frozen: false};
   const handle = {agent: {status: 'idle', session: {snapshotEvents: () => events}, followup(message) {events.push(event(0, 'agent/inbox/spliced', {inserted: [message]}));}, whenIdle: () => idle}};

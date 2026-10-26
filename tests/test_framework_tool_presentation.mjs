@@ -32,6 +32,7 @@ test('tool results use native rendered text and omit binary, canonical values an
 
 test('native tool observers emit owned real argument/result receipts and preserve dispatch outcome', async () => {
   const callbacks = new Map(), frames = [], product = Object.create(MirallyProduct.prototype);
+  product.commandPolicies = new Map();
   Object.assign(product, {ctx: {on(name, callback) {callbacks.set(name, callback);}},
     nativeConversations: new Map([['native-one', {conversation_id: 'one'}]]),
     consumedCommandId: () => 'command-one', broadcast(type, payload) {frames.push({type, ...payload});}});

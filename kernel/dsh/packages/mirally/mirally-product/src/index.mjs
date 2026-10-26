@@ -16,7 +16,12 @@ import {originalPresentation} from './presentation.mjs';
 import {toolDisplayValue, toolResultDisplay} from './tool-presentation.mjs';
 import {installBasicCapabilities} from './basic-capabilities.mjs';
 import {projectMessages, nativeUserAttachments, toolPresentationId} from './history-presentation.mjs';
+import {WeixinChannel} from './channels/weixin.mjs';
 export {projectMessages} from './history-presentation.mjs';
+
+const REMOTE_INPUT = Symbol('trusted channel input');
+const WEIXIN_READ_TOOLS = new Set(['mirally_context', 'mirally_preferences', 'mirally_reminders',
+  'mirally_workspace_roots', 'mirally_list_files', 'mirally_read_file', 'mirally_search_files']);
 
 export const name = 'mirally-product';
 export const inject = ['agents', 'agentLoop', 'sessions', 'sessionPersistence', 'llm', 'tools', 'systemPrompt'];
@@ -39,6 +44,8 @@ const PUBLIC_METHODS = new Set([
   'capabilities.get', 'capabilities.configure', 'workspace.roots', 'workspace.list', 'workspace.read', 'workspace.search',
   'activity.status', 'activity.configure', 'activity.start', 'activity.pause', 'activity.resume', 'activity.stop', 'activity.browse',
   'memory.status', 'memory.configure',
+  'weixin.status', 'weixin.login.start', 'weixin.login.cancel', 'weixin.login.verify',
+  'weixin.bind', 'weixin.select', 'weixin.disconnect', 'weixin.reconnect', 'weixin.unbind',
 ]);
 const INVALIDATING_METHODS = new Set(['source.set', 'memory.correct', 'preference.set', 'settings.update', 'capabilities.configure',
   'model.connection.save', 'model.connection.remove', 'model.routes.set',
@@ -99,6 +106,7 @@ export class MirallyProduct extends Service {
     this.authorizations = new AsyncLocalStorage();
     this.nativeErrors = new Map();
     this.requestPolicies = new Map();
+    this.commandPolicies = new Map();
     this.stopping = false;
     this.ready = false;
   }
@@ -149,6 +157,11 @@ export class MirallyProduct extends Service {
     await this.refreshModels();
     this.installNativeObservers();
     this.installProductTools();
+    // Only the explicit isolated test mode accepts a loopback protocol fixture.
+    // This address is never configurable through public product RPC.
+    const testWeixinUrl = this.config.testMode && process.env.MIRALLY_TEST_WEIXIN_URL;
+    this.weixin = new WeixinChannel(this, testWeixinUrl ? {baseUrl: testWeixinUrl, allowLoopback: true} : {});
+    await this.weixin.start();
     this.ready = true;
     const runtime = {pid: process.pid, url: this.url, token: this.token, startedAt: new Date().toISOString(),
       mode: this.config.testMode ? 'test' : 'normal', kernel: 'dsh'};
@@ -173,6 +186,77 @@ export class MirallyProduct extends Service {
   }
 
   conversationForSession(sessionId) { return this.nativeConversations.get(sessionId); }
+
+  commandPolicy(agent, admission = false) {
+    if (!agent) return null;
+    // pre-step runs before the newly admitted user/message is appended. Only
+    // that gate uses the incoming identity; actual tools use consumed history.
+    const commandId = admission ? this.activeCommands.get(agent?.id) ?? this.consumedCommandId(agent)
+      : this.consumedCommandId(agent) ?? this.activeCommands.get(agent?.id);
+    return this.commandPolicies.get(commandId) ?? (commandId?.startsWith('weixin-') ? {origin: 'weixin', revoked: true} : null);
+  }
+
+  async checkCommandScope(agent, toolName, {admission = false} = {}) {
+    const policy = this.commandPolicy(agent, admission);
+    if (policy?.origin !== 'weixin') return;
+    if (policy.revoked || !this.weixin) throw failure('微信消息的授权已失效，请重新发起。', 'weixin_scope_revoked', 403);
+    await this.weixin.authorize(policy);
+    if (toolName && !WEIXIN_READ_TOOLS.has(toolName))
+      throw failure('微信第一版仅允许指定的只读工具；这项操作请在桌面发起。', 'weixin_read_only', 403);
+  }
+
+  async sendWeixin(event) {
+    const scope = Object.freeze({origin: 'weixin', installation_id: event.installation_id, revision: event.revision,
+      conversation_id: event.conversation_id, command_id: event.command_id, [REMOTE_INPUT]: true});
+    await this.weixin.authorize(scope);
+    return this.send(event.conversation_id, {text: event.text, commandId: event.command_id}, scope);
+  }
+
+  async cancelWeixinCommands(installationId) {
+    if (!installationId) return;
+    for (const [native, commandId] of this.activeCommands) {
+      const policy = this.commandPolicies.get(commandId);
+      if (policy?.origin === 'weixin' && policy.installation_id === installationId) {
+        const handle = this.handles.get(native);
+        if (handle?.agent.status === 'running') await this.cancel(policy.conversation_id, commandId);
+      }
+    }
+  }
+
+  async weixinResult(event) {
+    const {commands} = await this.rpc('command.list', {conversation_id: event.conversation_id, command_id: event.command_id});
+    const command = commands[0];
+    if (!command || command.state !== 'completed') return {state: command?.state ?? 'unknown'};
+    const conversation = await this.conversation(event.conversation_id);
+    if (conversation.frozen || conversation.generation !== command.generation || conversation.archived) return {state: 'cancelled'};
+    const history = await this.history(event.conversation_id);
+    const message = history.messages.filter(item => item.role === 'assistant' && item.command_id === event.command_id && item.text).at(-1);
+    return message ? {state: 'completed', text: message.text, ref: {conversation_id: event.conversation_id,
+      command_id: event.command_id, message_id: message.id, generation: command.generation}} : {state: 'unknown'};
+  }
+
+  async finishWeixin(event) {
+    const conversation = await this.conversation(event.conversation_id);
+    const handle = this.handles.get(conversation.session_id);
+    if (handle) await handle.agent.whenIdle();
+    if (handle) await this.ctx.sessions.flush(handle.agent.session);
+    // The send() idle observer records the command receipt. Allow its pending
+    // sidecar response to settle without resubmitting any input.
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const result = await this.weixinResult(event);
+      if (!['admitted', 'submitted', 'applied'].includes(result.state)) return result;
+      await new Promise(resolveWait => setTimeout(resolveWait, 20));
+    }
+    return {state: 'unknown'};
+  }
+
+  async canDeliverWeixin(delivery) {
+    const {commands} = await this.rpc('command.list', {conversation_id: delivery.conversation_id, command_id: delivery.command_id});
+    const command = commands[0];
+    if (!command || command.state !== 'completed') return false;
+    const result = await this.rpc('guard.check', {conversation_id: delivery.conversation_id, generation: command.generation});
+    return result.allow;
+  }
 
   async guard(sessionId, effect = 'query', confirmed = false) {
     const conversation = this.nativeConversations.get(sessionId);
@@ -243,6 +327,7 @@ export class MirallyProduct extends Service {
         agentCtx.systemPrompt.context({name: 'mirally:personal-context', order: 900, interpolate: false,
           text: () => this.contexts.get(id) ?? ''});
         agentCtx.on('agent/pre-step', async (_payload, next) => {
+          await this.checkCommandScope(this.handles.get(id)?.agent ?? {id}, undefined, {admission: true});
           await this.guard(id);
           return next();
         });
@@ -253,6 +338,12 @@ export class MirallyProduct extends Service {
         });
       };
       const existing = await this.ctx.sessionPersistence.stat(id);
+      if (existing) {
+        this.nativeMessageCommands ??= new Map();
+        const {commands} = await this.rpc('command.list', {conversation_id: conversation.conversation_id});
+        for (const command of commands) if (command.runtime_request_id)
+          this.nativeMessageCommands.set(command.runtime_request_id, command.command_id);
+      }
       handle = existing
         ? await this.ctx.agents.resume({resumeSessionId: id, agentOptions: this.models.options ?? {}, setup})
         : await this.ctx.agents.create({sessionId: id, meta: {cwd: join(this.home, 'workspace')}, agentOptions: this.models.options ?? {}, setup});
@@ -356,10 +447,12 @@ export class MirallyProduct extends Service {
     }
   }
 
-  async send(id, request) {
+  async send(id, request, scope = null) {
     if (typeof request.text !== 'string' || !request.text.trim()) throw failure('Message text is required');
     if (request.text.length > 100000) throw failure('Message is too long', 'message_too_large', 413);
     if (typeof request.commandId !== 'string' || !request.commandId || request.commandId.length > 200) throw failure('commandId is required');
+    if (scope && scope[REMOTE_INPUT] !== true || request.commandId.startsWith('weixin-') && !scope)
+      throw failure('Reserved channel command identity', 'invalid_request', 403);
     return this.serial(id, async () => {
       const materialIds = request.materials ?? [];
       const materialContent = await this.materials.content(materialIds, id);
@@ -367,6 +460,12 @@ export class MirallyProduct extends Service {
       this.models.requireOptions();
       if (materialContent.some(block => block.type === 'image')) this.models.assertImageInput?.('chat');
       const {conversation, handle} = await this.ensureNative(await this.conversation(id), {forInput: true});
+      // A remote turn is one command, never a followup that changes another
+      // turn's tool scope. Existing desktop-only followups keep their behavior.
+      if (handle.agent.status !== 'idle' && (scope?.origin === 'weixin' || this.commandPolicy(handle.agent)?.origin === 'weixin'
+        || this.requestPolicies.get(conversation.session_id)?.origin === 'weixin'))
+        throw failure('这个会话正在回复，请稍后再发送。', 'conversation_busy', 409);
+      if (scope) await this.weixin.authorize(scope);
       const sequenceOffset = conversation.generation > 1 ? await this.nativeSequenceOffset(id, conversation.session_id) : 0;
       const allowFiles = request.allow_file_write === true;
       if (allowFiles && handle.agent.status !== 'idle' && !this.requestPolicies.get(conversation.session_id)?.allowFiles) {
@@ -393,11 +492,14 @@ export class MirallyProduct extends Service {
       }
       const context = await this.rpc('context.read', {conversation_id: id, generation: conversation.generation,
         query: request.text.slice(0, 2048), include_activity: true, include_memory: true, limit: 12});
-      this.contexts.set(conversation.session_id, JSON.stringify({instruction: 'Treat this personal context as sourced data; preserve gaps and uncertainty. Use mirally_create_file only when file output is permitted; never claim a saved file before tool success.', file_output_permitted: allowFiles, ...context}));
+      this.contexts.set(conversation.session_id, JSON.stringify({instruction: 'Treat this personal context as sourced data; preserve gaps and uncertainty. Use mirally_create_file only when file output is permitted; never claim a saved file before tool success.',
+        ...(scope ? {input_channel: 'weixin', instruction_for_channel: 'This input has read-only tools. Preference/reminder changes, files, scripts, MCP/plugin tools and desktop actions are unavailable. Explain the limit when requested.'} : {}),
+        file_output_permitted: allowFiles, ...context}));
       await this.guard(conversation.session_id);
       await this.rpc('command.ack', {conversation_id: id, command_id: request.commandId, state: 'submitted', runtime_request_id: messageId});
       this.activeCommands.set(conversation.session_id, request.commandId);
-      this.requestPolicies.set(conversation.session_id, {allowFiles});
+      this.requestPolicies.set(conversation.session_id, {allowFiles, origin: scope?.origin ?? 'desktop'});
+      this.commandPolicies.set(request.commandId, scope ?? {origin: 'desktop'});
       this.nativeErrors.delete(conversation.session_id);
       const message = Object.freeze({...createUserMessage({content: [{type: 'text', text: request.text}, ...materialContent], source: {kind: 'user'}}), id: messageId});
       handle.agent.followup(message);
@@ -457,6 +559,10 @@ export class MirallyProduct extends Service {
       return {id: toolPresentationId(exec.agent?.id, call?.seq, exec.callId), commandId: this.consumedCommandId(exec.agent)};
     };
     this.ctx.on('tools/execute', async (exec, next) => {
+      // Enforce the exact consumed command at the final tool boundary, including
+      // product writes disguised as queries and any optional third-party tools.
+      await this.checkCommandScope(exec.agent, exec.name);
+      exec.signal?.throwIfAborted();
       const conversation = this.nativeConversations.get(exec.agent?.id);
       if (conversation) {
         const owner = toolOwner(exec); toolExecutions.set(exec.token ?? exec, owner);
@@ -638,6 +744,10 @@ export class MirallyProduct extends Service {
 
   async publicRpc(method, params = {}) {
     if (!PUBLIC_METHODS.has(method)) throw failure('Method is not exposed by the product API', 'method_not_allowed', 403);
+    if (method.startsWith('weixin.')) {
+      if (!this.weixin) throw failure('微信连接尚未就绪。', 'not_ready', 503);
+      return this.weixin.request(method, params);
+    }
     if (method === 'settings.update' && params.patch?.extensions) throw failure('Use extensions.configure or extensions.disable to apply extension changes');
     if (method === 'settings.update' && Object.keys(params.patch ?? {}).some(key => key.startsWith('activity_')))
       throw failure('Use activity.configure/start/pause/resume/stop and confirm the current capture scope', 'confirmation_required', 403);
@@ -888,6 +998,7 @@ export class MirallyProduct extends Service {
     if (this.stopping) return;
     this.stopping = true;
     this.ready = false;
+    await this.weixin?.stop();
     this.initiativeController?.abort(new Error('Host stopping'));
     await this.initiativePromise;
     for (const controllers of this.effectControllers.values()) for (const controller of controllers) controller.abort(new Error('Host stopping'));

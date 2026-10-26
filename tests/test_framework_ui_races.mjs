@@ -50,6 +50,7 @@ test('dedicated capture APIs forward scope and confirmation to the authoritative
 
 function busyProductFixture() {
   const calls = [], policy = {allowFiles: false}, product = Object.create(MirallyProduct.prototype);
+  product.commandPolicies = new Map();
   const conversation = {conversation_id: 'one', session_id: 'native-one', generation: 1};
   const handle = {agent: {status: 'running', session: {snapshotEvents: () => []},
     followup() { throw new Error('A completed command must not be dispatched again'); }}};

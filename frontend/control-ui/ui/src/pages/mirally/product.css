@@ -1,6 +1,6 @@
 /* Mirally content uses the retained shell's settings language and theme tokens. */
 mirally-settings-page, mirally-messages-page, mirally-memory-page,
-mirally-extensions-page { display: block; min-width: 0; width: 100%; }
+mirally-extensions-page, mirally-channels-page { display: block; min-width: 0; width: 100%; }
 .mirally-settings-content, .mirally-settings-content > form { display: flex; flex-direction: column; gap: var(--space-8); }
 .mirally-product-form { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-4); }
 .mirally-product-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: var(--space-4); }
@@ -19,3 +19,9 @@ mirally-extensions-page { display: block; min-width: 0; width: 100%; }
 .mirally-product-debug { max-width: 100%; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 .mirally-product-memory .memory-page__panel { min-width: 0; }
 .mirally-product-memory .mirally-memory { width: 100%; margin: 0; }
+.mirally-weixin-qr { display: inline-flex; background: #fff; padding: var(--space-4); border-radius: var(--radius-md, 8px); }
+.mirally-weixin-qr wa-qr-code { display: block; width: 200px; height: 200px; }
+mirally-channels-page .settings-input { max-width: 100%; }
+@media (max-width: 380px) {
+  .mirally-weixin-qr { padding: var(--space-2); }
+}

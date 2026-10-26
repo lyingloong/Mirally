@@ -193,7 +193,7 @@ export function settingsSearchTextMatches(value: string, query: string): boolean
 // Keep the existing settings takeover, without exposing host administration
 // pages whose Gateway APIs are not part of the Mirally product.
 const SETTINGS_NAVIGATION_GROUPS = [
-  { labelKey: null, routes: ["config", "profile", "model-providers", "appearance", "notifications", "about"] },
+  { labelKey: null, routes: ["config", "profile", "model-providers", "appearance", "channels", "notifications", "about"] },
 ] as const satisfies readonly SettingsNavigationGroup[];
 
 const NON_ADMIN_SETTINGS_ROUTES: ReadonlySet<NavigationRouteId> = new Set([
@@ -202,6 +202,7 @@ const NON_ADMIN_SETTINGS_ROUTES: ReadonlySet<NavigationRouteId> = new Set([
   "appearance",
   "notifications",
   "model-providers",
+  "channels",
   "about",
 ]);
 
@@ -341,6 +342,7 @@ const MIRALLY_NAVIGATION_COPY: Partial<Record<NavigationRouteId, MirallyNavigati
   activity: ["活动", "Activity", "选择允许 Mirally 了解的活动范围", "Choose which activities Mirally may understand"],
   memory: ["记忆", "Memory", "查看与管理 Mirally 记住的信息", "Review and manage what Mirally remembers"],
   plugins: ["扩展", "Extensions", "连接 Skill、MCP 与 Mirally 插件", "Connect Skills, MCP, and Mirally plugins"],
+  channels: ["消息渠道", "Messaging channels", "从微信继续与 Mirally 交流", "Continue with Mirally from WeChat"],
   config: ["通用", "General", "查看 Mirally 的基本设置与数据位置", "Review Mirally settings and data locations"],
   profile: ["个性化", "Personalization", "管理你的偏好与 Mirally 的了解方式", "Manage your preferences and how Mirally understands you"],
   "model-providers": ["模型连接", "Model connection", "配置 Mirally 使用的模型与服务连接", "Configure the model and service Mirally uses"],

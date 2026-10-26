@@ -22,9 +22,10 @@ from typing import Any, Callable, Iterator
 from urllib.parse import urlsplit
 
 from .context import ContextReader, memory_config
+from .channels import CHANNEL_SCHEMA, WeixinChannels
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 INITIATIVE_RUNS_SCHEMA = """CREATE TABLE initiative_runs (id TEXT PRIMARY KEY,lease_token TEXT NOT NULL,
     created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,status TEXT NOT NULL,sources_json TEXT NOT NULL)"""
 DEFAULT_SETTINGS = {
@@ -80,7 +81,7 @@ class FrameworkService:
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.execute("PRAGMA busy_timeout=10000")
         try:
-            if self.db.execute("PRAGMA user_version").fetchone()[0] not in (0, 1, 2, SCHEMA_VERSION):
+            if self.db.execute("PRAGMA user_version").fetchone()[0] not in (0, 1, 2, 3, SCHEMA_VERSION):
                 raise FrameworkError("SCHEMA_VERSION", "unsupported product database schema")
             self.db.execute("PRAGMA journal_mode=WAL")
             self.db.execute("PRAGMA synchronous=FULL")
@@ -90,6 +91,7 @@ class FrameworkService:
             self.experience = ActivityExperience(self)
             from .model_connections import ModelConnections
             self.model_connections = ModelConnections(self)
+            self.channels = WeixinChannels(self)
             with self._transaction():
                 # A process died after reserving an external effect. Reconcile
                 # the provider; never turn this back into pending automatically.
@@ -102,19 +104,22 @@ class FrameworkService:
 
     def _initialize(self) -> None:
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, SCHEMA_VERSION):
+        if version not in (0, 1, 2, 3, SCHEMA_VERSION):
             raise FrameworkError("SCHEMA_VERSION", "unsupported product database schema")
         if version == SCHEMA_VERSION:
             return
-        if version in (1, 2):
+        if version in (1, 2, 3):
             with self._transaction():
                 if version == 1:
                     self.db.execute(INITIATIVE_RUNS_SCHEMA)
-                for column in ("pinned INTEGER NOT NULL DEFAULT 0", "archived INTEGER NOT NULL DEFAULT 0",
-                               "metadata_version INTEGER NOT NULL DEFAULT 1", "metadata_updated_at INTEGER NOT NULL DEFAULT 0",
-                               "pinned_at INTEGER", "archived_at INTEGER"):
-                    self.db.execute("ALTER TABLE conversations ADD COLUMN " + column)
-                self.db.execute("UPDATE conversations SET metadata_updated_at=created_at")
+                if version in (1, 2):
+                    for column in ("pinned INTEGER NOT NULL DEFAULT 0", "archived INTEGER NOT NULL DEFAULT 0",
+                                   "metadata_version INTEGER NOT NULL DEFAULT 1", "metadata_updated_at INTEGER NOT NULL DEFAULT 0",
+                                   "pinned_at INTEGER", "archived_at INTEGER"):
+                        self.db.execute("ALTER TABLE conversations ADD COLUMN " + column)
+                    self.db.execute("UPDATE conversations SET metadata_updated_at=created_at")
+                for statement in CHANNEL_SCHEMA:
+                    self.db.execute(statement)
                 self.db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             return
         with self._transaction():
@@ -150,7 +155,7 @@ class FrameworkService:
                 "CREATE TABLE inbox (delivery_id TEXT PRIMARY KEY REFERENCES deliveries(id),state TEXT NOT NULL,updated_at INTEGER NOT NULL)",
                 INITIATIVE_RUNS_SCHEMA,
             )
-            for statement in statements:
+            for statement in (*statements, *CHANNEL_SCHEMA):
                 self.db.execute(statement)
             self.db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
 
@@ -176,6 +181,7 @@ class FrameworkService:
         if not isinstance(method, str) or not isinstance(params, dict):
             raise FrameworkError("INVALID_REQUEST", "method must be text and params an object")
         routes = {
+            **self.channels.routes(),
             "system.status": self.status, "settings.get": self.settings_get,
             "settings.update": self.settings_update, "internal.settings.get": self.settings_internal,
             "model.connections.list": self.model_connections.list, "model.connection.save": self.model_connections.save,

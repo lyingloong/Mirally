@@ -50,7 +50,7 @@ flowchart LR
 ```
 
 - `mirally/framework_host.py` 管理 Node 宿主、桌面窗口与托盘，解析工具链和产品 home。`kernel/dsh/packages/mirally/mirally-product/` 是可直接修改的本机 Host、原生会话适配和模型桥；它加载明确的内核组合，未挂载上游通用 shell 工具。
-- `mirally/framework/service.py` 拥有设置、逻辑 Conversation 与原生 Session 引用、命令回执、来源版本、明确偏好、提醒、主动候选、投递与已读状态。产品 schema 当前为 3，可从早期 schema 1/2 原地升级，拒绝未来版本；会话标题/固定/归档带元数据版本，不改 transcript。
+- `mirally/framework/service.py` 拥有设置、逻辑 Conversation 与原生 Session 引用、命令回执、来源版本、明确偏好、提醒、主动候选、投递与已读状态。产品 schema 当前为 4，可从早期 schema 1/2/3 原地升级，拒绝未来版本；会话标题/固定/归档带元数据版本，不改 transcript。微信收发状态由独立 `framework/channels.py` 管理。
 - DSH Session 是唯一 transcript。产品库只保存引用、代次和命令内容哈希。停止或撤回来源会冻结旧代次；后续用户输入创建新的原生 Session，历史仍通过代次引用读取。启动恢复不会盲目重放旧输入、脚本或桌面动作。
 - `mirally/framework/context.py` 按需只读组合记忆、活动、偏好和来源缺口。`mirally/framework_workers.py` 监督获准的 Activity 子进程和 Memory 维护 owner；查询不启动采集。后台语义任务通过本机模型桥调用同一原生模型适配。
 - `frontend/control-ui/ui/src/` 复用原 Lit 壳、对话和外观组件，`pages/mirally/` 维护自有内容页与产品 API；`mirally/assets/control-ui-*` 继续提供既有 Mirally 皮肤、工作和伙伴交互。`ui/src/app/mirally-client.ts` 注入原客户端工厂，将已实现操作映射到本机鉴权 HTTP/RPC 与 SSE。`mirally/framework_ui/legacy-native-bridge.js` 适配活动/记忆、材料成果等产品消息，`mirally-product/src/presentation.mjs` 提供原皮肤资源。`mirally/framework_ui/app.js` 的简化页面不再是默认前端。
@@ -63,6 +63,31 @@ flowchart LR
 设置 → 通用可授权最多 20 个只读文件夹，默认只读取 home 内工作区；列表最多 200 项、单文件 8 MiB，文字搜索最多 1000 个文件/目录、16 MiB、50 个命中。工作区文字写入默认关闭，开启后仍需本次工作选择保存文件；不能写入其他授权目录，覆盖需先读并提供匹配指纹。成果文件与工作区写入是两个明确接口，工作区文件不会伪装为会话成果。
 
 网页研究默认关闭。开启并选定已配置的 DeepSeek 官方连接后，模型可使用搜索与正文工具，查询/URL 发送到该服务并可能产生费用；单次响应最多 2 MiB，正文最多 60000 字符。模型调用原生工具，服务实现通过独立 search/fetch 接口组合；其他网页服务可用 MCP/插件适配。这里没有通用终端、浏览器自动操作或任意本机文件权限。
+
+## 微信文字私聊（第一版）
+
+打开设置 → 消息渠道 → 微信，点击连接并用本人手机微信扫码。若微信要求验证码，在当前页面输入；扫码后仍需在本机选择已有会话或新会话并确认绑定。二维码在本机编码，不依赖远程图片或电脑微信窗口。成功后微信和桌面共用同一逻辑会话与 DSH transcript，微信切换会话不改变桌面当前页面。
+
+微信授权页可能显示 OpenClaw。当前公开协议仅提供固定通道入口与观测用 `bot_agent`，未提供可用的授权页显示名参数；Mirally 请求的观测标识是 `Mirally/0.1.0`，不改变平台授权文案。此名称不表示产品重新运行 OpenClaw Gateway，来源见[官方协议](https://github.com/Tencent/openclaw-weixin/blob/874637a0dbc24050f72d1385add4fc6170a2d726/docs/protocol_zh_CN.md)。
+
+微信中支持 `/help`、`/status`、`/new`、`/sessions`、`/use 编号` 与 `/stop`。会话列表显示可复制的 12 位短编号，存在歧义时拒绝切换；`/stop` 直接停止所选会话的当前回复。每个含微信输入的活动会话只接受一个命令，忙时明确提示稍后发送，防止排队消息改变当前工具权限。
+
+首版支持本人文字私聊与明确的产品只读工具（上下文、偏好/提醒列表和已授权文件查询）。模型不能通过微信修改偏好、建提醒、写文件、运行脚本、调用任意 MCP/插件或操作桌面；会话切换和停止是已配对本人的明确控制操作。微信接入不自动打开活动采集、网页、命令行或 UFO。
+
+暂停连接保留绑定与历史，重新连接恢复收消息；解绑撤销旧身份、清除本机微信凭据和待发队列，保留 Mirally 会话。Windows token 与会话发送令牌使用当前用户 DPAPI，不发给浏览器；复制 home 到另一 Windows 用户/机器后无法解密时，仅微信显示需要重新登录，不阻断普通聊天。当前账号凭据与临时二维码不应提交仓库。
+
+连接由桌面主动 HTTPS 长轮询，无需开放本机公网端口。关闭到托盘可以继续收发，退出、关机和睡眠时不能执行。仅明确关联的助手正文经持久队列回发，过滤思考与原始工具信息；长回复顺序分段，部分失败后停止余下段落。接口接受与手机实收/已读分开，未知发送不自动重发。平台窗口/凭据失效时查看桌面结果，再向微信发新文字或重新登录。
+
+持久渠道入站及发送投影用于去重与恢复，不是第二份可继续执行的聊天历史。重启不重放旧模型输入；首版仅核对最多 200 条排队/未知记录，无法核实或已有失败回执时保留状态，不承诺自动整理全部历史积压。图片、语音、文件收发、实验状态源、QQ、远程命令及桌面接管仍是后续能力。
+
+协议客户端依据固定腾讯官方版本独立实现，未加载 OpenClaw Gateway/SDK，来源与限制见[渠道说明](../kernel/dsh/packages/mirally/mirally-product/src/channels/README.md)。当前用户已完成真实账号扫码与一次文字往返；这不代表所有账号、全部消息格式或长期主动发送均已通过。可运行以下离线链路：
+
+```powershell
+.\.venv\Scripts\python.exe tools/verify_framework_weixin.py --report .artifacts/framework-weixin.json
+node --test tests/test_framework_weixin_api.mjs tests/test_framework_weixin_channel.mjs tests/test_framework_weixin_scope.mjs tests/test_framework_weixin_ui.mjs
+```
+
+`MIRALLY_TEST_WEIXIN_URL` 仅在显式隔离 `--test-mode` 中允许字面回环 HTTP fixture；不接受公开 RPC 提供服务地址，生产只连接官方 HTTPS 域。
 
 ## 默认行为、主动联系与执行
 

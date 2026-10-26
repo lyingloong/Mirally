@@ -76,6 +76,7 @@ test('live tool IDs and owners are pinned to the native call receipt across queu
   const callbacks = new Map(), frames = [], native = [event(0, 'tool/call', {callId: 'raw', name: 'read'})];
   let current = 'old-run';
   const product = Object.create(MirallyProduct.prototype);
+  product.commandPolicies = new Map();
   Object.assign(product, {ctx: {on: (name, callback) => callbacks.set(name, callback)}, nativeConversations: new Map([['native-one', {conversation_id: 'owned'}]]),
     consumedCommandId: () => current, broadcast: (type, frame) => frames.push(frame)});
   product.installNativeObservers();

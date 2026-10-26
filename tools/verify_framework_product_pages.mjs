@@ -134,7 +134,7 @@ try{
   await disable.locator('input[type=checkbox]').check();await disable.getByRole('button',{name:'确认停用'}).click();
   await page.waitForFunction(()=>!document.querySelector('mirally-extensions-page')?.loading && !document.querySelector('mirally-extensions-page')?.changing);
   assert.equal((await rpc('extensions.list')).extensions.find(item=>item.id==='ui-mcp').enabled,false);
-  await go('/settings/channels');await test('mirally-settings-about').waitFor();
+  await go('/settings/channels');await test('mirally-weixin-page').waitFor();
   assert.ok(!(await page.locator('#control-ui-main').innerText()).includes('OpenClaw'));
   await page.setViewportSize({width:480,height:820});await go('/reminders');await test('mirally-reminder-title').waitFor();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);

@@ -7,11 +7,12 @@ import type { ApplicationContext } from '../../app/context.ts';
 // contents and use the existing authenticated Mirally client, without loaders
 // that assume an OpenClaw Gateway, node, channel or administrator service.
 const settings = {config:'general',profile:'profile','model-providers':'model','model-setup':'model',notifications:'initiative',about:'about'} as const;
-const ownIds: RouteId[] = [...Object.keys(settings) as RouteId[], 'custodian','cron','memory','activity'];
+const ownIds: RouteId[] = [...Object.keys(settings) as RouteId[], 'custodian','cron','memory','activity','channels'];
 const ownPages = ownIds.map(id=>definePage({
   ...routePageSpec(id),
   component: async()=>{
     if(id==='activity')return {header:true,render:()=>nothing}; // Existing Mirally Activity panel owns this route.
+    if(id==='channels') {await import('./channels-page.ts');return {header:true,render:()=>html`<mirally-channels-page></mirally-channels-page>`};}
     if(id==='memory') {await import('./memory-page.ts');return {header:true,render:()=>html`<mirally-memory-page></mirally-memory-page>`};}
     if(id==='custodian'||id==='cron') {await import('./messages-page.ts');return {header:true,render:()=>html`<mirally-messages-page .page=${id==='cron'?'reminders':'inbox'}></mirally-messages-page>`};}
     await import('./settings-page.ts');return {header:true,render:()=>html`<mirally-settings-page .page=${settings[id as keyof typeof settings]}></mirally-settings-page>`};
