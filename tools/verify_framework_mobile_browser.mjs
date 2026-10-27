@@ -112,12 +112,59 @@ try {
   await desktopWorkEntry.click();
   await until(async()=>new URL(desktop.url()).pathname==='/tasks','desktop sidebar Work navigation');
   await desktop.getByTestId('work-item').filter({hasText:'手机控制脚本'}).waitFor();
+  // Real owner data: a pending approval and an explicitly ended work must be
+  // discoverable without confusing a completed run with an ended work.
+  await desktopRpc('work.run.prepare',{work_id:runtime.work_id,script:'处理 脚本.py',arguments:[],cwd:'.',output_paths:[],timeout_seconds:300,request_id:'browser-list-approval'});
+  const historical=(await desktopRpc('work.create',{title:'已结束的真实工作',goal:'用于验证历史筛选',request_id:'browser-list-history'})).work;
+  await desktopRpc('work.update',{work_id:historical.id,expected_revision:historical.revision,patch:{intent:'ended'}});
+  await until(async()=>(await desktop.getByTestId('work-item').filter({hasText:'手机控制脚本'}).innerText()).includes('需要确认'),'pending approval in list');
+  assert.match(await desktop.getByTestId('work-item').filter({hasText:'外部实验关注'}).innerText(),/第 42 轮/);
+  const filters=desktop.getByRole('navigation',{name:'筛选工作'});
+  await filters.getByRole('button',{name:/需要处理/}).click();
+  await desktop.getByTestId('work-item').filter({hasText:'手机控制脚本'}).waitFor();
+  assert.equal(await desktop.getByTestId('work-item').filter({hasText:'外部实验关注'}).count(),0);
+  await filters.getByRole('button',{name:/已结束/}).click();
+  await desktop.getByTestId('work-item').filter({hasText:'已结束的真实工作'}).waitFor();
+  await filters.getByRole('button',{name:/全部/}).click();
+  await desktop.getByRole('searchbox',{name:'搜索工作'}).fill('手机控制脚本');
+  await until(async()=>await desktop.getByTestId('work-item').count()===1,'desktop work search');
+  await desktop.getByRole('button',{name:'查看工作：手机控制脚本'}).click();
+  await desktop.getByTestId('work-approval').waitFor();
+  await desktop.getByRole('button',{name:'返回工作列表'}).click();
+  await desktop.getByTestId('work-item').filter({hasText:'手机控制脚本'}).waitFor();
+  await desktop.getByRole('searchbox',{name:'搜索工作'}).fill('');
+  await filters.getByRole('button',{name:/关注中/}).click();
   await desktop.screenshot({path:join(output,'desktop-work-list.png'),fullPage:true});
-  pass('retained sidebar opens the real Work page and light/dark phone layouts fit 320, 390 and 736px');
+  await desktop.setViewportSize({width:480,height:900});
+  await desktop.waitForTimeout(450); // Allow the retained shell's responsive drawer transition to settle.
+  const drawer=desktop.locator('.topbar-nav-toggle');
+  if(await drawer.getAttribute('aria-expanded')==='true') {
+    await drawer.click();
+    await until(async()=>await drawer.getAttribute('aria-expanded')==='false','close narrow navigation');
+  }
+  const desktopBounds=await desktop.evaluate(()=>({client:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth}));
+  assert.ok(desktopBounds.scroll<=desktopBounds.client+1,JSON.stringify(desktopBounds));
+  await filters.getByRole('button',{name:/需要处理/}).click();
+  await desktop.getByTestId('work-item').filter({hasText:'手机控制脚本'}).waitFor();
+  await filters.getByRole('button',{name:/关注中/}).click();
+  await desktop.screenshot({path:join(output,'desktop-work-list-narrow.png'),fullPage:true});
+  await desktop.setViewportSize({width:1280,height:940});
+  if(await desktop.getByRole('button',{name:'开始工作',exact:true}).count()) {
+    await desktop.getByRole('button',{name:'开始工作',exact:true}).click();
+    await desktop.locator('.mirally-work__cards').waitFor({state:'visible'});
+    await desktop.locator('[data-work="chat"]').click();
+    await desktop.goto(runtime.url+'/tasks#token='+runtime.token,{waitUntil:'domcontentloaded'});
+    await desktop.getByTestId('work-item').filter({hasText:'手机控制脚本'}).waitFor();
+  }
+  await desktop.getByRole('button',{name:'继续对话：手机控制脚本'}).click();
+  await until(async()=>new URL(desktop.url()).pathname!=='/tasks','continue work conversation');
+  pass('desktop sidebar, real progress, approvals, filters, search and conversation navigation work; phone layouts fit 320, 390 and 736px');
   assert.deepEqual(errors,[],'Browser page errors');
   console.log(JSON.stringify({passed:checks.length,checks}));
 } catch(error) {
   await phone.screenshot({path:join(output,'phone-failure.png'),fullPage:true}).catch(()=>{});
+  await desktop.screenshot({path:join(output,'desktop-failure.png'),fullPage:true}).catch(()=>{});
+  console.error('DESKTOP STATE', (await desktop.locator('body').innerText()).slice(-3500));
   console.error('PHONE STATE', (await phone.locator('body').innerText()).slice(-3500));
   throw error;
 } finally {await phoneContext.close();await browser.close();}

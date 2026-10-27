@@ -193,6 +193,7 @@ class FrameworkService:
             "conversation.rotate": self.conversation_rotate, "conversation.list": self.conversation_list,
             "conversation.patch": self.conversation_patch,
             "conversation.get": self.conversation_get,
+            "internal.conversation.activity_batch": self.conversation_activity_batch,
             "conversation.history_refs": self.conversation_history_refs,
             "command.admit": self.command_admit, "command.ack": self.command_ack, "command.list": self.command_list,
             "interaction.stop": self.interaction_stop, "source.set": self.source_set, "source.list": self.source_list,
@@ -464,6 +465,19 @@ class FrameworkService:
     def conversation_get(self, conversation_id: str) -> dict[str, Any]:
         _text(conversation_id, "conversation_id")
         return self._conversation(conversation_id)
+
+    def conversation_activity_batch(self, conversation_ids: list[str]) -> dict[str, Any]:
+        if not isinstance(conversation_ids, list) or len(conversation_ids) > 200:
+            raise FrameworkError("INVALID_PARAMS", "conversation_ids must be a list of at most 200 identities")
+        ids = list(dict.fromkeys(_text(identity, "conversation_id") for identity in conversation_ids))
+        if not ids:
+            return {"conversations": []}
+        placeholders = ",".join("?" for _ in ids)
+        rows = self.db.execute(f"""SELECT c.id AS conversation_id,g.session_id,g.frozen,c.archived
+            FROM conversations c JOIN generations g ON g.conversation_id=c.id AND g.generation=c.current_generation
+            WHERE c.id IN ({placeholders})""", ids).fetchall()
+        return {"conversations": [{**dict(row), "frozen": bool(row["frozen"]),
+                                  "archived": bool(row["archived"])} for row in rows]}
 
     def conversation_bind(self, conversation_id: str, session_id: str, generation: int | None = None) -> dict[str, Any]:
         _text(session_id, "session_id")

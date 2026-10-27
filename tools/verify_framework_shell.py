@@ -367,8 +367,16 @@ def main() -> int:
                 assert js("document.querySelectorAll('.mirally-work__cards [data-workflow]').length") == 10
                 js(RESTORE_NATIVE_SESSION)
                 wait_for(lambda: js(NATIVE_SESSION_READY), "Native chat did not restore after the work page")
+                js("document.querySelector('openclaw-app').context.navigate('tasks')")
+                wait_for(lambda: js("/\\/tasks\\/?$/.test(location.pathname) && [...document.querySelectorAll('mirally-work-page button')].some(b => b.textContent.trim() === '开始工作')"),
+                    "Native work list did not expose the preparation entry", timeout=20)
+                js("[...document.querySelectorAll('mirally-work-page button')].find(b => b.textContent.trim() === '开始工作').click()")
+                wait_for(lambda: js("!!document.querySelector('.mirally-work:not([hidden])') && document.querySelectorAll('.mirally-work__cards [data-workflow]').length === 10"),
+                    "Native work list could not open the retained preparation flow", timeout=20)
+                js(RESTORE_NATIVE_SESSION)
+                wait_for(lambda: js(NATIVE_SESSION_READY), "Native chat did not restore after the work list entry")
                 results.append({"case": "native product system menu", "labels": labels, "memory_navigation": True,
-                    "activity_navigation": True, "work_navigation": True, "original_settings_routes": True})
+                    "activity_navigation": True, "work_navigation": True, "work_list_preparation": True, "original_settings_routes": True})
 
                 children = []
                 @child_callback

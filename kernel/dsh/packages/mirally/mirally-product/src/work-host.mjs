@@ -40,10 +40,45 @@ export class WorkHost {
       input.request_id = `work-request-${createHash('sha256').update(`${actor}:${input.request_id}`).digest('hex')}`;
     if (['work.run.prepare', 'work.run.approve', 'work.run.start'].includes(method)) input.actor = actor;
     await this.actor(principal);
-    const result = await this.product.rpc(method, input);
+    let result = await this.product.rpc(method, input);
+    if (method === 'work.list' || method === 'work.get') {
+      result = await this.withConversationActivity(result, method);
+      // A remote binding may be revoked while the owner is being read.
+      await this.actor(principal);
+    }
     if (!['work.list', 'work.get', 'work.run.get', 'work.run.logs', 'work.run.artifact', 'work.settings.get'].includes(method))
       this.product.broadcast('work', {method, work_id: result.work?.work_id ?? result.work?.id ?? result.run?.work_id ?? input.work_id});
     return result;
+  }
+
+  async withConversationActivity(result, method) {
+    const works = method === 'work.list' ? result.works : [result.work];
+    if (!Array.isArray(works)) return result;
+    const ids = [...new Set(works.map(work => work?.conversation_id).filter(id => typeof id === 'string' && id))];
+    const activity = new Map();
+    // One bounded owner query avoids a cross-process request per work card.
+    try {
+      if (ids.length > 200) throw new Error('conversation activity limit exceeded');
+      const batch = ids.length ? await this.product.rpc('internal.conversation.activity_batch', {conversation_ids: ids}) : {conversations: []};
+      if (!Array.isArray(batch.conversations) || !this.product.handles || !this.product.activeCommands)
+        throw new Error('conversation activity unavailable');
+      for (const conversation of batch.conversations) {
+          const id = conversation?.conversation_id;
+          if (!ids.includes(id) || typeof conversation.frozen !== 'boolean' || typeof conversation.archived !== 'boolean'
+            || !(conversation.session_id === null || typeof conversation.session_id === 'string')) continue;
+          const session = conversation.session_id;
+          const handle = session && this.product.handles.get(session);
+          const command = session && this.product.activeCommands.get(session);
+          let state = 'unknown';
+          if (conversation.frozen || conversation.archived || !session) state = 'idle';
+          else if (!handle && !command) state = 'idle';
+          else if (handle?.agent?.status === 'running' && command) state = 'running';
+          else if (handle?.agent?.status === 'idle' && !command) state = 'idle';
+          activity.set(id, state);
+      }
+    } catch { /* A failed owner read remains unknown, never an inferred idle. */ }
+    const decorate = work => work && ({...work, conversation_activity: activity.get(work.conversation_id) ?? 'unknown'});
+    return method === 'work.list' ? {...result, works: works.map(decorate)} : {...result, work: decorate(result.work)};
   }
 
   async inbox() {
@@ -69,16 +104,20 @@ export class WorkHost {
     try {
       if (Date.now() - (this.lastObserve ?? 0) >= 30_000) {
         this.lastObserve = Date.now();
-        const {works} = await this.product.rpc('work.list', {limit: 200});
-        const watched = works.filter(work => work.intent === 'watching' && work.source);
-        for (let count = 0; count < Math.min(watched.length, 20); count++) {
-          const work = watched[((this.observeOffset ?? 0) + count) % watched.length];
+        const offset = this.observeOffset ?? 0;
+        const page = await this.product.rpc('work.list', {limit: 200, offset});
+        let scanned = 0, observed = 0;
+        for (const work of page.works) {
+          scanned++;
+          if (work.intent !== 'watching' || !work.source) continue;
+          observed++;
           try {
             const result = await this.product.rpc('work.observe', {work_id: work.work_id ?? work.id});
             this.product.broadcast('work', {method: 'work.observe', work_id: work.work_id ?? work.id, observed_at: result.observation?.observed_at});
           } catch (error) { this.product.ctx?.logger?.warn(`Work observation: ${error.code ?? 'unavailable'}`); }
+          if (observed >= 20) break;
         }
-        this.observeOffset = watched.length ? ((this.observeOffset ?? 0) + 20) % watched.length : 0;
+        this.observeOffset = scanned < page.works.length ? offset + scanned : (page.has_more ? page.next_offset : 0);
       }
       await this.product.weixin?.notifyWorks();
     }

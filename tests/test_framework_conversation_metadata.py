@@ -24,6 +24,22 @@ class ConversationMetadataTests(unittest.TestCase):
     def patch(self, patch, version=1, identity="one"):
         return self.service.call("conversation.patch", {"conversation_id": identity, "expected_version": version, "patch": patch})
 
+    def test_internal_activity_batch_is_bounded_and_returns_only_current_owner_metadata(self):
+        self.create("one")
+        self.create("two")
+        self.patch({"archived": True}, identity="two")
+        self.service.call("conversation.rotate", {"conversation_id": "one", "reason": "test", "session_id": "new-native"})
+        result = self.service.call("internal.conversation.activity_batch", {"conversation_ids": ["one", "two", "missing", "one"]})
+        by_id = {item["conversation_id"]: item for item in result["conversations"]}
+        self.assertEqual(set(by_id), {"one", "two"})
+        self.assertEqual(by_id["one"], {"conversation_id": "one", "session_id": "new-native", "frozen": False, "archived": False})
+        self.assertTrue(by_id["two"]["archived"])
+        self.assertEqual(self.service.call("internal.conversation.activity_batch", {"conversation_ids": []}), {"conversations": []})
+        with self.assertRaises(FrameworkError):
+            self.service.call("internal.conversation.activity_batch", {"conversation_ids": ["one"] * 201})
+        with self.assertRaises(FrameworkError):
+            self.service.call("internal.conversation.activity_batch", {"conversation_ids": [None]})
+
     def test_title_pin_archive_restore_survive_restart_without_changing_native_ownership(self):
         original = self.create()
         self.now += 100

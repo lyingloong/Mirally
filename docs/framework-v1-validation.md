@@ -1,3 +1,25 @@
+# 工作列表与原工作准备入口验收
+
+日期：2026-10-27，Asia/Shanghai（+08:00）。对应 PN-0046。
+
+- 完整 Node **325 项通过**，Framework Python **211 项、210 通过、1 跳过**（Windows 符号链接权限）；覆盖工作及运行历史分页、多个审批、跨页去重、来源轮询、会话状态批量投影及权限边界。完整根 Python 本轮未重跑。
+- 实际 Host、DSH、Python 和 Edge：**11 组链路、6 组页面通过**，包括真实正在回复的会话活动、实际来源 42/100、审批、执行/取消、成果、列表搜索/筛选/进入会话、手机偏好、480px 桌面与 320/390/736px 手机布局。工作准备按钮验证了跳转到保留的原工作页面；首次测试发现未切换到对话导致按钮无效，修复后复验通过。
+- 实际 Windows WebView2 和 FrameworkShell **24 组通过、无失败**，包括从新工作列表进入原工作准备页的十个工作入口及原生菜单、伙伴窗口等既有回归。未发送真实微信消息、调用外部模型、采集桌面或使用生产数据。
+- 前端源码校验通过，构建 715 个浏览器模块。搜索与统计针对已加载范围，列表和历史按页加载；观察轮询每轮有界，不对任意规模承诺固定刷新延迟。
+
+```powershell
+npm --prefix frontend/control-ui run verify:source
+npm --prefix frontend/control-ui run build
+node --test --test-concurrency=4 tests/test_*.mjs
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p '*framework*.py' -v
+.\.venv\Scripts\python.exe tools/verify_framework_mobile_work.py --browser
+.\.venv\Scripts\python.exe tools/verify_framework_shell.py
+```
+
+GUI 验证顺序运行；截图和日志位于忽略的 `.artifacts/`。未覆盖多屏 DPI、实体手机及真实外部模型质量。
+
+---
+
 # 微信作为当前手机主入口的验收
 
 日期：2026-10-27，Asia/Shanghai（+08:00）。对应 PN-0042。网页仍保留可选，使用微信不要求自建云服务器或网页可达。

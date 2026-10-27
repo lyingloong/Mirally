@@ -67,6 +67,39 @@ class WorkTests(unittest.TestCase):
         self.assertEqual(len(self.call("list", include_archived=True)["works"]), 1)
         with self.assertRaises(FrameworkError): self.call("update", work_id=work["id"], expected_revision=1, patch={"title": "old"})
 
+    def test_work_list_pages_are_stable_and_filter_before_slicing(self):
+        # The fixed test clock gives every row the same timestamp: rowid is the
+        # tie breaker and paging must not duplicate or lose equal-time rows.
+        works = [self.call("create", title=f"工作 {index}")["work"] for index in range(7)]
+        archived = works[3]
+        self.call("update", work_id=archived["id"], expected_revision=1, patch={"intent": "archived"})
+        expected = [work["id"] for work in reversed(works)]
+        for include_archived in (False, True):
+            with self.subTest(include_archived=include_archived):
+                wanted = [identity for identity in expected if include_archived or identity != archived["id"]]
+                found, offset = [], 0
+                while True:
+                    page = self.call("list", include_archived=include_archived, limit=2, offset=offset)
+                    found.extend(work["id"] for work in page["works"])
+                    self.assertEqual(page["next_offset"], offset + len(page["works"]))
+                    if not page["has_more"]:
+                        break
+                    self.assertGreater(page["next_offset"], offset)
+                    offset = page["next_offset"]
+                self.assertEqual(found, wanted)
+                empty = self.call("list", include_archived=include_archived, limit=2, offset=len(wanted))
+                self.assertEqual(empty, {"works": [], "has_more": False, "next_offset": len(wanted)})
+
+        default = self.call("list")
+        self.assertEqual([work["id"] for work in default["works"]], [identity for identity in expected if identity != archived["id"]])
+        self.assertFalse(default["has_more"])
+        self.assertEqual(default["next_offset"], 6)
+
+    def test_work_list_rejects_invalid_offsets(self):
+        for offset in (-1, 2**31, True, 1.5, "1", None):
+            with self.subTest(offset=offset), self.assertRaises(FrameworkError):
+                self.call("list", offset=offset)
+
     def test_json_observation_has_time_evidence_progress_and_not_control(self):
         (self.workspace / "status.json").write_text(json.dumps({"state": "running", "summary": "第 4 轮", "progress": {"current": 4, "total": 10}, "metrics": {"loss": .3}, "artifacts": ["../secret"]}), encoding="utf-8")
         work = self.work(source={"kind": "json", "path": "status.json"})

@@ -52,6 +52,61 @@ test('Work action idempotency identities are scoped to the real paired origin', 
   await assert.rejects(host.request('scripts.run', {confirmed: true}), {code: 'work_scope_revoked'});
 });
 
+test('Work list and detail project the current conversation activity independently of work and run status', async () => {
+  const works = [{work_id: 'one', conversation_id: 'c', status: 'idle'},
+    {work_id: 'two', conversation_id: 'c', status: 'failed'}];
+  const conversation = {conversation_id: 'c', session_id: 'current', frozen: false, archived: false};
+  let reads = 0;
+  const product = {handles: new Map([['current', {agent: {status: 'running'}}],
+    ['old', {agent: {status: 'running'}}]]), activeCommands: new Map([['current', 'cmd'], ['old', 'old-cmd']]),
+  rpc: async (method) => {
+    if (method === 'internal.conversation.activity_batch') { reads++; return {conversations: [{...conversation}]}; }
+    if (method === 'work.list') return {works};
+    if (method === 'work.get') return {work: works[0], runs: [{state: 'failed'}]};
+    throw Error(method);
+  }};
+  const host = new WorkHost(product);
+  const listed = await host.request('work.list');
+  assert.deepEqual(listed.works.map(w => w.conversation_activity), ['running', 'running']);
+  assert.equal(reads, 1);
+  assert.equal(listed.works[0].status, 'idle');
+  assert.equal(listed.works[1].status, 'failed');
+  const detail = await host.request('work.get', {work_id: 'one'});
+  assert.equal(detail.work.conversation_activity, 'running');
+  assert.equal(detail.runs[0].state, 'failed');
+  product.handles.get('current').agent.status = 'idle';
+  product.activeCommands.delete('current');
+  assert.equal((await host.request('work.get', {work_id: 'one'})).work.conversation_activity, 'idle');
+  // The previous generation is still running but is no longer the owner.
+  conversation.session_id = 'new';
+  assert.equal((await host.request('work.get', {work_id: 'one'})).work.conversation_activity, 'idle');
+  // Revoked source freezes the current generation before the native agent stops.
+  conversation.session_id = 'old'; conversation.frozen = true;
+  assert.equal((await host.request('work.get', {work_id: 'one'})).work.conversation_activity, 'idle');
+  conversation.frozen = false; conversation.archived = true;
+  assert.equal((await host.request('work.get', {work_id: 'one'})).work.conversation_activity, 'idle');
+});
+
+test('Unavailable or inconsistent conversation activity is unknown and remote scope is rechecked', async () => {
+  let authorized = true;
+  const product = {handles: new Map([['s', {agent: {status: 'running'}}]]), activeCommands: new Map(),
+    mobile: {authorize: () => authorized},
+    rpc: async (method) => {
+      if (method === 'work.list') return {works: [{conversation_id: 'missing'}, {conversation_id: 'c'}]};
+      if (method === 'internal.conversation.activity_batch') return {conversations: [{conversation_id: 'c', session_id: 's', frozen: false, archived: false}]};
+      return {};
+    }};
+  const host = new WorkHost(product);
+  assert.deepEqual((await host.request('work.list')).works.map(w => w.conversation_activity), ['unknown', 'unknown']);
+  const original = product.rpc;
+  product.rpc = async (...args) => { if (args[0] === 'internal.conversation.activity_batch') throw Error('sidecar unavailable'); return original(...args); };
+  assert.deepEqual((await host.request('work.list')).works.map(w => w.conversation_activity), ['unknown', 'unknown']);
+  product.rpc = async (...args) => { const value = await original(...args); if (args[0] === 'internal.conversation.activity_batch') authorized = false; return value; };
+  await assert.rejects(host.request('work.list', {}, {origin: 'mobile', id: 'p', revision: 1}), {code: 'work_scope_revoked'});
+  const publicProduct = Object.create(MirallyProduct.prototype);
+  await assert.rejects(publicProduct.publicRpc('internal.conversation.activity_batch', {conversation_ids: ['c']}), {code: 'method_not_allowed'});
+});
+
 test('Mobile messages get an unforgeable internal read-only scope and stable command identity', async () => {
   const product = Object.assign(Object.create(MirallyProduct.prototype), {mobile: {authorize: p => p?.id === 'device'}});
   const seen = [];
@@ -112,16 +167,22 @@ test('Work inbox projects one durable event beside existing messages and acknowl
   assert.equal(calls.at(-1).method, 'inbox.ack');
 });
 
-test('Work source polling is bounded and rotates instead of starving items beyond the first batch', async () => {
+test('Work source polling scans bounded pages and reaches sources past the first 200', async () => {
   const calls = [];
+  const works = Array.from({length: 245}, (_, i) => ({id: `work-${i}`, intent: 'watching', source: i < 30 || i >= 220 ? {kind: 'log'} : null}));
   const host = new WorkHost({rpc: async (method, params) => {
     calls.push({method, params});
-    if (method === 'work.list') return {works: Array.from({length: 25}, (_, i) => ({id: `work-${i}`, intent: 'watching', source: {kind: 'log'}}))};
+    if (method === 'work.list') return {works: works.slice(params.offset, params.offset + params.limit),
+      has_more: params.offset + params.limit < works.length, next_offset: Math.min(works.length, params.offset + params.limit)};
     return {observation: {observed_at: 1}};
   }, broadcast() {}});
-  await host.tick();
-  assert.equal(calls.filter(c => c.method === 'work.observe').length, 20);
-  host.lastObserve = 0;
-  await host.tick();
-  assert.ok(calls.some(c => c.params?.work_id === 'work-24'));
+  for (let i = 0; i < 4; i++) {
+    host.lastObserve = 0;
+    const before = calls.length;
+    await host.tick();
+    assert.ok(calls.slice(before).filter(c => c.method === 'work.observe').length <= 20);
+    assert.equal(calls.slice(before).filter(c => c.method === 'work.list').length, 1);
+  }
+  assert.ok(calls.some(c => c.params?.work_id === 'work-244'));
+  assert.ok(calls.filter(c => c.method === 'work.list').some(c => c.params.offset === 0));
 });

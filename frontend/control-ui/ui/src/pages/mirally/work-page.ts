@@ -14,5 +14,20 @@ export class MirallyWorkPage extends OpenClawLightDomElement {
     const target=sessionNavigationTarget({context:this.context,face:'chat',sessionKey:'agent:main:'+id});
     this.context.navigate('chat',target.options);
   };
-  override render(){return html`${renderSettingsPageHeader({title:'工作',subtitle:'关注实际进展、继续交代，并核对电脑上的每一次运行。'})}<div class="mirally-work-desktop"><mirally-work-panel .rpc=${rpcProduct} .openConversation=${this.openConversation}></mirally-work-panel></div>`;}
+  private readonly openPreparation = async () => {
+    // The retained preparation surface is anchored to a chat pane. Navigate to
+    // the existing new-conversation route first, then let its own handoff open
+    // the work surface once the draft controller is ready.
+    this.context.navigate('new-session',{search:''});
+    const deadline=performance.now()+10000;
+    while(performance.now()<deadline) {
+      const page=document.querySelector('openclaw-new-session-page') as (Element & {submission?:unknown})|null;
+      if(page?.isConnected&&page.submission) {
+        await (window as Window & {__mirallyWork?:{open:()=>Promise<void>}}).__mirallyWork?.open();
+        return;
+      }
+      await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));
+    }
+  };
+  override render(){return html`${renderSettingsPageHeader({title:'工作',subtitle:'关注实际进展、继续交代，并核对电脑上的每一次运行。'})}<div class="mirally-work-desktop"><mirally-work-panel desktop .rpc=${rpcProduct} .openConversation=${this.openConversation} .openPreparation=${(window as Window & {__mirallyWork?:unknown}).__mirallyWork?this.openPreparation:undefined}></mirally-work-panel></div>`;}
 }

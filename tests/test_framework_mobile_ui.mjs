@@ -72,8 +72,59 @@ test('history contains only real user/assistant body and remote image loading is
 });
 test('work order puts actual attention states first and completion filtering is explicit',()=>{
   const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});
-  f.sandbox.works=[{id:'done',status:'completed',updated_at:99},{id:'run',status:'running',updated_at:8},{id:'approve',status:'needs_approval',updated_at:1}];
-  const result=f.run("sortWorks(works,'attention',false)");assert.deepEqual(Array.from(result,item=>item.id),['approve','run']);
+  f.sandbox.works=[{id:'done',status:'completed',intent:'watching',updated_at:99},{id:'ended',status:'ended',intent:'ended',updated_at:100},{id:'run',status:'running',intent:'watching',updated_at:8},{id:'approve',status:'needs_approval',intent:'watching',updated_at:1}];
+  const result=f.run("sortWorks(works,'attention',false)");assert.deepEqual(Array.from(result,item=>item.id),['approve','run','done']);
+});
+test('desktop list distinguishes observed state, latest run, and ongoing work',()=>{
+  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');
+  panel.loaded=true;panel.works=[{id:'w',title:'实验',intent:'watching',status:'completed',updated_at:1,observation:{state:'running',summary:'第二轮'},latest_run:{status:'completed'},conversation_activity:'running'}];
+  const text=stringify(panel.desktopList());assert.match(text,/来源：正在运行/);assert.match(text,/最近运行：运行完成/);assert.match(text,/关联对话正在回复/);assert.match(text,/实验/);
+  panel.filter='history';assert.doesNotMatch(stringify(panel.desktopList()),/第二轮/);
+  panel.filter='current';panel.query='不匹配';assert.doesNotMatch(stringify(panel.desktopList()),/第二轮/);
+});
+test('desktop loads further work pages and refreshes the loaded range',async()=>{
+  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');
+  panel.rpc=async(method,params)=>{f.calls.push({method,params});const start=params.offset;return {works:Array.from({length:start===0?200:1},(_,i)=>({id:'w'+(start+i),intent:'watching'})),has_more:start===0,next_offset:start+200};};
+  await panel.refresh();assert.equal(panel.works.length,200);assert.equal(panel.hasMore,true);
+  await panel.loadMore();assert.equal(panel.works.length,201);assert.equal(panel.hasMore,false);assert.equal(f.calls[1].params.offset,200);
+  await panel.refresh();assert.equal(panel.works.length,201);assert.equal(f.calls.at(-1).params.offset,200);
+});
+test('attention sort uses pending approvals and source failures before activity',()=>{
+  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});
+  f.sandbox.works=[{id:'chat',status:'idle',intent:'watching',conversation_activity:'running',updated_at:100},{id:'source',status:'completed',intent:'watching',observation:{state:'failed'},updated_at:1},{id:'approval',status:'running',intent:'watching',pending_approvals:[{id:'a'}],updated_at:0}];
+  assert.deepEqual(Array.from(f.run("sortWorks(works,'attention',true)"),item=>item.id),['approval','source','chat']);
+  const panel=f.run('new MirallyWorkPanel()');panel.loaded=true;panel.works=f.sandbox.works;panel.filter='attention';let text=stringify(panel.desktopList());assert.match(text,/source|来源：运行失败/);assert.doesNotMatch(text,/关联对话正在回复/);
+  panel.filter='current';text=stringify(panel.desktopList());assert.match(text,/对话正在回复/);
+});
+test('paging skips duplicate identities while advancing by owner cursor',async()=>{
+  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');
+  panel.rpc=async(method,params)=>{f.calls.push({method,params});if(params.offset===0)return{works:[{id:'a'},{id:'b'}],has_more:true,next_offset:2};if(params.offset===2)return{works:[{id:'b'},{id:'c'}],has_more:true,next_offset:4};return{works:[{id:'d'}],has_more:false,next_offset:5};};
+  await panel.refresh();await panel.loadMore();await panel.loadMore();assert.deepEqual(Array.from(panel.works,item=>item.id),['a','b','c','d']);assert.equal(f.calls[2].params.offset,4);
+  await panel.refresh();assert.deepEqual(Array.from(panel.works,item=>item.id),['a','b','c','d']);assert.equal(f.calls.at(-1).params.offset,4);
+  panel.hasMore=true;panel.rpc=async()=>({works:[{id:'d'}],has_more:true,next_offset:4});await panel.loadMore();assert.match(panel.error,/分页未能前进/);
+});
+test('detail shows all owner approvals and loads run history through owner cursor',async()=>{
+  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');panel.selected='w';
+  const approvals=[{id:'a',status:'pending',spec:{script:'first.py'},expires_at:Date.now()+60000},{id:'b',status:'pending',spec:{script:'second.py'},expires_at:Date.now()+60000}];
+  panel.rpc=async(method,params)=>{f.calls.push({method,params});return {work:{id:'w',intent:'watching',pending_approvals:approvals},runs:params.run_offset===0?Array.from({length:20},(_,i)=>({id:'r'+i,status:'completed'})):[{id:'r19',status:'failed'},{id:'r20',status:'completed'}],has_more_runs:params.run_offset===0,next_run_offset:params.run_offset===0?20:22};};
+  await panel.refresh();let text=stringify(panel.workDetail());assert.match(text,/first.py/);assert.match(text,/second.py/);assert.match(text,/加载更多运行记录/);
+  await panel.loadMoreRuns();assert.equal(panel.detail.runs.length,21);assert.equal(panel.detail.runs.at(-1).id,'r20');assert.equal(f.calls.at(-1).params.run_offset,20);
+  await panel.refresh();assert.equal(panel.detail.runs.length,21);assert.equal(panel.detail.runs.at(-1).id,'r20');assert.equal(f.calls.at(-1).params.run_offset,20);
+});
+test('mobile work offers loading more when display filter hides the loaded page',async()=>{
+  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');panel.loaded=true;panel.works=[{id:'archived',intent:'archived',status:'archived'}];panel.showCompleted=false;panel.hasMore=true;panel.nextOffset=200;
+  let text=stringify(panel.render());assert.match(text,/没有符合显示设置/);assert.match(text,/仅应用于已加载/);assert.match(text,/加载更多工作/);
+  panel.rpc=async(method,params)=>{f.calls.push({method,params});return{works:[{id:'active',intent:'watching',status:'idle',title:'继续的工作'}],has_more:false,next_offset:201};};
+  await panel.loadMore();text=stringify(panel.render());assert.match(text,/继续的工作/);assert.equal(f.calls[0].params.offset,200);assert.doesNotMatch(text,/加载更多工作/);
+  const mobileSource=readFileSync(new URL('mobile/app.ts',root),'utf8');assert.match(mobileSource,/显示已结束或归档的工作/);assert.match(mobileSource,/show_completed/);
+});
+test('work search matches visible facts, observation time, and real progress',()=>{
+  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');panel.loaded=true;
+  panel.works=[{id:'a',title:'实验',intent:'watching',status:'completed',updated_at:99,observation:{state:'failed',summary:'训练信息',observed_at:12,progress:{current:4,total:10}},latest_run:{status:'completed'}},{id:'b',title:'对话',intent:'watching',status:'idle',updated_at:20,conversation_activity:'running'},{id:'c',title:'审批',intent:'watching',status:'idle',pending_approvals:[{id:'p'}]}];
+  for(const [query,title] of [['运行失败','实验'],['运行完成','实验'],['对话正在回复','对话'],['待确认','审批']]){panel.query=query;assert.match(stringify(panel.desktopList()),new RegExp(title));}
+  panel.query='实验';let text=stringify(panel.desktopList());assert.match(text,/观测于 12/);assert.match(text,/更新于 99/);assert.match(text,/进度 4 \/ 10/);
+  panel.works[0].observation.progress={current:4};text=stringify(panel.desktopList());assert.doesNotMatch(text,/进度 4/);
+  panel.query='';assert.doesNotMatch(stringify(panel.desktopList()),/待开始/);
 });
 test('work run approval binds digest and stable execution ID then refreshes facts',async()=>{
   const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');
@@ -116,7 +167,7 @@ test('acknowledged work creation and preparation permit a new same-content user 
   const draft={title:'相同标题',goal:'相同目标',source_kind:'none',path:''};panel.draft={...draft};panel.create({preventDefault(){}});await settle();panel.draft={...draft};panel.create({preventDefault(){}});await settle();
   const creates=f.calls.filter(call=>call.method==='work.create');assert.equal(creates.length,2);assert.notEqual(creates[0].params.request_id,creates[1].params.request_id);
   panel.runDraft={script:'run.py',arguments:'[]',cwd:'.',output_paths:'result.txt',timeout:'300'};
-  panel.prepare({preventDefault(){}});await settle();panel.review.status='expired';panel.prepare({preventDefault(){}});await settle();
+  panel.prepare({preventDefault(){}});await settle();panel.prepare({preventDefault(){}});await settle();
   const prepares=f.calls.filter(call=>call.method==='work.run.prepare');assert.equal(prepares.length,2);assert.notEqual(prepares[0].params.request_id,prepares[1].params.request_id);
 });
 test('archiving the selected conversation preserves detail metadata and supports restore outside the active filter',async()=>{

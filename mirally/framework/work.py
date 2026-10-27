@@ -226,12 +226,15 @@ class WorkOwner:
                               (identity, request_id, title, goal, conversation["conversation_id"], encoded(source) if source else None, encoded(DEFAULT_NOTIFICATIONS), now, now))
         return {"work": self._work(self._row("works", identity))}
 
-    def list(self, include_archived=False, limit=100):
+    def list(self, include_archived=False, limit=100, offset=0):
         if type(include_archived) is not bool:
             fail("INVALID_PARAMS", "include_archived 必须为布尔值")
         integer(limit, "limit", 1, 200)
-        rows = self.s.db.execute("SELECT * FROM works WHERE (? OR intent!='archived') ORDER BY updated_at DESC,rowid DESC LIMIT ?", (include_archived, limit)).fetchall()
-        return {"works": [self._work(dict(r), compact=True) for r in rows]}
+        integer(offset, "offset", 0, 2**31 - 1)
+        rows = self.s.db.execute("SELECT * FROM works WHERE (? OR intent!='archived') ORDER BY updated_at DESC,rowid DESC LIMIT ? OFFSET ?", (include_archived, limit + 1, offset)).fetchall()
+        page = rows[:limit]
+        return {"works": [self._work(dict(r), compact=True) for r in page],
+                "has_more": len(rows) > limit, "next_offset": offset + len(page)}
 
     def get(self, work_id, run_offset=0, run_limit=20):
         integer(run_offset, "run_offset", 0, 1000000); integer(run_limit, "run_limit", 1, 20)

@@ -107,6 +107,13 @@ def verify(root, home, browser=False):
         desktop.rpc("capabilities.configure", expected_revision=capabilities["revision"], patch={"workspace_write_enabled": True})
         (workspace / "处理 脚本.py").write_text("from pathlib import Path\nimport time\nprint('working', flush=True)\ntime.sleep(.3)\nPath('结果 文件.txt').write_text('实际成果', encoding='utf-8')\nprint('finished', flush=True)\n", encoding="utf-8")
         work = phone.rpc("work.create", title="手机控制脚本", goal="生成可下载的真实结果", request_id="script-work")["work"]
+        work_cid = work["conversation_id"]
+        assert desktop.call(f"/api/sessions/{work_cid}/messages", {"commandId":"work-activity-check", "text":"测试真实对话活动" * 80})["accepted"]
+        active = wait(lambda: (w if (w := desktop.rpc("work.get", work_id=work["id"])["work"])["conversation_activity"] == "running" else None))
+        assert active["status"] == "idle" and active["latest_run"] is None
+        desktop.call(f"/api/sessions/{work_cid}/cancel", {"commandId":"work-activity-check"})
+        wait(lambda: desktop.rpc("work.get", work_id=work["id"])["work"]["conversation_activity"] == "idle")
+        record("work reads real DSH conversation activity separately from script and source status")
         approval = desktop.rpc("work.run.prepare", work_id=work["id"], script="处理 脚本.py", arguments=[], cwd=".", output_paths=["结果 文件.txt"], timeout_seconds=15, request_id="prepared-on-desktop")["approval"]
         approved = phone.rpc("work.run.approve", approval_id=approval["id"], expected_digest=approval["digest"])
         started = phone.rpc("work.run.start", approval_id=approval["id"], approval_token=approved["approval_token"], request_id="single-start")["run"]
