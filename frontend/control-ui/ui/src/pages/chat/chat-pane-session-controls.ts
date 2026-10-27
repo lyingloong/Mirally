@@ -72,11 +72,19 @@ export function readChatPaneMutationAccess(
   snapshot: ApplicationGatewaySnapshot,
   sessionKey: string,
 ) {
+  const model = readSessionMethodAccess(snapshot, {
+    method: "sessions.patch",
+    params: { key: sessionKey, model: null },
+  });
+  // Mirally's adapter supports conversation metadata, but not per-session
+  // model overrides. Explain that boundary rather than implying a broken model.
+  const isMirallyAdapter = typeof (snapshot.client as unknown as {
+    supportsSessionPatch?: unknown;
+  } | null)?.supportsSessionPatch === "function";
   return {
-    model: readSessionMethodAccess(snapshot, {
-      method: "sessions.patch",
-      params: { key: sessionKey, model: null },
-    }),
+    model: !model.allowed && model.cause === "method-unavailable" && isMirallyAdapter
+      ? { ...model, reason: t("chat.modelControls.mirallySessionModelUnavailable") }
+      : model,
     effort: readSessionMethodAccess(snapshot, {
       method: "sessions.patch",
       params: { key: sessionKey, thinkingLevel: null },

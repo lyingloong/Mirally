@@ -40,6 +40,8 @@ const enModelControls = {
       searchModels: "Search models",
       noMatchingModels: "No models match your search",
       configureModels: "Configure models",
+      mirallySessionModelUnavailable:
+        "Changing the model for an individual conversation is not available yet. Manage your chat model in Settings → Model connection.",
       selectionScopeSessionLabel: "This session",
       selectionScopeAgentLabel: "Agent default",
       selectionScopeGlobalLabel: "Global default",

@@ -20,6 +20,7 @@ const EN: Record<string, string> = {
   "chat.progressLabels.reflecting": "Reflecting",
 };
 const ZH: Record<string, string> = {
+  "chat.modelControls.mirallySessionModelUnavailable": "暂不支持单独为此会话切换模型。可在「设置 → 模型连接」管理对话模型。",
   "modelSetup.required.title": "为 Mirally 连接模型",
   "modelSetup.required.body": "添加你自己的 AI 服务连接，开始生活与工作中的对话和协作。",
   "modelSetup.required.action": "连接模型",
