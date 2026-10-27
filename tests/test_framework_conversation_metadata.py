@@ -3,6 +3,7 @@ from pathlib import Path
 import concurrent.futures
 import tempfile
 import unittest
+from datetime import datetime
 
 from mirally.framework import FrameworkError, FrameworkService
 
@@ -120,7 +121,7 @@ class ConversationMetadataTests(unittest.TestCase):
         self.create()
         self.service.call("command.admit", {"conversation_id": "one", "command_id": "before", "text": "原始消息"})
         self.service.call("command.ack", {"conversation_id": "one", "command_id": "before", "state": "completed"})
-        for column in ("pinned", "archived", "metadata_version", "metadata_updated_at", "pinned_at", "archived_at"):
+        for column in ("pinned", "archived", "metadata_version", "metadata_updated_at", "pinned_at", "archived_at", "title_mode"):
             self.service.db.execute("ALTER TABLE conversations DROP COLUMN " + column)
         self.service.db.execute("PRAGMA user_version=2")
         self.service.close()
@@ -131,6 +132,82 @@ class ConversationMetadataTests(unittest.TestCase):
         self.assertFalse(current["archived"])
         self.assertEqual(current["metadata_version"], 1)
         self.assertEqual(self.service.call("command.list", {"conversation_id": "one"})["commands"][0]["command_id"], "before")
+
+    def test_automatic_title_requires_first_durable_input_and_survives_restart(self):
+        created = self.service.call("conversation.ensure", {"conversation_id": "auto"})
+        self.assertEqual(created["title"], "新对话-" + datetime.fromtimestamp(self.now / 1000).strftime("%Y-%m-%d"))
+        self.service.call("conversation.bind", {"conversation_id": "auto", "session_id": "native-auto"})
+        self.service.call("command.admit", {"conversation_id": "auto", "command_id": "first", "text": "第一行\n第二行"})
+        params = {"conversation_id": "auto", "command_id": "first", "text": "第一行\n第二行"}
+        self.assertFalse(self.service.call("internal.conversation.autotitle", params)["changed"])
+        self.service.call("command.ack", {"conversation_id": "auto", "command_id": "first", "state": "applied", "runtime_request_id": "message"})
+        named = self.service.call("internal.conversation.autotitle", params)
+        self.assertTrue(named["changed"])
+        self.assertEqual(named["conversation"]["title"], "第一行 第二行")
+        self.assertFalse(self.service.call("internal.conversation.autotitle", params)["changed"])
+        self.service.close()
+        self.service = FrameworkService(self.root, self.home, clock=lambda: self.now)
+        self.assertEqual(self.service.call("conversation.get", {"conversation_id": "auto"})["title"], "第一行 第二行")
+
+    def test_manual_or_explicit_name_wins_even_if_equal_to_placeholder(self):
+        created = self.service.call("conversation.ensure", {"conversation_id": "auto"})
+        self.service.call("conversation.bind", {"conversation_id": "auto", "session_id": "native-auto"})
+        self.service.call("command.admit", {"conversation_id": "auto", "command_id": "first", "text": "内容"})
+        self.service.call("command.ack", {"conversation_id": "auto", "command_id": "first", "state": "applied", "runtime_request_id": "message"})
+        self.patch({"title": created["title"]}, identity="auto")
+        self.assertFalse(self.service.call("internal.conversation.autotitle", {"conversation_id": "auto", "command_id": "first", "text": "内容"})["changed"])
+        self.assertEqual(self.service.call("conversation.get", {"conversation_id": "auto"})["title"], created["title"])
+
+    def test_schema_five_existing_title_is_never_reinterpreted_as_automatic(self):
+        self.create()
+        self.service.db.execute("ALTER TABLE conversations DROP COLUMN title_mode")
+        self.service.db.execute("PRAGMA user_version=5")
+        self.service.close()
+        self.service = FrameworkService(self.root, self.home, clock=lambda: self.now)
+        self.service.call("command.admit", {"conversation_id": "one", "command_id": "old", "text": "内容"})
+        self.service.call("command.ack", {"conversation_id": "one", "command_id": "old", "state": "applied", "runtime_request_id": "message"})
+        result = self.service.call("internal.conversation.autotitle", {"conversation_id": "one", "command_id": "old", "text": "内容"})
+        self.assertFalse(result["changed"])
+        self.assertEqual(result["conversation"]["title"], "原来的对话")
+
+    def test_manual_rename_and_auto_title_race_preserves_manual_intent(self):
+        self.service.call("conversation.ensure", {"conversation_id": "race"})
+        self.service.call("conversation.bind", {"conversation_id": "race", "session_id": "native-race"})
+        self.service.call("command.admit", {"conversation_id": "race", "command_id": "first", "text": "输入"})
+        self.service.call("command.ack", {"conversation_id": "race", "command_id": "first", "state": "applied", "runtime_request_id": "message"})
+        def automatic():
+            return self.service.call("internal.conversation.autotitle", {"conversation_id": "race", "command_id": "first", "text": "输入"})
+        def manual():
+            while True:
+                version = self.service.call("conversation.get", {"conversation_id": "race"})["metadata_version"]
+                try:
+                    return self.patch({"title": "用户名称"}, version=version, identity="race")
+                except FrameworkError as error:
+                    if error.code != "CONFLICT": raise
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            list(pool.map(lambda task: task(), (automatic, manual)))
+        self.assertEqual(self.service.call("conversation.get", {"conversation_id": "race"})["title"], "用户名称")
+
+    def test_failed_admission_does_not_block_first_recorded_message(self):
+        self.service.call("conversation.ensure", {"conversation_id": "auto"})
+        self.service.call("conversation.bind", {"conversation_id": "auto", "session_id": "native-auto"})
+        self.service.call("command.admit", {"conversation_id": "auto", "command_id": "failed", "text": "失败"})
+        self.service.call("command.ack", {"conversation_id": "auto", "command_id": "failed", "state": "rejected"})
+        self.service.call("command.admit", {"conversation_id": "auto", "command_id": "first", "text": "成功"})
+        self.service.call("command.ack", {"conversation_id": "auto", "command_id": "first", "state": "applied", "runtime_request_id": "message"})
+        result = self.service.call("internal.conversation.autotitle", {"conversation_id": "auto", "command_id": "first", "text": "成功"})
+        self.assertTrue(result["changed"])
+        self.assertEqual(result["conversation"]["title"], "成功")
+
+    def test_uncertain_earlier_admission_blocks_later_title(self):
+        self.service.call("conversation.ensure", {"conversation_id": "auto"})
+        self.service.call("conversation.bind", {"conversation_id": "auto", "session_id": "native-auto"})
+        self.service.call("command.admit", {"conversation_id": "auto", "command_id": "unknown", "text": "未知"})
+        self.service.call("command.ack", {"conversation_id": "auto", "command_id": "unknown", "state": "unknown"})
+        self.service.call("command.admit", {"conversation_id": "auto", "command_id": "later", "text": "后续"})
+        self.service.call("command.ack", {"conversation_id": "auto", "command_id": "later", "state": "applied", "runtime_request_id": "later-message"})
+        result = self.service.call("internal.conversation.autotitle", {"conversation_id": "auto", "command_id": "later", "text": "后续"})
+        self.assertFalse(result["changed"])
 
 
 if __name__ == "__main__":

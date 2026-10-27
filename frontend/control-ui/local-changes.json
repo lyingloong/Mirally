@@ -17,6 +17,7 @@
   "ui/src/components/command-palette-catalog-search.ts": "Use real Mirally product pages and supported reminder/model search.",
   "ui/src/pages/config/settings-search.ts": "Index retained Appearance controls without old administration sections.",
   "ui/src/pages/chat/components/chat-header-session-menu.ts": "Restore Mirally-owned conversation organization with captured metadata revisions and field-specific mutation access; retain original visuals and reject unsupported session operations.",
+  "ui/src/pages/chat/components/chat-message-bubble.ts": "Display trusted cross-surface input origins on individual user messages without changing the retained conversation layout.",
   "ui/src/components/session-menu.ts": "Restore Mirally-owned conversation organization with captured metadata revisions and field-specific mutation access; retain original visuals and reject unsupported session operations.",
   "packages/gateway-protocol/src/theme.ts": "Use Mirally theme and companion choices without upstream brand artwork.",
   "ui/index.html": "Ship Mirally identity and startup recovery assets before application JavaScript runs.",

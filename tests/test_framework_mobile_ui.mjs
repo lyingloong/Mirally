@@ -22,9 +22,9 @@ function fixture(file,extra={}){
   vm.createContext(sandbox);vm.runInContext(compile(file),sandbox);
   return {sandbox,storage,calls,timers,run:code=>vm.runInContext(code,sandbox)};
 }
-function mobile(handler=async()=>({})){const api=fixture('mobile/api.ts');const f=fixture('mobile/app.ts',{
+function mobile(handler=async()=>({})){const api=fixture('mobile/api.ts');const origin=fixture('lib/chat/input-origin.ts');const f=fixture('mobile/app.ts',{
   ...Object.fromEntries(['MobileApiError','DEFAULT_MOBILE_PREFERENCES','mobileNavigation','pairingCodeFromHash','timeLabel'].map(name=>[name,api.run(name)])),
-  createMobileRpc:()=>async(method,params={})=>{f.calls.push({method,params});return handler(method,params);},readMobileToken:()=>'',storeMobileToken(){},pairMobile:async()=>({token:'phone-token',device:{id:'phone'}}),
+  inputOriginLabel:origin.run('inputOriginLabel'),createMobileRpc:()=>async(method,params={})=>{f.calls.push({method,params});return handler(method,params);},readMobileToken:()=>'',storeMobileToken(){},pairMobile:async()=>({token:'phone-token',device:{id:'phone'}}),
 });f.app=f.run('new MirallyMobileApp()');return f;}
 const settle=async()=>{for(let i=0;i<10;i++)await Promise.resolve();};
 test('restricted phone client sends only its bearer, no cookies or redirects',async()=>{
@@ -69,6 +69,19 @@ test('history contains only real user/assistant body and remote image loading is
   const f=mobile();f.app.currentConversation='c';f.app.messages=[{role:'user',text:'用户正文'},{role:'assistant',text:'回复正文'},{role:'toolResult',text:'隐藏参数'}];
   const rendered=stringify(f.app.conversationsView());assert.match(rendered,/用户正文/);assert.match(rendered,/回复正文/);assert.doesNotMatch(rendered,/隐藏参数/);assert.match(rendered,/不会更改微信/);
   const source=readFileSync(new URL('mobile/app.ts',root),'utf8');assert.match(source,/remoteImages:false/);
+});
+test('message origin labels follow recorded user channel and current surface',()=>{
+  const f=fixture('lib/chat/input-origin.ts');const label=f.run('inputOriginLabel');
+  assert.equal(label({role:'user',input_origin:'weixin'},'desktop'),'微信');
+  assert.equal(label({role:'user',input_origin:'mobile'},'desktop'),'手机网页');
+  assert.equal(label({role:'user',input_origin:'desktop'},'desktop'),null);
+  assert.equal(label({role:'user',input_origin:'desktop'},'mobile'),'电脑');
+  assert.equal(label({role:'user',input_origin:'mobile'},'mobile'),null);
+  assert.equal(label({role:'assistant',input_origin:'weixin'},'desktop'),null);
+  assert.equal(label({role:'user'},'mobile'),null);
+  assert.equal(label({role:'user',input_origin:'other'},'mobile'),null);
+  const m=mobile();m.app.currentConversation='c';m.app.messages=[{role:'user',text:'桌面正文',input_origin:'desktop'},{role:'user',text:'微信正文',input_origin:'weixin'},{role:'user',text:'未知正文'},{role:'assistant',text:'回应',input_origin:'weixin'}];
+  const rendered=stringify(m.app.conversationsView());assert.match(rendered,/消息来自电脑/);assert.match(rendered,/消息来自微信/);assert.equal((rendered.match(/消息来自/g)||[]).length,2);
 });
 test('work order puts actual attention states first and completion filtering is explicit',()=>{
   const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});

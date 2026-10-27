@@ -410,6 +410,14 @@ export class MirallyProduct extends Service {
     const messages = [];
     const events = [];
     const gaps = [];
+    const weixinReceipts = [];
+    try {
+      for (let offset = 0; ; offset += 200) {
+        const page = (await this.rpc('internal.conversation.weixin_receipts', {conversation_id: id, limit: 200, offset})).receipts;
+        weixinReceipts.push(...page);
+        if (page.length < 200) break;
+      }
+    } catch { /* Old receipts are optional evidence, never a reason to hide history. */ }
     let sequenceOffset = 0;
     for (const generation of refs.generations) {
       if (!generation.session_id) continue;
@@ -424,7 +432,7 @@ export class MirallyProduct extends Service {
           finally { await reader.close(); }
         }
         messages.push(...projectMessages(snapshot.events, commands.filter(command => command.session_id === nativeId), sequenceOffset,
-          {conversationId: id, nativeSessionId: nativeId})
+          {conversationId: id, nativeSessionId: nativeId, weixinReceipts})
           .map(message => ({...message, generation: generation.generation, native_session_id: nativeId})));
         if (includeEvents) events.push(...snapshot.events.map(event => ({...event, native_session_id: nativeId})));
         sequenceOffset += snapshot.events.length;
@@ -532,12 +540,28 @@ export class MirallyProduct extends Service {
       const userReceipt = () => handle.agent.session.snapshotEvents().find(event =>
         (event.type === 'user/message' && (event.data.message ?? event.data).id === messageId)
         || (event.type === 'agent/inbox/spliced' && event.data.inserted?.some(message => message.id === messageId)));
+      const updateTitle = async receipt => {
+        try {
+          const nativeMessage = receipt?.type === 'user/message' ? (receipt.data.message ?? receipt.data)
+            : receipt?.data.inserted?.find(item => item.id === messageId);
+          const text = (Array.isArray(nativeMessage?.content) ? nativeMessage.content : [])
+            .filter(block => block?.type === 'text' && typeof block.text === 'string').map(block => block.text).join('');
+          if (!text.trim()) return;
+          const result = await this.rpc('internal.conversation.autotitle', {conversation_id: id, command_id: request.commandId, text});
+          if (result?.changed) this.broadcast('session-metadata', {session_id: id, metadata_version: result.conversation.metadata_version});
+        } catch (error) {
+          // A title is optional presentation; an already durable message must
+          // not become an unknown submission if naming fails.
+          console.error('Conversation auto-title failed:', error.message);
+        }
+      };
       const recorded = userReceipt();
       if (!command.should_dispatch) {
         if (recorded && command.needs_reconciliation) {
           await this.ctx.sessions.flush(handle.agent.session);
           await this.rpc('command.ack', {conversation_id: id, command_id: request.commandId, state: 'applied', runtime_request_id: messageId});
         }
+        if (recorded) await updateTitle(recorded);
         return {accepted: Boolean(recorded) || command.state === 'completed', replay: true, command,
           command_id: request.commandId, ...(recorded ? {message_seq: sequenceOffset + recorded.seq + 1} : {})};
       }
@@ -552,7 +576,10 @@ export class MirallyProduct extends Service {
       this.requestPolicies.set(conversation.session_id, {allowFiles, origin: scope?.origin ?? 'desktop'});
       this.commandPolicies.set(request.commandId, scope ?? {origin: 'desktop'});
       this.nativeErrors.delete(conversation.session_id);
-      const message = Object.freeze({...createUserMessage({content: [{type: 'text', text: request.text}, ...materialContent], source: {kind: 'user'}}), id: messageId});
+      // The entry point, never the request body, owns this presentation metadata.
+      // Store it with the native message so retries and restarts retain the receipt.
+      const message = Object.freeze({...createUserMessage({content: [{type: 'text', text: request.text}, ...materialContent],
+        source: {kind: 'user', mirally_input_origin: scope?.origin ?? 'desktop'}}), id: messageId});
       handle.agent.followup(message);
       try {
         await this.ctx.sessions.flush(handle.agent.session);
@@ -563,6 +590,7 @@ export class MirallyProduct extends Service {
         throw error;
       }
       const receipt = userReceipt();
+      if (receipt) await updateTitle(receipt);
       this.broadcast('session', {session_id: id, native_session_id: conversation.session_id, command_id: request.commandId, status: 'running'});
       void handle.agent.whenIdle().then(async () => {
         await this.ctx.sessions.flush(handle.agent.session);

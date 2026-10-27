@@ -26,7 +26,7 @@ from .channels import CHANNEL_SCHEMA, WeixinChannels
 from .work import WORK_SCHEMA, WorkOwner
 
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 INITIATIVE_RUNS_SCHEMA = """CREATE TABLE initiative_runs (id TEXT PRIMARY KEY,lease_token TEXT NOT NULL,
     created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,status TEXT NOT NULL,sources_json TEXT NOT NULL)"""
 DEFAULT_SETTINGS = {
@@ -82,7 +82,7 @@ class FrameworkService:
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.execute("PRAGMA busy_timeout=10000")
         try:
-            if self.db.execute("PRAGMA user_version").fetchone()[0] not in (0, 1, 2, 3, 4, SCHEMA_VERSION):
+            if self.db.execute("PRAGMA user_version").fetchone()[0] not in (0, 1, 2, 3, 4, 5, SCHEMA_VERSION):
                 raise FrameworkError("SCHEMA_VERSION", "unsupported product database schema")
             self.db.execute("PRAGMA journal_mode=WAL")
             self.db.execute("PRAGMA synchronous=FULL")
@@ -106,11 +106,11 @@ class FrameworkService:
 
     def _initialize(self) -> None:
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, 3, 4, SCHEMA_VERSION):
+        if version not in (0, 1, 2, 3, 4, 5, SCHEMA_VERSION):
             raise FrameworkError("SCHEMA_VERSION", "unsupported product database schema")
         if version == SCHEMA_VERSION:
             return
-        if version in (1, 2, 3, 4):
+        if version in (1, 2, 3, 4, 5):
             with self._transaction():
                 if version == 1:
                     self.db.execute(INITIATIVE_RUNS_SCHEMA)
@@ -120,8 +120,10 @@ class FrameworkService:
                                    "pinned_at INTEGER", "archived_at INTEGER"):
                         self.db.execute("ALTER TABLE conversations ADD COLUMN " + column)
                     self.db.execute("UPDATE conversations SET metadata_updated_at=created_at")
-                for statement in (*CHANNEL_SCHEMA, *WORK_SCHEMA):
-                    self.db.execute(statement)
+                if version < 5:
+                    for statement in (*CHANNEL_SCHEMA, *WORK_SCHEMA):
+                        self.db.execute(statement)
+                self.db.execute("ALTER TABLE conversations ADD COLUMN title_mode TEXT NOT NULL DEFAULT 'explicit'")
                 self.db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             return
         with self._transaction():
@@ -129,7 +131,8 @@ class FrameworkService:
                 "CREATE TABLE settings (key TEXT PRIMARY KEY,value_json TEXT NOT NULL)",
                 """CREATE TABLE conversations (id TEXT PRIMARY KEY,title TEXT NOT NULL,current_generation INTEGER NOT NULL,created_at INTEGER NOT NULL,
                     pinned INTEGER NOT NULL DEFAULT 0,archived INTEGER NOT NULL DEFAULT 0,metadata_version INTEGER NOT NULL DEFAULT 1,
-                    metadata_updated_at INTEGER NOT NULL DEFAULT 0,pinned_at INTEGER,archived_at INTEGER)""",
+                    metadata_updated_at INTEGER NOT NULL DEFAULT 0,pinned_at INTEGER,archived_at INTEGER,
+                    title_mode TEXT NOT NULL DEFAULT 'explicit')""",
                 """CREATE TABLE generations (conversation_id TEXT NOT NULL REFERENCES conversations(id),generation INTEGER NOT NULL,
                     session_id TEXT UNIQUE,frozen INTEGER NOT NULL DEFAULT 0,reason TEXT NOT NULL,created_at INTEGER NOT NULL,
                     PRIMARY KEY(conversation_id,generation))""",
@@ -192,6 +195,8 @@ class FrameworkService:
             "conversation.ensure": self.conversation_ensure, "conversation.bind": self.conversation_bind,
             "conversation.rotate": self.conversation_rotate, "conversation.list": self.conversation_list,
             "conversation.patch": self.conversation_patch,
+            "internal.conversation.autotitle": self.conversation_autotitle,
+            "internal.conversation.weixin_receipts": self.conversation_weixin_receipts,
             "conversation.get": self.conversation_get,
             "internal.conversation.activity_batch": self.conversation_activity_batch,
             "conversation.history_refs": self.conversation_history_refs,
@@ -452,13 +457,15 @@ class FrameworkService:
         result["needs_session"] = result["session_id"] is None or result["frozen"]
         return result
 
-    def conversation_ensure(self, conversation_id: str | None = None, title: str = "新对话") -> dict[str, Any]:
+    def conversation_ensure(self, conversation_id: str | None = None, title: str | None = None) -> dict[str, Any]:
         identity = _text(conversation_id, "conversation_id") if conversation_id is not None else "conversation_" + uuid.uuid4().hex
-        _text(title, "title", 512)
+        if title is not None:
+            _text(title, "title", 512)
         with self._transaction():
             if not self.db.execute("SELECT 1 FROM conversations WHERE id=?", (identity,)).fetchone():
                 now = self.clock()
-                self.db.execute("INSERT INTO conversations(id,title,current_generation,created_at,metadata_updated_at) VALUES(?,?,1,?,?)", (identity, title, now, now))
+                placeholder = "新对话-" + datetime.fromtimestamp(now / 1000).strftime("%Y-%m-%d")
+                self.db.execute("INSERT INTO conversations(id,title,current_generation,created_at,metadata_updated_at,title_mode) VALUES(?,?,1,?,?,?)", (identity, title if title is not None else placeholder, now, now, 'explicit' if title is not None else 'pending'))
                 self.db.execute("INSERT INTO generations VALUES(?,1,NULL,0,'initial',?)", (identity, self.clock()))
         return self._conversation(identity)
 
@@ -519,6 +526,10 @@ class FrameworkService:
                     "SELECT 1 FROM commands WHERE conversation_id=? AND state IN ('admitted','submitted','applied') LIMIT 1", (conversation_id,)).fetchone():
                 raise FrameworkError("CONFLICT", "stop the active conversation before archiving")
             changed = {field: value for field, value in patch.items() if value != current[field]}
+            # A deliberate rename, including to the current placeholder, must
+            # always defeat a later automatic title.
+            if "title" in patch:
+                self.db.execute("UPDATE conversations SET title_mode='explicit' WHERE id=?", (conversation_id,))
             if changed:
                 now = self.clock()
                 if "pinned" in changed:
@@ -530,6 +541,32 @@ class FrameworkService:
                                 [*changed.values(), now, conversation_id])
         return self._conversation(conversation_id)
 
+    def conversation_autotitle(self, conversation_id: str, command_id: str, text: str) -> dict[str, Any]:
+        """Name a pending conversation from its first durable input once.
+
+        This is a deterministic excerpt, not an extra model request. The host
+        invokes it only after flushing the native user message.
+        """
+        _text(command_id, "command_id")
+        _text(text, "text", 100000)
+        title = " ".join(text.split())
+        if len(title) > 32:
+            title = title[:32].rstrip() + "…"
+        with self._transaction():
+            current = self._conversation(conversation_id)
+            # A definitively rejected/cancelled admission with no native
+            # receipt never became a message. Unknown or in-flight earlier
+            # commands remain a barrier until their outcome is resolved.
+            first = self.db.execute("""SELECT command_id,generation,state,runtime_request_id FROM commands
+                WHERE conversation_id=? AND NOT (state IN ('rejected','cancelled') AND runtime_request_id IS NULL)
+                ORDER BY created_at,rowid LIMIT 1""", (conversation_id,)).fetchone()
+            mode = self.db.execute("SELECT title_mode FROM conversations WHERE id=?", (conversation_id,)).fetchone()[0]
+            if mode != 'pending' or not first or first['command_id'] != command_id or not first['runtime_request_id'] or first['state'] not in ('applied', 'completed', 'cancelled') or first['generation'] != current['generation']:
+                return {"conversation": current, "changed": False}
+            now = self.clock()
+            self.db.execute("UPDATE conversations SET title=?,title_mode='auto',metadata_version=metadata_version+1,metadata_updated_at=? WHERE id=?", (title, now, conversation_id))
+            return {"conversation": self._conversation(conversation_id), "changed": True}
+
     def conversation_list(self, archived_filter: str = "all", limit: int = 200, offset: int = 0) -> dict[str, Any]:
         if archived_filter not in {"all", "active", "archived"}:
             raise FrameworkError("INVALID_PARAMS", "unsupported conversation archive filter")
@@ -539,6 +576,18 @@ class FrameworkService:
         return {"conversations": [self._conversation(row[0]) for row in self.db.execute("""SELECT c.id FROM conversations c
             WHERE """ + clause + """ ORDER BY c.pinned DESC,MAX(c.metadata_updated_at,
             COALESCE((SELECT MAX(updated_at) FROM commands WHERE conversation_id=c.id),c.created_at)) DESC,c.id DESC LIMIT ? OFFSET ?""", (limit, offset))]}
+
+    def conversation_weixin_receipts(self, conversation_id: str, limit: int = 200, offset: int = 0) -> dict[str, Any]:
+        """Return only evidence needed to project old channel input, never credentials or text."""
+        self._conversation(conversation_id)
+        _integer(limit, "limit", 1, 1000)
+        _integer(offset, "offset", 0, 2**31 - 1)
+        rows = self.db.execute("""SELECT c.command_id,c.runtime_request_id,c.session_id,c.content_hash
+            FROM commands c JOIN channel_weixin_events e
+              ON e.conversation_id=c.conversation_id AND e.command_id=c.command_id AND e.content_hash=c.content_hash
+            WHERE c.conversation_id=? AND c.runtime_request_id IS NOT NULL
+            ORDER BY c.command_id,e.installation_id,e.event_id LIMIT ? OFFSET ?""", (conversation_id, limit, offset))
+        return {"receipts": [dict(row) for row in rows]}
 
     def conversation_history_refs(self, conversation_id: str) -> dict[str, Any]:
         self._conversation(conversation_id)

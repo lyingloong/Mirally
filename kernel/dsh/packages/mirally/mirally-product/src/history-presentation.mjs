@@ -1,5 +1,6 @@
 /** Read-only presentation of the sole native transcript; no copied history store. */
 import {toolDisplayValue, toolResultDisplay} from './tool-presentation.mjs';
+import {createHash} from 'node:crypto';
 
 export const toolPresentationId = (session, seq, id) => Number.isSafeInteger(seq)
   ? `mirally-tool:${session}:${seq}` : `mirally-tool:${session}:id:${id}`;
@@ -48,7 +49,7 @@ function toolArgs(raw) {
   return toolDisplayValue(parsed).value;
 }
 
-export function projectMessages(events, commands = [], sequenceOffset = 0, {conversationId, nativeSessionId = 'native'} = {}) {
+export function projectMessages(events, commands = [], sequenceOffset = 0, {conversationId, nativeSessionId = 'native', weixinReceipts = []} = {}) {
   const result = [], seenUsers = new Set(), assistantByTurn = new Map();
   const commandIds = new Map(commands.filter(command => command.runtime_request_id).map(command => [command.runtime_request_id, command.command_id]));
   const calls = new Map(), callsByKey = new Map(), owners = new Map(), resultCalls = new Map();
@@ -81,7 +82,16 @@ export function projectMessages(events, commands = [], sequenceOffset = 0, {conv
     const content = extra.content ?? contentOf(message.content, role, conversationId), text = extra.text ?? textOf(message.content);
     if (!text && !content.length) return;
     const id = extra.id ?? message.id ?? `${nativeSessionId}:${event.seq}`, seq = sequenceOffset + event.seq + 1;
+    let origin = role === 'user' && ['desktop', 'weixin', 'mobile'].includes(message.source?.mirally_input_origin)
+      ? message.source.mirally_input_origin : undefined;
+    if (role === 'user' && message.source?.mirally_input_origin === undefined && conversationId && commandId) {
+      const expectedId = `mirally-${createHash('sha256').update(`${conversationId}:${commandId}`).digest('hex')}`;
+      const digest = createHash('sha256').update(text).digest('hex');
+      if (message.id === expectedId && weixinReceipts.some(receipt => receipt.command_id === commandId
+        && receipt.runtime_request_id === message.id && receipt.session_id === nativeSessionId && receipt.content_hash === digest)) origin = 'weixin';
+    }
     const projected = {id, role, text, content, seq, native_seq: event.seq, time: event.time, timestamp: event.time,
+      ...(origin ? {input_origin: origin} : {}),
       ...(commandId ? {command_id: commandId} : {}),
       __openclaw: {id, seq, ...(commandId ? {runId: commandId, ...(role === 'user' ? {idempotencyKey: `${commandId}:user`} : {})} : {})}, ...extra};
     result.push(projected);

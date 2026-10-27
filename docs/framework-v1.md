@@ -41,7 +41,7 @@ npm --prefix frontend/control-ui run build
 
 桌面侧栏“工作”进入 `/tasks`，新增持久工作、JSON/日志观察、精确审批后的后台 Python 运行、取消、日志及小型成果下载。原准备页、材料、草稿和会话保留，提交可建立关联工作。手机接入位于“设置 → 消息渠道”，独立页面支持工作、正文会话管理、消息和可设置首页/导航。异地手机访问需配置私人 HTTPS 转发，服务仍只监听回环；未配置时仅可在电脑预览。
 
-数据库当前 schema 5，原地升级 1–4；`framework/work.py` 拥有工作与执行事实，Node 组合具名入口和唯一 DSH。受信脚本以当前用户权限执行，路径范围不是操作系统沙箱。功能、准备步骤及限制见[手机工作使用说明](mobile-work-guide.md)。微信/手机模型工具继续受限，脚本动作走本人精确审批，不开放通用远程工具链。
+数据库当前 schema 6，原地升级 1–5；`framework/work.py` 拥有工作与执行事实，Node 组合具名入口和唯一 DSH。受信脚本以当前用户权限执行，路径范围不是操作系统沙箱。功能、准备步骤及限制见[手机工作使用说明](mobile-work-guide.md)。微信/手机模型工具继续受限，脚本动作走本人精确审批，不开放通用远程工具链。
 
 ```mermaid
 flowchart LR
@@ -58,7 +58,7 @@ flowchart LR
 ```
 
 - `mirally/framework_host.py` 管理 Node 宿主、桌面窗口与托盘，解析工具链和产品 home。`kernel/dsh/packages/mirally/mirally-product/` 是可直接修改的本机 Host、原生会话适配和模型桥；它加载明确的内核组合，未挂载上游通用 shell 工具。
-- `mirally/framework/service.py` 拥有设置、逻辑 Conversation 与原生 Session 引用、命令回执、来源版本、明确偏好、提醒、主动候选、投递与已读状态。产品 schema 当前为 5，可从早期 schema 1/2/3/4 原地升级，拒绝未来版本；会话标题/固定/归档带元数据版本，不改 transcript。微信收发状态由独立 `framework/channels.py` 管理。
+- `mirally/framework/service.py` 拥有设置、逻辑 Conversation 与原生 Session 引用、命令回执、来源版本、明确偏好、提醒、主动候选、投递与已读状态。产品 schema 当前为 6，可从早期 schema 1–5 原地升级，拒绝未来版本；会话标题/固定/归档带元数据版本，不改 transcript。微信收发状态由独立 `framework/channels.py` 管理。
 - DSH Session 是唯一 transcript。产品库只保存引用、代次和命令内容哈希。停止或撤回来源会冻结旧代次；后续用户输入创建新的原生 Session，历史仍通过代次引用读取。启动恢复不会盲目重放旧输入、脚本或桌面动作。
 - `mirally/framework/context.py` 按需只读组合记忆、活动、偏好和来源缺口。`mirally/framework_workers.py` 监督获准的 Activity 子进程和 Memory 维护 owner；查询不启动采集。后台语义任务通过本机模型桥调用同一原生模型适配。
 - `frontend/control-ui/ui/src/` 复用原 Lit 壳、对话和外观组件，`pages/mirally/` 维护自有内容页与产品 API；`mirally/assets/control-ui-*` 继续提供既有 Mirally 皮肤、工作和伙伴交互。`ui/src/app/mirally-client.ts` 注入原客户端工厂，将已实现操作映射到本机鉴权 HTTP/RPC 与 SSE。`mirally/framework_ui/legacy-native-bridge.js` 适配活动/记忆、材料成果等产品消息，`mirally-product/src/presentation.mjs` 提供原皮肤资源。`mirally/framework_ui/app.js` 的简化页面不再是默认前端。

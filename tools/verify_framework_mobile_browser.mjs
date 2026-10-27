@@ -158,6 +158,16 @@ try {
   }
   await desktop.getByRole('button',{name:'继续对话：手机控制脚本'}).click();
   await until(async()=>new URL(desktop.url()).pathname!=='/tasks','continue work conversation');
+  const workConversation=(await desktopRpc('work.get',{work_id:runtime.work_id})).work.conversation_id;
+  const mobileResponse=await fetch(new URL('/api/mobile/rpc',runtime.mobile_url),{method:'POST',headers:{Authorization:'Bearer '+runtime.mobile_token,'Content-Type':'application/json'},body:JSON.stringify({method:'conversation.send',params:{conversation_id:workConversation,command_id:'browser-origin-live',text:'跨端来源标记验收'}})});
+  assert.ok(mobileResponse.ok,await mobileResponse.text());
+  const originMessage=desktop.locator('.chat-group.user').filter({hasText:'跨端来源标记验收'});
+  await originMessage.waitFor();
+  await originMessage.locator('.mirally-message-origin').getByText('手机网页',{exact:true}).waitFor();
+  await desktop.screenshot({path:join(output,'desktop-message-origin.png')});
+  await desktop.reload({waitUntil:'domcontentloaded'});
+  await originMessage.locator('.mirally-message-origin').getByText('手机网页',{exact:true}).waitFor();
+  pass('a real mobile message is labelled in the open desktop conversation and after reload');
   pass('desktop sidebar, real progress, approvals, filters, search and conversation navigation work; phone layouts fit 320, 390 and 736px');
   assert.deepEqual(errors,[],'Browser page errors');
   console.log(JSON.stringify({passed:checks.length,checks}));

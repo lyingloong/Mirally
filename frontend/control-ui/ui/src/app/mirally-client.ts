@@ -200,6 +200,7 @@ export class MirallyBrowserClient {
       reasoningLevel: 'on', agentId: "main", kind: "direct", updatedAt: s.updated_at, hasActiveRun: s.status === "running", activeRunIds: [...new Set([...(s.active_command_ids || []), ...this.activeRuns(s.id)])], modelProvider: model.provider, model: model.model_id}));
   }
   private message(message: Data) { return {id: message.id, role: message.role, timestamp: message.time, __openclaw: message.__openclaw,
+    ...(['desktop', 'weixin', 'mobile'].includes(message.input_origin) && message.role === 'user' ? {input_origin: message.input_origin} : {}),
     native_session_id: message.native_session_id, native_seq: message.native_seq, ...(message.toolCallId ? {toolCallId: message.toolCallId} : {}),
     content: Array.isArray(message.content) ? message.content.filter((block: Data) => block.type === 'text' && typeof block.text === 'string'
       || message.role === 'assistant' && block.type === 'thinking' && typeof block.thinking === 'string'
@@ -225,6 +226,17 @@ export class MirallyBrowserClient {
     const runId = event.command_id || this.activeRuns(id).at(-1);
     const partialKey = `${id}:${runId || ""}`;
     if (event.type === 'session-metadata') {this.emit('sessions.changed', {key: key(id), agentId: 'main', reason: 'metadata'}); return;}
+    if (event.type === 'session' && event.command_id) {
+      // Only publish the persisted user row owned by this command. Assistant
+      // streaming and terminal reconciliation remain on their existing path.
+      try {
+        const history = await this.history(id);
+        if (this.stopped || generation !== this.generation) return;
+        const message = history.messages.find((item: Data) => item.role === 'user' && item.__openclaw?.runId === event.command_id);
+        if (message) this.emit('session.message', {key: key(id), agentId: 'main', message});
+      } catch { /* History will be recovered on the next explicit refresh. */ }
+      return;
+    }
     if (event.type === "assistant-start") {
       this.partials.set(partialKey, "");
       this.assistantAttempts.set(partialKey, {id: event.attempt_id || 'unframed', fresh: true, closed: false});
@@ -267,6 +279,9 @@ export class MirallyBrowserClient {
     if (["done", "error"].includes(event.type)) {
       const history = await this.history(id), message = history.messages.filter((m: Data) => m.role === "assistant" && (!runId || m.__openclaw?.runId === runId)).at(-1);
       if (this.stopped || generation !== this.generation) return;
+      // A queued input may only become durable after the original session event.
+      const userMessage = runId && history.messages.find((item: Data) => item.role === 'user' && item.__openclaw?.runId === runId);
+      if (userMessage) this.emit('session.message', {key: key(id), agentId: 'main', message: userMessage});
       if (runId) this.forgetRun(id, runId);
       this.reasoningStreams.delete(partialKey); this.assistantAttempts.delete(partialKey);
       this.emit("chat", {sessionKey: key(id), agentId: "main", runId, state: event.type === "error" || event.failed ? "error" : event.cancelled ? "aborted" : "final", message, errorMessage: event.text || event.message || (event.failed ? "这次处理没有完成。" : undefined)});
@@ -336,7 +351,7 @@ export class MirallyBrowserClient {
         if (p.incognito) throw new Error("当前内核尚未支持无痕会话，请使用普通会话；本次没有创建或保存会话。");
         if (p.fork || p.parentSessionKey || p.parentSessionId) throw new Error("当前 Mirally 尚未支持分叉会话；本次没有创建会话，也不会用空会话代替分叉。");
         if (p.agentId && p.agentId !== 'main') throw new Error("当前 Mirally 仅支持主伙伴的会话；本次没有创建会话。");
-        const session = await this.http("/api/sessions", {method: "POST", body: JSON.stringify({title: p.displayName || p.label || p.title || "新对话", requestId:p.idempotencyKey})});
+        const session = await this.http("/api/sessions", {method: "POST", body: JSON.stringify({title: p.displayName || p.label || p.title || undefined, requestId:p.idempotencyKey})});
         const entry = (await this.sessions()).find((s: Data) => identity(s.key) === session.id);
         if (p.message || p.attachments?.length) {
           try {

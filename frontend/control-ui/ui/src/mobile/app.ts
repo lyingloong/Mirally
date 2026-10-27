@@ -4,6 +4,7 @@ import {live} from 'lit/directives/live.js';
 import {unsafeHTML} from 'lit/directives/unsafe-html.js';
 import {OpenClawLightDomElement} from '../lit/openclaw-element.ts';
 import {toSanitizedMarkdownHtml} from '../components/markdown.ts';
+import {inputOriginLabel} from '../lib/chat/input-origin.ts';
 import '../pages/mirally/work-panel.ts';
 import {createMobileRpc,DEFAULT_MOBILE_PREFERENCES,MobileApiError,mobileNavigation,pairingCodeFromHash,pairMobile,readMobileToken,storeMobileToken,timeLabel,type MobilePreferences,type Rpc} from './api.ts';
 
@@ -162,7 +163,7 @@ export class MirallyMobileApp extends OpenClawLightDomElement {
       </div></details>
       ${this.history.has_more?html`<button class="btn" ?disabled=${this.busy} @click=${()=>this.older()}>读取更早的记录</button>`:nothing}
       ${(this.history.gaps||[]).length?html`<p class="callout">部分历史暂时无法读取，展示的是当前可用记录。</p>`:nothing}
-      <div class="mirally-mobile-transcript" aria-label="会话记录">${this.messages.filter(item=>['user','assistant'].includes(item.role)).map(item=>html`<article class="mirally-mobile-message" data-role=${item.role}><div class="mirally-product-meta">${item.role==='user'?'你':'Mirally'} · ${timeLabel(item.timestamp||item.time)}</div><div class="markdown">${unsafeHTML(toSanitizedMarkdownHtml(messageText(item),{codeBlockChrome:'none',codeBlockInteraction:'static',remoteImages:false,fileLinks:false,sessionLinks:false}))}</div></article>`)}</div>
+      <div class="mirally-mobile-transcript" aria-label="会话记录">${this.messages.filter(item=>['user','assistant'].includes(item.role)).map(item=>html`<article class="mirally-mobile-message" data-role=${item.role}><div class="mirally-product-meta">${item.role==='user'?'你':'Mirally'} · ${timeLabel(item.timestamp||item.time)}${inputOriginLabel(item,'mobile')?html` <span class="mirally-message-origin" aria-label=${`消息来自${inputOriginLabel(item,'mobile')}`}>${inputOriginLabel(item,'mobile')}</span>`:nothing}</div><div class="markdown">${unsafeHTML(toSanitizedMarkdownHtml(messageText(item),{codeBlockChrome:'none',codeBlockInteraction:'static',remoteImages:false,fileLinks:false,sessionLinks:false}))}</div></article>`)}</div>
       ${this.history.in_flight||this.history.active_command_ids?.length?html`<div class="mirally-product-actions"><span role="status">正在回复…</span><button class="btn" ?disabled=${this.busy} @click=${()=>this.act(()=>this.rpc('conversation.stop',{conversation_id:this.currentConversation}),'已请求停止回复。')}>停止回复</button></div>`:nothing}
       ${!active?html`<p role="status" class="callout">正在核对会话状态，请稍候或刷新。</p>`:active.archived?html`<p class="callout">此会话已归档。恢复后可以继续对话。</p>`:html`<form class="mirally-mobile-composer" @submit=${this.send}><label class="mirally-product-field">继续聊<textarea aria-label="消息内容" .value=${live(this.draft)} @input=${(e:Event)=>{this.draft=(e.target as HTMLTextAreaElement).value;writeSession(draftKey(this.currentConversation),this.draft);}} maxlength="24000" ?disabled=${this.busy}></textarea></label><button type="submit" class="btn primary" ?disabled=${this.busy||!this.draft.trim()||!this.connected}>发送</button></form>`}
       <p class="mirally-product-meta">与电脑共用同一份聊天记录。此处切换会话不会更改微信后续消息的目标。</p>

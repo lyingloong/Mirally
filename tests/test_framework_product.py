@@ -81,12 +81,12 @@ class FrameworkProductTests(unittest.TestCase):
     def test_first_schema_upgrades_without_replacing_product_state(self):
         self.call("preference.set", key="keep", value="original")
         self.service.db.execute("DROP TABLE initiative_runs")
-        for column in ("pinned", "archived", "metadata_version", "metadata_updated_at", "pinned_at", "archived_at"):
+        for column in ("pinned", "archived", "metadata_version", "metadata_updated_at", "pinned_at", "archived_at", "title_mode"):
             self.service.db.execute("ALTER TABLE conversations DROP COLUMN " + column)
         self.service.db.execute("PRAGMA user_version=1")
         self.restart()
         self.assertEqual(self.call("preference.list")["preferences"][0]["value"], "original")
-        self.assertEqual(self.service.db.execute("PRAGMA user_version").fetchone()[0], 5)
+        self.assertEqual(self.service.db.execute("PRAGMA user_version").fetchone()[0], 6)
 
     def test_withdrawn_preferences_are_excluded_from_direct_and_context_reads(self):
         self.call("preference.set", key="topic", value="private")

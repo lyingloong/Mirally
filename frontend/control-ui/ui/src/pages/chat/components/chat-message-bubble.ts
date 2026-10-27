@@ -13,6 +13,8 @@ import { registerChatMessageMetadataEnglish } from "../../../i18n/locales/en-cha
 import type { BoardProvider } from "../../../lib/board/provider.ts";
 import type { MessageContentItem, ToolCard } from "../../../lib/chat/chat-types.ts";
 import { resolveMessageDisplayMarkdown } from "../../../lib/chat/message-display.ts";
+import { inputOriginLabel } from "../../../lib/chat/input-origin.ts";
+import "../../mirally/product.css";
 import "../../../components/person-reference.ts";
 import { extractThinkingCached } from "../../../lib/chat/message-extract.ts";
 import {
@@ -217,6 +219,7 @@ export function renderGroupedMessage(
       : preparation;
   const m = message as Record<string, unknown>;
   const role = typeof m.role === "string" ? m.role : "unknown";
+  const inputOrigin = inputOriginLabel(message, "desktop");
   const sourceRole = normalizeRoleForGrouping(role);
   const asyncQuestions = opts.asyncQuestions?.submit ? readAsyncQuestions(message) : null;
   const normalizedRole = normalizeRoleForGrouping(normalizedMessage.role);
@@ -589,6 +592,7 @@ export function renderGroupedMessage(
       data-message-text=${actionText || nothing}
       .messageActions=${opts.messageActions}
     >
+      ${inputOrigin ? html`<div class="mirally-message-origin" aria-label=${`消息来自${inputOrigin}`}>${inputOrigin}</div>` : nothing}
       ${renderReplyPreview(
         normalizedMessage.replyTarget,
         normalizedMessage.replyTarget?.kind === "id"

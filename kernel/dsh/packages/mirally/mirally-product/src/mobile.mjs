@@ -245,8 +245,9 @@ export class MobileAccess {
       return {...result,has_more:result.conversations.length===limit,next_offset:offset+result.conversations.length};
     }
     if(method==='conversation.create') {
-      const requestId=text(params.request_id??randomUUID(),'创建请求',128),title=params.title===undefined?'手机会话':text(params.title,'会话名称',512);
-      const conversation=await this.product.rpc('conversation.ensure',{title,conversation_id:'conversation_mobile_'+hash(principal.id+':'+requestId).slice(0,32)});
+      const requestId=text(params.request_id??randomUUID(),'创建请求',128);
+      const title=params.title===undefined?undefined:text(params.title,'会话名称',512);
+      const conversation=await this.product.rpc('conversation.ensure',{...(title===undefined?{}:{title}),conversation_id:'conversation_mobile_'+hash(principal.id+':'+requestId).slice(0,32)});
       return {conversation};
     }
     if(method==='conversation.get')return {conversation:await this.product.conversation(text(params.conversation_id,'会话'))};
@@ -265,6 +266,7 @@ export class MobileAccess {
       const history=await this.product.history(id);this.require(principal);
       const messages=history.messages.filter(m=>['user','assistant'].includes(m.role) && (!params.before_seq || m.seq<params.before_seq));
       const selected=messages.slice(-limit).map(m=>({id:m.id,role:m.role,seq:m.seq,time:m.time,command_id:m.command_id,
+        ...(m.role==='user' && m.input_origin ? {input_origin:m.input_origin} : {}),
         text:String(m.text??'').slice(0,32_000),content:[{type:'text',text:String(m.text??'').slice(0,32_000)}]}));
       return {messages:selected,gaps:history.gaps,active_command_ids:history.active_command_ids,in_flight:history.in_flight,
         has_more:messages.length>limit,oldest_seq:selected[0]?.seq??null};

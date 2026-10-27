@@ -69,3 +69,18 @@ mirally-work-panel, mirally-work-page, mirally-mobile-settings {display:block;mi
 
 .mirally-work-mobile-more {display:flex;flex-direction:column;gap:8px;align-items:stretch;min-width:0;}
 .mirally-work-mobile-more p {margin:0;}
+.mirally-message-origin {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.chat-bubble > .mirally-message-origin { margin-bottom: 7px; }

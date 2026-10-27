@@ -81,7 +81,7 @@ class FrameworkChannelsTests(unittest.TestCase):
         self.assertTrue(bound["enabled"])
         self.assertTrue(bound["bound"])
         self.assertEqual(bound["revision"], 2)
-        self.assertEqual(self.service.call("conversation.get", {"conversation_id": bound["conversation_id"]})["title"], "微信对话")
+        self.assertTrue(self.service.call("conversation.get", {"conversation_id": bound["conversation_id"]})["title"].startswith("新对话-"))
         for method in ("settings.get", "internal.settings.get", "system.status"):
             wire = json.dumps(self.service.call(method))
             self.assertNotIn("secret-wechat-token", wire)
@@ -102,6 +102,22 @@ class FrameworkChannelsTests(unittest.TestCase):
         self.assertEqual(self.call("claim", delivery_id=delivery["delivery_id"])["delivery"]["status"], "cancelled")
         with self.assertRaises(FrameworkError):
             self.event(previous)
+
+    def test_history_evidence_only_joins_real_matching_weixin_event_and_command(self):
+        state = self.bound()
+        cid = state["conversation_id"]
+        self.service.call("conversation.bind", {"conversation_id": cid, "session_id": "native"})
+        receipt = self.event(state)
+        command = receipt["command_id"]
+        self.service.call("command.admit", {"conversation_id": cid, "command_id": command, "text": "实验进度如何？"})
+        self.service.call("command.ack", {"conversation_id": cid, "command_id": command, "state": "applied", "runtime_request_id": "native-message"})
+        evidence = self.service.call("internal.conversation.weixin_receipts", {"conversation_id": cid})["receipts"]
+        self.assertEqual(len(evidence), 1)
+        self.assertEqual(evidence[0]["runtime_request_id"], "native-message")
+        self.assertEqual(evidence[0]["session_id"], "native")
+        self.assertEqual(set(evidence[0]), {"command_id", "runtime_request_id", "session_id", "content_hash"})
+        self.service.db.execute("UPDATE channel_weixin_events SET content_hash='not-matching'")
+        self.assertEqual(self.service.call("internal.conversation.weixin_receipts", {"conversation_id": cid})["receipts"], [])
 
     def test_peer_confirmation_routes_only_to_existing_unarchived_or_new_conversation(self):
         saved = self.save()
@@ -289,9 +305,10 @@ class FrameworkChannelsTests(unittest.TestCase):
         self.service.db.execute("DROP TABLE channel_weixin_events")
         self.service.db.execute("DROP TABLE channel_weixin_outbox")
         self.service.db.execute("DROP TABLE channel_weixin")
+        self.service.db.execute("ALTER TABLE conversations DROP COLUMN title_mode")
         self.service.db.execute("PRAGMA user_version=3")
         self.restart()
-        self.assertEqual(self.service.db.execute("PRAGMA user_version").fetchone()[0], 5)
+        self.assertEqual(self.service.db.execute("PRAGMA user_version").fetchone()[0], 6)
         self.assertTrue(self.service.call("settings.get")["do_not_disturb"])
         self.assertIsNone(self.state()["installation_id"])
         self.service.db.execute("PRAGMA user_version=99")
@@ -300,7 +317,7 @@ class FrameworkChannelsTests(unittest.TestCase):
             FrameworkService(self.root, self.home)
         # Reopen for the regular cleanup.
         connection = sqlite3.connect(self.service.path)
-        connection.execute("PRAGMA user_version=4")
+        connection.execute("PRAGMA user_version=6")
         connection.close()
         self.service = FrameworkService(self.root, self.home)
 

@@ -97,16 +97,82 @@ test('send and replay acknowledge the same positive native user receipt and comm
       if (method === 'command.admit') { const replay = admitted; admitted = true; return {...command('run-a', messageId), should_dispatch: !replay}; }
       if (method === 'command.ack') return {};
       if (method === 'context.read') return {};
+      if (method === 'internal.conversation.autotitle') return {changed: false};
       throw new Error('Unexpected RPC ' + method);
     }});
-  const first = await product.send('one', {commandId: 'run-a', text: '首轮'});
+  const first = await product.send('one', {commandId: 'run-a', text: '首轮', input_origin: 'weixin'});
   assert.equal(first.message_seq, 1); assert.equal(first.command_id, 'run-a');
   const repeated = await product.send('one', {commandId: 'run-a', text: '首轮'});
   assert.equal(repeated.replay, true); assert.equal(repeated.message_seq, first.message_seq); assert.equal(events.length, 1);
   const row = projectMessages(events, [command('run-a', messageId)])[0];
+  assert.equal(row.input_origin, 'desktop', 'request body cannot impersonate a remote channel');
   assert.equal(readSessionMessageSequence(row), first.message_seq);
   finish(); for (let index = 0; index < 100 && !broadcasts.some(item => item.type === 'done'); index++) await delay(1);
   assert.equal(broadcasts.find(item => item.type === 'done').command_id, 'run-a');
+});
+
+test('source projection preserves native channel receipts only on human messages and never guesses old sources', () => {
+  const users = ['desktop', 'weixin', 'mobile', undefined, 'unknown'].map((origin, index) => ({
+    ...user('u' + index, 'text'), source: {kind: 'user', ...(origin ? {mirally_input_origin: origin} : {})},
+  }));
+  const events = users.map((message, index) => event(index, 'user/message', message));
+  events.push(event(5, 'assistant/message', {turn: 1, message: {id: 'reply', source: {mirally_input_origin: 'weixin'}, content: [{type:'text',text:'answer'}]}}));
+  const rows = projectMessages(JSON.parse(JSON.stringify(events)));
+  assert.deepEqual(rows.map(row => row.input_origin), ['desktop', 'weixin', 'mobile', undefined, undefined, undefined]);
+});
+
+test('old WeChat origin requires matching channel receipt, native session, identity and content', () => {
+  const conversationId = 'one', commandId = 'weixin-abc', nativeSessionId = 'native';
+  const id = 'mirally-' + createHash('sha256').update(`${conversationId}:${commandId}`).digest('hex');
+  const message = user(id, '旧微信消息'), events = [event(0,'user/message',message)];
+  const commands = [command(commandId,id,nativeSessionId)];
+  const receipt = {command_id:commandId,runtime_request_id:id,session_id:nativeSessionId,
+    content_hash:createHash('sha256').update('旧微信消息').digest('hex')};
+  const project = receipts => projectMessages(events,commands,0,{conversationId,nativeSessionId,weixinReceipts:receipts})[0].input_origin;
+  assert.equal(project([receipt]),'weixin');
+  assert.equal(project([]),undefined);
+  for (const key of ['command_id','runtime_request_id','session_id','content_hash']) assert.equal(project([{...receipt,[key]:'wrong'}]),undefined);
+  message.source.mirally_input_origin = 'desktop';
+  assert.equal(project([receipt]),'desktop');
+});
+
+test('trusted WeChat and paired phone entry points assign their own origin', async () => {
+  const product = Object.create(MirallyProduct.prototype), recorded = [];
+  const conversation = {conversation_id: 'one', session_id: 'native-one', generation: 1};
+  const handle = {agent: {status: 'idle', session: {snapshotEvents: () => recorded},
+    followup(message) {recorded.push(event(recorded.length, 'agent/inbox/spliced', {inserted: [message]}));}, whenIdle: () => new Promise(() => {})}};
+  Object.assign(product, {weixin: {authorize: async () => {}}, mobile: {authorize: () => true}, commandPolicies: new Map(),
+    activeCommands: new Map(), requestPolicies: new Map(), nativeErrors: new Map(), contexts: new Map(),
+    serial: (_id, operation) => operation(), materials: {content: async () => []}, models: {requireOptions() {}},
+    refreshModels: async () => {}, guard: async () => {}, conversation: async () => conversation,
+    ensureNative: async () => ({conversation, handle}), ctx: {sessions: {flush: async () => {}}}, broadcast() {},
+    rpc: async method => method === 'command.admit' ? {should_dispatch: true} : {}});
+  await product.sendWeixin({conversation_id:'one', command_id:'weixin-test', text:'wechat', installation_id:'fixture', revision:1});
+  await product.sendMobile({conversation_id:'one', command_id:'phone', text:'mobile', input_origin:'weixin'}, {id:'device'});
+  assert.deepEqual(projectMessages(recorded).map(row => row.input_origin), ['weixin', 'mobile']);
+});
+
+test('automatic title follows a durable receipt and reconciliation uses its recorded text', async () => {
+  const product = Object.create(MirallyProduct.prototype), events = [], calls = [], broadcasts = [];
+  const conversation = {conversation_id:'one', session_id:'native-one', generation:1};
+  const handle = {agent:{status:'idle', session:{snapshotEvents:()=>events},
+    followup(message) {events.push(event(0,'agent/inbox/spliced',{inserted:[message]}));}, whenIdle:()=>new Promise(()=>{})}};
+  let admitted = false;
+  Object.assign(product, {commandPolicies:new Map(), activeCommands:new Map(), requestPolicies:new Map(), nativeErrors:new Map(), contexts:new Map(),
+    serial:(_id, operation)=>operation(), materials:{content:async()=>[]}, models:{requireOptions(){}}, refreshModels:async()=>{}, guard:async()=>{},
+    conversation:async()=>conversation, ensureNative:async()=>({conversation,handle}), ctx:{sessions:{flush:async()=>calls.push('flush')}},
+    broadcast:(type,payload)=>broadcasts.push({type,...payload}), rpc:async(method,params)=>{
+      calls.push({method,params});
+      if(method==='command.admit') {const replay=admitted;admitted=true;return {should_dispatch:!replay,needs_reconciliation:replay};}
+      if(method==='internal.conversation.autotitle') return {changed:true,conversation:{metadata_version:2}};
+      return {};
+    }});
+  await product.send('one',{commandId:'first',text:'真实首条'});
+  assert.ok(calls.findIndex(item=>item.method==='command.ack' && item.params.state==='applied') < calls.findIndex(item=>item.method==='internal.conversation.autotitle'));
+  assert.equal(calls.find(item=>item.method==='internal.conversation.autotitle').params.text,'真实首条');
+  assert.equal(broadcasts.find(item=>item.type==='session-metadata').metadata_version,2);
+  await product.send('one',{commandId:'first',text:'重试伪造内容'});
+  assert.equal(calls.filter(item=>item.method==='internal.conversation.autotitle').at(-1).params.text,'真实首条');
 });
 
 test('stream attempts retain consumed command ownership while another human input is queued', () => {

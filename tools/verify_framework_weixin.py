@@ -232,6 +232,9 @@ def verify(root, home):
             history = client.history(original)
             assert sum(item["role"] == "user" and item["text"] == phone_text for item in history) == 1
             assert any(item["role"] == "user" and item["text"] == desktop_text for item in history)
+            assert next(item for item in history if item["role"] == "user" and item["text"] == desktop_text)["input_origin"] == "desktop"
+            assert next(item for item in history if item["role"] == "user" and item["text"] == phone_text)["input_origin"] == "weixin"
+            assert all("input_origin" not in item for item in history if item["role"] != "user")
             receipt = next(item for item in records(home, "channel_weixin_events") if item["event_id"] == event_id)
             wait_until(lambda: any(item["event_id"] == event_id and item["state"] == "completed" for item in records(home, "channel_weixin_events")))
             command = next(item for item in records(home, "commands") if item["command_id"] == receipt["command_id"])
@@ -257,8 +260,10 @@ def verify(root, home):
             fixture.push("/new")
             fixture.wait_reply("已切换到")
             second = wait_until(lambda: (value if (value := client.status())["conversation_id"] != original else None))["conversation_id"]
+            assert re.fullmatch(r"新对话-\d{4}-\d{2}-\d{2}", next(item["title"] for item in client.call("/api/sessions")["sessions"] if item["id"] == second))
             fixture.push("第二段手机会话")
             fixture.wait_reply("第二段手机会话")
+            wait_until(lambda: any(item["id"] == second and item["title"] == "第二段手机会话" for item in client.call("/api/sessions")["sessions"]), label="WeChat automatic title")
             assert not any(item["text"] == "第二段手机会话" for item in client.history(original))
             before = len(fixture.sent_texts())
             fixture.push("/sessions")
@@ -353,6 +358,10 @@ def verify(root, home):
             wait_until(lambda: client.status()["state"] == "connected")
             assert client.status()["conversation_id"] == original
             assert len(client.history(original)) == history_before
+            assert any(item["id"] == second and item["title"] == "第二段手机会话" for item in client.call("/api/sessions")["sessions"])
+            restored_history = client.history(original)
+            assert next(item for item in restored_history if item["role"] == "user" and item["text"] == phone_text)["input_origin"] == "weixin"
+            assert next(item for item in restored_history if item["role"] == "user" and item["text"] == desktop_text)["input_origin"] == "desktop"
             before = len(fixture.sent_texts())
             fixture.push("冷重启后的微信对话")
             fixture.wait_reply("冷重启后的微信对话", after=before)

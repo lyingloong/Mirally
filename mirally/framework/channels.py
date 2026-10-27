@@ -221,7 +221,7 @@ class WeixinChannels:
 
     def _conversation(self, conversation_id):
         if conversation_id is None:
-            return self.service.conversation_ensure(title="微信对话")["conversation_id"]
+            return self.service.conversation_ensure()["conversation_id"]
         _text(conversation_id, "conversation_id")
         current = self.service.conversation_get(conversation_id)
         if current["archived"]:

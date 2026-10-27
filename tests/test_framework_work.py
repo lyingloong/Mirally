@@ -329,9 +329,10 @@ class WorkTests(unittest.TestCase):
         db = sqlite3.connect(self.root / "product home" / "framework" / "product.sqlite3")
         db.execute("PRAGMA foreign_keys=OFF")
         for table in ("work_events", "work_runs", "work_approvals", "works"): db.execute("DROP TABLE " + table)
+        db.execute("ALTER TABLE conversations DROP COLUMN title_mode")
         db.execute("PRAGMA user_version=4"); db.commit(); db.close()
         self.service = FrameworkService(self.root, self.root / "product home")
-        self.assertEqual(self.service.call("system.status")["schema_version"], 5)
+        self.assertEqual(self.service.call("system.status")["schema_version"], 6)
         self.assertEqual(self.service.call("conversation.get", {"conversation_id": conversation_id})["title"], "训练实验 A")
         self.assertEqual(self.call("list")["works"], [])
 

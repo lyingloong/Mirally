@@ -368,6 +368,26 @@ test('Stop maps the original UI run identity to the product command ID', async t
   assert.deepEqual(f.calls.find(item => item.path === '/api/sessions/one/cancel').body, {commandId: 'run-one'});
 });
 
+test('history and live session events preserve remote user origin without replaying assistant rows', async t => {
+  const f = fixture(t); await f.start();
+  f.histories.set('one', [
+    {id:'user-1',role:'user',text:'来自微信',input_origin:'weixin',__openclaw:{id:'user-1',seq:1,runId:'remote-1'}},
+    {id:'assistant-1',role:'assistant',text:'答复',__openclaw:{id:'assistant-1',seq:2,runId:'remote-1'}},
+  ]);
+  const history = await f.client.request('chat.history', {sessionKey:conversationKey('one')});
+  assert.equal(history.messages[0].input_origin, 'weixin');
+  f.push({type:'session',session_id:'one',command_id:'remote-1',status:'running'});
+  await until(() => f.events.some(item => item.event === 'session.message'), 'remote message');
+  const persisted = f.events.filter(item => item.event === 'session.message');
+  assert.equal(persisted.length, 1); assert.equal(persisted[0].payload.key, conversationKey('one'));
+  assert.equal(persisted[0].payload.message.input_origin, 'weixin');
+  assert.equal(persisted[0].payload.message.role, 'user');
+  f.push({type:'assistant-start',session_id:'one',command_id:'remote-1',attempt_id:'a'});
+  f.push({type:'token',session_id:'one',command_id:'remote-1',text:'正在回复'});
+  await until(() => f.events.some(item => item.event === 'chat' && item.payload.state === 'delta'), 'assistant stream');
+  assert.equal(textOf(f.events.find(item => item.event === 'chat' && item.payload.state === 'delta').payload.message), '正在回复');
+});
+
 test('configuration reads expose no API key and provider saves map only reviewed model fields', async t => {
   const f = fixture(t), config = await f.client.request('config.get');
   assert.equal(JSON.stringify(config).includes('private-provider-secret'), false);

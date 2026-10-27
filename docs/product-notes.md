@@ -443,3 +443,11 @@
 - 发现：原列表以大卡片展示名称、目标与单一状态，目标可能遮住最新观察，待确认和继续对话不直观；默认只取前 200 项，且历史运行终态可能掩盖更新的来源观察。
 - 决定：突出待处理与最新可核实进展，提供分组筛选、搜索、排序、分页和进入真实会话的路径；查询只针对已加载内容时明确告知。对话回复、受监督运行和外部观察分别展示，运行终态不是用户目标完成的证明。
 - 参考：[GitHub agent 会话进度与跟进](https://docs.github.com/en/enterprise-cloud%40latest/copilot/how-tos/copilot-on-github/use-copilot-agents/manage-and-track-agents)、[GitHub My work](https://docs.github.com/en/copilot/how-tos/github-copilot-app/managing-issues-and-pull-requests)、[Linear 显示和筛选](https://linear.app/docs/display-options)、[Cursor Agents Window](https://cursor.com/docs/agent/agents-window)。
+
+## PN-0047 · 2026-10-27 13:32 +08:00 · 跨端消息来源与会话命名
+
+- 类型：用户反馈 / 产品交互决定
+- 来源：用户希望会话消息优雅地标明来自微信等哪个端，并希望新对话以日期命名及支持类似 Codex 的自动命名。
+- 状态：实现轻量跨端来源标签、日期占位和基于首条文字摘录的自动命名；模型生成语义标题仍待设计，不等同于已实现。
+- 原则：入口来源随唯一原生消息持久保存，只展示有可靠证据的来源；旧微信消息可通过匹配的渠道回执和原生记录恢复，微信是渠道而非手机设备证明，旧消息来源未知时不推测。用户手动命名、工作等显式名称及已有会话均优先，自动标题不得覆盖。
+- 演进：语义命名如后续引入，应考虑用户控制、模型选择、额外请求及成本、失败回退和手动改名竞争，不影响主对话。

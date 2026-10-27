@@ -85,7 +85,7 @@ JSON 格式示例（由实际程序更新，不代表已有进展）：
 
 ## 数据与复现
 
-数据库 schema 5 原地升级 1–4，保留原数据。`mobile-access.json` 保存手机 token/配对码哈希及呈现偏好，不复用会使会话来源换代的语义偏好。原 UI、动画、桌宠及历史回退数据不因本轮增加入口而迁移或删除。
+数据库 schema 6 原地升级 1–5，保留原数据。`mobile-access.json` 保存手机 token/配对码哈希及呈现偏好，不复用会使会话来源换代的语义偏好。原 UI、动画、桌宠及历史回退数据不因本轮增加入口而迁移或删除。
 
 ```powershell
 .\.venv\Scripts\python.exe tools/verify_framework_mobile_work.py

@@ -94,13 +94,18 @@ def verify(root, home, browser=False):
         assert phone.rpc("conversation.create", title="手机与桌面接续", request_id="same-conversation")["conversation"]["conversation_id"] == cid
         command = phone.rpc("conversation.send", conversation_id=cid, text="验证手机接续同一会话", command_id="mobile-inference")
         history = wait(lambda: (v if (v := phone.rpc("conversation.history", conversation_id=cid)).get("messages") and not v.get("active_command_ids") and any(m["role"] == "assistant" for m in v["messages"]) else None))
-        assert any("验证手机接续" in m.get("text", "") for m in history["messages"])
+        assert any("验证手机接续" in m.get("text", "") and m.get("input_origin") == "mobile" for m in history["messages"])
         desktop_history = desktop.call(f"/api/sessions/{cid}/history")
-        assert any("验证手机接续" in m.get("text", "") for m in desktop_history["messages"])
+        assert any("验证手机接续" in m.get("text", "") and m.get("input_origin") == "mobile" for m in desktop_history["messages"])
         conversation = next(v for v in phone.rpc("conversation.list")["conversations"] if v["conversation_id"] == cid)
         conversation = phone.rpc("conversation.update", conversation_id=cid, expected_version=conversation["metadata_version"], patch={"title": "手机改名", "pinned": True})["conversation"]
         conversation = phone.rpc("conversation.update", conversation_id=cid, expected_version=conversation["metadata_version"], patch={"archived": True})["conversation"]
         phone.rpc("conversation.update", conversation_id=cid, expected_version=conversation["metadata_version"], patch={"archived": False})
+        untitled = phone.rpc("conversation.create", request_id="automatic-title")["conversation"]
+        automatic_id = untitled["conversation_id"]
+        assert untitled["title"].startswith("新对话-")
+        phone.rpc("conversation.send", conversation_id=automatic_id, text="自动标题来自第一条消息", command_id="title-input")
+        assert wait(lambda: (v if (v := phone.rpc("conversation.get", conversation_id=automatic_id)["conversation"])["title"] == "自动标题来自第一条消息" else None))
         record("real DSH history is shared; phone rename, pin, archive and restore use the original owner")
 
         capabilities = desktop.rpc("capabilities.get")
@@ -109,6 +114,7 @@ def verify(root, home, browser=False):
         work = phone.rpc("work.create", title="手机控制脚本", goal="生成可下载的真实结果", request_id="script-work")["work"]
         work_cid = work["conversation_id"]
         assert desktop.call(f"/api/sessions/{work_cid}/messages", {"commandId":"work-activity-check", "text":"测试真实对话活动" * 80})["accepted"]
+        assert any(m.get("input_origin") == "desktop" for m in desktop.call(f"/api/sessions/{work_cid}/history")["messages"] if m["role"] == "user")
         active = wait(lambda: (w if (w := desktop.rpc("work.get", work_id=work["id"])["work"])["conversation_activity"] == "running" else None))
         assert active["status"] == "idle" and active["latest_run"] is None
         desktop.call(f"/api/sessions/{work_cid}/cancel", {"commandId":"work-activity-check"})
@@ -149,6 +155,8 @@ def verify(root, home, browser=False):
         assert desktop.rpc("mobile.status")["url"] == saved_url
         assert phone.rpc("work.run.get", run_id=run["id"])["run"]["status"] == "completed"
         assert phone.rpc("mobile.preferences.get")["effective"]["navigation"][0] == "conversations"
+        assert any(m.get("input_origin") == "mobile" for m in phone.rpc("conversation.history", conversation_id=cid)["messages"] if m["role"] == "user")
+        assert phone.rpc("conversation.get", conversation_id=automatic_id)["conversation"]["title"] == "自动标题来自第一条消息"
         record("cold restart preserves the private-proxy port, paired phone, work records and preferences")
 
         if browser:
