@@ -36,6 +36,7 @@
     "@deepseek-ai/dsh-tool-skill": "workspace:*",
     "@deepseek-ai/dsh-mcp-resources": "workspace:*",
     "@deepseek-ai/schemastery": "workspace:~",
-    "@mirally/dsh-extensions": "workspace:*"
+    "@mirally/dsh-extensions": "workspace:*",
+    "playwright-core": "1.61.1"
   }
 }

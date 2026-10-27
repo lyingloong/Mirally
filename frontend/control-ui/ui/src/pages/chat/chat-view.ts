@@ -17,6 +17,7 @@ import { renderExecApprovalCard } from "../../components/exec-approval-card.ts";
 import { icons } from "../../components/icons.ts";
 import type { ImageLightboxItem } from "../../components/image-lightbox.types.ts";
 import { t } from "../../i18n/index.ts";
+import "../mirally/action-approvals.ts";
 import {
   KEYBOARD_SHORTCUT_COMBOS,
   matchesShortcutCombo,
@@ -328,6 +329,7 @@ export function renderChat(props: ChatProps) {
           </div>`
         : nothing
     }
+    ${!props.suggestionComposer ? html`<mirally-action-approvals .sessionKey=${props.sessionKey} .presented=${props.presented ?? true}></mirally-action-approvals>` : nothing}
     ${
       props.inlineApproval && props.onApprovalDecision
         ? html`<div class="chat-inline-approval">

@@ -476,3 +476,11 @@
 - 发现：旧版 OpenClaw 主 Agent 的文件读写、命令与进程、网页读取和独立浏览器均有真实任务验证；可选 UFO 为委派的前台桌面任务提供观察与操作。旧能力仍受模型、配置、权限和具体应用限制，不能据此宣称任意任务均已验证。原有“迁移收尾”仅指当时列出的范围，不代表行动能力已达到旧版水平。
 - 建议：优先补齐统一执行接口、模型可调用的命令与进程控制、可核实的输出和停止；随后增加可控的浏览器和主动屏幕/窗口观察，再以相同接口扩展 Windows 桌面动作。复用既有 DSH 能力和工作运行回执，按实际场景设计可配置的授权与交互；微信/手机保持独立的远程权限边界。UFO 暂不接入，具体执行器以后续决定为准。
 - 依据：[旧版原生验收](openclaw-native-validation.md)、[当前能力边界](framework-migration-closure.md)、PN-0049。
+
+## PN-0051 · 2026-10-27 23:26 +08:00 · 补齐行动能力的第一步
+
+- 类型：用户决定 / 实现边界
+- 来源：用户要求补全 Mirally 的实际行动能力，并参考业内成熟实现。
+- 状态：在同一 DSH 会话中实现逐次确认的命令、受管理进程、独立浏览器和桌面观察；Windows 单步输入仍待交互式桌面实机验收，暂不向模型开放。延续 PN-0049、PN-0050，不接入 UFO。
+- 原则：审批绑定当前会话、回合和完整动作内容；执行后报告真实结果，停止或退出时尽力停止受管理进程。浏览器隔离已有登录资料；截图明确作为附件发送给所选视觉模型。微信/手机权限独立，不能因为电脑端增加工具而自动获得执行权限。逐次审批是当前实现，未来可基于任务和风险设计用户可控授权，而不默认扩大权限。
+- 参考：[GitHub Copilot computer use](https://docs.github.com/en/enterprise-cloud%40latest/copilot/how-tos/github-copilot-app/computer-use)、[Copilot CLI 权限配置](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/configure-copilot-cli)。

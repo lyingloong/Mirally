@@ -19,6 +19,10 @@ import {projectMessages, nativeUserAttachments, toolPresentationId} from './hist
 import {WeixinChannel} from './channels/weixin.mjs';
 import {WorkHost, WORK_METHODS} from './work-host.mjs';
 import {MobileAccess} from './mobile.mjs';
+import {ActionGate} from './action-gate.mjs';
+import {installShellCapabilities} from './shell-capabilities.mjs';
+import {installBrowserCapabilities} from './browser-capabilities.mjs';
+import {installDesktopObservation} from './desktop-observation.mjs';
 export {projectMessages} from './history-presentation.mjs';
 
 const REMOTE_INPUT = Symbol('trusted channel input');
@@ -45,6 +49,7 @@ const PUBLIC_METHODS = new Set([
   'memory.search', 'memory.read', 'migration.status', 'legacy.history', 'legacy.history.read', 'legacy.archive',
   'capabilities.get', 'capabilities.configure', 'workspace.roots', 'workspace.list', 'workspace.read', 'workspace.search',
   'activity.status', 'activity.configure', 'activity.start', 'activity.pause', 'activity.resume', 'activity.stop', 'activity.browse',
+  'action.approvals.list', 'action.approvals.decide',
   'memory.status', 'memory.configure',
   'weixin.status', 'weixin.login.start', 'weixin.login.cancel', 'weixin.login.verify',
   'weixin.bind', 'weixin.select', 'weixin.disconnect', 'weixin.reconnect', 'weixin.unbind',
@@ -110,6 +115,7 @@ export class MirallyProduct extends Service {
     this.nativeErrors = new Map();
     this.requestPolicies = new Map();
     this.commandPolicies = new Map();
+    this.actionGate = new ActionGate(this);
     this.stopping = false;
     this.ready = false;
   }
@@ -645,6 +651,7 @@ export class MirallyProduct extends Service {
       for (const controller of this.effectControllers.get(id) ?? []) controller.abort(new Error('Conversation stopped'));
       const state = await this.rpc('interaction.stop', {conversation_id: id, ...(commandId ? {command_id: commandId} : {})});
       const handle = state.session_id && this.handles.get(state.session_id);
+      if (state.session_id) await this.shellJobs?.cancelSession(state.session_id);
       if (handle) {
         handle.agent.cancel({kind: 'user'});
         await handle.agent.whenIdle();
@@ -725,6 +732,9 @@ export class MirallyProduct extends Service {
 
   installProductTools() {
     installBasicCapabilities(this);
+    this.shellJobs = installShellCapabilities(this);
+    this.browserCapabilities = installBrowserCapabilities(this);
+    installDesktopObservation(this);
     this.ctx.tools.register({name: 'mirally_create_file', description: 'Save a requested deliverable in the conversation workspace. Only available when the human allowed file output in this command. Return its real artifact receipt.',
       parameters: {type: 'object', properties: {name: {type: 'string'}, content: {type: 'string'}}, required: ['name', 'content'], additionalProperties: false},
       output: {schema: {type: 'object', additionalProperties: true}, render: (_args, result) => [{type: 'text', text: JSON.stringify(result)}]},
@@ -867,6 +877,8 @@ export class MirallyProduct extends Service {
 
   async publicRpc(method, params = {}) {
     if (!PUBLIC_METHODS.has(method)) throw failure('Method is not exposed by the product API', 'method_not_allowed', 403);
+    if (method === 'action.approvals.list') return this.actionGate.list(params.conversation_id);
+    if (method === 'action.approvals.decide') return this.actionGate.decide(params);
     if (['inbox.list', 'inbox.ack'].includes(method)) {
       this.work ??= new WorkHost(this);
       return method === 'inbox.list' ? this.work.inbox() : this.work.ackInbox(params);
@@ -1071,6 +1083,10 @@ export class MirallyProduct extends Service {
         try { return await this.rpc('conversation.patch', {conversation_id: id, expected_version: input.expected_version, patch: input.patch}); }
         catch (error) { throw failure(error.message, error.code ?? 'metadata_failed', error.code === 'CONFLICT' ? 409 : error.code === 'NOT_FOUND' ? 404 : 400); }
       });
+      if (changed.archived && changed.session_id) {
+        await this.shellJobs?.cancelSession(changed.session_id);
+        await this.browserCapabilities?.close(changed.session_id);
+      }
       this.broadcast('session-metadata', {session_id: id, metadata_version: changed.metadata_version});
       return json(response, 200, this.summary(changed));
     }
@@ -1132,12 +1148,14 @@ export class MirallyProduct extends Service {
     if (this.stopping) return;
     this.stopping = true;
     this.ready = false;
+    this.actionGate?.dispose();
     await this.mobile?.stop();
     await this.weixin?.stop();
     this.initiativeController?.abort(new Error('Host stopping'));
     await this.initiativePromise;
     for (const controllers of this.effectControllers.values()) for (const controller of controllers) controller.abort(new Error('Host stopping'));
     await Promise.allSettled([...this.effects]);
+    await Promise.allSettled([this.shellJobs?.dispose(), this.browserCapabilities?.dispose()]);
     clearInterval(this.deliveryTimer);
     for (const client of this.clients) client.end();
     this.clients.clear();

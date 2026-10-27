@@ -11634,6 +11634,9 @@ importers:
       '@mirally/dsh-extensions':
         specifier: workspace:*
         version: link:../mirally-extensions
+      playwright-core:
+        specifier: 1.61.1
+        version: 1.61.1
 
   packages/plan/plan-mode:
     dependencies:
