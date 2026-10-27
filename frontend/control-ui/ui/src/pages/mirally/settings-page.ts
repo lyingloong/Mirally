@@ -25,6 +25,7 @@ type ProductSettings = {
   model_routes?: {chat: string; background: string};
   capabilities?: {web_enabled: boolean; search_connection: string};
   general_initiative_enabled: boolean; do_not_disturb: boolean;
+  action_approval_mode: "ask" | "trusted"; weixin_auto_approve_enabled: boolean;
   memory_semantics?: {max_calls_per_hour: number; max_tokens_per_day: number; max_output_tokens: number};
 };
 type Preference = {scope: string; key: string; value: unknown; revision: number};
@@ -196,7 +197,7 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
     }
   }
 
-  private toggle(key: "memory_enabled" | "background_enabled" | "general_initiative_enabled" | "do_not_disturb", title: string, description: string, testId: string) {
+  private toggle(key: "memory_enabled" | "background_enabled" | "general_initiative_enabled" | "do_not_disturb" | "weixin_auto_approve_enabled", title: string, description: string, testId: string) {
     return renderSettingsRow({title, description, control: html`<span data-testid=${testId}>
       ${renderSettingsToggle({checked: this.settings?.[key] === true, disabled: this.busy || this.loading || !this.settings,
         ariaLabel: title, onChange: value => { void this.mutate(() => rpcProduct("settings.update", {patch: {[key]: value}}), "设置已保存。"); return false; }})}
@@ -234,6 +235,12 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
   private generalPage() {
     return html`
       <mirally-capabilities-settings></mirally-capabilities-settings>
+      ${renderSettingsSection({title: "会话操作权限", description: "控制会话中已支持的命令、独立浏览器和屏幕观察。操作使用当前 Windows 用户的权限；工作运行的独立确认及尚未实现的能力不受此设置影响。"}, html`
+        ${renderSettingsRow({title: "默认确认方式", description: "持续信任会自动批准上述操作，直到改回逐次确认。请只在信任模型与会话内容时启用。", control: html`<select class="settings-input" aria-label="默认确认方式" data-testid="mirally-action-approval-mode" .value=${live(this.settings?.action_approval_mode || 'ask')} ?disabled=${this.busy || this.loading || !this.settings}
+          @change=${(event: Event) => {const value=(event.target as HTMLSelectElement).value; void this.mutate(() => rpcProduct("settings.update", {patch: {action_approval_mode: value}}), "会话操作权限已保存。");}}>
+          <option value="ask">逐次确认</option><option value="trusted">持续信任</option></select>`})}
+        ${this.toggle("weixin_auto_approve_enabled", "微信继承自动批准", "开启后，已允许远程控制的绑定微信可继承会话自动批准；关闭时微信操作仍需确认。", "mirally-weixin-auto-approve")}
+      `)}
       ${renderSettingsSection({title: "桌面窗口"}, html`${renderSettingsRow({title: "关闭主窗口时", description: "仅影响 Mirally 桌面窗口。隐藏后点击托盘图标可返回；选择「退出 Mirally」始终会停止宿主与后台。",
         control: html`<select class="settings-input" aria-label="关闭主窗口时" data-testid="mirally-settings-close-behavior" .value=${live(this.closeBehavior)} ?disabled=${this.busy || this.loading}
           @change=${(event: Event) => {const value=(event.target as HTMLSelectElement).value;void this.mutate(()=>requestProduct('/api/ui-preferences',{method:'POST',body:JSON.stringify({key:'mirally.window.closeBehavior',value})}), '关闭方式已保存。');}}>

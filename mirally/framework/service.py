@@ -34,7 +34,8 @@ DEFAULT_SETTINGS = {
     "activity_paused": False, "activity_capture": {},
     "memory_semantics": {"max_calls_per_hour": 4, "max_tokens_per_day": 24000, "max_output_tokens": 1500},
     "general_initiative_enabled": False, "memory_enabled": True,
-    "weixin_remote_control_enabled": False,
+    "weixin_remote_control_enabled": False, "weixin_auto_approve_enabled": False,
+    "action_approval_mode": "ask",
     "do_not_disturb": False, "memory_config_path": None, "activity_config_path": None, "extensions": [],
     "model_connections": {}, "model_catalogs": {}, "model_routes": {"chat": "default", "background": "default"},
     "model": {"provider": "openai-compatible", "base_url": "", "api_format": "openai-chat",
@@ -404,6 +405,10 @@ class FrameworkService:
         for key, item in patch.items():
             if key == "model":
                 value["model"] = self._model_update(value["model"], item)
+            elif key == "action_approval_mode":
+                if item not in ("ask", "trusted") or not isinstance(item, str):
+                    raise FrameworkError("INVALID_PARAMS", "action_approval_mode must be ask or trusted")
+                value[key] = item
             elif key == "activity_capture":
                 from .activity_experience import validate_capture_patch
                 try:

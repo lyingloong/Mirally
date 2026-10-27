@@ -138,6 +138,21 @@ class FrameworkProductTests(unittest.TestCase):
                 self.call("settings.update", patch=patch_value)
         self.assertFalse(self.call("settings.get")["activity_enabled"])
 
+    def test_action_approval_preferences_default_validate_and_survive_restart(self):
+        initial = self.call("settings.get")
+        self.assertEqual(initial["action_approval_mode"], "ask")
+        self.assertFalse(initial["weixin_auto_approve_enabled"])
+        for patch_value in ({"action_approval_mode": "never"}, {"action_approval_mode": True},
+                            {"weixin_auto_approve_enabled": 1}):
+            with self.subTest(patch=patch_value), self.assertRaises(FrameworkError):
+                self.call("settings.update", patch=patch_value)
+        self.call("settings.update", patch={"action_approval_mode": "trusted", "weixin_auto_approve_enabled": True})
+        self.restart()
+        saved = self.call("settings.get")
+        self.assertEqual(saved["action_approval_mode"], "trusted")
+        self.assertTrue(saved["weixin_auto_approve_enabled"])
+        self.call("settings.update", patch={"action_approval_mode": "ask", "weixin_auto_approve_enabled": False})
+
     def test_reasoning_effort_and_context_budget_are_explicit_and_durable(self):
         self.assertEqual(self.call("settings.get")["model"]["reasoning_effort"], "")
         self.call("settings.update", patch={"model": {"context_window": 1000000, "reasoning_effort": "default"}})

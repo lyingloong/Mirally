@@ -215,6 +215,7 @@ class WeixinChannels:
             self._cancel_pending()
             self._forget_context()
             self.db.execute("INSERT INTO settings VALUES('weixin_remote_control_enabled','false') ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json")
+            self.db.execute("INSERT INTO settings VALUES('weixin_auto_approve_enabled','false') ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json")
             self.db.execute("""UPDATE channel_weixin SET installation_id=?,revision=revision+1,enabled=0,bound=0,
                 peer_id=?,bot_id=?,base_url=?,token=?,conversation_id=NULL,cursor=NULL,context_token=NULL WHERE singleton=1""",
                 (uuid.uuid4().hex, peer_id, bot_id, base_url.rstrip("/"), protected))
@@ -266,6 +267,7 @@ class WeixinChannels:
             self._cancel_pending()
             self._forget_context()
             self.db.execute("INSERT INTO settings VALUES('weixin_remote_control_enabled','false') ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json")
+            self.db.execute("INSERT INTO settings VALUES('weixin_auto_approve_enabled','false') ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json")
             self.db.execute("""UPDATE channel_weixin SET revision=revision+1,enabled=0,bound=0,installation_id=NULL,
                 peer_id=NULL,bot_id=NULL,base_url=NULL,token=NULL,conversation_id=NULL,cursor=NULL,context_token=NULL WHERE singleton=1""")
         return self.get()

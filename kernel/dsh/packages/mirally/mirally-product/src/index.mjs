@@ -53,7 +53,7 @@ const PUBLIC_METHODS = new Set([
   'memory.search', 'memory.read', 'migration.status', 'legacy.history', 'legacy.history.read', 'legacy.archive',
   'capabilities.get', 'capabilities.configure', 'workspace.roots', 'workspace.list', 'workspace.read', 'workspace.search',
   'activity.status', 'activity.configure', 'activity.start', 'activity.pause', 'activity.resume', 'activity.stop', 'activity.browse',
-  'action.approvals.list', 'action.approvals.decide',
+  'action.approvals.list', 'action.approvals.decide', 'action.permissions.get', 'action.permissions.set',
   'memory.status', 'memory.configure',
   'weixin.status', 'weixin.login.start', 'weixin.login.cancel', 'weixin.login.verify',
   'weixin.bind', 'weixin.select', 'weixin.disconnect', 'weixin.reconnect', 'weixin.unbind',
@@ -119,6 +119,7 @@ export class MirallyProduct extends Service {
     this.nativeErrors = new Map();
     this.requestPolicies = new Map();
     this.commandPolicies = new Map();
+    this.sessionActionGrants = new Map();
     this.actionGate = new ActionGate(this);
     this.stopping = false;
     this.ready = false;
@@ -202,6 +203,18 @@ export class MirallyProduct extends Service {
   }
 
   conversationForSession(sessionId) { return this.nativeConversations.get(sessionId); }
+
+  async actionPermission({conversationId, sessionId, commandId}) {
+    const conversation = this.nativeConversations.get(sessionId);
+    const agent = this.handles.get(sessionId)?.agent;
+    if (!conversation || conversation.conversation_id !== conversationId || !agent
+      || this.consumedCommandId(agent) !== commandId) return false;
+    const policy = this.commandPolicy(agent);
+    if (!policy || !['desktop', 'weixin'].includes(policy.origin)) return false;
+    const settings = await this.rpc('settings.get');
+    if (policy.origin === 'weixin' && settings.weixin_auto_approve_enabled !== true) return false;
+    return settings.action_approval_mode === 'trusted' || this.sessionActionGrants.get(conversationId) === conversation.generation;
+  }
 
   commandPolicy(agent, admission = false) {
     if (!agent) return null;
@@ -661,6 +674,7 @@ export class MirallyProduct extends Service {
       }
       for (const controller of this.effectControllers.get(id) ?? []) controller.abort(new Error('Conversation stopped'));
       const state = await this.rpc('interaction.stop', {conversation_id: id, ...(commandId ? {command_id: commandId} : {})});
+      this.sessionActionGrants.delete(id);
       const handle = state.session_id && this.handles.get(state.session_id);
       if (state.session_id) await this.shellJobs?.cancelSession(state.session_id);
       if (handle) {
@@ -890,6 +904,20 @@ export class MirallyProduct extends Service {
     if (!PUBLIC_METHODS.has(method)) throw failure('Method is not exposed by the product API', 'method_not_allowed', 403);
     if (method === 'action.approvals.list') return this.actionGate.list(params.conversation_id);
     if (method === 'action.approvals.decide') return this.actionGate.decide(params);
+    if (method === 'action.permissions.get' || method === 'action.permissions.set') {
+      if (typeof params.conversation_id !== 'string' || !params.conversation_id
+        || (method === 'action.permissions.set' && typeof params.enabled !== 'boolean')) throw failure('会话权限参数无效。');
+      const conversation = await this.conversation(params.conversation_id);
+      if (method === 'action.permissions.set') {
+        if (conversation.archived || conversation.frozen) throw failure('请先恢复会话，再设置权限。');
+        if (params.enabled) this.sessionActionGrants.set(params.conversation_id, conversation.generation);
+        else this.sessionActionGrants.delete(params.conversation_id);
+        this.broadcast('action', {action:'permission-changed', conversation_id:params.conversation_id});
+      }
+      return {session_auto_approve:!conversation.archived && !conversation.frozen
+        && this.sessionActionGrants.get(params.conversation_id) === conversation.generation,
+        default_trusted:(await this.rpc('settings.get')).action_approval_mode === 'trusted'};
+    }
     if (['inbox.list', 'inbox.ack'].includes(method)) {
       this.work ??= new WorkHost(this);
       return method === 'inbox.list' ? this.work.inbox() : this.work.ackInbox(params);
@@ -938,9 +966,9 @@ export class MirallyProduct extends Service {
       this.broadcast('configuration', {fields: Object.keys(params.patch || {})});
     }
     // A channel access switch does not invalidate or stop desktop work.
-    const remoteSwitchOnly = method === 'settings.update' && params.patch && Object.keys(params.patch).length === 1
-      && Object.hasOwn(params.patch, 'weixin_remote_control_enabled');
-    if (INVALIDATING_METHODS.has(method) && !remoteSwitchOnly || result?.requires_session_rotation) {
+    const permissionSwitchOnly = method === 'settings.update' && params.patch && Object.keys(params.patch).length > 0
+      && Object.keys(params.patch).every(key => ['weixin_remote_control_enabled', 'action_approval_mode', 'weixin_auto_approve_enabled'].includes(key));
+    if (INVALIDATING_METHODS.has(method) && !permissionSwitchOnly || result?.requires_session_rotation) {
       for (const conversation of (await this.rpc('conversation.list')).conversations) {
         if (conversation.session_id && this.handles.has(conversation.session_id)) {
           await this.cancel(conversation.conversation_id);
@@ -1097,9 +1125,12 @@ export class MirallyProduct extends Service {
         try { return await this.rpc('conversation.patch', {conversation_id: id, expected_version: input.expected_version, patch: input.patch}); }
         catch (error) { throw failure(error.message, error.code ?? 'metadata_failed', error.code === 'CONFLICT' ? 409 : error.code === 'NOT_FOUND' ? 404 : 400); }
       });
-      if (changed.archived && changed.session_id) {
-        await this.shellJobs?.cancelSession(changed.session_id);
-        await this.browserCapabilities?.close(changed.session_id);
+      if (changed.archived) {
+        this.sessionActionGrants.delete(id);
+        if (changed.session_id) {
+          await this.shellJobs?.cancelSession(changed.session_id);
+          await this.browserCapabilities?.close(changed.session_id);
+        }
       }
       this.broadcast('session-metadata', {session_id: id, metadata_version: changed.metadata_version});
       return json(response, 200, this.summary(changed));

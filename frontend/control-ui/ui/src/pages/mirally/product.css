@@ -86,6 +86,11 @@ mirally-work-panel, mirally-work-page, mirally-mobile-settings {display:block;mi
 .chat-bubble > .mirally-message-origin { margin-bottom: 7px; }
 
 mirally-action-approvals { display: block; }
+.mirally-session-permission { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 4px 2px; color: var(--text-muted); font-size: 12px; }
+.mirally-session-permission label { display: inline-flex; align-items: center; gap: 5px; color: var(--text); cursor: pointer; }
+.mirally-session-permission input { accent-color: var(--accent); }
+.mirally-session-permission__trusted { color: var(--text); font-weight: 600; }
+.mirally-session-permission [role="alert"] { color: var(--danger, #c33); }
 .mirally-action-approval { margin: 8px 0; padding: 14px 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface, var(--card)); color: var(--text); }
 .mirally-action-approval__heading { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
 .mirally-action-approval__heading span { color: var(--text-muted); font-size: 12px; }

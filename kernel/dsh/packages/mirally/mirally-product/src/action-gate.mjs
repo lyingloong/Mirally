@@ -24,6 +24,25 @@ export class ActionGate {
     if (this.closed || this.host.handles.get(sessionId)?.agent !== agent || this.host.consumedCommandId(agent) !== commandId
       || this.host.conversationForSession(sessionId)?.conversation_id !== conversation.conversation_id)
       throw failure('动作所属会话已变化，未执行。');
+    // A user-selected standing grant affects only new requests. Already pending
+    // decisions remain explicit, and absent/unknown policies fail to prompting.
+    if (typeof this.host.actionPermission === 'function') {
+      const scope = {conversationId:conversation.conversation_id, sessionId, commandId};
+      if (await this.host.actionPermission(scope) === true) {
+        await this.host.checkCommandScope(agent, 'mirally_action');
+        await this.host.guard(sessionId);
+        const stillAllowed = await this.host.actionPermission(scope) === true;
+        signal?.throwIfAborted();
+        if (this.closed || this.host.handles.get(sessionId)?.agent !== agent || this.host.consumedCommandId(agent) !== commandId
+          || this.host.conversationForSession(sessionId)?.conversation_id !== conversation.conversation_id)
+          throw failure('动作所属会话已变化，未执行。');
+        if (stillAllowed) return true;
+      }
+    }
+    signal?.throwIfAborted();
+    if (this.closed || this.host.handles.get(sessionId)?.agent !== agent || this.host.consumedCommandId(agent) !== commandId
+      || this.host.conversationForSession(sessionId)?.conversation_id !== conversation.conversation_id)
+      throw failure('动作所属会话已变化，未执行。');
     if (this.pending.size >= 32 || [...this.pending.values()].some(entry => entry.value.session_id === sessionId))
       throw failure('此会话已有待确认动作，请先处理。');
     const id = randomUUID(), createdAt = Date.now();

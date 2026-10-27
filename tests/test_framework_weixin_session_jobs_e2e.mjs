@@ -111,6 +111,27 @@ test('real session experiment is readable and controllable over bound Weixin', {
   assert.equal((await readFile(join(home,'remote-marker.txt'),'utf8')).trim(),'yes');
   await until(()=>replies.slice(startAgain).some(text=>text.includes('实验结果')),'remote command completed');
   await rm(join(home,'remote-marker.txt'));
+  // Global trust does not automatically grant a paired channel trust. Its
+  // separate switch takes effect for the next remote command in either direction.
+  await rpc('settings.update',{patch:{action_approval_mode:'trusted'}});
+  const trustedAt=replies.length;send(101,'微信启动新命令');
+  const trustedReview=await until(()=>replies.slice(trustedAt).find(text=>text.includes('/approve ')),'trusted without remote inheritance still prompts');
+  assert.equal(existsSync(join(home,'remote-marker.txt')),false);
+  send(102,`/deny ${trustedReview.match(/\/approve ([a-f0-9]{16})/)[1]}`);
+  await until(()=>replies.slice(trustedAt).some(text=>text.includes('未批准')),'trusted remote denial completed');
+  await rpc('settings.update',{patch:{weixin_auto_approve_enabled:true}});
+  const inheritedAt=replies.length;send(103,'微信启动新命令');
+  await until(()=>existsSync(join(home,'remote-marker.txt')),'remote inherited trust executed');
+  await until(()=>replies.slice(inheritedAt).some(text=>text.includes('实验结果')),'inherited remote command completed');
+  assert.equal(replies.slice(inheritedAt).some(text=>text.includes('/approve ')),false);
+  assert.equal((await readFile(join(home,'remote-marker.txt'),'utf8')).trim(),'yes');
+  await rm(join(home,'remote-marker.txt'));
+  await rpc('settings.update',{patch:{weixin_auto_approve_enabled:false}});
+  const revokedTrustAt=replies.length;send(104,'微信启动新命令');
+  const revokedTrust=await until(()=>replies.slice(revokedTrustAt).find(text=>text.includes('/approve ')),'remote inheritance revoked prompts');
+  assert.equal(existsSync(join(home,'remote-marker.txt')),false);
+  send(105,`/deny ${revokedTrust.match(/\/approve ([a-f0-9]{16})/)[1]}`);
+  await until(()=>replies.slice(revokedTrustAt).some(text=>text.includes('未批准')),'revoked trust denial completed');
   const beforeDisable=replies.length;send(11,'微信启动新命令');
   const revoked=await until(()=>replies.slice(beforeDisable).find(text=>text.includes('/approve ')),'pending command');
   await rpc('settings.update',{patch:{weixin_remote_control_enabled:false}});

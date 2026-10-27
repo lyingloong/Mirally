@@ -1,4 +1,4 @@
-/** The default product works with UFO imports forbidden and exposes no executor. */
+/** The default product works with UFO imports forbidden. */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {existsSync, readFileSync} from 'node:fs';
@@ -29,13 +29,15 @@ test('retired desktop RPCs cannot reach an executor or admit a product command',
   }
 });
 
-test('product model tools expose owned collaboration capabilities without a desktop executor', () => {
+test('product tools expose owned observations without UFO or unverified desktop input', () => {
   const product = Object.create(MirallyProduct.prototype), tools = [];
   product.ctx = {tools: {register: definition => tools.push(definition)}};
   product.installProductTools();
   assert.ok(tools.some(tool => tool.name === 'mirally_context'));
   assert.ok(tools.some(tool => tool.name === 'mirally_create_file'));
-  assert.equal(tools.some(tool => /ufo|desktop/i.test(tool.name + ' ' + tool.description)), false);
+  assert.ok(tools.some(tool => tool.name === 'mirally_desktop_screenshot'));
+  assert.equal(tools.some(tool => /ufo/i.test(tool.name + ' ' + tool.description)), false);
+  assert.equal(tools.some(tool => ['mirally_desktop_click', 'mirally_desktop_type'].includes(tool.name)), false);
 });
 
 test('real default Host starts, converses and shuts down while UFO imports are forbidden', {timeout: 45000}, async t => {

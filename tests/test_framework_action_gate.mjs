@@ -43,3 +43,46 @@ test('command changing during asynchronous guard cannot create an approval',asyn
   await assert.rejects(gate.request(request),/已变化/);
   assert.deepEqual(gate.list('conversation').approvals,[]);
 });
+
+test('standing permission skips only the prompt and still checks active scope and guard',async()=>{
+  const {host,gate,request}=fixture(), seen=[];
+  host.actionPermission=async scope=>{seen.push(scope); return true;};
+  let scopes=0, guards=0;
+  host.checkCommandScope=async()=>{scopes++;}; host.guard=async()=>{guards++;};
+  assert.equal(await gate.request(request),true);
+  assert.equal(scopes,2); assert.equal(guards,2);
+  assert.deepEqual(seen,[{conversationId:'conversation',sessionId:'session',commandId:'command'},
+    {conversationId:'conversation',sessionId:'session',commandId:'command'}]);
+  assert.deepEqual(gate.list('conversation').approvals,[]);
+});
+
+test('revoked or non-boolean standing permission requires an ordinary decision',async()=>{
+  const {host,gate,request}=fixture(); let calls=0;
+  host.actionPermission=async()=>++calls===1;
+  const result=gate.request(request); await flush();
+  const [approval]=gate.list('conversation').approvals;
+  assert.ok(approval); await gate.decide({approval_id:approval.id,conversation_id:'conversation',allow:false});
+  assert.equal(await result,false);
+  host.actionPermission=async()=>1;
+  const next=gate.request(request); await flush(); assert.equal(gate.list('conversation').approvals.length,1);
+  gate.dispose(); assert.equal(await next,false);
+});
+
+test('auto grant cannot authorize stale commands or bypass a revoked scope',async()=>{
+  const a=fixture(); let calls=0;
+  a.host.actionPermission=async()=>{if (++calls===2) a.host.command='other'; return true;};
+  await assert.rejects(a.gate.request(a.request),/已变化/);
+  const b=fixture(); let scopeChecks=0;
+  b.host.actionPermission=async()=>true;
+  b.host.checkCommandScope=async()=>{if (++scopeChecks===2) throw new Error('scope revoked');};
+  await assert.rejects(b.gate.request(b.request),/scope revoked/);
+});
+
+test('enabling a standing grant does not resolve an already pending decision',async()=>{
+  const {host,gate,request}=fixture(); host.actionPermission=async()=>false;
+  const result=gate.request(request); await flush();
+  host.actionPermission=async()=>true;
+  const [approval]=gate.list('conversation').approvals; assert.ok(approval);
+  await gate.decide({approval_id:approval.id,conversation_id:'conversation',allow:false});
+  assert.equal(await result,false);
+});

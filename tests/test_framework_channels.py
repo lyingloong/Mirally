@@ -113,14 +113,19 @@ class FrameworkChannelsTests(unittest.TestCase):
         with self.assertRaises(FrameworkError):
             update('true')
         update(True)
+        self.service.call('settings.update', {'patch': {'weixin_auto_approve_enabled': True}})
         self.restart()
         self.assertTrue(get())
+        self.assertTrue(self.service.call('settings.get')['weixin_auto_approve_enabled'])
         self.call('unbind', expected_revision=state['revision'])
         self.assertFalse(get())
+        self.assertFalse(self.service.call('settings.get')['weixin_auto_approve_enabled'])
         state = self.bound()
         update(True)
+        self.service.call('settings.update', {'patch': {'weixin_auto_approve_enabled': True}})
         self.save()
         self.assertFalse(get())
+        self.assertFalse(self.service.call('settings.get')['weixin_auto_approve_enabled'])
 
     def test_history_evidence_only_joins_real_matching_weixin_event_and_command(self):
         state = self.bound()
