@@ -35,7 +35,7 @@ export const Config = z.object({
 
 const PUBLIC_METHODS = new Set([
   'system.status', 'settings.get', 'settings.update', 'conversation.list', 'conversation.history_refs', 'command.list',
-  'model.connections.list', 'model.connection.save', 'model.connection.remove', 'model.routes.set',
+  'model.connections.list', 'model.connection.save', 'model.connection.remove', 'model.routes.set', 'model.catalog.save', 'model.catalog.remove',
   'source.set', 'source.list', 'context.read', 'preference.set', 'preference.list', 'memory.correct',
   'commitment.create', 'commitment.cancel', 'commitment.list', 'initiative.offer', 'initiative.list',
   'initiative.dismiss', 'delivery.list', 'inbox.list', 'inbox.ack',
@@ -52,7 +52,6 @@ const PUBLIC_METHODS = new Set([
   ...WORK_METHODS,
 ]);
 const INVALIDATING_METHODS = new Set(['source.set', 'memory.correct', 'preference.set', 'settings.update', 'capabilities.configure',
-  'model.connection.save', 'model.connection.remove', 'model.routes.set',
   'activity.configure', 'activity.start', 'activity.pause', 'activity.resume', 'activity.stop']);
 const MIME = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon'};
@@ -348,6 +347,7 @@ export class MirallyProduct extends Service {
     return {id: conversation.conversation_id, conversation_id: conversation.conversation_id,
       session_id: conversation.session_id, title: conversation.title, status: native?.status ?? 'idle',
       pinned: conversation.pinned, archived: conversation.archived, metadata_version: conversation.metadata_version,
+      model_selection: conversation.model_selection ?? null,
       pinned_at: conversation.pinned_at, archived_at: conversation.archived_at, metadata_updated_at: conversation.metadata_updated_at,
       active_command_ids: active ? [active] : [],
       updated_at: conversation.updated_at ?? conversation.created_at, generation: conversation.generation,
@@ -368,6 +368,15 @@ export class MirallyProduct extends Service {
     let handle = this.handles.get(id);
     if (!handle) {
       const setup = agentCtx => {
+        // A user message is claimed before the request hook and before its
+        // user/message event is appended. Bind the turn to that exact command,
+        // not to the latest queued message or the global model at request time.
+        let claimedTurn, claimedCommand;
+        agentCtx.on('agent/inbox/claimed', ({message, turn}) => {
+          if (turn !== claimedTurn) { claimedTurn = turn; claimedCommand = undefined; }
+          if (!claimedCommand && message?.source?.kind === 'user')
+            claimedCommand = this.nativeMessageCommands?.get(message.id);
+        });
         agentCtx.systemPrompt.context({name: 'mirally:personal-context', order: 900, interpolate: false,
           text: () => this.contexts.get(id) ?? ''});
         agentCtx.on('agent/pre-step', async (_payload, next) => {
@@ -375,10 +384,13 @@ export class MirallyProduct extends Service {
           await this.guard(id);
           return next();
         });
-        agentCtx.on('agent/request', async (_payload, next) => {
+        agentCtx.on('agent/request', async (payload, next) => {
           await next();
           await this.refreshModels();
-          return this.models.requireOptions();
+          const commandId = payload.turn === claimedTurn ? claimedCommand : undefined;
+          const commands = commandId ? (await this.rpc('command.list', {conversation_id: conversation.conversation_id, command_id: commandId})).commands : [];
+          const selection = commands[0]?.model_selection;
+          return this.models.requireOptions('chat', selection?.connection_id, selection?.model_id);
         });
       };
       const existing = await this.ctx.sessionPersistence.stat(id);
@@ -514,9 +526,12 @@ export class MirallyProduct extends Service {
       const materialIds = request.materials ?? [];
       const materialContent = await this.materials.content(materialIds, id);
       await this.refreshModels();
-      this.models.requireOptions();
-      if (materialContent.some(block => block.type === 'image')) this.models.assertImageInput?.('chat');
-      const {conversation, handle} = await this.ensureNative(await this.conversation(id), {forInput: true});
+      const current = await this.conversation(id);
+      const existing = (await this.rpc('command.list', {conversation_id: id, command_id: request.commandId})).commands[0];
+      const selection = existing ? existing.model_selection : current.model_selection;
+      this.models.requireOptions('chat', selection?.connection_id, selection?.model_id);
+      if (materialContent.some(block => block.type === 'image')) this.models.assertImageInput?.('chat', selection?.connection_id, selection?.model_id);
+      const {conversation, handle} = await this.ensureNative(current, {forInput: true});
       // A remote turn is one command, never a followup that changes another
       // turn's tool scope. Existing desktop-only followups keep their behavior.
       if (handle.agent.status !== 'idle' && (['weixin', 'mobile'].includes(scope?.origin) || ['weixin', 'mobile'].includes(this.commandPolicy(handle.agent)?.origin)
@@ -526,12 +541,22 @@ export class MirallyProduct extends Service {
       const sequenceOffset = conversation.generation > 1 ? await this.nativeSequenceOffset(id, conversation.session_id) : 0;
       const allowFiles = request.allow_file_write === true;
       if (allowFiles && handle.agent.status !== 'idle' && !this.requestPolicies.get(conversation.session_id)?.allowFiles) {
-        const {commands} = await this.rpc('command.list', {conversation_id: id, command_id: request.commandId});
-        if (!commands.some(item => item.command_id === request.commandId))
+        if (!existing)
           throw failure('请等待当前工作结束，再授权保存成果文件。', 'confirmation_required', 409);
       }
       const command = await this.rpc('command.admit', {conversation_id: id, command_id: request.commandId,
         text: materialIds.length || allowFiles || request.work ? JSON.stringify({text: request.text, materials: materialIds, allow_file_write: allowFiles, ...(request.work ? {work: request.work} : {})}) : request.text});
+      if (command.should_dispatch) {
+        try {
+          const admitted = command.model_selection;
+          await this.refreshModels();
+          this.models.requireOptions('chat', admitted?.connection_id, admitted?.model_id);
+          if (materialContent.some(block => block.type === 'image')) this.models.assertImageInput?.('chat', admitted?.connection_id, admitted?.model_id);
+        } catch (error) {
+          await this.rpc('command.ack', {conversation_id: id, command_id: request.commandId, state: 'rejected'});
+          throw error;
+        }
+      }
       if (request.work) await this.workRequest('work.create', {title: request.work.title, goal: request.work.goal ?? request.text,
         conversation_id: id, request_id: `command-work:${request.commandId}`});
       const messageId = MessageId(`mirally-${createHash('sha256').update(`${id}:${request.commandId}`).digest('hex')}`);
@@ -885,7 +910,7 @@ export class MirallyProduct extends Service {
         });
       } else result = await service.request(method, params);
     } else result = await this.rpc(method, params);
-    if (method === 'settings.update' || ['model.connection.save', 'model.connection.remove', 'model.routes.set'].includes(method)) {
+    if (method === 'settings.update' || ['model.connection.save', 'model.connection.remove', 'model.routes.set', 'model.catalog.save', 'model.catalog.remove'].includes(method)) {
       await this.refreshModels(); this.lastInitiativeCheck = 0;
       this.broadcast('configuration', {fields: Object.keys(params.patch || {})});
     }
@@ -1032,7 +1057,9 @@ export class MirallyProduct extends Service {
       const input = await body(request);
       if (input.requestId !== undefined && (typeof input.requestId !== 'string' || !input.requestId || input.requestId.length > 200)) throw failure('Invalid session creation identity');
       const stableId = input.conversationId === 'main' ? 'main' : input.requestId ? `conversation_ui_${createHash('sha256').update(input.requestId).digest('hex').slice(0, 32)}` : undefined;
-      const conversation = await this.rpc('conversation.ensure', {title: input.title, ...(stableId ? {conversation_id: stableId} : {})});
+      const conversation = await this.rpc('conversation.ensure', {title: input.title,
+        ...(Object.hasOwn(input, 'model_selection') ? {model_selection: input.model_selection} : {}),
+        ...(stableId ? {conversation_id: stableId} : {})});
       const result = await this.serial(conversation.conversation_id, async () => this.ensureNative(await this.conversation(conversation.conversation_id)));
       return json(response, 201, this.summary(result.conversation));
     }

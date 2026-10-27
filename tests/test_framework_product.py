@@ -86,7 +86,7 @@ class FrameworkProductTests(unittest.TestCase):
         self.service.db.execute("PRAGMA user_version=1")
         self.restart()
         self.assertEqual(self.call("preference.list")["preferences"][0]["value"], "original")
-        self.assertEqual(self.service.db.execute("PRAGMA user_version").fetchone()[0], 6)
+        self.assertEqual(self.service.db.execute("PRAGMA user_version").fetchone()[0], 7)
 
     def test_withdrawn_preferences_are_excluded_from_direct_and_context_reads(self):
         self.call("preference.set", key="topic", value="private")

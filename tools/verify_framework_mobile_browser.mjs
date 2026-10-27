@@ -160,9 +160,10 @@ try {
   await until(async()=>new URL(desktop.url()).pathname!=='/tasks','continue work conversation');
   const modelTrigger=desktop.locator('openclaw-chat-pane.chat-pane-cache__pane--active [data-chat-model-select]');
   await modelTrigger.waitFor();
-  assert.equal(await modelTrigger.getAttribute('aria-disabled'),'true');
-  assert.match(await modelTrigger.getAttribute('title'),/暂不支持单独为此会话切换模型.*设置.*模型连接/);
-  pass('the unavailable per-conversation model selector explains how to manage the chat model');
+  await until(async()=>await modelTrigger.getAttribute('aria-disabled')==='false','conversation model selector becomes available');
+  await modelTrigger.click();
+  assert.equal(await modelTrigger.locator('..').getAttribute('open'),'');
+  pass('the conversation model selector opens');
   const workConversation=(await desktopRpc('work.get',{work_id:runtime.work_id})).work.conversation_id;
   const mobileResponse=await fetch(new URL('/api/mobile/rpc',runtime.mobile_url),{method:'POST',headers:{Authorization:'Bearer '+runtime.mobile_token,'Content-Type':'application/json'},body:JSON.stringify({method:'conversation.send',params:{conversation_id:workConversation,command_id:'browser-origin-live',text:'跨端来源标记验收'}})});
   assert.ok(mobileResponse.ok,await mobileResponse.text());

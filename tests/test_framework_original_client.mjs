@@ -70,7 +70,7 @@ function fixture(t, options = {}) {
     }
     if (path === '/api/sessions') {
       if (init.method !== 'POST') return reply({sessions});
-      const session = {id: 'created', conversation_id: 'created', session_id: 'native-created', title: call.body.title, status: 'idle'};
+      const session = {id: 'created', conversation_id: 'created', session_id: 'native-created', title: call.body.title, status: 'idle', model_selection:call.body.model_selection};
       sessions.push(session); histories.set(session.id, []); return reply(session, 201);
     }
     if (String(path).endsWith('/history')) return reply({messages: histories.get(decodeURIComponent(String(path).split('/')[3])) || [], gaps: []});
@@ -79,6 +79,8 @@ function fixture(t, options = {}) {
     if (path === '/api/materials') return reply({id: 'material-' + calls.filter(item => item.path === path).length, readingState: 'ready'}, 201);
     if (path === '/api/rpc') {
       if (call.body.method === 'settings.get') return reply({result: settings});
+      if (call.body.method === 'model.connections.list') return reply({result: {connections: [{id:'default', name:'默认连接', model:settings.model, models:[settings.model]},
+        ...Object.entries(settings.model_connections || {}).map(([id,connection])=>({id,...connection,models:[connection.model]}))]}});
       if (call.body.method === 'settings.update') { Object.assign(settings.model, call.body.params.patch.model); return reply({result: {saved: true}}); }
       return reply({error: {code: 'method_not_found', message: 'Unsupported fixture RPC'}}, 400);
     }
@@ -91,6 +93,53 @@ function fixture(t, options = {}) {
   f.push = value => streams.at(-1).enqueue(new TextEncoder().encode('data: ' + JSON.stringify(value) + '\r\n\r\n'));
   return f;
 }
+
+test('session model picker projects connection catalog and patches only the selected conversation', async t => {
+  const f = fixture(t);
+  f.settings.model_connections = {second:{name:'第二个连接',model:{base_url:'https://other.invalid',model_id:'other'}}};
+  f.settings.model_routes = {chat:'default'};
+  f.sessions[0].metadata_version = 1;
+  f.sessions[1].metadata_version = 1;
+  f.override = call => {
+    if (call.path === '/api/rpc' && call.body.method === 'model.connections.list') return reply({result:{connections:[
+      {id:'default',name:'默认连接',model:f.settings.model,models:[f.settings.model]},
+      {id:'second',name:'第二个连接',model:f.settings.model_connections.second.model,models:[{model_id:'other',image_enabled:true},{model_id:'vendor/model'}]},
+    ]}});
+    if (call.path === '/api/sessions/one' && call.init.method === 'PATCH') {
+      assert.equal(call.body.expected_version,1);
+      f.sessions[0].model_selection = call.body.patch.model_selection;
+      f.sessions[0].metadata_version++;
+      return reply({});
+    }
+  };
+  const catalog = await f.client.request('models.list',{});
+  assert.deepEqual(catalog.models.map(model => `${model.provider}/${model.id}`), ['mirally-default/fixture-model','mirally-second/other','mirally-second/vendor/model']);
+  assert.equal(globalThis.__mirallyModelProviderLabels['mirally-second'],'第二个连接');
+  const first = await f.client.request('sessions.list',{archived:'all'});
+  assert.equal(first.sessions[1].model,'fixture-model');
+  const patched = await f.client.request('sessions.patch',{key:conversationKey('one'),model:'mirally-second/vendor/model',expectedMetadataVersion:1});
+  assert.equal(patched.entry.model,'vendor/model');
+  assert.equal(patched.entry.modelProvider,'mirally-second');
+  assert.equal(patched.entry.modelOverrideSource,'user');
+  const list = await f.client.request('sessions.list',{archived:'all'});
+  assert.equal(list.sessions[1].model,'fixture-model');
+  assert.equal((await f.client.request('chat.history',{sessionKey:conversationKey('one')})).model,'vendor/model');
+  delete globalThis.__mirallyModelProviderLabels;
+});
+
+test('new conversation passes the selected model atomically before its first message', async t => {
+  const f=fixture(t);
+  f.settings.model_connections = {second:{name:'第二个连接',model:{base_url:'https://other.invalid',model_id:'other'}}};
+  const result=await f.client.request('sessions.create',{model:'mirally-second/vendor/model',message:'第一条',idempotencyKey:'new-model'});
+  const create=f.calls.find(call=>call.path==='/api/sessions' && call.init.method==='POST');
+  const send=f.calls.find(call=>call.path.endsWith('/messages'));
+  assert.deepEqual(create.body.model_selection,{connection_id:'second',model_id:'vendor/model'});
+  assert.ok(f.calls.indexOf(create)<f.calls.indexOf(send));
+  assert.equal(result.entry.model,'vendor/model');
+  const count=f.calls.length;
+  await assert.rejects(f.client.request('sessions.create',{model:'unqualified-model',message:'错误'}),/请选择已配置/);
+  assert.equal(f.calls.length,count);
+});
 
 test('normalized request destinations reject foreign origins before attaching credentials', async t => {
   const f = fixture(t);
@@ -107,9 +156,9 @@ test('model presentation follows the selected chat connection without exposing a
   f.settings.model_routes={chat:'named',background:'default'};
   f.settings.model_connections={named:{name:'Named chat',model:{provider:'different',model_id:'named-model',base_url:'https://named.invalid/v1',api_format:'openai-chat',api_key_configured:true}}};
   await f.start();
-  const models=await f.client.request('models.list',{});assert.equal(models.models[0].id,'named-model');
+  const models=await f.client.request('models.list',{});assert.ok(models.models.some(item=>item.id==='named-model' && item.provider==='mirally-named'));
   const sessions=await f.client.request('sessions.list',{});assert.equal(sessions.defaults.model,'named-model');
-  const config=await f.client.request('config.get',{});assert.equal(config.config.agents.defaults.model.primary,'different/named-model');
+  const config=await f.client.request('config.get',{});assert.equal(config.config.agents.defaults.model.primary,'mirally-named/named-model');
   assert.equal(JSON.stringify(config).includes('private-provider-secret'),false);
 });
 
@@ -391,9 +440,9 @@ test('history and live session events preserve remote user origin without replay
 test('configuration reads expose no API key and provider saves map only reviewed model fields', async t => {
   const f = fixture(t), config = await f.client.request('config.get');
   assert.equal(JSON.stringify(config).includes('private-provider-secret'), false);
-  assert.equal(config.config.models.providers.fixture.apiKey, undefined);
+  assert.equal(config.config.models.providers['mirally-default'].apiKey, undefined);
   const models = await f.client.request('models.list'); assert.equal(JSON.stringify(models).includes('private-provider-secret'), false);
-  await f.client.request('config.patch', {baseHash: config.hash, raw: JSON.stringify({models: {providers: {fixture: {baseUrl: 'https://new.invalid/v1', api: 'openai-completions', apiKey: 'new-private-secret', models: [{id: 'next-model', input: ['text'], reasoning: false, maxTokens: 2048}]}}}})});
+  await f.client.request('config.patch', {baseHash: config.hash, raw: JSON.stringify({models: {providers: {'mirally-default': {baseUrl: 'https://new.invalid/v1', api: 'openai-completions', apiKey: 'new-private-secret', models: [{id: 'next-model', input: ['text'], reasoning: false, maxTokens: 2048}]}}}})});
   const update = f.calls.find(item => item.body?.method === 'settings.update');
   assert.deepEqual(update.body.params.patch, {model: {provider: 'fixture', base_url: 'https://new.invalid/v1', model_id: 'next-model', api_format: 'openai-chat', image_enabled: false, reasoning_enabled: false, max_tokens: 2048, api_key: 'new-private-secret'}});
   assert.equal(JSON.stringify(await f.client.request('config.get')).includes('new-private-secret'), false);
@@ -666,7 +715,7 @@ test('configured native model availability does not expose credentials or imply 
   assert.equal((await f.client.request('models.list')).models[0].available, true);
   f.settings.model.base_url = '';
   assert.equal((await f.client.request('models.list')).models[0].available, false);
-  assert.equal(f.calls.every(item => item.path === '/api/rpc' && item.body.method === 'settings.get'), true);
+  assert.equal(f.calls.every(item => item.path === '/api/rpc' && item.body.method === 'model.connections.list'), true);
 });
 
 test('tool start and real result have ordered, detailed receipts accepted by the real original UI reducer', async t => {

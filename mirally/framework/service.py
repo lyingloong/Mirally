@@ -26,7 +26,7 @@ from .channels import CHANNEL_SCHEMA, WeixinChannels
 from .work import WORK_SCHEMA, WorkOwner
 
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 INITIATIVE_RUNS_SCHEMA = """CREATE TABLE initiative_runs (id TEXT PRIMARY KEY,lease_token TEXT NOT NULL,
     created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,status TEXT NOT NULL,sources_json TEXT NOT NULL)"""
 DEFAULT_SETTINGS = {
@@ -35,7 +35,7 @@ DEFAULT_SETTINGS = {
     "memory_semantics": {"max_calls_per_hour": 4, "max_tokens_per_day": 24000, "max_output_tokens": 1500},
     "general_initiative_enabled": False, "memory_enabled": True,
     "do_not_disturb": False, "memory_config_path": None, "activity_config_path": None, "extensions": [],
-    "model_connections": {}, "model_routes": {"chat": "default", "background": "default"},
+    "model_connections": {}, "model_catalogs": {}, "model_routes": {"chat": "default", "background": "default"},
     "model": {"provider": "openai-compatible", "base_url": "", "api_format": "openai-chat",
               "api_key": "", "model_id": "", "image_enabled": False, "reasoning_enabled": False,
               "reasoning_budget": 0, "reasoning_effort": "", "context_window": 128000,
@@ -82,7 +82,7 @@ class FrameworkService:
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.execute("PRAGMA busy_timeout=10000")
         try:
-            if self.db.execute("PRAGMA user_version").fetchone()[0] not in (0, 1, 2, 3, 4, 5, SCHEMA_VERSION):
+            if self.db.execute("PRAGMA user_version").fetchone()[0] not in (0, 1, 2, 3, 4, 5, 6, SCHEMA_VERSION):
                 raise FrameworkError("SCHEMA_VERSION", "unsupported product database schema")
             self.db.execute("PRAGMA journal_mode=WAL")
             self.db.execute("PRAGMA synchronous=FULL")
@@ -106,11 +106,11 @@ class FrameworkService:
 
     def _initialize(self) -> None:
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, 3, 4, 5, SCHEMA_VERSION):
+        if version not in (0, 1, 2, 3, 4, 5, 6, SCHEMA_VERSION):
             raise FrameworkError("SCHEMA_VERSION", "unsupported product database schema")
         if version == SCHEMA_VERSION:
             return
-        if version in (1, 2, 3, 4, 5):
+        if version in (1, 2, 3, 4, 5, 6):
             with self._transaction():
                 if version == 1:
                     self.db.execute(INITIATIVE_RUNS_SCHEMA)
@@ -123,7 +123,13 @@ class FrameworkService:
                 if version < 5:
                     for statement in (*CHANNEL_SCHEMA, *WORK_SCHEMA):
                         self.db.execute(statement)
-                self.db.execute("ALTER TABLE conversations ADD COLUMN title_mode TEXT NOT NULL DEFAULT 'explicit'")
+                if version < 6:
+                    self.db.execute("ALTER TABLE conversations ADD COLUMN title_mode TEXT NOT NULL DEFAULT 'explicit'")
+                # Older migration fixtures may already contain newer columns.
+                for table in ('conversations', 'commands'):
+                    columns = {row[1] for row in self.db.execute(f'PRAGMA table_info({table})')}
+                    if 'model_selection_json' not in columns:
+                        self.db.execute(f'ALTER TABLE {table} ADD COLUMN model_selection_json TEXT')
                 self.db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             return
         with self._transaction():
@@ -132,13 +138,13 @@ class FrameworkService:
                 """CREATE TABLE conversations (id TEXT PRIMARY KEY,title TEXT NOT NULL,current_generation INTEGER NOT NULL,created_at INTEGER NOT NULL,
                     pinned INTEGER NOT NULL DEFAULT 0,archived INTEGER NOT NULL DEFAULT 0,metadata_version INTEGER NOT NULL DEFAULT 1,
                     metadata_updated_at INTEGER NOT NULL DEFAULT 0,pinned_at INTEGER,archived_at INTEGER,
-                    title_mode TEXT NOT NULL DEFAULT 'explicit')""",
+                    title_mode TEXT NOT NULL DEFAULT 'explicit',model_selection_json TEXT)""",
                 """CREATE TABLE generations (conversation_id TEXT NOT NULL REFERENCES conversations(id),generation INTEGER NOT NULL,
                     session_id TEXT UNIQUE,frozen INTEGER NOT NULL DEFAULT 0,reason TEXT NOT NULL,created_at INTEGER NOT NULL,
                     PRIMARY KEY(conversation_id,generation))""",
                 """CREATE TABLE commands (conversation_id TEXT NOT NULL,command_id TEXT NOT NULL,generation INTEGER NOT NULL,
                     session_id TEXT NOT NULL,content_hash TEXT NOT NULL,state TEXT NOT NULL,runtime_request_id TEXT,
-                    sources_json TEXT NOT NULL,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,
+                    sources_json TEXT NOT NULL,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,model_selection_json TEXT,
                     PRIMARY KEY(conversation_id,command_id),FOREIGN KEY(conversation_id,generation) REFERENCES generations(conversation_id,generation))""",
                 "CREATE TABLE sources (source_id TEXT PRIMARY KEY,enabled INTEGER NOT NULL,version INTEGER NOT NULL,reason TEXT NOT NULL)",
                 """CREATE TABLE source_uses (conversation_id TEXT NOT NULL,generation INTEGER NOT NULL,source_id TEXT NOT NULL,
@@ -192,6 +198,7 @@ class FrameworkService:
             "settings.update": self.settings_update, "internal.settings.get": self.settings_internal,
             "model.connections.list": self.model_connections.list, "model.connection.save": self.model_connections.save,
             "model.connection.remove": self.model_connections.remove, "model.routes.set": self.model_connections.set_routes,
+            "model.catalog.save": self.model_connections.save_catalog, "model.catalog.remove": self.model_connections.remove_catalog,
             "conversation.ensure": self.conversation_ensure, "conversation.bind": self.conversation_bind,
             "conversation.rotate": self.conversation_rotate, "conversation.list": self.conversation_list,
             "conversation.patch": self.conversation_patch,
@@ -389,7 +396,7 @@ class FrameworkService:
         return updated
 
     def settings_update(self, patch: dict[str, Any]) -> dict[str, Any]:
-        if not isinstance(patch, dict) or set(patch) - set(DEFAULT_SETTINGS) or set(patch) & {"model_connections", "model_routes"}:
+        if not isinstance(patch, dict) or set(patch) - set(DEFAULT_SETTINGS) or set(patch) & {"model_connections", "model_catalogs", "model_routes"}:
             raise FrameworkError("INVALID_PARAMS", "unsupported settings field")
         value = self._settings()
         previous = copy.deepcopy(value)
@@ -430,6 +437,13 @@ class FrameworkService:
                     raise FrameworkError("INVALID_PARAMS", f"{key} must be boolean")
                 value[key] = item
         with self._transaction():
+            if 'model' in patch and value['model'] != previous['model']:
+                self.model_connections._assert_connection_inactive('default')
+            if 'model' in patch and value['model']['model_id'] != previous['model']['model_id']:
+                if any(entry['model_id'] == value['model']['model_id'] for entry in value['model_catalogs'].get('default', [])):
+                    raise FrameworkError('INVALID_PARAMS', '该模型已在模型列表中，请先从列表移除。')
+                if previous['model']['model_id']:
+                    self.model_connections._assert_model_unused('default', previous['model']['model_id'])
             for key in patch:
                 self.db.execute("INSERT INTO settings VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json", (key, _json(value[key])))
             for kind in ("memory", "activity"):
@@ -445,27 +459,48 @@ class FrameworkService:
 
     def _conversation(self, conversation_id: str) -> dict[str, Any]:
         row = self.db.execute("""SELECT c.id AS conversation_id,c.title,c.created_at,c.pinned,c.archived,
-            c.metadata_version,c.metadata_updated_at,c.pinned_at,c.archived_at,
+            c.metadata_version,c.metadata_updated_at,c.pinned_at,c.archived_at,c.model_selection_json,
             MAX(c.metadata_updated_at,COALESCE((SELECT MAX(updated_at) FROM commands WHERE conversation_id=c.id),c.created_at)) AS updated_at,
             c.current_generation AS generation,g.session_id,g.frozen
             FROM conversations c JOIN generations g ON g.conversation_id=c.id AND g.generation=c.current_generation WHERE c.id=?""", (conversation_id,)).fetchone()
         if row is None:
             raise FrameworkError("NOT_FOUND", "conversation not found")
         result = dict(row)
+        selection = result.pop('model_selection_json')
+        result['model_selection'] = json.loads(selection) if selection else None
         result["frozen"] = bool(result["frozen"])
         result["pinned"], result["archived"] = bool(result["pinned"]), bool(result["archived"])
         result["needs_session"] = result["session_id"] is None or result["frozen"]
         return result
 
-    def conversation_ensure(self, conversation_id: str | None = None, title: str | None = None) -> dict[str, Any]:
+    def _validate_model_selection(self, selection: Any) -> None:
+        if selection is None:
+            return
+        if not isinstance(selection, dict) or set(selection) != {'connection_id', 'model_id'}:
+            raise FrameworkError('INVALID_PARAMS', 'invalid model selection')
+        connection_id = _text(selection['connection_id'], 'connection_id', 64)
+        _text(selection['model_id'], 'model_id', 2048)
+        settings = self._settings()
+        model = settings['model'] if connection_id == 'default' else settings['model_connections'].get(connection_id, {}).get('model')
+        if model is None:
+            raise FrameworkError('NOT_FOUND', '模型连接不存在，请刷新后重试。')
+        if not model.get('base_url'):
+            raise FrameworkError('INVALID_PARAMS', '请先配置模型服务地址。')
+        available = {entry['model_id'] for entry in settings['model_catalogs'].get(connection_id, [])}
+        available.add(model.get('model_id'))
+        if selection['model_id'] not in available:
+            raise FrameworkError('INVALID_PARAMS', '模型不在该连接的模型列表中，请刷新后重试。')
+
+    def conversation_ensure(self, conversation_id: str | None = None, title: str | None = None, model_selection: dict[str, str] | None = None) -> dict[str, Any]:
         identity = _text(conversation_id, "conversation_id") if conversation_id is not None else "conversation_" + uuid.uuid4().hex
         if title is not None:
             _text(title, "title", 512)
         with self._transaction():
             if not self.db.execute("SELECT 1 FROM conversations WHERE id=?", (identity,)).fetchone():
+                self._validate_model_selection(model_selection)
                 now = self.clock()
                 placeholder = "新对话-" + datetime.fromtimestamp(now / 1000).strftime("%Y-%m-%d")
-                self.db.execute("INSERT INTO conversations(id,title,current_generation,created_at,metadata_updated_at,title_mode) VALUES(?,?,1,?,?,?)", (identity, title if title is not None else placeholder, now, now, 'explicit' if title is not None else 'pending'))
+                self.db.execute("INSERT INTO conversations(id,title,current_generation,created_at,metadata_updated_at,title_mode,model_selection_json) VALUES(?,?,1,?,?,?,?)", (identity, title if title is not None else placeholder, now, now, 'explicit' if title is not None else 'pending', _json(model_selection) if model_selection is not None else None))
                 self.db.execute("INSERT INTO generations VALUES(?,1,NULL,0,'initial',?)", (identity, self.clock()))
         return self._conversation(identity)
 
@@ -511,8 +546,8 @@ class FrameworkService:
 
     def conversation_patch(self, conversation_id: str, expected_version: int, patch: dict[str, Any]) -> dict[str, Any]:
         _integer(expected_version, "expected_version", 1)
-        if not isinstance(patch, dict) or not patch or set(patch) - {"title", "pinned", "archived"}:
-            raise FrameworkError("INVALID_PARAMS", "conversation patch supports only title, pinned and archived")
+        if not isinstance(patch, dict) or not patch or set(patch) - {"title", "pinned", "archived", "model_selection"}:
+            raise FrameworkError("INVALID_PARAMS", "unsupported conversation patch")
         if "title" in patch:
             _text(patch["title"], "title", 512)
         for field in ("pinned", "archived"):
@@ -522,10 +557,15 @@ class FrameworkService:
             current = self._conversation(conversation_id)
             if current["metadata_version"] != expected_version:
                 raise FrameworkError("CONFLICT", "conversation changed; refresh before editing again")
+            if 'model_selection' in patch:
+                self._validate_model_selection(patch['model_selection'])
             if patch.get("archived") and not current["archived"] and self.db.execute(
                     "SELECT 1 FROM commands WHERE conversation_id=? AND state IN ('admitted','submitted','applied') LIMIT 1", (conversation_id,)).fetchone():
                 raise FrameworkError("CONFLICT", "stop the active conversation before archiving")
             changed = {field: value for field, value in patch.items() if value != current[field]}
+            if 'model_selection' in changed:
+                value = changed.pop('model_selection')
+                changed['model_selection_json'] = _json(value) if value is not None else None
             # A deliberate rename, including to the current placeholder, must
             # always defeat a later automatic title.
             if "title" in patch:
@@ -632,6 +672,8 @@ class FrameworkService:
         if row is None:
             raise FrameworkError("NOT_FOUND", "command not found")
         result = dict(row)
+        selection = result.pop('model_selection_json')
+        result['model_selection'] = json.loads(selection) if selection else None
         result["sources"] = json.loads(result.pop("sources_json"))
         result.update(replay=True, should_dispatch=False, needs_reconciliation=result["state"] in {"submitted", "unknown"})
         return result
@@ -655,7 +697,17 @@ class FrameworkService:
             reasons = self._source_reasons(refs)
             if reasons:
                 raise FrameworkError("FORBIDDEN", "command contains unavailable source references")
-            self.db.execute("INSERT INTO commands VALUES(?,?,?,?,?,'admitted',NULL,?,?,?)", (conversation_id, command_id, current["generation"], current["session_id"], digest, _json(refs), self.clock(), self.clock()))
+            selection = current['model_selection']
+            if selection is None:
+                settings = self._settings()
+                identity = settings.get('model_routes', {}).get('chat', 'default')
+                model = settings['model'] if identity == 'default' else settings['model_connections'].get(identity, {}).get('model')
+                if model is None:
+                    raise FrameworkError('NOT_FOUND', '对话模型连接不存在，请刷新设置。')
+                selection = {'connection_id': identity, 'model_id': model.get('model_id', '')}
+            self.db.execute("""INSERT INTO commands(conversation_id,command_id,generation,session_id,content_hash,state,runtime_request_id,
+                sources_json,created_at,updated_at,model_selection_json) VALUES(?,?,?,?,?,'admitted',NULL,?,?,?,?)""",
+                (conversation_id, command_id, current["generation"], current["session_id"], digest, _json(refs), self.clock(), self.clock(), _json(selection)))
             self._record_uses(conversation_id, current["generation"], refs)
         return {**self._command(conversation_id, command_id), "replay": False, "should_dispatch": True}
 
@@ -682,7 +734,8 @@ class FrameworkService:
         _integer(offset, "offset", 0, 2**31 - 1)
         if command_id is not None:
             _text(command_id, "command_id")
-            return {"commands": [dict(row) for row in self.db.execute("SELECT * FROM commands WHERE conversation_id=? AND command_id=?", (conversation_id, command_id))]}
+            exists = self.db.execute("SELECT 1 FROM commands WHERE conversation_id=? AND command_id=?", (conversation_id, command_id)).fetchone()
+            return {"commands": [self._command(conversation_id, command_id)] if exists else []}
         return {"commands": [self._command(conversation_id, row[0]) for row in self.db.execute("SELECT command_id FROM commands WHERE conversation_id=? ORDER BY created_at DESC,command_id DESC LIMIT ? OFFSET ?", (conversation_id, limit, offset))]}
 
     def interaction_stop(self, conversation_id: str, command_id: str | None = None) -> dict[str, Any]:

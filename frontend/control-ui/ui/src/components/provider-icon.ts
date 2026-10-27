@@ -157,7 +157,8 @@ export function formatRawProviderLabel(provider: string): string {
 
 /** Brand display name for a (normalized, lowercase) provider id. */
 export function providerDisplayLabel(provider: string): string {
-  return PROVIDER_DISPLAY_LABELS[provider] ?? formatRawProviderLabel(provider);
+  const labels = (globalThis as typeof globalThis & {__mirallyModelProviderLabels?: Record<string, string>}).__mirallyModelProviderLabels;
+  return labels?.[provider.toLowerCase()] ?? PROVIDER_DISPLAY_LABELS[provider] ?? formatRawProviderLabel(provider);
 }
 
 /** Provider id from a canonical `provider/model` reference, or null when absent. */

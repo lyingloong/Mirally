@@ -88,10 +88,12 @@ test('conversation title, pin and archive are real owned metadata with version f
   const pin=await first.request('sessions.patch',{key,pinned:true,expectedMetadataVersion:2});
   assert.equal(pin.entry.pinned,true);assert.equal(typeof pin.entry.pinnedAt,'number');
   const before=calls.length;
-  for(const patch of [{permissionMode:'full'},{thinkingLevel:'max'},{model:'other'},{unread:true},{incognito:true},{fork:true},{category:'group'}]) {
+  for(const patch of [{permissionMode:'full'},{thinkingLevel:'max'},{unread:true},{incognito:true},{fork:true},{category:'group'}]) {
     assert.equal(first.supportsSessionPatch({key,...patch}),false);
-    await assert.rejects(first.request('sessions.patch',{key,...patch}),/仅支持/);
+    await assert.rejects(first.request('sessions.patch',{key,...patch}),/不支持/);
   }
+  assert.equal(first.supportsSessionPatch({key,model:null}),true);
+  await assert.rejects(first.request('sessions.patch',{key,model:'other'}),/请选择已配置/);
   assert.equal(calls.length,before,'Unsupported metadata fields must fail before HTTP effects');
   const archived=await first.request('sessions.patch',{key,archived:true,expectedMetadataVersion:3});
   assert.equal(archived.entry.archived,true);

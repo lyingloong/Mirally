@@ -78,3 +78,88 @@ class ModelConnectionTests(unittest.TestCase):
         self.call("capabilities.configure",expected_revision=capabilities["revision"],patch={"web_enabled":True,"search_connection":identity})
         with self.assertRaisesRegex(FrameworkError,"网页研究"):
             self.call("model.connection.remove",connection_id=identity)
+
+    def test_session_selection_and_command_snapshot_survive_restart_and_retry(self):
+        identity = self.call("model.connection.save", name="对话", model={"base_url":"https://one.example", "model_id":"first", "api_key":"secret"})["connection_id"]
+        self.call("conversation.ensure", conversation_id="one")
+        self.call("conversation.bind", conversation_id="one", session_id="session-one")
+        current = self.call("conversation.get", conversation_id="one")
+        selection = {"connection_id": identity, "model_id": "first"}
+        current = self.call("conversation.patch", conversation_id="one", expected_version=current["metadata_version"], patch={"model_selection":selection})
+        command = self.call("command.admit", conversation_id="one", command_id="c1", text="hello")
+        self.assertEqual(command["model_selection"], selection)
+        self.assertNotIn("secret", str(command))
+        self.call("conversation.patch", conversation_id="one", expected_version=current["metadata_version"], patch={"model_selection":None})
+        self.service.close(); self.service = FrameworkService(self.root, self.home)
+        self.assertIsNone(self.call("conversation.get", conversation_id="one")["model_selection"])
+        self.assertEqual(self.call("command.admit", conversation_id="one", command_id="c1", text="hello")["model_selection"], selection)
+        self.assertEqual(self.call("command.list", conversation_id="one", command_id="c1")["commands"][0]["model_selection"], selection)
+        with self.assertRaisesRegex(FrameworkError, "请求"):
+            self.call("model.connection.remove", connection_id=identity)
+        self.call("command.ack", conversation_id="one", command_id="c1", state="completed")
+        self.call("model.connection.remove", connection_id=identity)
+
+    def test_selected_connection_cannot_be_removed(self):
+        identity = self.call("model.connection.save", name="对话", model={"base_url":"https://one.example", "model_id":"first"})["connection_id"]
+        current = self.call("conversation.ensure", conversation_id="one")
+        with self.assertRaisesRegex(FrameworkError, "模型列表"):
+            self.call("conversation.patch", conversation_id="one", expected_version=current["metadata_version"], patch={"model_selection":{"connection_id":identity,"model_id":"not-in-catalog"}})
+        self.assertIsNone(self.call("conversation.get", conversation_id="one")["model_selection"])
+        self.call("conversation.patch", conversation_id="one", expected_version=current["metadata_version"], patch={"model_selection":{"connection_id":identity,"model_id":"first"}})
+        with self.assertRaisesRegex(FrameworkError, "会话"):
+            self.call("model.connection.remove", connection_id=identity)
+
+    def test_existing_v6_conversations_and_commands_migrate_without_guessing_selection(self):
+        self.call("conversation.ensure", conversation_id="one")
+        self.call("conversation.bind", conversation_id="one", session_id="session-one")
+        self.call("command.admit", conversation_id="one", command_id="old", text="hello")
+        self.service.db.execute("ALTER TABLE conversations DROP COLUMN model_selection_json")
+        self.service.db.execute("ALTER TABLE commands DROP COLUMN model_selection_json")
+        self.service.db.execute("PRAGMA user_version=6")
+        self.service.close(); self.service = FrameworkService(self.root, self.home)
+        self.assertIsNone(self.call("conversation.get", conversation_id="one")["model_selection"])
+        self.assertIsNone(self.call("command.list", conversation_id="one", command_id="old")["commands"][0]["model_selection"])
+
+    def test_catalog_selection_and_default_model_change_are_guarded(self):
+        self.call("settings.update", patch={"model":{"base_url":"https://one.example", "model_id":"first"}})
+        self.call("model.catalog.save", connection_id="default", model={"model_id":"second", "reasoning_enabled":True})
+        current = self.call("conversation.ensure", conversation_id="one")
+        current = self.call("conversation.patch", conversation_id="one", expected_version=current["metadata_version"], patch={"model_selection":{"connection_id":"default","model_id":"second"}})
+        with self.assertRaisesRegex(FrameworkError, "会话"):
+            self.call("model.catalog.remove", connection_id="default", model_id="second")
+        with self.assertRaises(FrameworkError):
+            self.call("settings.update", patch={"model":{"model_id":"second"}})
+        current = self.call("conversation.patch", conversation_id="one", expected_version=current["metadata_version"], patch={"model_selection":{"connection_id":"default","model_id":"first"}})
+        with self.assertRaisesRegex(FrameworkError, "会话"):
+            self.call("settings.update", patch={"model":{"model_id":"third"}})
+
+    def test_first_creation_selection_is_atomic_and_retries_never_overwrite(self):
+        self.call("settings.update", patch={"model":{"base_url":"https://one.example", "model_id":"first"}})
+        self.call("model.catalog.save", connection_id="default", model={"model_id":"second"})
+        with self.assertRaises(FrameworkError):
+            self.call("conversation.ensure", conversation_id="bad", model_selection={"connection_id":"default", "model_id":"missing"})
+        with self.assertRaises(FrameworkError):
+            self.call("conversation.get", conversation_id="bad")
+        first = self.call("conversation.ensure", conversation_id="one", model_selection={"connection_id":"default", "model_id":"first"})
+        self.assertEqual(first["model_selection"]["model_id"], "first")
+        changed = self.call("conversation.patch", conversation_id="one", expected_version=first["metadata_version"], patch={"model_selection":{"connection_id":"default", "model_id":"second"}})
+        replay = self.call("conversation.ensure", conversation_id="one", model_selection={"connection_id":"default", "model_id":"first"})
+        self.assertEqual(replay["model_selection"], changed["model_selection"])
+
+    def test_running_command_blocks_parameter_changes_but_unknown_does_not(self):
+        self.call("settings.update", patch={"model":{"base_url":"https://one.example", "model_id":"first"}})
+        self.call("model.catalog.save", connection_id="default", model={"model_id":"second"})
+        current = self.call("conversation.ensure", conversation_id="one")
+        self.call("conversation.bind", conversation_id="one", session_id="session-one")
+        self.call("conversation.patch", conversation_id="one", expected_version=current["metadata_version"], patch={"model_selection":{"connection_id":"default","model_id":"second"}})
+        self.call("command.admit", conversation_id="one", command_id="c1", text="hello")
+        for method, params in [
+            ("settings.update", {"patch":{"model":{"temperature":0.1}}}),
+            ("model.connection.save", {"connection_id":"default","model":{"temperature":0.1}}),
+            ("model.catalog.save", {"connection_id":"default","model":{"model_id":"second","temperature":0.1}}),
+        ]:
+            with self.subTest(method=method), self.assertRaises(FrameworkError):
+                self.call(method, **params)
+        self.call("command.ack", conversation_id="one", command_id="c1", state="unknown")
+        self.call("settings.update", patch={"model":{"temperature":0.1}})
+        self.call("model.catalog.save", connection_id="default", model={"model_id":"second","temperature":0.1})

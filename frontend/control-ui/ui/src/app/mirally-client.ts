@@ -10,8 +10,16 @@ const unsupported = (method: string): never => { throw Object.assign(new Error(`
 const METHODS = [...MIRALLY_READ_METHODS, "themes.list", "themes.get", "health", "status", "agents.list", "agents.identity.get", "agent.identity.get", "sessions.list", "sessions.resolve", "sessions.create", "sessions.get", "sessions.abort", "sessions.subscribe", "sessions.unsubscribe", "sessions.messages.subscribe", "sessions.messages.unsubscribe", "chat.history", "chat.startup", "chat.metadata", "chat.send", "chat.abort", "config.get", "config.patch", "models.list", "models.authStatus", "sessions.describe", "sessions.files.list", "sessions.files.get", "artifacts.list", "artifacts.get", "artifacts.download"];
 
 METHODS.push('sessions.patch');
-const METADATA_FIELDS = new Set(['title', 'label', 'pinned', 'archived']);
+const METADATA_FIELDS = new Set(['title', 'label', 'pinned', 'archived', 'model']);
 const PATCH_CONTEXT = new Set(['key', 'sessionKey', 'agentId', 'expectedSessionId', 'expectedMetadataVersion']);
+const modelProvider = (connectionId: string) => `mirally-${connectionId}`;
+function selectionFromReference(value: unknown): Data | null {
+  if (value == null || value === '') return null;
+  if (typeof value !== 'string') throw new Error('无效的模型选择。');
+  const match = /^mirally-([A-Za-z0-9_-]{1,64})\/(.+)$/.exec(value);
+  if (!match) throw new Error('请选择已配置的模型。');
+  return {connection_id: match[1], model_id: match[2]};
+}
 // Retained media components interpret bare slash paths as old host filesystem
 // references. Only our exact authenticated receipt routes become same-origin
 // HTTP resources; no old media resolver or machine path is involved.
@@ -190,14 +198,18 @@ export class MirallyBrowserClient {
       if (!page.has_more) break;
       page = await this.http(`/api/sessions?offset=${page.next_offset}`);
     }
-    const model = selectedProductModel(await this.rpc('settings.get'));
+    const settings = await this.rpc('settings.get');
+    const model = selectedProductModel(settings);
+    const defaultConnection = settings.model_routes?.chat ?? 'default';
     for (const session of sessions) this.metadataRows.set(session.id, session);
     return sessions.map((s: Data) => ({...s, key: key(s.id), sessionId: s.session_id, displayName: s.title, label: s.title,
       metadataVersion: s.metadata_version, pinnedAt: s.pinned ? s.pinned_at : undefined, archivedAt: s.archived ? s.archived_at : undefined,
       // The retained UI separates display policy from generation effort. Allow
       // real thinking blocks (including old history) through its second gate;
       // chatShowThinking remains the user's visibility toggle.
-      reasoningLevel: 'on', agentId: "main", kind: "direct", updatedAt: s.updated_at, hasActiveRun: s.status === "running", activeRunIds: [...new Set([...(s.active_command_ids || []), ...this.activeRuns(s.id)])], modelProvider: model.provider, model: model.model_id}));
+      reasoningLevel: 'on', agentId: "main", kind: "direct", updatedAt: s.updated_at, hasActiveRun: s.status === "running", activeRunIds: [...new Set([...(s.active_command_ids || []), ...this.activeRuns(s.id)])],
+      modelProvider: modelProvider(s.model_selection?.connection_id ?? defaultConnection), model: s.model_selection?.model_id ?? model.model_id,
+      modelOverrideSource: s.model_selection ? 'user' : null}));
   }
   private message(message: Data) { return {id: message.id, role: message.role, timestamp: message.time, __openclaw: message.__openclaw,
     ...(['desktop', 'weixin', 'mobile'].includes(message.input_origin) && message.role === 'user' ? {input_origin: message.input_origin} : {}),
@@ -212,7 +224,7 @@ export class MirallyBrowserClient {
     const result = await this.http(`/api/sessions/${encodeURIComponent(id)}/history`);
     return {sessionKey: key(id), sessionId: session.sessionId, sessionInfo:session, messages: result.messages.map(this.message), hasMore: false,
       ...(result.in_flight ? {inFlightRun:{runId:result.in_flight.command_id, startedAt:result.in_flight.started_at, sessionAbortable:true}} : {}),
-      activeRunIds: session.activeRunIds, model: selectedProductModel(await this.rpc("settings.get")).model_id};
+      activeRunIds: session.activeRunIds, model: session.model};
   }
   private async consume(event: Data, generation = this.generation) {
     if (this.stopped || generation !== this.generation) return;
@@ -312,7 +324,7 @@ export class MirallyBrowserClient {
           ...(prefs.theme ? {id:prefs.theme} : {}), ...(prefs.themeMode ? {mode:prefs.themeMode} : {})}},
           theme, ...(method === 'themes.list' ? {themes:BUILTIN_THEMES} : {})};
       }
-      case "agents.list": {const model=selectedProductModel(await this.rpc('settings.get')); return {defaultId: "main", mainKey: "main", scope: "per-sender", agents: [{id: "main", name: "Mirally", model: {primary:model.model_id ? `${model.provider}/${model.model_id}` : ''}, identity: {name: "Mirally", avatar: "/experience/mirally-128.png"}}]};}
+      case "agents.list": {const settings=await this.rpc('settings.get'); const model=selectedProductModel(settings); return {defaultId: "main", mainKey: "main", scope: "per-sender", agents: [{id: "main", name: "Mirally", model: {primary:model.model_id ? `${modelProvider(settings.model_routes?.chat ?? 'default')}/${model.model_id}` : ''}, identity: {name: "Mirally", avatar: "/experience/mirally-128.png"}}]};}
       case "agent.identity.get": case "agents.identity.get": return {agentId: "main", name: "Mirally", avatar: "/experience/mirally-128.png"};
       case "sessions.list": {
         let sessions = await this.sessions();
@@ -320,17 +332,18 @@ export class MirallyBrowserClient {
         if (p.search) sessions = sessions.filter((s: Data) => s.title.toLocaleLowerCase().includes(String(p.search).toLocaleLowerCase()));
         const count = sessions.length;
         if (Number.isSafeInteger(p.limit) && p.limit > 0) sessions = sessions.slice(0, p.limit);
-        const model=selectedProductModel(await this.rpc('settings.get'));
-        return {ts: Date.now(), count, defaults: {modelProvider: model.provider, model: model.model_id}, sessions};
+        const settings=await this.rpc('settings.get'); const model=selectedProductModel(settings);
+        return {ts: Date.now(), count, defaults: {modelProvider: modelProvider(settings.model_routes?.chat ?? 'default'), model: model.model_id}, sessions};
       }
       case 'sessions.patch': {
-        if (!this.supportsSessionPatch(p)) throw new Error('当前 Mirally 仅支持对话名称、置顶与归档；本次未修改其他设置。');
+        if (!this.supportsSessionPatch(p)) throw new Error('当前 Mirally 不支持此对话设置；本次未修改。');
         if (p.agentId && p.agentId !== 'main') throw new Error('当前 Mirally 仅支持主伙伴的对话。');
         if (!this.metadataRows.has(id)) await this.sessions();
         const observed = this.metadataRows.get(id);
         if (!observed) throw new Error('会话不存在，请刷新。');
         if (p.expectedSessionId && p.expectedSessionId !== observed.session_id) throw new Error('会话已变更，请刷新后重试。');
         const patch: Data = {};
+        if (Object.hasOwn(p, 'model')) patch.model_selection = selectionFromReference(p.model);
         for (const field of ['pinned', 'archived']) if (Object.hasOwn(p, field)) patch[field] = p[field];
         if (Object.hasOwn(p, 'title')) patch.title = p.title;
         if (Object.hasOwn(p, 'label')) {
@@ -351,7 +364,9 @@ export class MirallyBrowserClient {
         if (p.incognito) throw new Error("当前内核尚未支持无痕会话，请使用普通会话；本次没有创建或保存会话。");
         if (p.fork || p.parentSessionKey || p.parentSessionId) throw new Error("当前 Mirally 尚未支持分叉会话；本次没有创建会话，也不会用空会话代替分叉。");
         if (p.agentId && p.agentId !== 'main') throw new Error("当前 Mirally 仅支持主伙伴的会话；本次没有创建会话。");
-        const session = await this.http("/api/sessions", {method: "POST", body: JSON.stringify({title: p.displayName || p.label || p.title || undefined, requestId:p.idempotencyKey})});
+        const initialModel = selectionFromReference(p.model);
+        const session = await this.http("/api/sessions", {method: "POST", body: JSON.stringify({title: p.displayName || p.label || p.title || undefined,
+          requestId:p.idempotencyKey, ...(initialModel ? {model_selection: initialModel} : {})})});
         const entry = (await this.sessions()).find((s: Data) => identity(s.key) === session.id);
         if (p.message || p.attachments?.length) {
           try {
@@ -406,14 +421,22 @@ export class MirallyBrowserClient {
         return {ts: Date.now(), providers: model.model_id ? [{provider: model.provider, displayName: model.provider,
           status: model.api_key_configured ? 'static' : 'missing', profiles: [], ...(model.api_key_configured ? {apiKey:{source:'config'}} : {})}] : [], providerCapabilities: []};
       }
-      case "models.list": { const model = selectedProductModel(await this.rpc("settings.get")); return {models: model.model_id ? [{id: model.model_id, name: model.model_id, provider: model.provider, available:!!model.base_url, input: model.image_enabled ? ["text", "image"] : ["text"], reasoning: model.reasoning_enabled}] : []}; }
+      case "models.list": {
+        const catalog = await this.rpc('model.connections.list');
+        Object.assign(globalThis, {__mirallyModelProviderLabels: Object.fromEntries((catalog.connections || [])
+          .map((connection: Data) => [modelProvider(connection.id).toLowerCase(), connection.name || '模型连接']))});
+        return {models: (catalog.connections || []).flatMap((connection: Data) =>
+          (connection.models || [connection.model]).filter((model: Data) => model?.model_id).map((model: Data) => ({id: model.model_id,
+            name: model.model_id, provider: modelProvider(connection.id), available: !!connection.model?.base_url,
+            input: model.image_enabled ? ['text', 'image'] : ['text'], reasoning: !!model.reasoning_enabled})))};
+      }
       case "config.get": return this.config();
       case "config.patch": return this.patchConfig(p);
       default: {const result = await readMirallyModel(method, p, {rpc:this.rpc.bind(this)}); return result.handled ? result.value : unsupported(method);}
     }
   }
   private async config() {
-    const model = selectedProductModel(await this.rpc("settings.get")), provider = model.provider || "service";
+    const settings = await this.rpc("settings.get"), model = selectedProductModel(settings), provider = modelProvider(settings.model_routes?.chat ?? 'default');
     const config = {ui: {prefs: this.preferences['control-ui'] || {}}, models: {providers: model.model_id ? {[provider]: {baseUrl: model.base_url, api: model.api_format === "openai-chat" ? "openai-completions" : model.api_format, models: [{id: model.model_id, name: model.model_id, input: model.image_enabled ? ["text", "image"] : ["text"], reasoning: model.reasoning_enabled, maxTokens: model.max_tokens}]}} : {}},
       agents: {defaults: {model: {primary: model.model_id ? `${provider}/${model.model_id}` : ""}}, list: [{id: "main", name: "Mirally"}]}};
     const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(config))))).map(x => x.toString(16).padStart(2, "0")).join(""); this.configHash = hash;
@@ -436,10 +459,10 @@ export class MirallyBrowserClient {
     const name = names[0], provider = providers[name], model = provider?.models?.[0];
     if (model?.compat && Object.keys(model.compat).length) return unsupported('config.patch model compatibility');
     if (!provider || !model?.id || provider.models.length !== 1) throw new Error("当前内核需要一个明确的服务和模型连接。");
-    const value: Data = {provider: name, base_url: provider.baseUrl, model_id: model.id, api_format: provider.api === "openai-completions" ? "openai-chat" : provider.api, image_enabled: model.input?.includes("image") || false, reasoning_enabled: !!model.reasoning};
+    const settings = await this.rpc("settings.get"), connectionId = settings.model_routes?.chat || "default";
+    const value: Data = {provider: name === modelProvider(connectionId) ? selectedProductModel(settings).provider : name, base_url: provider.baseUrl, model_id: model.id, api_format: provider.api === "openai-completions" ? "openai-chat" : provider.api, image_enabled: model.input?.includes("image") || false, reasoning_enabled: !!model.reasoning};
     if (model.maxTokens) value.max_tokens = model.maxTokens;
     if (provider.apiKey) value.api_key = provider.apiKey;
-    const settings = await this.rpc("settings.get"), connectionId = settings.model_routes?.chat || "default";
     if (connectionId === "default") await this.rpc("settings.update", {patch: {model: value}});
     else await this.rpc("model.connection.save", {connection_id: connectionId, model: value});
     return {ok: true, config: (await this.config()).config};

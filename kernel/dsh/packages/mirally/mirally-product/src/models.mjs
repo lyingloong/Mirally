@@ -4,12 +4,17 @@ import {LlmAdapter, resolveImageAttachmentAccess} from '@deepseek-ai/dsh-llm';
 import {PiAiAdapter, resolveProfiles, credentialStoreFrom, authContextFrom} from '@deepseek-ai/dsh-llm-pi-ai';
 
 /** Resolve one product-owned connection; never fall back from a missing explicit route. */
-export function resolveProductConnection(settings, {purpose = 'chat', connectionId} = {}) {
+export function resolveProductConnection(settings, {purpose = 'chat', connectionId, modelId} = {}) {
   if (!['chat', 'background'].includes(purpose)) throw Object.assign(new Error('Unsupported model purpose'), {code: 'invalid_model_purpose'});
   const id = connectionId ?? settings.model_routes?.[purpose] ?? 'default';
   const connection = id === 'default' ? {name: '默认连接', model: settings.model ?? {}} : settings.model_connections?.[id];
   if (!connection) throw Object.assign(new Error('模型连接不存在，请刷新设置。'), {code: 'model_connection_not_found'});
-  return {id, name: connection.name, model: {...connection.model}};
+  const base = connection.model ?? {};
+  const chosen = modelId === undefined || modelId === base.model_id ? undefined
+    : settings.model_catalogs?.[id]?.find(item => item.model_id === modelId);
+  if (modelId !== undefined && modelId !== base.model_id && !chosen)
+    throw Object.assign(new Error('所选模型已不可用，请在模型连接中检查。'), {code: 'model_not_found'});
+  return {id, name: connection.name, model: {...base, ...chosen}};
 }
 
 /** Protocol facts, not a second model loop. Keep service-default distinct from off. */
@@ -86,10 +91,10 @@ export class ProductModels {
 
   sync(settings) {
     if (this.testMode) return this.options;
-    const snapshot = {model: settings.model ?? {}, connections: settings.model_connections ?? {}, routes: settings.model_routes ?? {}};
+    const snapshot = {model: settings.model ?? {}, connections: settings.model_connections ?? {}, routes: settings.model_routes ?? {}, catalogs: settings.model_catalogs ?? {}};
     const fingerprint = createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
     if (fingerprint === this.fingerprint) return this.options;
-    const declared = {}, options = new Map(), keys = new Map();
+    const declared = {}, options = new Map(), selections = new Map(), keys = new Map();
     for (const id of ['default', ...Object.keys(snapshot.connections)]) {
       const {model} = resolveProductConnection(settings, {connectionId: id});
       if (!model.model_id || !model.base_url) continue;
@@ -98,6 +103,13 @@ export class ProductModels {
       const route = productModelRoute(model);
       declared[provider] = {...route.profile, apiKeyEnv: keyReference};
       options.set(id, {...route.options, provider});
+      selections.set(JSON.stringify([id, model.model_id]), {...route.options, provider});
+      for (const entry of snapshot.catalogs[id] ?? []) {
+        if (!entry.model_id || entry.model_id === model.model_id) continue;
+        const extra = productModelRoute({...model, ...entry});
+        declared[provider].models.push(...extra.profile.models);
+        selections.set(JSON.stringify([id, entry.model_id]), {...extra.options, provider});
+      }
       keys.set(keyReference, model.api_key ?? '');
     }
     const next = resolveProfiles(declared);
@@ -107,20 +119,23 @@ export class ProductModels {
     else this.registration?.replace([...next.keys()]);
     this.fingerprint = fingerprint;
     this.connectionOptions = options;
+    this.selectionOptions = selections;
     this.settings = settings;
     this.options = options.get(resolveProductConnection(settings).id);
     return this.options;
   }
 
-  requireOptions(purpose = 'chat', connectionId) {
-    const options = this.testMode ? this.options : this.connectionOptions?.get(resolveProductConnection(this.settings ?? {}, {purpose, connectionId}).id);
+  requireOptions(purpose = 'chat', connectionId, modelId) {
+    const resolved = this.testMode ? null : resolveProductConnection(this.settings ?? {}, {purpose, connectionId, modelId});
+    const options = this.testMode ? this.options : modelId === undefined
+      ? this.connectionOptions?.get(resolved.id) : this.selectionOptions?.get(JSON.stringify([resolved.id, modelId]));
     if (!options) throw Object.assign(new Error('请先为该用途在设置中配置模型、服务地址和凭据'), {code: 'model_not_configured'});
     return {...options};
   }
 
-  assertImageInput(purpose = 'chat', connectionId) {
+  assertImageInput(purpose = 'chat', connectionId, modelId) {
     if (this.testMode) return;
-    const {model} = resolveProductConnection(this.settings ?? {}, {purpose, connectionId});
+    const {model} = resolveProductConnection(this.settings ?? {}, {purpose, connectionId, modelId});
     if (!model.image_enabled) throw Object.assign(new Error('当前用途的模型连接未启用图片输入，请选择支持视觉的连接后再发送图片。'), {code: 'unsupported_image_input', status: 400});
   }
 

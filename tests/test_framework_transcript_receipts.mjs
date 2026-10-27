@@ -94,6 +94,7 @@ test('send and replay acknowledge the same positive native user receipt and comm
     conversation: async () => conversation, ensureNative: async () => ({conversation, handle}),
     ctx: {sessions: {async flush() {}}}, broadcast: (type, payload) => broadcasts.push({type, ...payload}),
     async rpc(method) {
+      if (method === 'command.list') return {commands: []};
       if (method === 'command.admit') { const replay = admitted; admitted = true; return {...command('run-a', messageId), should_dispatch: !replay}; }
       if (method === 'command.ack') return {};
       if (method === 'context.read') return {};
@@ -146,7 +147,7 @@ test('trusted WeChat and paired phone entry points assign their own origin', asy
     serial: (_id, operation) => operation(), materials: {content: async () => []}, models: {requireOptions() {}},
     refreshModels: async () => {}, guard: async () => {}, conversation: async () => conversation,
     ensureNative: async () => ({conversation, handle}), ctx: {sessions: {flush: async () => {}}}, broadcast() {},
-    rpc: async method => method === 'command.admit' ? {should_dispatch: true} : {}});
+    rpc: async method => method === 'command.admit' ? {should_dispatch: true} : method === 'command.list' ? {commands: []} : {}});
   await product.sendWeixin({conversation_id:'one', command_id:'weixin-test', text:'wechat', installation_id:'fixture', revision:1});
   await product.sendMobile({conversation_id:'one', command_id:'phone', text:'mobile', input_origin:'weixin'}, {id:'device'});
   assert.deepEqual(projectMessages(recorded).map(row => row.input_origin), ['weixin', 'mobile']);
@@ -163,6 +164,7 @@ test('automatic title follows a durable receipt and reconciliation uses its reco
     conversation:async()=>conversation, ensureNative:async()=>({conversation,handle}), ctx:{sessions:{flush:async()=>calls.push('flush')}},
     broadcast:(type,payload)=>broadcasts.push({type,...payload}), rpc:async(method,params)=>{
       calls.push({method,params});
+      if(method==='command.list') return {commands:[]};
       if(method==='command.admit') {const replay=admitted;admitted=true;return {should_dispatch:!replay,needs_reconciliation:replay};}
       if(method==='internal.conversation.autotitle') return {changed:true,conversation:{metadata_version:2}};
       return {};

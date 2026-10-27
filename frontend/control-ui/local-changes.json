@@ -13,6 +13,7 @@
   "ui/src/components/app-sidebar-render.ts": "Retain sidebar layout with Mirally workspace/footer identity.",
   "ui/src/components/app-sidebar-agent-menu.ts": "Mirally workspace menu without unsupported host administration.",
   "ui/src/components/app-sidebar-identity-menu.ts": "Mirally user menu without Gateway, pairing or account administration.",
+  "ui/src/components/provider-icon.ts": "Display product-owned connection names for stable per-conversation model identities.",
   "ui/src/pages/config/config-page.ts": "Describe the retained appearance controls as Mirally settings.",
   "ui/src/components/command-palette-catalog-search.ts": "Use real Mirally product pages and supported reminder/model search.",
   "ui/src/pages/config/settings-search.ts": "Index retained Appearance controls without old administration sections.",
