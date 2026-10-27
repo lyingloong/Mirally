@@ -1,5 +1,5 @@
 /** Local, one-action decisions bound to the exact live conversation command. */
-import {randomUUID} from 'node:crypto';
+import {randomUUID, randomBytes} from 'node:crypto';
 
 const failure = message => Object.assign(new Error(message), {code:'action_approval_invalid', status:400});
 
@@ -39,11 +39,37 @@ export class ActionGate {
       timer.unref?.();
       const value = {id, conversation_id:conversation.conversation_id, session_id:sessionId, command_id:commandId,
         kind, title, detail, created_at:createdAt, expires_at:createdAt + this.timeoutMs};
-      this.pending.set(id, {value, finish});
+      const policy = this.host.commandPolicies?.get(commandId);
+      const remote = policy?.origin === 'weixin' ? {scope: policy, code: randomBytes(8).toString('hex'), delivered: false} : null;
+      this.pending.set(id, {value, finish, remote});
       signal?.addEventListener('abort', abort, {once:true});
       if (signal?.aborted) return abort();
       this.host.broadcast('action', {action:'approval-changed', conversation_id:conversation.conversation_id});
+      if (remote) {
+        Promise.resolve().then(() => this.host.weixin.requestActionApproval(value, remote.scope, remote.code))
+          .catch(() => finish(false));
+      }
     });
+  }
+
+  remoteDeliveryCurrent(id, scope) {
+    const entry = this.pending.get(id), remote = entry?.remote;
+    return Boolean(remote && remote.scope.installation_id === scope.installation_id && remote.scope.revision === scope.revision
+      && remote.scope.conversation_id === scope.conversation_id && entry.value.command_id === remote.scope.command_id
+      && this.host.consumedCommandId(this.host.handles.get(entry.value.session_id)?.agent) === entry.value.command_id
+      && this.host.conversationForSession(entry.value.session_id)?.conversation_id === scope.conversation_id);
+  }
+
+  remoteDelivered(id, scope) {
+    if (this.remoteDeliveryCurrent(id, scope)) this.pending.get(id).remote.delivered = true;
+  }
+
+  async decideRemote(event, code, allow) {
+    const entry = [...this.pending.values()].find(item => item.remote?.code === code);
+    if (!entry || !entry.remote.delivered || !this.remoteDeliveryCurrent(entry.value.id, event)) throw failure('确认已失效或动作详情尚未完整送达。');
+    await this.host.weixin.authorize(entry.remote.scope);
+    if (!this.remoteDeliveryCurrent(entry.value.id, event) || !entry.remote.delivered) throw failure('动作确认已失效。');
+    return this.decide({approval_id:entry.value.id, conversation_id:event.conversation_id, allow});
   }
 
   list(conversationId) {

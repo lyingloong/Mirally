@@ -42,6 +42,7 @@ function expiryText(value?: number | string): string {
 @customElement('mirally-channels-page')
 export class MirallyChannelsPage extends OpenClawLightDomElement {
   @state() private status: WeixinStatus | null = null;
+  @state() private remoteControl: boolean | null = null;
   @state() private conversations: Conversation[] = [];
   @state() private selection = '';
   @state() private verificationCode = '';
@@ -114,6 +115,9 @@ export class MirallyChannelsPage extends OpenClawLightDomElement {
       const status = await rpcProduct<WeixinStatus>('weixin.status');
       if (!this.isConnected || view !== this.viewEpoch || request !== this.loadEpoch) return;
       this.acceptStatus(status);
+      const settings = await rpcProduct<{weixin_remote_control_enabled?: boolean}>('settings.get');
+      if (!this.isConnected || view !== this.viewEpoch || request !== this.loadEpoch) return;
+      this.remoteControl = settings.weixin_remote_control_enabled === true;
       if (includeConversations) {
         const result = await rpcProduct<{conversations: ConversationRecord[]}>('conversation.list', {archived_filter: 'active', limit: 1000});
         if (!this.isConnected || view !== this.viewEpoch || request !== this.loadEpoch) return;
@@ -136,6 +140,23 @@ export class MirallyChannelsPage extends OpenClawLightDomElement {
       if (this.isConnected && view === this.viewEpoch && request === this.loadEpoch) {
         this.loading = false; this.schedulePoll();
       }
+    }
+  }
+
+  private async setRemoteControl(enabled: boolean) {
+    if (this.busy || this.loading || !this.isConnected) return;
+    const view = this.viewEpoch;
+    ++this.loadEpoch; this.clearPoll();
+    this.busy = true; this.error = ''; this.notice = ''; this.transientError = false;
+    try {
+      const settings = await rpcProduct<{weixin_remote_control_enabled?: boolean}>('settings.update', {patch: {weixin_remote_control_enabled: enabled}});
+      if (!this.isConnected || view !== this.viewEpoch) return;
+      this.remoteControl = settings.weixin_remote_control_enabled === true;
+      this.notice = enabled ? '已允许绑定的微信远程发起操作。' : '微信远程控制已关闭。';
+    } catch {
+      if (this.isConnected && view === this.viewEpoch) this.error = '远程控制设置未能保存，请刷新后重试。';
+    } finally {
+      if (this.isConnected && view === this.viewEpoch) {this.busy = false; this.schedulePoll();}
     }
   }
 
@@ -240,7 +261,7 @@ export class MirallyChannelsPage extends OpenClawLightDomElement {
       ${renderSettingsRow({title: '停止真实后台运行', description: '请求停止 Mirally 启动的指定运行，实际停止由执行器核实；已发生的效果不会撤销。仅关注的外部程序没有此控制权限。', control: html`<code>/work-cancel 完整运行编号</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '查看运行日志', description: '从工作详情复制完整运行编号；按回复给出的命令继续读取后续日志。', control: html`<code>/work-logs 完整运行编号 [字节偏移]</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '微信工作通知', description: '不带参数查看；on 开启、off 关闭。只调整微信工作通知，不改消息页通知，也不停止工作。', control: html`<code>/work-notify [on|off]</code>`, stackedOnNarrow: true})}
-      ${renderSettingsRow({title: '只停止当前回复', description: '停止当前微信会话中 Mirally 的模型回复，不会停止后台运行。要停止程序，请使用 /work-cancel。', control: html`<code>/stop</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '停止当前会话', description: '停止当前会话回复及其受管理的会话后台命令；工作运行需用 /work-cancel 停止。', control: html`<code>/stop</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '创建与准备', description: '发送 /work-new 目标 建立工作；/work-run 工作编号 后附脚本参数 JSON 可准备一次运行。准备不会直接执行，仍需审阅并确认。发送 /help 查看完整用法。'})}
     `);
   }
@@ -264,6 +285,7 @@ export class MirallyChannelsPage extends OpenClawLightDomElement {
           : renderSettingsSection({title: '开始连接'}, renderSettingsRow({title: '连接本人微信', description: status.state === 'expired' ? '二维码已过期，请重新生成。' : '生成二维码后，使用微信扫码登录。',
             control: html`<button class="btn primary" data-testid="mirally-weixin-login" ?disabled=${this.busy || this.loading}
               @click=${() => void this.mutate('weixin.login.start')}>${status.state === 'expired' ? '重新生成二维码' : '连接微信'}</button>`}))}
+        ${renderSettingsSection({title: '微信远程控制', description: '允许已绑定的微信在共享会话中请求命令、独立浏览器和屏幕观察，每次需确认具体操作。解除绑定或重新扫码后需要重新开启。'}, renderSettingsRow({title: '允许微信远程控制', description: status?.bound ? '关闭后仍可对话和查看会话后台命令；已启动的程序不会因此自动停止。' : '先绑定微信，才能开启远程控制。', control: html`<input type="checkbox" aria-label="允许微信远程控制" data-testid="mirally-weixin-remote-control" .checked=${live(this.remoteControl === true)} ?disabled=${this.busy || this.loading || this.remoteControl === null || !status?.bound} @change=${(event: Event) => void this.setRemoteControl((event.target as HTMLInputElement).checked)}>`}))}
         ${status?.outbox && (status.outbox.pending || status.outbox.unknown || status.outbox.failed) ? renderSettingsSection({title: '消息投递', description: '微信接受发送请求，不代表对方已经阅读。'}, html`
           ${renderSettingsRow({title: '待发送', control: renderSettingsValue(String(status.outbox.pending || 0))})}
           ${renderSettingsRow({title: '送达待确认', description: '无法确定微信是否已收到，不会自动重复发送。', control: renderSettingsValue(String(status.outbox.unknown || 0))})}

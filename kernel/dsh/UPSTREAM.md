@@ -57,6 +57,8 @@
 
 ## 验证范围
 
+- 2026-10-27：微信可查询共享会话中的受管理后台命令；产品设置允许用户启用远程请求，命令、独立浏览器和桌面观察仍通过具体动作审批，并逐次核验绑定与设置。微信审批复用本机渠道 outbox，只有完整发送且收到成功回执的动作才可通过微信确认；不改变 DSH 会话和模型主链。
+
 - 2026-10-27：产品 Host 注册会话绑定的 PowerShell、受管理进程、独立 Edge 浏览器和按需 Windows 观察工具；逐次审批经产品 UI 和作用域检查进入原生工具调用，取消与宿主退出联动。单步输入实现尚未完成实机验收，默认不注册。`playwright-core` 为内核工作区锁定依赖，按首次使用加载。UFO 未接入。
 
 2026-10-26 微信第一版：`mirally-product/src/channels/` 在同一产品 Host 增加 iLink 通信与渠道协调，独立实现协议而不加载 OpenClaw SDK/Gateway；固定腾讯参考版本、许可证与协议边界见[渠道说明](packages/mirally/mirally-product/src/channels/README.md)。产品工具执行按实际消费 command 检查微信只读范围，pre-step 则检查尚未追加到 transcript 的准入命令；恢复时保留原生历史，不自动重放微信输入。Python schema 4 管理绑定、DPAPI 凭据、入站与 outbox，前端沿用原设置组件。真实 DSH+回环 iLink、工具边界及 Edge 页面分别验收，另完成当前用户账号一次扫码和文字往返；不推断其他账号或长期推送均可用。

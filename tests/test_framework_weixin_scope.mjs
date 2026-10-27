@@ -43,6 +43,21 @@ test('Weixin tool scope follows consumed input, not a later admitted desktop com
   assert.equal(f.product.commandPolicy(f.agent).origin, 'desktop');
 });
 
+test('session job queries remain available while actions require the current user setting', async () => {
+  const f=fixture(); let enabled=false;
+  f.product.rpc=async method => {assert.equal(method,'settings.get'); return {weixin_remote_control_enabled:enabled};};
+  await f.product.checkCommandScope(f.agent,'mirally_job_list');
+  await f.product.checkCommandScope(f.agent,'mirally_job_status');
+  for (const name of ['mirally_run_command','mirally_stop_job','mirally_action','mirally_browser_open','mirally_desktop_screenshot'])
+    await assert.rejects(f.product.checkCommandScope(f.agent,name),{code:'weixin_action_unavailable'});
+  enabled=true;
+  for (const name of ['mirally_run_command','mirally_stop_job','mirally_action','mirally_browser_open','mirally_desktop_screenshot'])
+    await f.product.checkCommandScope(f.agent,name);
+  await assert.rejects(f.product.checkCommandScope(f.agent,'mcp__arbitrary'),{code:'weixin_read_only'});
+  enabled=false;
+  await assert.rejects(f.product.checkCommandScope(f.agent,'mirally_run_command'),{code:'weixin_action_unavailable'});
+});
+
 test('Weixin pre-step admission recognizes a fresh command before its user/message is appended after restart', async () => {
   const f = fixture();
   f.product.commandPolicies.delete('weixin-remote');

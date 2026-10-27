@@ -12,8 +12,8 @@ test('isolated browser observes and interacts with a local page after individual
   const server=createServer((_req,res)=>res.end('<title>Fixture</title><input id="name"><button onclick="document.querySelector(\'#result\').textContent=document.querySelector(\'#name\').value">Go</button><p id="result"></p>'));
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   const tools=new Map(), approvals=[];
-  let consumed='cmd',origin='desktop',browser;
-  const host={ctx:{tools:{register:tool=>tools.set(tool.name,tool)}},nativeConversations:new Map([['s',{}]]),activeCommands:new Map([['s','queued-other']]),consumedCommandId:()=>consumed,commandPolicy:()=>({origin}),checkCommandScope:async()=>{},authorizations:new AsyncLocalStorage(),guard:async()=>{},actionGate:{request:async item=>{approvals.push(item);return true;}}};
+  let consumed='cmd',origin='desktop',revoked=false,browser;
+  const host={ctx:{tools:{register:tool=>tools.set(tool.name,tool)}},nativeConversations:new Map([['s',{}]]),activeCommands:new Map([['s','queued-other']]),consumedCommandId:()=>consumed,commandPolicy:()=>({origin}),checkCommandScope:async()=>{if(revoked) throw Error('revoked');},authorizations:new AsyncLocalStorage(),guard:async()=>{},actionGate:{request:async item=>{approvals.push(item);return true;}}};
   const pack=installBrowserCapabilities(host,{launch:async()=>browser=await chromium.launch({channel:'msedge',headless:true})});
   const call=(name,args)=>tools.get(name).execute(args,{agent:{id:'s'},signal:new AbortController().signal});
   try{
@@ -30,7 +30,10 @@ test('isolated browser observes and interacts with a local page after individual
     await assert.rejects(call('mirally_browser_click',{selector:'button'}),/未获批准/);
     host.actionGate.request=async()=>true;
     await assert.rejects(call('mirally_browser_open',{url:'file:///etc/passwd'}),/仅支持/);
-    origin='weixin';await assert.rejects(call('mirally_browser_click',{selector:'button'}),/消息来源/);origin='desktop';
+    origin='weixin'; await call('mirally_browser_read',{});
+    host.actionGate.request=async()=>{revoked=true;return true;};
+    await assert.rejects(call('mirally_browser_click',{selector:'button'}),/revoked/); revoked=false;
+    origin='mobile';await assert.rejects(call('mirally_browser_click',{selector:'button'}),/消息来源/);origin='desktop';
     host.actionGate.request=async()=>{consumed='next';return true;};
     await assert.rejects(call('mirally_browser_click',{selector:'button'}),/消息来源/);consumed='cmd';
     host.actionGate.request=async()=>{await browser.contexts()[0].pages()[0].evaluate(()=>document.querySelector('#name').value='changed');return true;};

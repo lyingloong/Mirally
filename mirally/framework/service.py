@@ -34,6 +34,7 @@ DEFAULT_SETTINGS = {
     "activity_paused": False, "activity_capture": {},
     "memory_semantics": {"max_calls_per_hour": 4, "max_tokens_per_day": 24000, "max_output_tokens": 1500},
     "general_initiative_enabled": False, "memory_enabled": True,
+    "weixin_remote_control_enabled": False,
     "do_not_disturb": False, "memory_config_path": None, "activity_config_path": None, "extensions": [],
     "model_connections": {}, "model_catalogs": {}, "model_routes": {"chat": "default", "background": "default"},
     "model": {"provider": "openai-compatible", "base_url": "", "api_format": "openai-chat",
@@ -437,6 +438,10 @@ class FrameworkService:
                     raise FrameworkError("INVALID_PARAMS", f"{key} must be boolean")
                 value[key] = item
         with self._transaction():
+            if patch.get('weixin_remote_control_enabled') is True:
+                route = self.db.execute("SELECT bound FROM channel_weixin WHERE singleton=1").fetchone()
+                if not route or not route['bound']:
+                    raise FrameworkError('CHANNEL_UNCONFIGURED', '请先绑定微信，再启用远程控制。')
             if 'model' in patch and value['model'] != previous['model']:
                 self.model_connections._assert_connection_inactive('default')
             if 'model' in patch and value['model']['model_id'] != previous['model']['model_id']:

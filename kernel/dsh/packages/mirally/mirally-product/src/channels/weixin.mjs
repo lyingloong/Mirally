@@ -5,7 +5,7 @@ import {WeixinWorks, WORK_HELP} from './weixin-work.mjs';
 
 const MAX_AGE = 10 * 60_000;
 const LOGIN_TTL = 5 * 60_000;
-const HELP = '这是你的 Mirally 微信入口。电脑保持 Mirally 联网运行即可，无需自建云服务器或打开网页。\n会话：\n/new 新建会话\n/sessions 列出会话\n/use 编号 切换会话\n/history [更早游标] 回看当前会话正文\n/status 查看当前会话\n/stop 停止当前回复\n/help 或“菜单”查看帮助\n对话工具仅允许明确的只读查询；工作执行须单独确认。\n' + WORK_HELP;
+const HELP = '这是你的 Mirally 微信入口。电脑保持 Mirally 联网运行即可，无需自建云服务器或打开网页。\n会话：\n/new 新建会话\n/sessions 列出会话\n/use 编号 切换会话\n/history [更早游标] 回看当前会话正文\n/status 查看当前会话\n/stop 停止当前回复\n/help 或“菜单”查看帮助\n动作确认：收到完整详情后用 /approve 确认码 或 /deny 确认码。\n' + WORK_HELP;
 const TEXT_CONTROLS = new Map([['菜单', '/help'], ['帮助', '/help'], ['会话列表', '/sessions'], ['查看历史', '/history']]);
 const blocked = () => Object.assign(new Error('微信绑定或会话已改变，请重新发起。'), {code: 'weixin_scope_revoked', status: 403});
 const pause = (ms, signal) => new Promise(resolve => {
@@ -25,7 +25,9 @@ function boundedReply(value) {
   return chars.slice(0, 14000).join('') + (clipped ? '\n（回复较长，请在桌面查看完整内容。）' : '');
 }
 export function weixinTextParts(value) {
-  const text = boundedReply(value);
+  return splitText(boundedReply(value));
+}
+function splitText(text) {
   const all = Array.from(text), parts = [];
   for (let start = 0; start < all.length; start += 3500) parts.push(all.slice(start, start + 3500).join(''));
   return parts.length > 1 ? parts.map((part, index) => `[${index + 1}/${parts.length}] ${part}`) : parts;
@@ -305,9 +307,13 @@ export class WeixinChannel {
     const [name, ...arguments_] = (TEXT_CONTROLS.get(text) ?? text).split(/\s+/);
     const value = arguments_.join(' ');
     const current = await this.authorize(event);
-    if (name === '/stop') {
+    if (name === '/approve' || name === '/deny') {
+      if (!/^[a-f0-9]{16}$/.test(value)) throw blocked();
+      await this.product.actionGate.decideRemote(event, value, name === '/approve');
+      await this.reply(event, name === '/approve' ? '已确认该动作。' : '已拒绝该动作。', {control: true});
+    } else if (name === '/stop') {
       await this.product.cancel(event.conversation_id);
-      await this.reply(event, '已停止当前会话的回复；已发生的操作不会撤销。', {control: true});
+      await this.reply(event, '已停止当前会话的回复及其受管理的会话后台命令；工作运行需另行停止。已发生的操作不会撤销。', {control: true});
     } else if (name === '/help') await this.reply(event, HELP, {control: true});
     else if (name === '/status') {
       const conversation = await this.product.conversation(event.conversation_id);
@@ -378,6 +384,21 @@ export class WeixinChannel {
       ...(control ? {} : {conversation_id: event.conversation_id, command_id: event.command_id}),
       text: body, context_token: event.context_token,
     });
+  }
+
+  async requestActionApproval(value, scope, code) {
+    const state = await this.authorize(scope);
+    if (!this.product.actionGate.remoteDeliveryCurrent(value.id, scope) || !state.context_token) throw blocked();
+    const text = `动作请求：${value.title}\n\n${value.detail}\n\n请完整阅读所有分段后决定。\n确认：/approve ${code}\n拒绝：/deny ${code}\n该确认仅用于当前动作，过期或会话切换后失效。`;
+    await this.store('enqueue', {installation_id:scope.installation_id, revision:scope.revision,
+      conversation_id:scope.conversation_id, key:`action-approval:${value.id}`, text, context_token:state.context_token});
+    void this.pump().catch(() => {});
+  }
+
+  canDeliverAction(delivery) {
+    if (!delivery.key?.startsWith('action-approval:')) return true;
+    return this.product.actionGate.remoteDeliveryCurrent(delivery.key.slice('action-approval:'.length), {
+      installation_id: delivery.installation_id, revision: delivery.revision, conversation_id: delivery.conversation_id});
   }
 
   async notifyWorks() {
@@ -467,15 +488,15 @@ export class WeixinChannel {
       let status = 'unknown', receipt, acceptedParts = 0, failedPart;
       try {
         await this.authorize({...delivery, conversation_id: delivery.state.conversation_id});
-        if (delivery.command_id && !await this.product.canDeliverWeixin(delivery) || !await this.canDeliverWork(delivery)) {
+        if (delivery.command_id && !await this.product.canDeliverWeixin(delivery) || !await this.canDeliverWork(delivery) || !this.canDeliverAction(delivery)) {
           status = 'cancelled';
         } else {
           const controller = new AbortController(); this.sendController = controller;
-          const parts = weixinTextParts(delivery.text);
+          const parts = delivery.key?.startsWith('action-approval:') ? splitText(delivery.text) : weixinTextParts(delivery.text);
           for (let index = 0; index < parts.length; index++) {
             failedPart = index;
             await this.authorize({...delivery, conversation_id: delivery.state.conversation_id});
-            if (delivery.command_id && !await this.product.canDeliverWeixin(delivery) || !await this.canDeliverWork(delivery)) throw blocked();
+            if (delivery.command_id && !await this.product.canDeliverWeixin(delivery) || !await this.canDeliverWork(delivery) || !this.canDeliverAction(delivery)) throw blocked();
             await this.api(delivery.state.base_url).sendText({token: delivery.state.token, to: delivery.state.peer_id,
               text: parts[index], contextToken: delivery.context_token || delivery.state.context_token,
               clientId: `${delivery.delivery_id}:${index}`, signal: AbortSignal.any([controller.signal, this.connection.signal])});
@@ -490,7 +511,10 @@ export class WeixinChannel {
         if (error.credentialStale) { this.phase = 'login_required'; this.error = '微信登录已失效，请重新扫码。'; this.connection?.abort(); }
         else this.error = status === 'unknown' ? '有回复未能确认发送，请在桌面查看；不会自动重发。' : '有回复未能送出，请在桌面查看发送状态。';
       } finally { this.sendController = null; }
-      await this.store('ack', {delivery_id: delivery.delivery_id, status, ...(receipt ? {receipt} : {})});
+      const acknowledged = await this.store('ack', {delivery_id: delivery.delivery_id, status, ...(receipt ? {receipt} : {})});
+      if (status === 'sent' && acknowledged.delivery?.status === 'sent' && receipt?.accepted === true
+        && receipt.accepted_parts === splitText(delivery.text).length && delivery.key?.startsWith('action-approval:')) this.product.actionGate.remoteDelivered(
+        delivery.key.slice('action-approval:'.length), {installation_id:delivery.installation_id, revision:delivery.revision, conversation_id:delivery.conversation_id});
       if (delivery.key?.startsWith('work-notification:')) await this.product.rpc('work.notifications.ack', {
         event_id: delivery.key.slice('work-notification:'.length), channel: 'weixin',
         installation_id: delivery.installation_id, revision: delivery.revision, status: status === 'cancelled' ? 'suppressed' : status});

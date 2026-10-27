@@ -103,6 +103,25 @@ class FrameworkChannelsTests(unittest.TestCase):
         with self.assertRaises(FrameworkError):
             self.event(previous)
 
+    def test_remote_control_is_opt_in_persistent_and_bound_to_installation(self):
+        get = lambda: self.service.call('settings.get')['weixin_remote_control_enabled']
+        update = lambda value: self.service.call('settings.update', {'patch': {'weixin_remote_control_enabled': value}})
+        self.assertFalse(get())
+        with self.assertRaises(FrameworkError):
+            update(True)
+        state = self.bound()
+        with self.assertRaises(FrameworkError):
+            update('true')
+        update(True)
+        self.restart()
+        self.assertTrue(get())
+        self.call('unbind', expected_revision=state['revision'])
+        self.assertFalse(get())
+        state = self.bound()
+        update(True)
+        self.save()
+        self.assertFalse(get())
+
     def test_history_evidence_only_joins_real_matching_weixin_event_and_command(self):
         state = self.bound()
         cid = state["conversation_id"]

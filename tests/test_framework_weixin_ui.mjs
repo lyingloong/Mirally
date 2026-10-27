@@ -19,7 +19,8 @@ const stringify = value => value === undefined || value === null || typeof value
 const html = (strings, ...values) => ({strings, values});
 const deferred = () => {let resolve, reject; const promise = new Promise((yes, no) => {resolve = yes; reject = no;}); return {promise, resolve, reject};};
 
-function fixture(handler = method => method === 'conversation.list' ? {conversations: []} : {...baseStatus}) {
+function fixture(handler = method => method === 'conversation.list' ? {conversations: []}
+  : method === 'settings.get' ? {weixin_remote_control_enabled: false} : {...baseStatus}) {
   const calls = [], timers = new Map(), listeners = new Map(); let timerId = 0;
   const document = {hidden: false, addEventListener: (name, fn) => listeners.set('document.' + name, fn),
     removeEventListener: name => listeners.delete('document.' + name)};
@@ -68,7 +69,7 @@ test('Weixin setup explains the server-free path and existing work controls with
   for (const command of ['/history [更早游标]', '/works', '/work 工作编号', '/work-use 工作编号', '/work-review 完整审批编号', '/work-approve 确认码', '/work-cancel 完整运行编号', '/work-logs 完整运行编号 [字节偏移]', '/work-notify [on|off]', '/stop']) {
     assert.ok(rendered.includes(command), `The real settings should introduce ${command}`);
   }
-  assert.match(rendered, /不会停止后台运行/);
+  assert.match(rendered, /会话后台命令/);
   assert.match(rendered, /“菜单”或“帮助”查看全部命令/);
   assert.match(rendered, /当前会话最近正文，每页最多 6 条，长消息会节选/);
   assert.match(rendered, /只调整微信工作通知，不改消息页通知，也不停止工作/);
@@ -138,8 +139,8 @@ test('hidden documents do not poll; visible connected pages schedule one two-sec
   await f.page.refresh(true); assert.equal(f.calls.length, 0); assert.equal(f.timers.size, 0);
   f.document.hidden = false;
   await f.page.refresh(true);
-  assert.deepEqual(f.calls.map(call => call.method), ['weixin.status', 'conversation.list']);
-  assert.equal(f.calls[1].params.archived_filter, 'active');
+  assert.deepEqual(f.calls.map(call => call.method), ['weixin.status', 'settings.get', 'conversation.list']);
+  assert.equal(f.calls[2].params.archived_filter, 'active');
   assert.equal(f.timers.size, 1); assert.equal([...f.timers.values()][0].delay, 2000);
   f.document.hidden = true; f.page.visibilityChanged(); assert.equal(f.timers.size, 0);
 });
@@ -161,6 +162,7 @@ test('conversation records normalize the public identity and passive polls prese
   const f = fixture(method => {
     if (method === 'conversation.list') return {conversations: [{conversation_id: 'current', title: 'Current'}, {id: 'legacy', title: 'Legacy'}, {title: 'Missing'}]};
     if (method === 'weixin.status') return {...baseStatus};
+    if (method === 'settings.get') return {weixin_remote_control_enabled: false};
     if (fail) throw new Error('private response');
     return {...baseStatus};
   });
@@ -170,4 +172,39 @@ test('conversation records normalize the public identity and passive polls prese
   const message = f.page.error;
   assert.ok(message); await f.page.refresh(false); assert.equal(f.page.error, message);
   fail = false; await f.page.refresh(true); assert.equal(f.page.error, '');
+});
+
+test('remote control requires a binding and persists explicit settings changes', async () => {
+  let enabled = false;
+  const f = fixture((method, params) => {
+    if (method === 'weixin.status') return {...baseStatus};
+    if (method === 'settings.get') return {weixin_remote_control_enabled: enabled};
+    if (method === 'settings.update') {
+      assert.equal(params.patch.weixin_remote_control_enabled, true);
+      enabled = true; return {weixin_remote_control_enabled: enabled};
+    }
+    return {conversations: []};
+  });
+  await f.page.refresh(true);
+  assert.match(f.render(f.page), /data-testid="mirally-weixin-remote-control"[^>]*\?disabled=true/);
+  f.page.acceptStatus({...baseStatus, state: 'connected', bound: true, enabled: true});
+  assert.match(f.render(f.page), /data-testid="mirally-weixin-remote-control"[^>]*\?disabled=false/);
+  await f.page.setRemoteControl(true);
+  assert.equal(f.page.remoteControl, true);
+  assert.equal(f.calls.filter(call => call.method === 'settings.update').length, 1);
+  assert.match(f.page.notice, /已允许/);
+});
+
+test('remote control save failure preserves the previous value and hides protocol errors', async () => {
+  const f = fixture(method => {
+    if (method === 'settings.update') throw new Error('private response');
+    return {...baseStatus};
+  });
+  f.page.acceptStatus({...baseStatus, state: 'connected', bound: true, enabled: true});
+  f.page.remoteControl = false;
+  await f.page.setRemoteControl(true);
+  assert.equal(f.page.remoteControl, false);
+  assert.match(f.page.error, /未能保存/);
+  assert.doesNotMatch(f.render(f.page), /private response/);
+  assert.match(f.render(f.page), /data-testid="mirally-weixin-remote-control"[^>]*\.checked=false/);
 });

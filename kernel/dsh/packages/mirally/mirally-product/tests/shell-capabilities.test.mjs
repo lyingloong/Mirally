@@ -37,8 +37,9 @@ test('approval is bound to active desktop command and shows the entire command',
   await assert.rejects(tool.execute({command:'Write-Output "quoted"', cwd:tmpdir()}, exec), /未批准/);
   assert.match(requested.detail, /Write-Output "quoted"/); assert.equal(requested.commandId, 'command-1'); assert.equal(requested.sessionId, 'native'); assert.equal(requested.kind, 'shell');
   policy = {origin:'weixin'};
-  await assert.rejects(tool.execute({command:'echo no', cwd:tmpdir()}, exec), /桌面会话/);
-  policy = {origin:'desktop'};
+  host.checkCommandScope = async () => { throw new Error('微信授权已失效'); };
+  await assert.rejects(tool.execute({command:'echo no', cwd:tmpdir()}, exec), /授权已失效/);
+  policy = {origin:'desktop'}; host.checkCommandScope = async () => {};
   host.actionGate.request = async request => {active.set('native','queued'); requested = request; return false;};
   await assert.rejects(tool.execute({command:'echo queued', cwd:tmpdir()}, exec), /未批准/);
   assert.equal(requested.commandId, 'command-1');
@@ -73,4 +74,55 @@ test('approved background command can be inspected and stopped through model too
   host.activeCommands.set('native','next');
   assert.equal((await tools.get('mirally_job_status').execute({job_id:job.job_id},exec)).status,'running');
   assert.equal((await tools.get('mirally_stop_job').execute({job_id:job.job_id},exec)).status,'cancelled');
+});
+
+
+test('same-conversation remote turn can inspect live jobs and stop only after approval', {skip: process.platform !== 'win32'}, async t => {
+  const tools = new Map(), active = new Map([['native','desktop-turn'],['other','other-turn']]);
+  let origin = 'desktop', revoked = false, allow = true, requested;
+  const host = {home:tmpdir(), nativeConversations:new Map([['native',{conversation_id:'conversation'}],['other',{conversation_id:'other'}]]),
+    authorizations:new AsyncLocalStorage(), ctx:{tools:{register: value => tools.set(value.name,value)}},
+    commandPolicy:()=>({origin}), consumedCommandId:agent=>active.get(agent.id),
+    checkCommandScope:async()=>{if(revoked) throw new Error('授权失效');}, guard:async()=>{},
+    actionGate:{request:async(value)=>{requested=value; return allow;}}};
+  const jobs = installShellCapabilities(host); t.after(()=>jobs.dispose());
+  const signal=new AbortController().signal, desktop={agent:{id:'native'},signal}, other={agent:{id:'other'},signal};
+  const job=await tools.get('mirally_run_command').execute({command:'Write-Output "remote-progress"; Start-Sleep -Seconds 20',cwd:tmpdir(),background:true},desktop);
+  active.set('native','weixin-turn'); origin='weixin';
+  const list=await tools.get('mirally_job_list').execute({},desktop);
+  assert.deepEqual(list.jobs.map(x=>x.job_id),[job.job_id]);
+  assert.equal((await tools.get('mirally_job_list').execute({},other)).jobs.length,0);
+  await assert.rejects(tools.get('mirally_job_status').execute({job_id:job.job_id},other),/不属于/);
+  const end=Date.now()+8000;
+  while (!(await tools.get('mirally_job_status').execute({job_id:job.job_id},desktop)).stdout.includes('remote-progress') && Date.now()<end) await new Promise(r=>setTimeout(r,100));
+  assert.match((await tools.get('mirally_job_status').execute({job_id:job.job_id},desktop)).stdout,/remote-progress/);
+  revoked=true;
+  await assert.rejects(tools.get('mirally_job_list').execute({},desktop),/授权失效/);
+  revoked=false; allow=false;
+  await assert.rejects(tools.get('mirally_stop_job').execute({job_id:job.job_id},desktop),/未批准/);
+  assert.equal(jobs.get('native',job.job_id).status,'running');
+  allow=true;
+  assert.equal((await tools.get('mirally_stop_job').execute({job_id:job.job_id},desktop)).status,'cancelled');
+  assert.equal(requested.commandId,'weixin-turn'); assert.match(requested.detail,/Start-Sleep/);
+});
+
+test('remote scope is checked again after approval before execution', async () => {
+  const tools=new Map(); let revoked=false;
+  const host={home:tmpdir(),nativeConversations:new Map([['native',{conversation_id:'conversation'}]]),
+    authorizations:new AsyncLocalStorage(),ctx:{tools:{register:value=>tools.set(value.name,value)}},
+    commandPolicy:()=>({origin:'weixin'}),consumedCommandId:()=> 'weixin-turn',
+    checkCommandScope:async()=>{if(revoked) throw new Error('授权失效');},guard:async()=>{},
+    actionGate:{request:async()=>{revoked=true; return true;}}};
+  installShellCapabilities(host);
+  await assert.rejects(tools.get('mirally_run_command').execute({command:'echo must-not-run',cwd:tmpdir()}, {agent:{id:'native'},signal:new AbortController().signal}),/授权失效/);
+});
+
+
+test('background status retains recent output after the output limit', {skip: process.platform !== 'win32'}, async t => {
+  const jobs = new ShellJobs(); t.after(()=>jobs.dispose());
+  const job = await jobs.start({sessionId:'one', commandId:'command', command:"'x' * 80000; Write-Output 'LATEST-PROGRESS'; Start-Sleep -Seconds 20", cwd:tmpdir(), timeoutMs:30000});
+  const end=Date.now()+8000;
+  while (!jobs.view(jobs.get('one',job.job_id)).stdout.includes('LATEST-PROGRESS') && Date.now()<end) await new Promise(r=>setTimeout(r,100));
+  const value=jobs.view(jobs.get('one',job.job_id));
+  assert.match(value.stdout,/LATEST-PROGRESS/); assert.equal(value.truncated,true); assert.ok(Buffer.byteLength(value.stdout)<=65536);
 });

@@ -28,6 +28,10 @@ export {projectMessages} from './history-presentation.mjs';
 const REMOTE_INPUT = Symbol('trusted channel input');
 const WEIXIN_READ_TOOLS = new Set(['mirally_context', 'mirally_preferences', 'mirally_reminders',
   'mirally_workspace_roots', 'mirally_list_files', 'mirally_read_file', 'mirally_search_files', 'mirally_works', 'mirally_work_status']);
+const WEIXIN_SESSION_READ_TOOLS = new Set(['mirally_job_list', 'mirally_job_status']);
+const WEIXIN_ACTION_TOOLS = new Set(['mirally_action', 'mirally_run_command', 'mirally_stop_job',
+  'mirally_browser_open', 'mirally_browser_read', 'mirally_browser_click', 'mirally_browser_fill',
+  'mirally_desktop_foreground', 'mirally_desktop_windows', 'mirally_desktop_screenshot']);
 
 export const name = 'mirally-product';
 export const inject = ['agents', 'agentLoop', 'sessions', 'sessionPersistence', 'llm', 'tools', 'systemPrompt'];
@@ -219,8 +223,15 @@ export class MirallyProduct extends Service {
     if (policy?.origin !== 'weixin') return;
     if (policy.revoked || !this.weixin) throw failure('微信消息的授权已失效，请重新发起。', 'weixin_scope_revoked', 403);
     await this.weixin.authorize(policy);
-    if (toolName && !WEIXIN_READ_TOOLS.has(toolName))
-      throw failure('微信对话仅允许指定的只读工具；执行请使用工作审批。', 'weixin_read_only', 403);
+    if (!toolName || WEIXIN_READ_TOOLS.has(toolName) || WEIXIN_SESSION_READ_TOOLS.has(toolName)) return;
+    if (WEIXIN_ACTION_TOOLS.has(toolName) && (await this.rpc('settings.get')).weixin_remote_control_enabled === true) {
+      await this.weixin.authorize(policy);
+      if (this.commandPolicy(agent) !== policy) throw failure('微信消息的授权已失效，请重新发起。', 'weixin_scope_revoked', 403);
+      return;
+    }
+    if (WEIXIN_ACTION_TOOLS.has(toolName))
+      throw failure('微信远程控制未开启，请在电脑的消息渠道设置中开启。', 'weixin_action_unavailable', 403);
+    throw failure('这项能力尚未向微信对话开放。', 'weixin_read_only', 403);
   }
 
   async sendWeixin(event) {
@@ -926,7 +937,10 @@ export class MirallyProduct extends Service {
       await this.refreshModels(); this.lastInitiativeCheck = 0;
       this.broadcast('configuration', {fields: Object.keys(params.patch || {})});
     }
-    if (INVALIDATING_METHODS.has(method) || result?.requires_session_rotation) {
+    // A channel access switch does not invalidate or stop desktop work.
+    const remoteSwitchOnly = method === 'settings.update' && params.patch && Object.keys(params.patch).length === 1
+      && Object.hasOwn(params.patch, 'weixin_remote_control_enabled');
+    if (INVALIDATING_METHODS.has(method) && !remoteSwitchOnly || result?.requires_session_rotation) {
       for (const conversation of (await this.rpc('conversation.list')).conversations) {
         if (conversation.session_id && this.handles.has(conversation.session_id)) {
           await this.cancel(conversation.conversation_id);

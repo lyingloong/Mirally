@@ -2,7 +2,7 @@
 import {randomBytes} from 'node:crypto';
 import {shortWorkId, workSummary} from '../work-host.mjs';
 
-export const WORK_HELP = '工作入口：\n/works 工作列表\n/work 编号 查看工作\n/work-new 目标 新建工作\n/work-use 编号 在微信继续这项工作\n/work-status 当前会话关联的工作\n/work-run 工作编号 {"script":"任务.py","arguments":[]} 准备运行\n/work-review 审批编号 审阅桌面准备的动作\n/work-approve 确认码 批准并启动具体运行\n/work-cancel 完整运行编号 停止真实运行\n/work-logs 完整运行编号 [字节偏移] 查看真实日志\n/work-notify [on|off] 查看或切换微信工作通知\n停止回复用 /stop，不会停止后台运行。';
+export const WORK_HELP = '工作入口：\n/works 工作列表\n/work 编号 查看工作\n/work-new 目标 新建工作\n/work-use 编号 在微信继续这项工作\n/work-status 当前会话关联的工作\n/work-run 工作编号 {"script":"任务.py","arguments":[]} 准备运行\n/work-review 审批编号 审阅桌面准备的动作\n/work-approve 确认码 批准并启动具体运行\n/work-cancel 完整运行编号 停止真实运行\n/work-logs 完整运行编号 [字节偏移] 查看真实日志\n/work-notify [on|off] 查看或切换微信工作通知\n/stop 会停止会话回复和会话后台命令；工作运行需用 /work-cancel。';
 const plainLists = new Set(['我的工作怎么样了', '我的工作怎么样了？', '我的工作怎么样了?', '我的工作', '工作列表', '查看工作', '查看我的工作']);
 const controlError = message => Object.assign(new Error(message), {code: 'invalid_work_control'});
 

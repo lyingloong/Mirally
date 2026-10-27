@@ -41,16 +41,16 @@ export function installBrowserCapabilities(host, {launch = async () => (await im
   const register=(name,description,parameters,run)=>host.ctx.tools.register({name,description,parameters,
     output:{schema:{type:'object',additionalProperties:true},render:(_a,result)=>[{type:'text',text:JSON.stringify(result)}]},
     execute:async(args,exec)=>{
-      const id=exec.agent?.id, commandId=host.consumedCommandId(exec.agent);
+      const id=exec.agent?.id, commandId=host.consumedCommandId(exec.agent), origin=host.commandPolicy(exec.agent)?.origin;
       if(!id || !commandId || !host.nativeConversations.has(id)) throw error('浏览器操作需要属于当前会话的有效指令。');
       const check=async(effect='query')=>{
         exec.signal.throwIfAborted();
         if(disposed) throw error('浏览器服务已关闭。');
-        if(host.consumedCommandId(exec.agent)!==commandId || host.commandPolicy(exec.agent)?.origin!=='desktop') throw error('会话或消息来源已改变，浏览器操作未执行。');
+        if(host.consumedCommandId(exec.agent)!==commandId || !['desktop','weixin'].includes(origin) || host.commandPolicy(exec.agent)?.origin!==origin) throw error('会话或消息来源已改变，浏览器操作未执行。');
         await host.checkCommandScope(exec.agent,name);
         await host.guard(id,effect,effect!=='query');
         exec.signal.throwIfAborted();
-        if(host.consumedCommandId(exec.agent)!==commandId || host.commandPolicy(exec.agent)?.origin!=='desktop') throw error('会话或消息来源已改变，浏览器操作未执行。');
+        if(host.consumedCommandId(exec.agent)!==commandId || host.commandPolicy(exec.agent)?.origin!==origin) throw error('会话或消息来源已改变，浏览器操作未执行。');
       };
       const predecessor=queues.get(id) ?? Promise.resolve();
       let release;const held=new Promise(resolve=>{release=resolve;});

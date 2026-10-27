@@ -31,10 +31,21 @@ test('reject, remote input, and aborted request never observe', async()=>{
   for(const mode of ['reject','remote','abort']) {
     const f=fixture(), tool=f.registered.get('mirally_desktop_screenshot');
     if(mode==='reject') f.host.actionGate.request=async()=>false;
-    if(mode==='remote') f.host.requestPolicies.set('session',{origin:'weixin'});
+    if(mode==='remote') f.host.requestPolicies.set('session',{origin:'mobile'});
     const e=exec(); if(mode==='abort') {const controller=new AbortController(); controller.abort(); e.signal=controller.signal;}
     await assert.rejects(tool.execute({},e)); assert.deepEqual(f.observations,[]); assert.deepEqual(f.saved,[]);
   }
+});
+test('Weixin observation requires approval and rechecks revoked scope before capture', async()=>{
+  const f=fixture(); f.host.requestPolicies.set('session',{origin:'weixin'});
+  await f.registered.get('mirally_desktop_windows').execute({},exec());
+  assert.deepEqual(f.observations,['windows']);
+  let revoked=false;
+  f.host.checkCommandScope=async()=>{if(revoked) throw Error('revoked');};
+  f.host.actionGate.request=async()=>{revoked=true;return true;};
+  await assert.rejects(f.registered.get('mirally_desktop_screenshot').execute({},exec()),/revoked/);
+  assert.deepEqual(f.observations,['windows']); assert.deepEqual(f.saved,[]);
+  await assert.rejects(f.registered.get('mirally_desktop_click').execute({},exec()));
 });
 test('recheck command and origin after confirmation before observing',async()=>{
   const f=fixture(); f.host.actionGate.request=async()=>{f.host.requestPolicies.set('session',{origin:'mobile'});return true;};
