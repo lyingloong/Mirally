@@ -26,7 +26,12 @@ from .channels import CHANNEL_SCHEMA, WeixinChannels
 from .work import WORK_SCHEMA, WorkOwner
 
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
+CONVERSATION_FORKS_SCHEMA = """CREATE TABLE IF NOT EXISTS conversation_forks (
+    conversation_id TEXT PRIMARY KEY REFERENCES conversations(id),
+    parent_conversation_id TEXT NOT NULL,parent_generation INTEGER NOT NULL,
+    parent_session_id TEXT NOT NULL,boundary_seq INTEGER NOT NULL,request_hash TEXT NOT NULL,
+    FOREIGN KEY(parent_conversation_id,parent_generation) REFERENCES generations(conversation_id,generation))"""
 INITIATIVE_RUNS_SCHEMA = """CREATE TABLE initiative_runs (id TEXT PRIMARY KEY,lease_token TEXT NOT NULL,
     created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,status TEXT NOT NULL,sources_json TEXT NOT NULL)"""
 DEFAULT_SETTINGS = {
@@ -84,7 +89,7 @@ class FrameworkService:
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.execute("PRAGMA busy_timeout=10000")
         try:
-            if self.db.execute("PRAGMA user_version").fetchone()[0] not in (0, 1, 2, 3, 4, 5, 6, SCHEMA_VERSION):
+            if self.db.execute("PRAGMA user_version").fetchone()[0] not in (0, 1, 2, 3, 4, 5, 6, 7, SCHEMA_VERSION):
                 raise FrameworkError("SCHEMA_VERSION", "unsupported product database schema")
             self.db.execute("PRAGMA journal_mode=WAL")
             self.db.execute("PRAGMA synchronous=FULL")
@@ -108,11 +113,11 @@ class FrameworkService:
 
     def _initialize(self) -> None:
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, 3, 4, 5, 6, SCHEMA_VERSION):
+        if version not in (0, 1, 2, 3, 4, 5, 6, 7, SCHEMA_VERSION):
             raise FrameworkError("SCHEMA_VERSION", "unsupported product database schema")
         if version == SCHEMA_VERSION:
             return
-        if version in (1, 2, 3, 4, 5, 6):
+        if version in (1, 2, 3, 4, 5, 6, 7):
             with self._transaction():
                 if version == 1:
                     self.db.execute(INITIATIVE_RUNS_SCHEMA)
@@ -132,6 +137,7 @@ class FrameworkService:
                     columns = {row[1] for row in self.db.execute(f'PRAGMA table_info({table})')}
                     if 'model_selection_json' not in columns:
                         self.db.execute(f'ALTER TABLE {table} ADD COLUMN model_selection_json TEXT')
+                self.db.execute(CONVERSATION_FORKS_SCHEMA)
                 self.db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             return
         with self._transaction():
@@ -168,7 +174,7 @@ class FrameworkService:
                 "CREATE TABLE inbox (delivery_id TEXT PRIMARY KEY REFERENCES deliveries(id),state TEXT NOT NULL,updated_at INTEGER NOT NULL)",
                 INITIATIVE_RUNS_SCHEMA,
             )
-            for statement in (*statements, *CHANNEL_SCHEMA, *WORK_SCHEMA):
+            for statement in (*statements, *CHANNEL_SCHEMA, *WORK_SCHEMA, CONVERSATION_FORKS_SCHEMA):
                 self.db.execute(statement)
             self.db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
 
@@ -207,6 +213,9 @@ class FrameworkService:
             "internal.conversation.autotitle": self.conversation_autotitle,
             "internal.conversation.weixin_receipts": self.conversation_weixin_receipts,
             "conversation.get": self.conversation_get,
+            "internal.conversation.prepare_input": self.conversation_prepare_input,
+            "internal.conversation.fork": self.conversation_fork,
+            "internal.conversation.continuation": self.conversation_continuation,
             "internal.conversation.activity_batch": self.conversation_activity_batch,
             "conversation.history_refs": self.conversation_history_refs,
             "command.admit": self.command_admit, "command.ack": self.command_ack, "command.list": self.command_list,
@@ -481,6 +490,9 @@ class FrameworkService:
         result["frozen"] = bool(result["frozen"])
         result["pinned"], result["archived"] = bool(result["pinned"]), bool(result["archived"])
         result["needs_session"] = result["session_id"] is None or result["frozen"]
+        fork = self.db.execute('SELECT * FROM conversation_forks WHERE conversation_id=?', (conversation_id,)).fetchone()
+        if fork:
+            result['fork'] = dict(fork)
         return result
 
     def _validate_model_selection(self, selection: Any) -> None:
@@ -518,6 +530,40 @@ class FrameworkService:
         _text(conversation_id, "conversation_id")
         return self._conversation(conversation_id)
 
+    def conversation_fork(self, conversation_id: str, parent_conversation_id: str, parent_generation: int,
+                          parent_session_id: str, boundary_seq: int, request_hash: str,
+                          title: str | None = None) -> dict[str, Any]:
+        """Reserve a native prefix and its source dependencies, never a second transcript."""
+        _text(conversation_id, 'conversation_id')
+        _text(parent_conversation_id, 'parent_conversation_id')
+        _text(parent_session_id, 'parent_session_id')
+        _text(request_hash, 'request_hash', 64)
+        _integer(parent_generation, 'parent_generation', 1)
+        _integer(boundary_seq, 'boundary_seq', 0)
+        if title is not None:
+            _text(title, 'title', 512)
+        with self._transaction():
+            old = self.db.execute('SELECT * FROM conversation_forks WHERE conversation_id=?', (conversation_id,)).fetchone()
+            if old:
+                if old['request_hash'] != request_hash or old['parent_conversation_id'] != parent_conversation_id:
+                    raise FrameworkError('CONFLICT', 'fork identity already refers to a different request')
+                target = self._conversation(conversation_id)
+                if target['frozen'] or target['archived']:
+                    raise FrameworkError('CONFLICT', 'fork is no longer active')
+                return target
+            parent = self._conversation(parent_conversation_id)
+            refs = [dict(row) for row in self.db.execute('SELECT source_id,version FROM source_uses WHERE conversation_id=? AND generation=?',
+                                                        (parent_conversation_id, parent_generation))]
+            if parent['frozen'] or parent['archived'] or parent['generation'] != parent_generation or parent['session_id'] != parent_session_id or self._source_reasons(refs):
+                raise FrameworkError('CONFLICT', 'parent session or its sources changed before fork')
+            if self.db.execute('SELECT 1 FROM conversations WHERE id=?', (conversation_id,)).fetchone():
+                raise FrameworkError('CONFLICT', 'fork target already exists')
+            self.conversation_ensure(conversation_id=conversation_id, title=title or (parent['title'][:500] + ' · 分叉'), model_selection=parent['model_selection'])
+            self.db.execute('INSERT INTO conversation_forks VALUES(?,?,?,?,?,?)',
+                            (conversation_id, parent_conversation_id, parent_generation, parent_session_id, boundary_seq, request_hash))
+            self._record_uses(conversation_id, 1, refs)
+        return self._conversation(conversation_id)
+
     def conversation_activity_batch(self, conversation_ids: list[str]) -> dict[str, Any]:
         if not isinstance(conversation_ids, list) or len(conversation_ids) > 200:
             raise FrameworkError("INVALID_PARAMS", "conversation_ids must be a list of at most 200 identities")
@@ -553,6 +599,29 @@ class FrameworkService:
             self.db.execute("INSERT INTO generations VALUES(?,?,?,0,?,?)", (conversation_id, generation, session_id, reason, self.clock()))
             self.db.execute("UPDATE conversations SET current_generation=? WHERE id=?", (generation, conversation_id))
         return self._conversation(conversation_id)
+
+    def conversation_prepare_input(self, conversation_id: str) -> dict[str, Any]:
+        """Keep native transcripts across ordinary stops, including legacy ones.
+
+        Older hosts froze every user stop. Reuse that native session only when
+        all recorded sources are still current; privacy/configuration fences
+        continue to require a fresh generation.
+        """
+        with self._transaction():
+            current = self._conversation(conversation_id)
+            if current['archived']:
+                raise FrameworkError('CONFLICT', 'restore the archived conversation before sending')
+            if not current['frozen']:
+                return current
+            reason = self.db.execute('SELECT reason FROM generations WHERE conversation_id=? AND generation=?',
+                                     (conversation_id, current['generation'])).fetchone()[0]
+            refs = [dict(row) for row in self.db.execute('SELECT source_id,version FROM source_uses WHERE conversation_id=? AND generation=?',
+                                                        (conversation_id, current['generation']))]
+            if reason == 'user_stopped' and not self._source_reasons(refs):
+                self.db.execute('UPDATE generations SET frozen=0,reason=? WHERE conversation_id=? AND generation=?',
+                                ('user_resumed', conversation_id, current['generation']))
+                return self._conversation(conversation_id)
+            return self.conversation_rotate(conversation_id, reason='explicit_user_input')
 
     def conversation_patch(self, conversation_id: str, expected_version: int, patch: dict[str, Any]) -> dict[str, Any]:
         _integer(expected_version, "expected_version", 1)
@@ -644,6 +713,24 @@ class FrameworkService:
         return {"conversation_id": conversation_id, "generations": [
             {**dict(row), "frozen": bool(row["frozen"])} for row in self.db.execute(
                 "SELECT generation,session_id,frozen,reason,created_at FROM generations WHERE conversation_id=? ORDER BY generation", (conversation_id,))]}
+
+    def conversation_continuation(self, conversation_id: str, generation: int) -> dict[str, Any]:
+        """Authorize prior generations for a new prompt and retain source dependencies."""
+        _integer(generation, "generation", 1)
+        with self._transaction():
+            current = self._conversation(conversation_id)
+            if current['generation'] != generation or current['frozen'] or current['archived']:
+                raise FrameworkError('CONFLICT', 'conversation generation is no longer active')
+            rows = self.db.execute("SELECT generation,session_id FROM generations WHERE conversation_id=? AND generation<? ORDER BY generation DESC LIMIT 101", (conversation_id, generation)).fetchall()
+            eligible, omitted = [], len(rows) > 100
+            for row in rows[:100]:
+                refs = [dict(item) for item in self.db.execute("SELECT source_id,version FROM source_uses WHERE conversation_id=? AND generation=?", (conversation_id, row['generation']))]
+                if not row['session_id'] or self._source_reasons(refs):
+                    omitted = True
+                    continue
+                self._record_uses(conversation_id, generation, refs)
+                eligible.append(row['generation'])
+        return {'generations': eligible, 'omitted': omitted}
 
     def _source(self, source_id: str) -> dict[str, Any]:
         row = self.db.execute("SELECT * FROM sources WHERE source_id=?", (source_id,)).fetchone()
@@ -754,12 +841,18 @@ class FrameworkService:
             clause, args = "conversation_id=? AND generation=?", [conversation_id, current["generation"]]
             if command_id is not None:
                 command = self._command(conversation_id, command_id)
-                clause, args = "conversation_id=? AND command_id=?", [conversation_id, command_id]
+                # Native cancel clears this session's queued input too; all
+                # matching receipts must settle with the same stopped driver.
+                clause, args = "conversation_id=? AND generation=?", [conversation_id, command["generation"]]
                 current = {**current, "generation": command["generation"], "session_id": command["session_id"]}
             ids = [row[0] for row in self.db.execute(f"SELECT command_id FROM commands WHERE {clause} AND state NOT IN ('completed','cancelled','rejected')", args)]
             self.db.execute(f"UPDATE commands SET state='cancelled',updated_at=? WHERE {clause} AND state NOT IN ('completed','cancelled','rejected')", [self.clock(), *args])
-            self._freeze(conversation_id, current["generation"], "user_stopped")
-        return {"conversation_id": conversation_id, "generation": current["generation"], "session_id": current["session_id"], "cancelled_command_ids": ids}
+            # Stop is a turn operation, not a transcript/privacy boundary. The
+            # native Agent cancels its driver and inbox while retaining session
+            # messages, tool receipts and attachments for explicit later input.
+            # Source/configuration invalidation remains the owner of freezing.
+        return {"conversation_id": conversation_id, "generation": current["generation"], "session_id": current["session_id"],
+                "frozen": current["frozen"], "cancelled_command_ids": ids}
 
     def _freeze(self, conversation_id: str, generation: int, reason: str) -> None:
         self.db.execute("UPDATE generations SET frozen=1,reason=? WHERE conversation_id=? AND generation=?", (reason, conversation_id, generation))

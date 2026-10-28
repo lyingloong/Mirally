@@ -86,6 +86,18 @@ mirally-work-panel, mirally-work-page, mirally-mobile-settings {display:block;mi
 .chat-bubble > .mirally-message-origin { margin-bottom: 7px; }
 
 mirally-action-approvals { display: block; }
+mirally-native-interactions { display: block; }
+.mirally-native-question { margin: 8px 0; padding: 14px 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface, var(--card)); color: var(--text); }
+.mirally-native-question fieldset { border: 0; padding: 12px 0; min-width: 0; }
+.mirally-native-question legend { padding: 0; font-weight: 600; overflow-wrap: anywhere; }
+.mirally-native-question__detail { max-height: 40vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font: inherit; line-height: 1.6; }
+.mirally-native-question__options { display: grid; gap: 8px; margin: 8px 0; }
+.mirally-native-question__options label { display: flex; gap: 10px; align-items: flex-start; padding: 10px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.mirally-native-question__options input { margin-top: 4px; }
+.mirally-native-question__options small { display: block; color: var(--text-muted); margin-top: 3px; }
+.mirally-native-question__custom { display: grid; gap: 6px; font-size: 13px; color: var(--text-muted); }
+.mirally-native-question__custom textarea { width: 100%; box-sizing: border-box; resize: vertical; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px; font: inherit; }
+.mirally-native-question__error { color: var(--danger, #c84e4e); }
 .mirally-session-permission { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 4px 2px; color: var(--text-muted); font-size: 12px; }
 .mirally-session-permission label { display: inline-flex; align-items: center; gap: 5px; color: var(--text); cursor: pointer; }
 .mirally-session-permission input { accent-color: var(--accent); }

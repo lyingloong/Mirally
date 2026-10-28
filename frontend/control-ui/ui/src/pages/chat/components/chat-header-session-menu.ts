@@ -380,7 +380,7 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
             `
           : nothing
       }
-      ${renderMirallySessionOrganization(this.session, this.actionDisabledReasons, this.archiveAllowed)}
+      ${renderMirallySessionOrganization(this.session, this.actionDisabledReasons, this.archiveAllowed, false, this.forkDisabled)}
       ${this.renderQuickActions("panels", this.panelActions)}
       ${this.renderQuickActions("layout", this.layoutActions)}
       ${

@@ -153,7 +153,7 @@ class SessionMenu extends OpenClawLightDomElement {
         ${batch ? html`
           <div class="session-menu__info">${mirallyNavigationText("选择一个对话以复制或打开。", "Select one conversation to copy or open it.")}</div>
         ` : html`
-          ${renderMirallySessionOrganization(session, this.actionDisabledReasons, this.archiveAllowed, this.disabled)}
+          ${renderMirallySessionOrganization(session, this.actionDisabledReasons, this.archiveAllowed, this.disabled, this.forkDisabled)}
           <wa-dropdown-item
             class="session-menu__item"
             value="copy-markdown"

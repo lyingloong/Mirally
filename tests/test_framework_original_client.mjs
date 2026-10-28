@@ -354,12 +354,34 @@ test('unsupported session permission modes reject restored drafts before any cre
   assert.equal(ordinary.key, conversationKey('created'));
 });
 
-test('unsupported session forks and other agent owners cannot silently create an empty ordinary conversation', async t => {
+test('unsupported parent links and other agent owners cannot silently create an empty ordinary conversation', async t => {
   const f = fixture(t);
-  for (const params of [{fork:true,parentSessionKey:conversationKey('one')},{parentSessionKey:conversationKey('one')},{parentSessionId:'native-one'},{agentId:'another-agent'}]) {
-    await assert.rejects(f.client.request('sessions.create',params),/尚未支持|仅支持/);
+  for (const params of [{fork:true},{parentSessionKey:conversationKey('one')},{parentSessionId:'native-one'},{agentId:'another-agent'}]) {
+    await assert.rejects(f.client.request('sessions.create',params),/请选择|明确选择|仅支持/);
   }
   assert.equal(f.calls.some(item=>item.init.method==='POST'),false);
+});
+
+test('fork uses the authoritative native fork endpoint and keeps its parent in the session roster',async t=>{
+  const f=fixture(t);
+  f.override=call=>{
+    if(call.path==='/api/sessions/one/fork') {
+      const target={id:'forked',session_id:'native-forked',title:'分叉',parent_conversation_id:'one',status:'idle'};
+      f.sessions.push(target);return reply(target,201);
+    }
+  };
+  const result=await f.client.request('sessions.create',{fork:true,parentSessionKey:conversationKey('one'),idempotencyKey:'fork-once'});
+  assert.equal(result.key,conversationKey('forked'));
+  assert.equal(result.entry.parentSessionKey,conversationKey('one'));
+  assert.equal(f.calls.filter(c=>c.path==='/api/sessions'&&c.init.method==='POST').length,0);
+  assert.equal(f.calls.find(c=>c.path.endsWith('/fork')).body.requestId,'fork-once');
+});
+
+test('native compact adapter reports the real native command outcome',async t=>{
+  const f=fixture(t);f.override=call=>call.path==='/api/sessions/one/native/commands'?reply({commandId:'native',result:{kind:'success',sourceEventSeq:0,text:'Compacted native history'}}):undefined;
+  const result=await f.client.request('sessions.compact',{key:conversationKey('one')});
+  assert.equal(result.ok,true);assert.equal(result.compacted,true);
+  assert.equal(f.calls[0].body.line,'/compact');
 });
 
 test('a rejected initial turn retains its created session identity for the original UI retry flow', async t => {
@@ -917,7 +939,7 @@ test('isolated test-mode Host accepts original-client ownership, retries, and ex
     assert.equal(restored.inFlightRun.runId, runId); assert.equal(restored.inFlightRun.sessionAbortable, true);
     assert.ok(restored.activeRunIds.includes(runId)); assert.equal(seen.length, 0);
     assert.equal((await fresh.request('sessions.abort', {key: first.key, runId})).aborted, true);
-    const stopped = await summary(id); assert.equal(stopped.status, 'idle'); assert.equal(stopped.frozen, true);
+    const stopped = await summary(id); assert.equal(stopped.status, 'idle'); assert.equal(stopped.frozen, false);
     assert.deepEqual(stopped.active_command_ids, []);
     assert.equal((await host.rpc('command.list', {conversation_id: id, command_id: runId})).commands[0].state, 'cancelled');
     const after = await fresh.request('chat.history', {sessionKey: first.key}); assert.equal(after.inFlightRun, undefined);

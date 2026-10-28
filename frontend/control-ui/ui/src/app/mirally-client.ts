@@ -10,6 +10,7 @@ const unsupported = (method: string): never => { throw Object.assign(new Error(`
 const METHODS = [...MIRALLY_READ_METHODS, "themes.list", "themes.get", "health", "status", "agents.list", "agents.identity.get", "agent.identity.get", "sessions.list", "sessions.resolve", "sessions.create", "sessions.get", "sessions.abort", "sessions.subscribe", "sessions.unsubscribe", "sessions.messages.subscribe", "sessions.messages.unsubscribe", "chat.history", "chat.startup", "chat.metadata", "chat.send", "chat.abort", "config.get", "config.patch", "models.list", "models.authStatus", "sessions.describe", "sessions.files.list", "sessions.files.get", "artifacts.list", "artifacts.get", "artifacts.download"];
 
 METHODS.push('sessions.patch');
+METHODS.push('sessions.fork', 'sessions.compact');
 const METADATA_FIELDS = new Set(['title', 'label', 'pinned', 'archived', 'model']);
 const PATCH_CONTEXT = new Set(['key', 'sessionKey', 'agentId', 'expectedSessionId', 'expectedMetadataVersion']);
 const modelProvider = (connectionId: string) => `mirally-${connectionId}`;
@@ -203,6 +204,7 @@ export class MirallyBrowserClient {
     const defaultConnection = settings.model_routes?.chat ?? 'default';
     for (const session of sessions) this.metadataRows.set(session.id, session);
     return sessions.map((s: Data) => ({...s, key: key(s.id), sessionId: s.session_id, displayName: s.title, label: s.title,
+      ...(s.parent_conversation_id ? {parentSessionKey:key(s.parent_conversation_id)} : {}),
       metadataVersion: s.metadata_version, pinnedAt: s.pinned ? s.pinned_at : undefined, archivedAt: s.archived ? s.archived_at : undefined,
       // The retained UI separates display policy from generation effort. Allow
       // real thinking blocks (including old history) through its second gate;
@@ -234,7 +236,7 @@ export class MirallyBrowserClient {
       return;
     }
     if (event.type === 'configuration') { this.emit('config.changed', {paths:event.fields || []}); return; }
-    const id = event.session_id; if (!id) { if (["artifact", "action", "inbox"].includes(event.type)) window.dispatchEvent(new CustomEvent("mirally-product-event", {detail: event})); return; }
+    const id = event.session_id; if (!id) { if (["artifact", "action", "inbox", "interaction"].includes(event.type)) window.dispatchEvent(new CustomEvent("mirally-product-event", {detail: event})); return; }
     const runId = event.command_id || this.activeRuns(id).at(-1);
     const partialKey = `${id}:${runId || ""}`;
     if (event.type === 'session-metadata') {this.emit('sessions.changed', {key: key(id), agentId: 'main', reason: 'metadata'}); return;}
@@ -359,14 +361,27 @@ export class MirallyBrowserClient {
       }
       case "sessions.describe": return {session: (await this.sessions()).find((s: Data) => identity(s.key) === id) || null};
       case "sessions.get": case "sessions.resolve": { const session = (await this.sessions()).find((s: Data) => identity(s.key) === id); if (!session) { if (p.allowMissing) return {ok:false}; throw new Error("会话不存在"); } return {ok:true, key: session.key, entry: session, sessionId: session.sessionId, agentId:"main"}; }
+      case 'sessions.fork': return this.dispatch('sessions.create',{...p,fork:true,parentSessionKey:p.parentSessionKey || p.sessionKey || p.key});
+      case 'sessions.compact': {
+        const result=await this.http(`/api/sessions/${encodeURIComponent(id)}/native/commands`,{method:'POST',body:JSON.stringify({line:'/compact'})});
+        return {ok:result.result.kind==='success',compacted:result.result.kind==='success'&&result.result.sourceEventSeq!==undefined,reason:result.result.text};
+      }
       case "sessions.create": {
         if (p.permissionMode != null && p.permissionMode !== '') throw new Error("当前 Mirally 尚未支持会话权限模式；本次没有创建会话。请重新打开新对话，以实际操作的逐条授权为准。");
         if (p.incognito) throw new Error("当前内核尚未支持无痕会话，请使用普通会话；本次没有创建或保存会话。");
-        if (p.fork || p.parentSessionKey || p.parentSessionId) throw new Error("当前 Mirally 尚未支持分叉会话；本次没有创建会话，也不会用空会话代替分叉。");
+        if ((p.parentSessionKey || p.parentSessionId) && p.fork !== true || p.fork && p.fork !== true)
+          throw new Error("请明确选择分叉会话及其来源。");
         if (p.agentId && p.agentId !== 'main') throw new Error("当前 Mirally 仅支持主伙伴的会话；本次没有创建会话。");
         const initialModel = selectionFromReference(p.model);
-        const session = await this.http("/api/sessions", {method: "POST", body: JSON.stringify({title: p.displayName || p.label || p.title || undefined,
-          requestId:p.idempotencyKey, ...(initialModel ? {model_selection: initialModel} : {})})});
+        let parentId: string | undefined;
+        if (p.fork === true) {
+          if (p.parentSessionKey) parentId=identity(p.parentSessionKey);
+          else if (p.parentSessionId) parentId=(await this.sessions()).find((s:Data)=>s.sessionId===p.parentSessionId)?.id;
+          if (!parentId) throw new Error('请选择要分叉的来源会话。');
+        }
+        const session = await this.http(parentId ? `/api/sessions/${encodeURIComponent(parentId)}/fork` : "/api/sessions", {method: "POST", body: JSON.stringify({title: p.displayName || p.label || p.title || undefined,
+          requestId:p.idempotencyKey, ...(!parentId && initialModel ? {model_selection: initialModel} : {})})});
+        if (parentId && initialModel) await this.http(`/api/sessions/${encodeURIComponent(session.id)}`,{method:'PATCH',body:JSON.stringify({expected_version:session.metadata_version,patch:{model_selection:initialModel}})});
         const entry = (await this.sessions()).find((s: Data) => identity(s.key) === session.id);
         if (p.message || p.attachments?.length) {
           try {

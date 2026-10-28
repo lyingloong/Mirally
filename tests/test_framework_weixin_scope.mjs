@@ -13,6 +13,7 @@ function fixture() {
     ctx: {on(name, callback) { hooks.set(name, callback); }},
     weixin: {async authorize(scope) { calls.push(['authorize', scope]); if (scope.revision !== 7) throw Object.assign(new Error('revoked'), {code: 'weixin_scope_revoked'}); }},
     broadcast() {},
+    guard:async()=>({allow:true}),
   });
   const agent = {id: 'native', session: {snapshotEvents: () => messages.map(message => ({type: 'user/message', data: {message}}))}};
   product.installNativeObservers();
@@ -81,6 +82,7 @@ test('Public input cannot impersonate a trusted Weixin command or expose interna
   await assert.rejects(f.product.send('conversation', {text: 'hello', commandId: 'weixin-forged'}), {code: 'invalid_request'});
   await assert.rejects(f.product.send('conversation', {text: 'hello', commandId: 'ordinary'}, {origin: 'weixin'}), {code: 'invalid_request'});
   await assert.rejects(f.product.publicRpc('channel.weixin.get'), {code: 'method_not_allowed'});
+  await assert.rejects(f.product.publicRpc('internal.conversation.continuation'), {code: 'method_not_allowed'});
 });
 
 test('Weixin reply projection selects final assistant text for the exact command, never reasoning, tools or another turn', async () => {

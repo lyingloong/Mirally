@@ -82,7 +82,7 @@ export function installShellCapabilities(host) {
   const jobs = new ShellJobs();
   const validOrigin = agent => ['desktop', 'weixin'].includes(host.commandPolicy(agent)?.origin);
   host.ctx.tools.register({name: 'mirally_run_command',
-    description: 'Run a PowerShell command on the user’s Windows computer. Mirally enforces the user’s configured permission policy; call the tool rather than asking separately for confirmation. Use a managed background job for long experiments so this conversation can continue and inspect progress. This has full user privileges, is not sandboxed, and may access files and network. Use only when the user requests an action; report nonzero exit and timeouts honestly.',
+    description: 'Run a PowerShell command on the user’s Windows computer. Mirally enforces the user’s configured permission policy; call the tool rather than asking separately for confirmation. Use a managed background job for long experiments so this conversation can continue and inspect progress. Background mode returns immediately after launch; it does not wait for completion, even for sleep commands. Inspect job status or actual timestamps before claiming completion or elapsed time. This has full user privileges, is not sandboxed, and may access files and network. Use only when the user requests an action; report nonzero exit and timeouts honestly.',
     parameters: {type: 'object', properties: {command: {type: 'string', description: 'Complete PowerShell command to review'}, cwd: {type: 'string', description: 'Absolute working directory; defaults to Mirally workspace'}, background: {type:'boolean', description:'Start a managed background job'}, timeout_seconds: {type: 'integer', description: 'Foreground defaults to 120 seconds, maximum 300; background defaults to 86400 seconds, maximum 604800'}}, required: ['command'], additionalProperties: false},
     output: {schema: {type: 'object', additionalProperties: true}, render: (_args, result) => [{type: 'text', text: JSON.stringify(result)}]},
     execute: async (args, exec) => {
@@ -131,7 +131,7 @@ export function installShellCapabilities(host) {
     exec.signal.throwIfAborted();
     if (host.consumedCommandId(exec.agent) !== commandId || !validOrigin(exec.agent)) throw fail('会话状态已改变。');
   };
-  host.ctx.tools.register({name:'mirally_job_list', description:'List managed background commands in this conversation. Use this to find job IDs before reading current output.',
+  host.ctx.tools.register({name:'mirally_job_list', description:'List compatibility jobs started by mirally_run_command in this conversation. Native pwsh/bash jobs use job_list and job_output; an empty list here does not mean no native work is running.',
     parameters:{type:'object', properties:{}, additionalProperties:false},
     output:{schema:{type:'object',additionalProperties:true}, render:(_args,result)=>[{type:'text',text:JSON.stringify(result)}]},
     execute:async(_args,exec)=>{

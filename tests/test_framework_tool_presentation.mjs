@@ -34,6 +34,7 @@ test('native tool observers emit owned real argument/result receipts and preserv
   const callbacks = new Map(), frames = [], product = Object.create(MirallyProduct.prototype);
   product.commandPolicies = new Map();
   Object.assign(product, {ctx: {on(name, callback) {callbacks.set(name, callback);}},
+    guard:async()=>({allow:true}),
     nativeConversations: new Map([['native-one', {conversation_id: 'one'}]]),
     consumedCommandId: () => 'command-one', broadcast(type, payload) {frames.push({type, ...payload});}});
   product.installNativeObservers();
@@ -53,4 +54,8 @@ test('native tool observers emit owned real argument/result receipts and preserv
   callbacks.get('tools/result')(exec, failure);
   assert.equal(frames.at(-1).state, 'failed');
   assert.equal(frames.at(-1).result.content[0].text, '实际工具失败');
+  product.guard=async()=>{throw Object.assign(new Error('withdrawn source'),{code:'operation_blocked'});};
+  let executed=false;
+  await assert.rejects(callbacks.get('tools/execute')(exec,async()=>{executed=true;}),{code:'operation_blocked'});
+  assert.equal(executed,false,'native tools cannot cross a withdrawn product source boundary');
 });

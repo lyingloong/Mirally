@@ -57,9 +57,9 @@ flowchart LR
   Delivery --> UI
 ```
 
-- `mirally/framework_host.py` 管理 Node 宿主、桌面窗口与托盘，解析工具链和产品 home。`kernel/dsh/packages/mirally/mirally-product/` 是可直接修改的本机 Host、原生会话适配和模型桥；它加载明确的内核组合，未挂载上游通用 shell 工具。
-- `mirally/framework/service.py` 拥有设置、逻辑 Conversation 与原生 Session 引用、命令回执、来源版本、明确偏好、提醒、主动候选、投递与已读状态。产品 schema 当前为 7，可从早期 schema 1–6 原地升级，拒绝未来版本；会话标题/固定/归档及模型选择带元数据版本，不改 transcript。微信收发状态由独立 `framework/channels.py` 管理。
-- DSH Session 是唯一 transcript。产品库只保存引用、代次和命令内容哈希。停止或撤回来源会冻结旧代次；后续用户输入创建新的原生 Session，历史仍通过代次引用读取。启动恢复不会盲目重放旧输入、脚本或桌面动作。
+- `mirally/framework_host.py` 管理 Node 宿主、桌面窗口与托盘，解析工具链和产品 home。`kernel/dsh/packages/mirally/mirally-product/` 是可直接修改的本机 Host、原生会话适配和模型桥；它通过原生 patch 引擎继承完整 DSH base，再应用产品覆盖，包含原生文件、Windows PowerShell/作业、沙箱、上下文压缩、子代理及计划工具。具体激活范围与覆盖见[原生 DSH 运行时](framework-native-dsh.md)。
+- `mirally/framework/service.py` 拥有设置、逻辑 Conversation 与原生 Session 引用、命令回执、来源版本、明确偏好、提醒、主动候选、投递与已读状态。产品 schema 当前为 8，可从早期 schema 1–7 原地升级，拒绝未来版本；新增的会话分叉表只记录原生父会话和前缀边界等引用。会话标题/固定/归档及模型选择带元数据版本，不改 transcript。微信收发状态由独立 `framework/channels.py` 管理。
+- DSH Session 是唯一 transcript。普通停止取消原生当前回合和队列，保留同一 Session 的完整原生历史；后续输入和冷重启恢复可继续使用文字、工具和图片。撤回来源及扩展变更等边界仍冻结旧代次并在新输入时隔离；早期已经分裂的多代档案不自动重写，仅提供注明缺口的保守文字续接。会话分叉使用原生已完成回合前缀，保留 parentSession/isSeeded 和来源依赖。启动恢复不会盲目重放旧输入、脚本或桌面动作。
 - `mirally/framework/context.py` 按需只读组合记忆、活动、偏好和来源缺口。`mirally/framework_workers.py` 监督获准的 Activity 子进程和 Memory 维护 owner；查询不启动采集。后台语义任务通过本机模型桥调用同一原生模型适配。
 - `frontend/control-ui/ui/src/` 复用原 Lit 壳、对话和外观组件，`pages/mirally/` 维护自有内容页与产品 API；`mirally/assets/control-ui-*` 继续提供既有 Mirally 皮肤、工作和伙伴交互。`ui/src/app/mirally-client.ts` 注入原客户端工厂，将已实现操作映射到本机鉴权 HTTP/RPC 与 SSE。`mirally/framework_ui/legacy-native-bridge.js` 适配活动/记忆、材料成果等产品消息，`mirally-product/src/presentation.mjs` 提供原皮肤资源。`mirally/framework_ui/app.js` 的简化页面不再是默认前端。
 - 原 Context 与组件仍管理页面草稿和状态；DSH Session 保留唯一聊天事实。未映射的旧宿主操作明确返回尚未支持，页面存在不代表对应 OpenClaw 后台能力已经接通。原 Gateway service worker 不参与新宿主的缓存与生命周期。

@@ -52,7 +52,8 @@ class ExplicitTestAdapter extends LlmAdapter {
   async listModels() { return [{id: 'test-model', name: 'Explicit offline test model', contextWindow: 65536, maxTokens: 4096}]; }
   async *stream(options) {
     const prompt = options.messages.filter(message => message.role === 'user'
-      && !message.content?.some(block => block.type === 'text' && block.text.startsWith('Current runtime context.'))).at(-1);
+      && (!message.source || message.source.kind === 'user')
+      && !message.content?.some(block => block.type === 'text' && /^Current runtime context[.:]/u.test(block.text))).at(-1);
     const input = prompt?.content?.filter(block => block.type === 'text').map(block => block.text).join('') ?? '';
     const text = `Mirally 测试模型已收到：${input}`;
     yield {type: 'block-start', index: 0, blockType: 'text'};

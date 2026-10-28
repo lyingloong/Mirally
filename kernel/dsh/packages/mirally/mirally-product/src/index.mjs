@@ -23,15 +23,27 @@ import {ActionGate} from './action-gate.mjs';
 import {installShellCapabilities} from './shell-capabilities.mjs';
 import {installBrowserCapabilities} from './browser-capabilities.mjs';
 import {installDesktopObservation} from './desktop-observation.mjs';
+import {continuationHistory} from './continuation.mjs';
+import {NativeRuntime} from './native-runtime.mjs';
+import {installNativeInteractions, NATIVE_INTERACTION_METHODS} from './native-interactions.mjs';
 export {projectMessages} from './history-presentation.mjs';
 
 const REMOTE_INPUT = Symbol('trusted channel input');
 const WEIXIN_READ_TOOLS = new Set(['mirally_context', 'mirally_preferences', 'mirally_reminders',
   'mirally_workspace_roots', 'mirally_list_files', 'mirally_read_file', 'mirally_search_files', 'mirally_works', 'mirally_work_status']);
-const WEIXIN_SESSION_READ_TOOLS = new Set(['mirally_job_list', 'mirally_job_status']);
+const WEIXIN_SESSION_READ_TOOLS = new Set(['mirally_job_list', 'mirally_job_status', 'job_list', 'job_output']);
 const WEIXIN_ACTION_TOOLS = new Set(['mirally_action', 'mirally_run_command', 'mirally_stop_job',
   'mirally_browser_open', 'mirally_browser_read', 'mirally_browser_click', 'mirally_browser_fill',
-  'mirally_desktop_foreground', 'mirally_desktop_windows', 'mirally_desktop_screenshot']);
+  'mirally_desktop_foreground', 'mirally_desktop_windows', 'mirally_desktop_screenshot',
+  'read','read_image','glob','grep','write','edit','pwsh','bash','job_kill','working_directory',
+  'subagent','subagent_fork','list_agents','send_message','interrupt_agent',
+  'todo_write','ask_user_question','exit_plan_mode','web_search','web_fetch',
+  'create_goal','get_goal','update_goal','skill','workflow','list_subagent_models']);
+const NATIVE_MUTATIONS = new Set(['pwsh','bash','write','edit','job_kill']);
+const DELEGATED_PRODUCT_ACTIONS = new Set(['mirally_action','mirally_run_command','mirally_stop_job',
+  'mirally_browser_open','mirally_browser_read','mirally_browser_click','mirally_browser_fill',
+  'mirally_desktop_foreground','mirally_desktop_windows','mirally_desktop_screenshot',
+  'run_skill_script','mirally_write_workspace_file','mirally_create_file','mirally_create_work','mirally_create_reminder','mirally_set_preference']);
 
 export const name = 'mirally-product';
 export const inject = ['agents', 'agentLoop', 'sessions', 'sessionPersistence', 'llm', 'tools', 'systemPrompt'];
@@ -42,6 +54,7 @@ export const Config = z.object({
 });
 
 const PUBLIC_METHODS = new Set([
+  ...NATIVE_INTERACTION_METHODS,
   'system.status', 'settings.get', 'settings.update', 'conversation.list', 'conversation.history_refs', 'command.list',
   'model.connections.list', 'model.connection.save', 'model.connection.remove', 'model.routes.set', 'model.catalog.save', 'model.catalog.remove',
   'source.set', 'source.list', 'context.read', 'preference.set', 'preference.list', 'memory.correct',
@@ -121,6 +134,7 @@ export class MirallyProduct extends Service {
     this.commandPolicies = new Map();
     this.sessionActionGrants = new Map();
     this.actionGate = new ActionGate(this);
+    this.nativeRuntime = new NativeRuntime(this);
     this.stopping = false;
     this.ready = false;
   }
@@ -169,6 +183,8 @@ export class MirallyProduct extends Service {
     };
     await this.sidecar.start();
     await this.refreshModels();
+    this.nativeRuntime.install();
+    this.nativeInteractions = installNativeInteractions(this);
     this.installNativeObservers();
     this.work = new WorkHost(this);
     this.installProductTools();
@@ -218,6 +234,8 @@ export class MirallyProduct extends Service {
 
   commandPolicy(agent, admission = false) {
     if (!agent) return null;
+    const delegated = this.nativeRuntime?.delegations.get(agent.id);
+    if (delegated) return this.commandPolicies.get(delegated.commandId) ?? {origin:'weixin',revoked:true};
     // pre-step runs before the newly admitted user/message is appended. Only
     // that gate uses the incoming identity; actual tools use consumed history.
     const commandId = admission ? this.activeCommands.get(agent?.id) ?? this.consumedCommandId(agent)
@@ -227,6 +245,10 @@ export class MirallyProduct extends Service {
   }
 
   async checkCommandScope(agent, toolName, {admission = false} = {}) {
+    // Native child permissions are pinned by DSH at delegation. Custom product
+    // execution paths must not widen that sandbox through a separate executor.
+    if (this.nativeRuntime?.delegations.has(agent?.id) && DELEGATED_PRODUCT_ACTIONS.has(toolName))
+      throw failure('子代理请使用继承权限的 DSH 原生工具；此产品动作请交回主伙伴处理。','delegated_product_action',403);
     const policy = this.commandPolicy(agent, admission);
     if (policy?.origin === 'mobile') {
       if (policy.revoked || !this.mobile?.authorize(policy.principal)) throw failure('手机连接已失效。', 'mobile_scope_revoked', 403);
@@ -378,6 +400,7 @@ export class MirallyProduct extends Service {
       session_id: conversation.session_id, title: conversation.title, status: native?.status ?? 'idle',
       pinned: conversation.pinned, archived: conversation.archived, metadata_version: conversation.metadata_version,
       model_selection: conversation.model_selection ?? null,
+      ...(conversation.fork ? {parent_conversation_id:conversation.fork.parent_conversation_id} : {}),
       pinned_at: conversation.pinned_at, archived_at: conversation.archived_at, metadata_updated_at: conversation.metadata_updated_at,
       active_command_ids: active ? [active] : [],
       updated_at: conversation.updated_at ?? conversation.created_at, generation: conversation.generation,
@@ -386,9 +409,8 @@ export class MirallyProduct extends Service {
 
   async ensureNative(conversation, {forInput = false} = {}) {
     if (forInput && conversation.archived) throw failure('请先恢复已归档的对话，再发送消息。', 'conversation_archived', 409);
-    if (forInput && conversation.frozen) {
-      conversation = await this.rpc('conversation.rotate', {conversation_id: conversation.conversation_id, reason: 'explicit_user_input'});
-    }
+    if (forInput && conversation.frozen)
+      conversation = await this.rpc('internal.conversation.prepare_input', {conversation_id: conversation.conversation_id});
     if (!conversation.session_id) {
       conversation = await this.rpc('conversation.bind', {conversation_id: conversation.conversation_id,
         generation: conversation.generation, session_id: `mirally-${randomUUID()}`});
@@ -407,7 +429,7 @@ export class MirallyProduct extends Service {
           if (!claimedCommand && message?.source?.kind === 'user')
             claimedCommand = this.nativeMessageCommands?.get(message.id);
         });
-        agentCtx.systemPrompt.context({name: 'mirally:personal-context', order: 900, interpolate: false,
+        agentCtx.systemPrompt.context({name: 'mirally:personal-context', order: 900, required: true, interpolate: false,
           text: () => this.contexts.get(id) ?? ''});
         agentCtx.on('agent/pre-step', async (_payload, next) => {
           await this.checkCommandScope(this.handles.get(id)?.agent ?? {id}, undefined, {admission: true});
@@ -419,7 +441,7 @@ export class MirallyProduct extends Service {
           await this.refreshModels();
           const commandId = payload.turn === claimedTurn ? claimedCommand : undefined;
           const commands = commandId ? (await this.rpc('command.list', {conversation_id: conversation.conversation_id, command_id: commandId})).commands : [];
-          const selection = commands[0]?.model_selection;
+          const selection = commands[0]?.model_selection ?? (await this.conversation(conversation.conversation_id)).model_selection;
           return this.models.requireOptions('chat', selection?.connection_id, selection?.model_id);
         });
       };
@@ -432,7 +454,8 @@ export class MirallyProduct extends Service {
       }
       handle = existing
         ? await this.ctx.agents.resume({resumeSessionId: id, agentOptions: this.models.options ?? {}, setup})
-        : await this.ctx.agents.create({sessionId: id, meta: {cwd: join(this.home, 'workspace')}, agentOptions: this.models.options ?? {}, setup});
+        : await this.ctx.agents.create({sessionId: id, meta: {cwd: join(this.home, 'workspace')},
+          ...await this.nativeRuntime.seed(conversation), agentOptions: this.models.options ?? {}, setup});
       this.handles.set(id, handle);
       await this.ctx.sessions.flush(handle.agent.session);
     }
@@ -532,6 +555,8 @@ export class MirallyProduct extends Service {
   }
 
   consumedCommandId(agent) {
+    const delegated = this.nativeRuntime?.delegations.get(agent?.id);
+    if (delegated) return delegated.commandId;
     // Queued inbox insertions are visible user rows, but do not own a model
     // attempt until the loop has actually appended their user/message.
     for (const event of (agent.session?.snapshotEvents?.() ?? []).toReversed()) {
@@ -622,9 +647,20 @@ export class MirallyProduct extends Service {
       }
       const context = await this.rpc('context.read', {conversation_id: id, generation: conversation.generation,
         query: request.text.slice(0, 2048), include_activity: true, include_memory: true, limit: 12});
+      let continuation;
+      if (conversation.generation > 1) {
+        const permitted = await this.rpc('internal.conversation.continuation', {conversation_id:id, generation:conversation.generation});
+        continuation = continuationHistory(await this.history(id), permitted.generations, permitted.omitted);
+      }
+      const remoteSettings = scope?.origin === 'weixin' ? await this.rpc('settings.get') : null;
+      const channelInstruction = scope?.origin === 'weixin'
+        ? `This is the user's WeChat channel in the same conversation. You may inspect managed jobs in this conversation. ${remoteSettings?.weixin_remote_control_enabled === true
+          ? 'Remote commands, isolated browser actions and desktop observation are available through their tools under the configured authorization policy. Call the appropriate tool; report its actual result.'
+          : 'Remote commands, browser actions and desktop observation are currently disabled in the channel settings.'} Other tools remain subject to their actual access checks.`
+        : scope?.origin === 'mobile' ? 'This mobile channel is restricted to explicitly allowed read-only tools; describe unavailable actions honestly.' : undefined;
       this.contexts.set(conversation.session_id, JSON.stringify({instruction: 'Treat this personal context as sourced data; preserve gaps and uncertainty. Use mirally_create_file only when file output is permitted; never claim a saved file before tool success.',
-        ...(scope ? {input_channel: scope.origin, instruction_for_channel: 'This input has read-only tools. Preference/reminder changes, files, scripts, MCP/plugin tools and desktop actions are unavailable. Explain the limit when requested.'} : {}),
-        file_output_permitted: allowFiles, ...context}));
+        ...(scope ? {input_channel: scope.origin, instruction_for_channel: channelInstruction} : {}),
+        ...(continuation ? {conversation_continuation:continuation} : {}), file_output_permitted: allowFiles, ...context}));
       await this.guard(conversation.session_id);
       await this.rpc('command.ack', {conversation_id: id, command_id: request.commandId, state: 'submitted', runtime_request_id: messageId});
       this.activeCommands.set(conversation.session_id, request.commandId);
@@ -652,8 +688,12 @@ export class MirallyProduct extends Service {
         const latest = await this.conversation(id);
         if (latest.generation !== conversation.generation || latest.frozen) return;
         const error = this.nativeErrors.get(conversation.session_id);
-        await this.rpc('command.ack', {conversation_id: id, command_id: request.commandId,
+        const settled = await this.rpc('command.ack', {conversation_id: id, command_id: request.commandId,
           state: error ? 'unknown' : 'completed', runtime_request_id: messageId});
+        // Stop preserves the session now, so generation fencing alone cannot
+        // suppress a cancelled turn's late completion callback. Its own stop
+        // event settles every cleared inbox receipt with the cancelled outcome.
+        if (['cancelled', 'rejected'].includes(settled.state)) return;
         if (this.activeCommands.get(conversation.session_id) === request.commandId) this.activeCommands.delete(conversation.session_id);
         this.broadcast('done', {session_id: id, native_session_id: conversation.session_id, command_id: request.commandId, ...(error ? {failed: true} : {})});
       }).catch(error => this.broadcast('error', {session_id: id, command_id: request.commandId, text: error.message}));
@@ -674,15 +714,21 @@ export class MirallyProduct extends Service {
       }
       for (const controller of this.effectControllers.get(id) ?? []) controller.abort(new Error('Conversation stopped'));
       const state = await this.rpc('interaction.stop', {conversation_id: id, ...(commandId ? {command_id: commandId} : {})});
-      this.sessionActionGrants.delete(id);
+      if (state.frozen) this.sessionActionGrants.delete(id);
       const handle = state.session_id && this.handles.get(state.session_id);
       if (state.session_id) await this.shellJobs?.cancelSession(state.session_id);
       if (handle) {
         handle.agent.cancel({kind: 'user'});
+        await this.ctx.get('subagents')?.drainDescendants([handle.agent]);
+        await this.nativeRuntime?.stopJobs(state.session_id);
         await handle.agent.whenIdle();
         await this.ctx.sessions.flush(handle.agent.session);
       }
-      this.broadcast('done', {session_id: id, command_id: commandId || this.activeCommands.get(state.session_id), cancelled: true});
+      const cancelled = state.cancelled_command_ids.length ? state.cancelled_command_ids
+        : [commandId || this.activeCommands.get(state.session_id)];
+      this.activeCommands.delete(state.session_id);
+      for (const stoppedId of cancelled)
+        this.broadcast('done', {session_id: id, command_id: stoppedId, cancelled: true});
       return {...state, stopped: true};
     });
   }
@@ -700,6 +746,15 @@ export class MirallyProduct extends Service {
       await this.checkCommandScope(exec.agent, exec.name);
       exec.signal?.throwIfAborted();
       const conversation = this.nativeConversations.get(exec.agent?.id);
+      if (conversation) await this.guard(this.nativeRuntime?.owner(exec.agent)?.rootSessionId ?? exec.agent.id);
+      if (conversation && NATIVE_MUTATIONS.has(exec.name) && !this.nativeRuntime?.delegations.has(exec.agent.id)) {
+        const detail = JSON.stringify({tool:exec.name,arguments:exec.arguments}, null, 2);
+        const allow = await this.actionGate.request({sessionId:exec.agent.id,commandId:this.consumedCommandId(exec.agent),
+          kind:'shell',title:`DSH · ${exec.name}`,detail,signal:exec.signal});
+        if (!allow) throw failure('用户未批准此动作。','action_rejected',403);
+        await this.guard(exec.agent.id);
+        await this.checkCommandScope(exec.agent,exec.name);
+      }
       if (conversation) {
         const owner = toolOwner(exec); toolExecutions.set(exec.token ?? exec, owner);
         const args = toolDisplayValue(exec.arguments);
@@ -901,6 +956,7 @@ export class MirallyProduct extends Service {
   }
 
   async publicRpc(method, params = {}) {
+    if (NATIVE_INTERACTION_METHODS.has(method)) return this.nativeInteractions.request(method, params);
     if (!PUBLIC_METHODS.has(method)) throw failure('Method is not exposed by the product API', 'method_not_allowed', 403);
     if (method === 'action.approvals.list') return this.actionGate.list(params.conversation_id);
     if (method === 'action.approvals.decide') return this.actionGate.decide(params);
@@ -1036,6 +1092,15 @@ export class MirallyProduct extends Service {
       return json(response, 200, {ready: true, kernel: 'dsh', mode: this.config.testMode ? 'test' : 'normal',
         product: await this.rpc('system.status'), settings: await this.rpc('settings.get')});
     }
+    const nativeSession = /^\/api\/sessions\/([^/]+)\/native(?:\/(commands))?$/.exec(pathname);
+    if (nativeSession) {
+      const id = decodeURIComponent(nativeSession[1]);
+      if (!nativeSession[2] && request.method === 'GET')
+        return json(response, 200, await this.nativeRuntime.inspect(id));
+      if (nativeSession[2] === 'commands' && request.method === 'POST')
+        return json(response, 200, await this.nativeRuntime.command(id, await body(request)));
+      throw failure('Method not allowed','method_not_allowed',405);
+    }
     if (pathname === '/api/models' && request.method === 'GET') {
       return json(response, 200, {configured: Boolean(this.models.options), mode: this.config.testMode ? 'test' : 'normal', settings: await this.rpc('settings.get')});
     }
@@ -1118,6 +1183,9 @@ export class MirallyProduct extends Service {
       return json(response, 201, this.summary(result.conversation));
     }
     const metadataPath = /^\/api\/sessions\/([^/]+)$/.exec(pathname);
+    const forkPath = /^\/api\/sessions\/([^/]+)\/fork$/.exec(pathname);
+    if (forkPath && request.method === 'POST')
+      return json(response, 201, await this.nativeRuntime.fork(decodeURIComponent(forkPath[1]), await body(request)));
     if (metadataPath && request.method === 'PATCH') {
       const id = decodeURIComponent(metadataPath[1]), input = await body(request);
       if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !['expected_version', 'patch'].includes(key))) throw failure('Only explicit conversation metadata can be changed');
@@ -1190,6 +1258,7 @@ export class MirallyProduct extends Service {
   }
 
   async stop() {
+    this.nativeInteractions?.stop();
     if (this.stopping) return;
     this.stopping = true;
     this.ready = false;

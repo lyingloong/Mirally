@@ -332,7 +332,7 @@ class WorkTests(unittest.TestCase):
         db.execute("ALTER TABLE conversations DROP COLUMN title_mode")
         db.execute("PRAGMA user_version=4"); db.commit(); db.close()
         self.service = FrameworkService(self.root, self.root / "product home")
-        self.assertEqual(self.service.call("system.status")["schema_version"], 7)
+        self.assertEqual(self.service.call("system.status")["schema_version"], 8)
         self.assertEqual(self.service.call("conversation.get", {"conversation_id": conversation_id})["title"], "训练实验 A")
         self.assertEqual(self.call("list")["works"], [])
 

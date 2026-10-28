@@ -86,13 +86,28 @@ class FrameworkProductTests(unittest.TestCase):
         self.service.db.execute("PRAGMA user_version=1")
         self.restart()
         self.assertEqual(self.call("preference.list")["preferences"][0]["value"], "original")
-        self.assertEqual(self.service.db.execute("PRAGMA user_version").fetchone()[0], 7)
+        self.assertEqual(self.service.db.execute("PRAGMA user_version").fetchone()[0], 8)
 
     def test_withdrawn_preferences_are_excluded_from_direct_and_context_reads(self):
         self.call("preference.set", key="topic", value="private")
         self.call("source.set", source_id="preference:user/local:topic", enabled=False)
         self.assertEqual(self.call("preference.list")["preferences"], [])
         self.assertEqual(self.call("context.read")["preferences"], [])
+
+    def test_continuation_tracks_prior_sources_and_omits_withdrawn_generations(self):
+        self.call('preference.set', key='tone', value='brief')
+        self.conversation()
+        self.call('context.read', conversation_id='chat', generation=1, query='tone')
+        self.call('interaction.stop', conversation_id='chat')
+        self.call('conversation.rotate', conversation_id='chat', reason='explicit_user_input')
+        result = self.call('internal.conversation.continuation', conversation_id='chat', generation=2)
+        self.assertEqual(result['generations'], [1])
+        self.call('source.set', source_id='preference:user/local:tone', enabled=False)
+        self.assertTrue(self.call('conversation.get', conversation_id='chat')['frozen'])
+        self.call('conversation.rotate', conversation_id='chat', reason='explicit_user_input')
+        result = self.call('internal.conversation.continuation', conversation_id='chat', generation=3)
+        self.assertNotIn(1, result['generations'])
+        self.assertTrue(result['omitted'])
 
     def test_memory_ancestry_and_full_owner_sources_fence_reads_and_old_sessions(self):
         from mirally.core.memory.store import MemoryStore

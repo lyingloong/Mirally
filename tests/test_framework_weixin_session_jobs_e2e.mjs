@@ -19,7 +19,7 @@ test('real session experiment is readable and controllable over bound Weixin', {
   const python=join(root,'.venv/Scripts/python.exe');
   if(!existsSync(python)||!existsSync(join(root,'kernel/dsh/packages/core/agent/lib/index.js'))){t.skip('requires built kernel');return;}
   const home=await mkdtemp(join(tmpdir(),'mirally weixin e2e 中文 '));
-  const queue=[], replies=[], modelErrors=[], requests=[]; let child, logs='', jobId;
+  const queue=[], replies=[], modelErrors=[], requests=[]; let child, logs='', jobId, remoteHintSeen=false;
   const fixture=createServer(async(req,res)=>{
     try{
       const chunks=[];for await(const chunk of req)chunks.push(chunk);
@@ -32,11 +32,12 @@ test('real session experiment is readable and controllable over bound Weixin', {
         if(path==='/ilink/bot/getupdates'){await delay(100);return res.end(JSON.stringify({ret:0,msgs:queue.splice(0),get_updates_buf:'cursor'}));}
         throw Error('unknown iLink endpoint '+path);
       }
-      const input=JSON.parse(body), last=input.messages.at(-1), lastUser=[...input.messages].reverse().find(m=>m.role==='user' && ['桌面启动实验','微信查询进度','微信停止实验','微信启动新命令'].some(v=>JSON.stringify(m.content).includes(v)));
+      const input=JSON.parse(body), last=input.messages.at(-1), lastUser=[...input.messages].reverse().find(m=>m.role==='user' && ['桌面启动实验','微信查询进度','微信停止实验','微信启动新命令','微信询问方案'].some(v=>JSON.stringify(m.content).includes(v)));
       const prompt=JSON.stringify(lastUser?.content), suffix=input.messages.slice(input.messages.lastIndexOf(lastUser)+1);
       const toolResults=suffix.filter(m=>m.role==='tool');
       requests.push({prompt,last:last?.role,toolResults});
-      const turn=prompt.includes('桌面启动实验')?'start':prompt.includes('微信查询进度')?'progress':prompt.includes('微信停止实验')?'stop':prompt.includes('微信启动新命令')?'remote_start':null;
+      const turn=prompt.includes('桌面启动实验')?'start':prompt.includes('微信查询进度')?'progress':prompt.includes('微信停止实验')?'stop':prompt.includes('微信启动新命令')?'remote_start':prompt.includes('微信询问方案')?'question':null;
+      if(turn==='remote_start' && JSON.stringify(input.messages).includes('Remote commands, isolated browser actions and desktop observation are available')) remoteHintSeen=true;
       if(!turn) throw Error('unexpected user prompt '+prompt);
       let tool, args;
       if(!toolResults.length){
@@ -44,6 +45,7 @@ test('real session experiment is readable and controllable over bound Weixin', {
         if(turn==='progress'){tool='mirally_job_list';args={};}
         if(turn==='stop'){tool='mirally_stop_job';args={job_id:jobId};}
         if(turn==='remote_start'){tool='mirally_run_command';args={command:`Set-Content -LiteralPath '${join(home,'remote-marker.txt').replaceAll("'","''")}' -Value yes`,cwd:home};}
+        if(turn==='question'){tool='ask_user_question';args={questions:[{id:'mode',question:'请选择远程方案',options:[{label:'方案 A'},{label:'方案 B'}]}]};}
       }else if(turn==='progress'&&toolResults.length===1){
         const found=JSON.stringify(toolResults[0]).match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i); if(!found)throw Error('no job id in '+JSON.stringify(toolResults));
         jobId=found[0];tool='mirally_job_status';args={job_id:jobId};
@@ -132,6 +134,13 @@ test('real session experiment is readable and controllable over bound Weixin', {
   assert.equal(existsSync(join(home,'remote-marker.txt')),false);
   send(105,`/deny ${revokedTrust.match(/\/approve ([a-f0-9]{16})/)[1]}`);
   await until(()=>replies.slice(revokedTrustAt).some(text=>text.includes('未批准')),'revoked trust denial completed');
+  const questionAt=replies.length;send(106,'微信询问方案');
+  const question=await until(()=>replies.slice(questionAt).find(text=>text.includes('/answer ')),'native question delivered to WeChat');
+  assert.match(question,/请选择远程方案/);
+  await delay(200);
+  send(107,`/answer ${question.match(/\/answer ([a-f0-9]{16})/)[1]} 方案 B`);
+  await until(()=>requests.some(r=>r.prompt.includes('微信询问方案')&&JSON.stringify(r.toolResults).includes('方案 B')),'native structured answer reaches same model turn');
+  await until(()=>replies.slice(questionAt).some(text=>text.includes('实验结果')&&text.includes('方案 B')),'native question turn resumes over WeChat');
   const beforeDisable=replies.length;send(11,'微信启动新命令');
   const revoked=await until(()=>replies.slice(beforeDisable).find(text=>text.includes('/approve ')),'pending command');
   await rpc('settings.update',{patch:{weixin_remote_control_enabled:false}});
@@ -141,5 +150,6 @@ test('real session experiment is readable and controllable over bound Weixin', {
   const history=await api(`/api/sessions/${session.id}/history`);
   assert.ok(history.messages.some(message=>message.role==='user'&&message.input_origin==='desktop'&&message.text==='桌面启动实验'));
   assert.ok(history.messages.some(message=>message.role==='user'&&message.input_origin==='weixin'&&message.text==='微信查询进度'));
+  assert.equal(remoteHintSeen,true,'enabled WeChat capability context must reach the model');
   assert.deepEqual(modelErrors,[]);
 });

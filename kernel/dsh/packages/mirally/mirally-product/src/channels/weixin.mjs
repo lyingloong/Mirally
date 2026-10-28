@@ -5,7 +5,7 @@ import {WeixinWorks, WORK_HELP} from './weixin-work.mjs';
 
 const MAX_AGE = 10 * 60_000;
 const LOGIN_TTL = 5 * 60_000;
-const HELP = '这是你的 Mirally 微信入口。电脑保持 Mirally 联网运行即可，无需自建云服务器或打开网页。\n会话：\n/new 新建会话\n/sessions 列出会话\n/use 编号 切换会话\n/history [更早游标] 回看当前会话正文\n/status 查看当前会话\n/stop 停止当前回复\n/help 或“菜单”查看帮助\n动作确认：收到完整详情后用 /approve 确认码 或 /deny 确认码。\n' + WORK_HELP;
+const HELP = '这是你的 Mirally 微信入口。电脑保持 Mirally 联网运行即可，无需自建云服务器或打开网页。\n会话：\n/new 新建会话\n/sessions 列出会话\n/use 编号 切换会话\n/history [更早游标] 回看当前会话正文\n/status 查看当前会话\n/stop 停止当前回复\n/help 或“菜单”查看帮助\n动作确认：收到完整详情后用 /approve 确认码 或 /deny 确认码。\n回答问题：/answer 问题码 [题号] 回答。\n' + WORK_HELP;
 const TEXT_CONTROLS = new Map([['菜单', '/help'], ['帮助', '/help'], ['会话列表', '/sessions'], ['查看历史', '/history']]);
 const blocked = () => Object.assign(new Error('微信绑定或会话已改变，请重新发起。'), {code: 'weixin_scope_revoked', status: 403});
 const pause = (ms, signal) => new Promise(resolve => {
@@ -311,6 +311,13 @@ export class WeixinChannel {
       if (!/^[a-f0-9]{16}$/.test(value)) throw blocked();
       await this.product.actionGate.decideRemote(event, value, name === '/approve');
       await this.reply(event, name === '/approve' ? '已确认该动作。' : '已拒绝该动作。', {control: true});
+    } else if (name === '/answer') {
+      const match=/^([a-f0-9]{16})\s+([\s\S]+)$/.exec(value);
+      if (!match || !this.product.nativeInteractions) throw blocked();
+      try {
+        const result=await this.product.nativeInteractions.answerRemote(event,match[1],match[2]);
+        await this.reply(event,result.complete?'回答已提交，Mirally 会在原会话中继续。':`已记录。还需回答第 ${result.remaining.join('、')} 题。`,{control:true});
+      } catch(error) { await this.reply(event,error.message || '问题已失效，请在会话中继续。',{control:true}); }
     } else if (name === '/stop') {
       await this.product.cancel(event.conversation_id);
       await this.reply(event, '已停止当前会话的回复及其受管理的会话后台命令；工作运行需另行停止。已发生的操作不会撤销。', {control: true});
@@ -395,7 +402,24 @@ export class WeixinChannel {
     void this.pump().catch(() => {});
   }
 
+  async requestUserQuestion(value, scope, code) {
+    const state=await this.authorize(scope);
+    if (!this.product.nativeInteractions?.remoteDeliveryCurrent(value.id,scope) || !state.context_token) throw blocked();
+    const detail=value.questions.map((question,index)=>`${index+1}. ${question.header?question.header+' · ':''}${question.question}`
+      +(question.detail?`\n${question.detail}`:'')
+      +(question.options?.length?'\n选项：\n'+question.options.map(item=>`- ${item.label}${item.description?'：'+item.description:''}`).join('\n'):'')).join('\n\n');
+    const text=`Mirally 需要你的回答：\n\n${detail}\n\n请完整阅读所有分段后回答。\n/answer ${code}${value.questions.length>1?' 题号':''} 回答\n可发送完整选项名称，或直接填写文字。多选或复杂回答也可以在电脑中完成。问题仅对当前会话和回合有效。`;
+    if (text.length>24_000) {
+      await this.store('enqueue',{installation_id:scope.installation_id,revision:scope.revision,conversation_id:scope.conversation_id,
+        key:`native-question:${value.id}:oversize`,text:'Mirally 正在等待一个较长问题或计划的审核。内容无法在微信完整展示，请到电脑中的原会话查看并回答。',context_token:state.context_token});
+    } else await this.store('enqueue',{installation_id:scope.installation_id,revision:scope.revision,conversation_id:scope.conversation_id,
+      key:`native-question:${value.id}`,text,context_token:state.context_token});
+    void this.pump().catch(()=>{});
+  }
+
   canDeliverAction(delivery) {
+    if (delivery.key?.startsWith('native-question:')) return this.product.nativeInteractions?.remoteDeliveryCurrent(
+      delivery.key.slice('native-question:'.length).replace(/:oversize$/,''),delivery)===true;
     if (!delivery.key?.startsWith('action-approval:')) return true;
     return this.product.actionGate.remoteDeliveryCurrent(delivery.key.slice('action-approval:'.length), {
       installation_id: delivery.installation_id, revision: delivery.revision, conversation_id: delivery.conversation_id});
@@ -492,7 +516,7 @@ export class WeixinChannel {
           status = 'cancelled';
         } else {
           const controller = new AbortController(); this.sendController = controller;
-          const parts = delivery.key?.startsWith('action-approval:') ? splitText(delivery.text) : weixinTextParts(delivery.text);
+          const parts = /^(action-approval|native-question):/.test(delivery.key??'') ? splitText(delivery.text) : weixinTextParts(delivery.text);
           for (let index = 0; index < parts.length; index++) {
             failedPart = index;
             await this.authorize({...delivery, conversation_id: delivery.state.conversation_id});
@@ -515,6 +539,9 @@ export class WeixinChannel {
       if (status === 'sent' && acknowledged.delivery?.status === 'sent' && receipt?.accepted === true
         && receipt.accepted_parts === splitText(delivery.text).length && delivery.key?.startsWith('action-approval:')) this.product.actionGate.remoteDelivered(
         delivery.key.slice('action-approval:'.length), {installation_id:delivery.installation_id, revision:delivery.revision, conversation_id:delivery.conversation_id});
+      if (status==='sent' && acknowledged.delivery?.status==='sent' && receipt?.accepted===true
+        && receipt.accepted_parts===splitText(delivery.text).length && delivery.key?.startsWith('native-question:') && !delivery.key.endsWith(':oversize'))
+        this.product.nativeInteractions?.remoteDelivered(delivery.key.slice('native-question:'.length),delivery);
       if (delivery.key?.startsWith('work-notification:')) await this.product.rpc('work.notifications.ack', {
         event_id: delivery.key.slice('work-notification:'.length), channel: 'weixin',
         installation_id: delivery.installation_id, revision: delivery.revision, status: status === 'cancelled' ? 'suppressed' : status});

@@ -5,10 +5,11 @@ import type {SessionMenuData, SessionManagementActionKind} from './session-menu-
 
 /** Shared native conversation actions in the retained sidebar and header menus. */
 export function renderMirallySessionOrganization(session: SessionMenuData,
-  reasons: Partial<Record<SessionManagementActionKind, string>>, archiveAllowed: boolean, disabled = false) {
+  reasons: Partial<Record<SessionManagementActionKind, string>>, archiveAllowed: boolean, disabled = false, forkDisabled = false) {
   if (!session.sessionId) return nothing;
   const items = [
     {kind: 'rename', label: t('sessionsView.renameSessionMenu'), icon: icons.pencil, unavailable: false},
+    {kind: 'fork', label:t('sessionsView.forkSession'), icon:icons.copy, unavailable:session.archived || forkDisabled},
     {kind: 'toggle-pin', label: t(session.pinned ? 'sessionsView.unpinSession' : 'sessionsView.pinSession'),
       icon: icons.pin, unavailable: session.archived || session.isChild || session.pinnable === false},
     {kind: 'toggle-archived', label: t(session.archived ? 'sessionsView.restoreSession' : 'sessionsView.archiveSession'),

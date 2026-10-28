@@ -1,3 +1,38 @@
+# 标准 DSH base 与完整原生会话验收
+
+日期：2026-10-28，Asia/Shanghai（+08:00）。对应 PN-0056；取代下方 PN-0055 的最小组合续接范围。
+
+- 原生组合测试证明全部 96 个 base 声明由 DSH patch 引擎继承，产品仅覆盖有明确归属的设置并新增三项；实际挂载与关闭理由见 [原生 DSH 运行时](framework-native-dsh.md)。
+- 真实 Host、DSH 与本地 HTTP 模型：普通停止后 SessionId/代次不变；此前的用户文字、工具结果、工具回合助手文字和 PNG 图片进入后续实际请求。重启后保留相同 Session，不自动重跑。用户分叉使用原生已完成前缀和继承标记，新会话真实模型请求包含原历史；重复请求只创建一次，撤回来源同时隔离相关分叉。
+- 实际原生 write/read/edit 落盘并修改文件，原生 Windows pwsh 返回真实输出，原生 subagent 使用父模型配置调用本地模型并进入原生子代理目录；原生 write 拒绝审批时未产生文件。实际 token/压缩/工具结果裁剪生成压缩模型请求和 compaction/end，下一请求收到裁剪/压缩后的内容，小窗口配置亦通过。
+- 隔离正常宿主与 headless Edge 使用正式构建的原页面：原生问题选择/提交进入模型工具续轮，计划开关与 exit_plan_mode 审核生效，手动原生压缩按钮完成，无页面错误。微信回环另验证完整问题投递、`/answer` 和同一模型回合继续；不是实体手机或真实腾讯服务验收。
+- 根 Node 全部 382 项通过；Framework Python 236 项，其中 1 项因 Windows 符号链接权限跳过。根 Python 全量运行 1124 项，3 项跳过、1 项旧 UFO worker 启动诊断超时；对应诊断模块单独复跑 4 项通过。本轮未修改或重新接入 UFO。前端来源校验和正式构建通过；不把未运行的上游 workspace 测试当作通过。
+- 用户私有配置、当前宿主和实验未修改或重启；没有调用真实外部模型。早期已分裂的历史代次不自动重写合并，保守文字续接不能恢复全部旧工具和附件。todo/goal/workflow 的原生挂载不等于已验收所有长期任务行为。
+
+复现：
+
+```powershell
+node --test --test-concurrency=2 tests/test_*.mjs
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+node tools/verify_framework_native_interactions.mjs
+# frontend/control-ui：
+node scripts/verify-source.mjs
+node scripts/build.mjs
+```
+
+---
+
+# 会话上下文与 DSH 能力核对（历史阶段）
+
+日期：2026-10-28，Asia/Shanghai（+08:00）。对应 PN-0055。
+
+- 使用隔离 Host、真实 DSH 和本地模拟模型复现停止后换代，再检查实际模型请求：先前用户任务文字与已授权产品上下文到达模型；撤回来源后，相关历史文字和产品上下文均不再发送。历史界面仍只有一份原消息。
+- 微信回环实测模型请求包含与当前远程控制设置一致的提示；源权限检查、私有接口边界和历史投影使用自动测试验证。Framework Python 230 项，其中 1 项因 Windows 符号链接权限跳过。
+- 根 Node 测试共 370 项：并行与顺序两次全量各有一项隔离 Host 启动超时（分别为历史恢复和推理流），其余通过；两项分别独立复跑通过，超时原因未确定。上下文续接、来源撤回和微信远程控制的定向端到端测试通过。
+- 跨代续接有意限于有界用户文字和无工具回合的助手文字，不携带附件、工具输出及工具回合的助手文字；尚不等同完整续接或长会话自动压缩。没有访问真实模型服务或重跑用户实验。实际内核能力与缺口见 [DSH 能力对照](dsh-capability-audit.md)。
+
+---
+
 # 会话操作权限验收
 
 日期：2026-10-28，Asia/Shanghai（+08:00）。对应 PN-0054。

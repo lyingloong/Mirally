@@ -18,6 +18,7 @@ import { icons } from "../../components/icons.ts";
 import type { ImageLightboxItem } from "../../components/image-lightbox.types.ts";
 import { t } from "../../i18n/index.ts";
 import "../mirally/action-approvals.ts";
+import "../mirally/native-interactions.ts";
 import {
   KEYBOARD_SHORTCUT_COMBOS,
   matchesShortcutCombo,
@@ -330,6 +331,7 @@ export function renderChat(props: ChatProps) {
         : nothing
     }
     ${!props.suggestionComposer ? html`<mirally-action-approvals .sessionKey=${props.sessionKey} .presented=${props.presented ?? true}></mirally-action-approvals>` : nothing}
+    ${!props.suggestionComposer ? html`<mirally-native-interactions .sessionKey=${props.sessionKey} .presented=${props.presented ?? true}></mirally-native-interactions>` : nothing}
     ${
       props.inlineApproval && props.onApprovalDecision
         ? html`<div class="chat-inline-approval">

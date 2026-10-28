@@ -1,6 +1,6 @@
 /** Launch the Mirally-owned composition from the repository's built kernel. */
 import {parseArgs} from 'node:util';
-import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
+import {mkdirSync, writeFileSync} from 'node:fs';
 import {resolve, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -17,27 +17,14 @@ Object.assign(process.env, {DSH_HOME: home, MIRALLY_ROOT: root, MIRALLY_HOME: ho
   MIRALLY_WORKSPACE: join(home, 'workspace'),
   DSH_TELEMETRY_DISABLED: '1'});
 const {boot, installFailLoud} = await import('@deepseek-ai/dsh-app-boot');
-const patch = readFileSync(new URL('./cordis.patch.yml', import.meta.url), 'utf8');
-// Leave the Loader's !!js configuration expressions intact while resolving
-// module names against this workspace, rather than the user's data directory.
-const lines = patch.split('\n');
-const config = [];
-let inserting = false;
-for (const line of lines) {
-  if (line.startsWith('- insert:')) { inserting = true; continue; }
-  if (!inserting) continue;
-  let entry = line.startsWith('    ') ? line.slice(4) : line;
-  const match = /^(\s*name: )'([^']+)'\s*$/.exec(entry);
-  if (match) entry = match[1] + JSON.stringify(import.meta.resolve(match[2]));
-  config.push(entry);
-}
-if (!config.some(line => line.includes('mirally-product'))) throw new Error('Mirally composition is missing');
+const {loadMirallyComposition} = await import('./composition.mjs');
+const {patches} = loadMirallyComposition();
 const directory = join(home, 'host');
 mkdirSync(directory, {recursive: true});
 const path = join(directory, 'cordis.yml');
-writeFileSync(path, config.join('\n'));
+writeFileSync(path, '[]\n');
 installFailLoud('mirally');
-const ctx = await boot('mirally', path);
+const ctx = await boot('mirally', path, patches);
 const product = ctx.get('mirallyProduct');
 if (!product?.ready) { await ctx.fiber.dispose(); throw new Error('Mirally product did not become ready'); }
 let closing;
