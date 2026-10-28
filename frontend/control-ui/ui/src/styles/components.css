@@ -1214,9 +1214,9 @@ openclaw-session-owner-chip .viewer-avatar__initials {
   background: var(--bg-elevated);
   padding: 8px 14px;
   border-radius: var(--radius-md);
-  font-size: 13px;
+  font-size: var(--control-ui-text-md);
   font-weight: 500;
-  letter-spacing: -0.01em;
+  letter-spacing: normal;
   /* Labels never break mid-text; tight clusters wrap whole buttons instead
      (see .settings-row--actions). */
   white-space: nowrap;
@@ -1285,12 +1285,12 @@ openclaw-session-owner-chip .viewer-avatar__initials {
 
 .btn--sm {
   padding: 6px 10px;
-  font-size: 12px;
+  font-size: var(--control-ui-text-sm);
 }
 
 .btn--xs {
   padding: 4px 6px;
-  font-size: 12px;
+  font-size: var(--control-ui-text-xs);
   line-height: 1;
 }
 

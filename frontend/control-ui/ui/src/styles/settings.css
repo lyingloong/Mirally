@@ -215,11 +215,11 @@
 
 .settings-section__heading {
   margin: 0;
-  font-size: var(--control-ui-text-xs);
+  font-size: var(--control-ui-text-lg);
   font-weight: 600;
-  letter-spacing: 0.06em;
-  color: var(--muted-strong);
-  text-transform: uppercase;
+  line-height: 1.5;
+  letter-spacing: normal;
+  color: var(--text-strong);
 }
 
 .settings-section__desc {
@@ -365,7 +365,7 @@
 .settings-row__text {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 2px;
   min-width: 0;
   flex: 1 1 0;
 }
@@ -374,14 +374,14 @@
   font-size: var(--control-ui-text-md);
   font-weight: 500;
   color: var(--text-strong);
-  line-height: 1.35;
+  line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
 .settings-row__desc {
   font-size: var(--control-ui-text-sm);
   color: var(--muted);
-  line-height: 1.45;
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 

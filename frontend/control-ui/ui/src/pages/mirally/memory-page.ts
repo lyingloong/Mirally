@@ -36,8 +36,8 @@ class MirallyMemoryPage extends OpenClawLightDomElement {
     <section class="mirally-product-memory" data-mirally-memory-anchor .agentId=${'main'}><div class="memory-page__panel"></div></section>
     ${renderSettingsSection({title:'告诉 Mirally 该记住什么',description:'保存明确的事实或纠正已有记忆。保存会停止正在进行的回复，以免继续使用旧记忆。模型推测与用户确认分别标注；日常偏好可以在「设置 → 个性化」维护。'},html`
       <form class="mirally-product-form" @submit=${this.save}>
-        <label class="mirally-product-field">记忆内容<textarea required maxlength="16000" data-testid="mirally-memory-content" .value=${this.content} @input=${(e:Event)=>{this.content=(e.target as HTMLTextAreaElement).value;this.saveDraft();}} ?disabled=${this.busy}></textarea></label>
-        <details><summary>纠正已有记忆</summary><label class="mirally-product-field">记忆编号（可选）<input data-testid="mirally-memory-id" .value=${this.memoryId} @input=${(e:Event)=>{this.memoryId=(e.target as HTMLInputElement).value;this.saveDraft();}} ?disabled=${this.busy}></label></details>
+        <label class="mirally-product-field">记忆内容<textarea class="settings-input mirally-prose-input" required maxlength="16000" data-testid="mirally-memory-content" .value=${this.content} @input=${(e:Event)=>{this.content=(e.target as HTMLTextAreaElement).value;this.saveDraft();}} ?disabled=${this.busy}></textarea></label>
+        <details><summary>纠正已有记忆</summary><label class="mirally-product-field">记忆编号（可选）<input class="settings-input" data-testid="mirally-memory-id" .value=${this.memoryId} @input=${(e:Event)=>{this.memoryId=(e.target as HTMLInputElement).value;this.saveDraft();}} ?disabled=${this.busy}></label></details>
         <button class="btn primary" data-testid="mirally-memory-save" ?disabled=${this.busy}>保存记忆</button>
         <p role=${this.failed?'alert':'status'} class="mirally-product-notice" ?data-error=${this.failed}>${this.notice}</p>
       </form>`)}

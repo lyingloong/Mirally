@@ -1,12 +1,12 @@
 :root {
-  --settings-control-height: 32px;
+  --settings-control-height: max(32px, calc(32px * var(--control-ui-text-scale)));
 }
 
 /* Settings controls also appear outside the settings workspace: the login
    gate, chat board controls, and the chat MCP form all use these primitives. */
 
 /* One control height inside settings clusters. Buttons, inputs, selects, and
-   segmented controls share 32px so mixed rows never show ragged heights.
+   segmented controls share a scalable 32px minimum so labels have room.
    Multi-select list boxes and textareas keep their natural height. */
 .settings-row__control .btn,
 .settings-section__actions .btn,

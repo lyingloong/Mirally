@@ -7,9 +7,9 @@ export type TypefaceId = (typeof UI_APPEARANCE_TYPEFACE_VALUES)[number];
 type TypefacePair = { ui: TypefaceId; chat: TypefaceId };
 
 const FONT_FALLBACKS = {
-  sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  sans: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif',
   serif: 'Georgia, "Times New Roman", serif',
-  mono: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace',
+  mono: '"Cascadia Code", SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans Mono CJK SC", monospace',
 };
 const TYPEFACE_METADATA: Record<
   TypefaceId,
@@ -44,7 +44,7 @@ export const TYPEFACES = Object.fromEntries(
 >;
 
 const THEME_TYPEFACES = {
-  claw: { ui: "instrument-sans", chat: "instrument-sans" },
+  claw: { ui: "system", chat: "system" },
   knot: { ui: "geist", chat: "geist" },
   dash: { ui: "dm-sans", chat: "fraunces" },
   absolutely: { ui: "space-grotesk", chat: "lora" },

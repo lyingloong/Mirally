@@ -1,4 +1,11 @@
 {
+  "ui/src/styles/base.css": "Define Mirally's semantic reading and UI type ramp with scalable body text and neutral Chinese letter spacing.",
+  "ui/src/styles/settings.css": "Give settings section headings, descriptions and labels a readable hierarchy with consistent line spacing.",
+  "ui/src/styles/settings-controls.css": "Keep settings controls aligned and grow their shared height with the user's text scale.",
+  "ui/src/styles/layout.css": "Use scalable page and navigation typography without changing retained layout or theme choices.",
+  "ui/src/styles/components.css": "Use semantic scalable button text instead of fixed tiny sizes and negative letter spacing.",
+  "ui/src/styles/chat/startup-layout.css": "Give retained chat prose a reading line height matching its typography preview.",
+  "ui/src/app/typography.ts": "Preserve selectable typefaces while providing explicit platform and Chinese sans-serif fallbacks.",
   "ui/src/app/bootstrap.ts": "Inject the Mirally HTTP/SSE client into the retained application context.",
   "ui/src/main.ts": "Disable the upstream Gateway service worker.",
   "ui/src/lib/chat/chat-types.ts": "Retain Mirally work ownership and explicit file-output permission on the exact native outbox item through admission, persistence, edit, retry and HTTP delivery.",

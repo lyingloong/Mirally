@@ -1,24 +1,24 @@
-.mirally-memory { color: var(--text, #173550); border: 1px solid var(--border, #d9e3eb); border-radius: 12px; padding: 22px; margin: 0 0 24px; min-width: 0; }
+.mirally-memory { color: var(--text, #173550); border: 1px solid var(--border, #d9e3eb); border-radius: 12px; padding: 22px; margin: 0 0 24px; min-width: 0; font-size: var(--control-ui-text-md); line-height: 1.6; }
 .mirally-memory header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .mirally-memory header > button { flex-shrink: 0; white-space: nowrap; }
-.mirally-memory h2 { margin: 0 0 8px; font-size: 18px; }
-.mirally-memory h3 { margin: 0 0 8px; font-size: 15px; overflow-wrap: anywhere; }
-.mirally-memory p, .mirally-memory span { font-size: 12px; line-height: 1.7; color: var(--muted, #64748b); overflow-wrap: anywhere; }
+.mirally-memory h2 { margin: 0 0 8px; font-size: var(--control-ui-text-lg); line-height: 1.4; }
+.mirally-memory h3 { margin: 0 0 8px; font-size: var(--control-ui-text-lg); line-height: 1.45; overflow-wrap: anywhere; }
+.mirally-memory p, .mirally-memory span { font-size: var(--control-ui-text-sm); line-height: 1.6; color: var(--muted, #64748b); overflow-wrap: anywhere; }
 .mirally-memory p { margin: 8px 0; }
-.mirally-memory button, .mirally-memory input:not([type="checkbox"]), .mirally-memory select { color: inherit; background: var(--panel, #fff); border: 1px solid var(--border, #d9e3eb); border-radius: 8px; font: inherit; font-size: 13px; padding: 9px 11px; min-width: 0; box-sizing: border-box; }
+.mirally-memory button, .mirally-memory input:not([type="checkbox"]), .mirally-memory select { color: inherit; background: var(--panel, #fff); border: 1px solid var(--border, #d9e3eb); border-radius: 8px; font: inherit; font-size: var(--control-ui-text-md); padding: 9px 11px; min-width: 0; box-sizing: border-box; }
 .mirally-memory button { cursor: pointer; }
 .mirally-memory button:disabled { cursor: default; opacity: .5; }
 .mirally-memory :focus-visible { outline: 2px solid var(--accent, #2183b6); outline-offset: 2px; }
 .mirally-memory__filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 18px 0 12px; }
-.mirally-memory__filters label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; min-width: 0; }
+.mirally-memory__filters label { display: flex; flex-direction: column; gap: 6px; font-size: var(--control-ui-text-md); min-width: 0; }
 .mirally-memory__filters input, .mirally-memory__filters select { width: 100%; }
-.mirally-memory__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 12px; }
+.mirally-memory__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: var(--control-ui-text-sm); }
 .mirally-memory a { color: var(--accent, #2183b6); }
 .mirally-memory__list { display: grid; gap: 8px; margin: 14px 0; }
 .mirally-memory .mirally-memory__result { width: 100%; text-align: left; padding: 14px; }
 .mirally-memory__result strong, .mirally-memory__result span { display: block; }
-.mirally-memory__result p { max-height: 5.1em; overflow: hidden; white-space: pre-wrap; }
+.mirally-memory__result p { max-height: 4.8em; overflow: hidden; white-space: pre-wrap; }
 .mirally-memory__detail { border-top: 1px solid var(--border, #d9e3eb); margin-top: 20px; padding-top: 18px; }
-.mirally-memory pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 440px; overflow: auto; font: inherit; font-size: 13px; line-height: 1.7; }
+.mirally-memory pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 440px; overflow: auto; font: inherit; font-size: var(--control-ui-text-sm); line-height: 1.65; }
 @media (max-width: 800px) { .mirally-memory__filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 520px) { .mirally-memory { padding: 16px; } .mirally-memory__filters { grid-template-columns: minmax(0, 1fr); } }

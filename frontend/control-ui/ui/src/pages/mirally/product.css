@@ -7,11 +7,12 @@ mirally-extensions-page, mirally-channels-page { display: block; min-width: 0; w
 .mirally-product-field { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; font-size: var(--control-ui-text-sm); }
 .mirally-product-field input, .mirally-product-field select, .mirally-product-field textarea { width: 100%; max-width: 100%; box-sizing: border-box; }
 .mirally-product-field textarea { min-height: 96px; resize: vertical; }
+mirally-memory-page textarea.mirally-prose-input { font-family: var(--font-body); font-size: var(--control-ui-input-text-size); line-height: 1.6; }
 .mirally-product-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .mirally-product-item { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4); overflow-wrap: anywhere; }
 .mirally-product-item + .mirally-product-item { border-top: 1px solid var(--border); }
 .mirally-product-item h3, .mirally-product-item p { margin: 0; }
-.mirally-product-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.mirally-product-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--control-ui-text-md); line-height: 1.65; }
 .mirally-product-notice { padding: var(--space-3) var(--space-4); margin: 0; overflow-wrap: anywhere; }
 .mirally-product-notice[data-error] { color: var(--danger, #c33); }
 .mirally-product-empty { padding: var(--space-5) var(--space-4); color: var(--muted); }
@@ -34,18 +35,18 @@ mirally-work-panel, mirally-work-page, mirally-mobile-settings {display:block;mi
 .mirally-work-card h2,.mirally-work-card h3,.mirally-work-card h4 {margin:0;}
 .mirally-work-list-item {display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:20px;text-align:start;color:var(--text);font:inherit;cursor:pointer;transition:background 120ms,border-color 120ms;}
 .mirally-work-list-item:hover {border-color:var(--border-hover);background:var(--bg-hover);}
-.mirally-work-list-item strong {font-size:16px;color:var(--text-strong);}
-.mirally-work-status {color:var(--muted);font-size:12px;}
+.mirally-work-list-item strong {font-size:var(--control-ui-text-lg);line-height:1.45;color:var(--text-strong);}
+.mirally-work-status {color:var(--muted);font-size:var(--control-ui-text-sm);line-height:1.5;}
 .mirally-work-status[data-status="needs_approval"],.mirally-work-status[data-status="failed"],.mirally-work-status[data-status="unknown"] {color:var(--warning, #dca75a);}
 .mirally-work-status[data-status="running"] {color:var(--accent);}
 .mirally-work-facts {display:grid;grid-template-columns:minmax(65px,auto) minmax(0,1fr);gap:12px;margin:0;}
 .mirally-work-facts dt {color:var(--muted);}.mirally-work-facts dd {margin:0;overflow-wrap:anywhere;}
-.mirally-work-log {font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere;overflow:auto;max-height:360px;margin:0;background:var(--bg);padding:12px;border-radius:8px;}
+.mirally-work-log {font-size:var(--control-ui-text-md);line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere;overflow:auto;max-height:360px;margin:0;background:var(--bg);padding:12px;border-radius:8px;}
 .mirally-work-detail > button {align-self:flex-start;}
 .mirally-work-desktop {max-width:1100px;margin:0 auto;padding:var(--space-6,24px);}
 .mirally-work-card summary {cursor:pointer;padding:12px 16px;}
 .mirally-mobile-device {padding:16px 0;border-top:1px solid var(--border);}
-.mirally-mobile-pair-code {font-size:28px;letter-spacing:.14em;font-weight:600;overflow-wrap:anywhere;}
+.mirally-mobile-pair-code {font-size:calc(28px * var(--control-ui-text-scale));letter-spacing:.14em;font-weight:600;overflow-wrap:anywhere;}
 @media (max-width: 380px) {
   .mirally-weixin-qr { padding: var(--space-2); }
 }
@@ -58,7 +59,7 @@ mirally-work-panel, mirally-work-page, mirally-mobile-settings {display:block;mi
 .mirally-work-filters {display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
 .mirally-work-filter {font:inherit;font-size:var(--control-ui-text-sm);padding:8px 10px;color:var(--muted);background:transparent;border:1px solid transparent;border-radius:8px;cursor:pointer;}
 .mirally-work-filter:hover {background:var(--bg-hover);color:var(--text);}.mirally-work-filter[aria-pressed="true"] {color:var(--text-strong);background:var(--bg-hover);border-color:var(--border);font-weight:600;}
-.mirally-work-filter span {font-size:12px;margin-left:3px;}
+.mirally-work-filter span {font-size:var(--control-ui-text-xs);margin-left:3px;}
 .mirally-work-search {display:flex;gap:8px;align-items:center;flex-wrap:wrap;}.mirally-work-search input,.mirally-work-search select {min-height:36px;max-width:100%;padding:7px 10px;font:inherit;font-size:var(--control-ui-text-sm);color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:8px;}
 .mirally-work-search input:focus-visible,.mirally-work-search select:focus-visible {outline:2px solid var(--accent);outline-offset:1px;}
 .mirally-work-visually-hidden {position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
@@ -66,8 +67,8 @@ mirally-work-panel, mirally-work-page, mirally-mobile-settings {display:block;mi
 .mirally-work-row {display:flex;align-items:center;gap:12px;transition:border-color 120ms,background 120ms;}.mirally-work-row:hover {border-color:var(--border-hover);background:var(--bg-hover);}
 .mirally-work-row-main {display:flex;flex:1;min-width:0;flex-direction:column;gap:7px;align-items:stretch;text-align:start;background:transparent;border:0;color:var(--text);font:inherit;padding:16px 18px;cursor:pointer;}
 .mirally-work-row-main:focus-visible,.mirally-work-filter:focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}
-.mirally-work-row-head {display:flex;align-items:center;gap:12px;justify-content:space-between;}.mirally-work-row-head strong {font-size:16px;color:var(--text-strong);min-width:0;overflow-wrap:anywhere;}
-.mirally-work-row-summary {color:var(--text);font-size:var(--control-ui-text-sm);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;}
+.mirally-work-row-head {display:flex;align-items:center;gap:12px;justify-content:space-between;}.mirally-work-row-head strong {font-size:var(--control-ui-text-lg);line-height:1.45;color:var(--text-strong);min-width:0;overflow-wrap:anywhere;}
+.mirally-work-row-summary {color:var(--text);font-size:var(--control-ui-text-sm);line-height:1.65;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;}
 .mirally-work-row-actions {display:flex;gap:8px;flex-wrap:wrap;padding:12px 16px 12px 0;}
 .mirally-work-empty {border:1px dashed var(--border);border-radius:var(--radius-lg,12px);padding:32px;text-align:center;}.mirally-work-empty p {margin:8px 0 16px;}
 @media (max-width: 680px) {.mirally-work-row {align-items:stretch;flex-direction:column;gap:0;}.mirally-work-row-actions {padding:0 18px 16px;}.mirally-work-search {width:100%;}.mirally-work-search label:first-child {flex:1;min-width:140px;}.mirally-work-search input {width:100%;}.mirally-work-desktop {padding:var(--space-4,16px);}}
@@ -83,7 +84,7 @@ mirally-work-panel, mirally-work-page, mirally-mobile-settings {display:block;mi
   border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
   border-radius: 999px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--control-ui-text-xs);
   line-height: 1.35;
   white-space: nowrap;
 }
@@ -92,35 +93,35 @@ mirally-work-panel, mirally-work-page, mirally-mobile-settings {display:block;mi
 
 mirally-action-approvals { display: block; }
 mirally-native-interactions { display: block; }
-.mirally-native-question { margin: 8px 0; padding: 14px 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface, var(--card)); color: var(--text); }
+.mirally-native-question { margin: 8px 0; padding: 14px 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface, var(--card)); color: var(--text); font-size: var(--control-ui-text-md); line-height: 1.65; }
 .mirally-native-question fieldset { border: 0; padding: 12px 0; min-width: 0; }
 .mirally-native-question legend { padding: 0; font-weight: 600; overflow-wrap: anywhere; }
-.mirally-native-question__detail { max-height: 40vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font: inherit; line-height: 1.6; }
+.mirally-native-question__detail { max-height: 40vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font: inherit; line-height: 1.65; }
 .mirally-native-question__options { display: grid; gap: 8px; margin: 8px 0; }
 .mirally-native-question__options label { display: flex; gap: 10px; align-items: flex-start; padding: 10px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
 .mirally-native-question__options input { margin-top: 4px; }
-.mirally-native-question__options small { display: block; color: var(--text-muted); margin-top: 3px; }
-.mirally-native-question__custom { display: grid; gap: 6px; font-size: 13px; color: var(--text-muted); }
-.mirally-native-question__custom textarea { width: 100%; box-sizing: border-box; resize: vertical; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px; font: inherit; }
+.mirally-native-question__options small { display: block; color: var(--muted); font-size: var(--control-ui-text-sm); margin-top: 3px; }
+.mirally-native-question__custom { display: grid; gap: 6px; font-size: var(--control-ui-text-sm); color: var(--muted); }
+.mirally-native-question__custom textarea { width: 100%; box-sizing: border-box; resize: vertical; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px; font: inherit; font-size: var(--control-ui-text-md); line-height: 1.65; }
 .mirally-native-question__error { color: var(--danger, #c84e4e); }
 mirally-chat-options { display: inline-flex; min-width: 0; align-items: center; }
-.mirally-chat-options__trigger { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 4px 8px; border: 0; border-radius: var(--radius-md, 8px); background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+.mirally-chat-options__trigger { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 4px 8px; border: 0; border-radius: var(--radius-md, 8px); background: transparent; color: var(--muted); font: inherit; font-size: var(--control-ui-text-sm); cursor: pointer; }
 .mirally-chat-options__trigger:hover { background: var(--bg-hover); color: var(--text); }
 .mirally-chat-options__trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .mirally-chat-options__trigger svg { width: 14px; height: 14px; flex: 0 0 auto; }
-.mirally-chat-options__heading { padding: 8px 12px 4px; color: var(--muted); font-size: 12px; }
-.mirally-chat-options__source { display: flex; gap: 8px; align-items: center; padding: 8px 12px; color: var(--text); font-size: 13px; }
+.mirally-chat-options__heading { padding: 8px 12px 4px; color: var(--muted); font-size: var(--control-ui-text-sm); }
+.mirally-chat-options__source { display: flex; gap: 8px; align-items: center; padding: 8px 12px; color: var(--text); font-size: var(--control-ui-text-md); }
 .mirally-chat-options__source svg { width: 16px; height: 16px; }
-.mirally-chat-options__error { color: var(--danger); font-size: 12px; overflow-wrap: anywhere; }
+.mirally-chat-options__error { color: var(--danger); font-size: var(--control-ui-text-sm); overflow-wrap: anywhere; }
 @media (max-width: 680px) {
   .agent-chat__composer-footer:has(mirally-chat-options) { flex-wrap: wrap; }
   .agent-chat__composer-lead:has(mirally-chat-options) { flex-wrap: wrap; min-width: 0; }
   .mirally-chat-options__trigger { min-height: 36px; }
 }
-.mirally-action-approval { margin: 8px 0; padding: 14px 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface, var(--card)); color: var(--text); }
+.mirally-action-approval { margin: 8px 0; padding: 14px 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface, var(--card)); color: var(--text); font-size: var(--control-ui-text-md); line-height: 1.65; }
 .mirally-action-approval__heading { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
-.mirally-action-approval__heading span { color: var(--text-muted); font-size: 12px; }
-.mirally-action-approval__detail { max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; margin: 10px 0; padding: 10px; border-radius: 8px; background: var(--bg, transparent); font: inherit; font-size: 12px; }
+.mirally-action-approval__heading span { color: var(--muted); font-size: var(--control-ui-text-sm); }
+.mirally-action-approval__detail { max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; margin: 10px 0; padding: 10px; border-radius: 8px; background: var(--bg, transparent); font: inherit; font-size: var(--control-ui-text-md); line-height: 1.65; }
 .mirally-action-approval__actions { display: flex; gap: 8px; justify-content: flex-end; }
 /* The actual empty-state CTA owns model setup; history/search/error views keep the footer recovery. */
 .chat-main__conversation:has(.agent-chat__welcome--setup > button) .agent-chat__disabled-banner[data-model-setup]:not(.agent-chat__disabled-banner--replacement) { display: none; }
