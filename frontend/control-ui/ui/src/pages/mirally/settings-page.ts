@@ -36,11 +36,11 @@ type ProductStatus = {
 };
 type BudgetDraft = {max_calls_per_hour: string; max_tokens_per_day: string; max_output_tokens: string};
 
-const PAGE_COPY: Record<SettingsPageId, {title: string; subtitle: string}> = {
-  general: {title: "通用", subtitle: "管理 Mirally 的日常使用方式与后台状态。"},
-  profile: {title: "我的偏好", subtitle: "告诉 Mirally 你希望怎样协作，随时查看、修改或撤回。"},
-  model: {title: "模型连接", subtitle: "配置 Mirally 对话与后台整理共用的模型服务。"},
-  initiative: {title: "主动联系", subtitle: "决定 Mirally 何时可以整理上下文、主动给你留消息。"},
+const PAGE_COPY: Record<SettingsPageId, {title: string; subtitle?: string}> = {
+  general: {title: "通用"},
+  profile: {title: "我的偏好"},
+  model: {title: "模型连接"},
+  initiative: {title: "主动联系"},
   about: {title: "关于 Mirally", subtitle: "覆盖生活与工作的 personal agent。"},
 };
 
@@ -197,7 +197,7 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
     }
   }
 
-  private toggle(key: "memory_enabled" | "background_enabled" | "general_initiative_enabled" | "do_not_disturb" | "weixin_auto_approve_enabled", title: string, description: string, testId: string) {
+  private toggle(key: "memory_enabled" | "background_enabled" | "general_initiative_enabled" | "do_not_disturb" | "weixin_auto_approve_enabled", title: string, description: string | undefined, testId: string) {
     return renderSettingsRow({title, description, control: html`<span data-testid=${testId}>
       ${renderSettingsToggle({checked: this.settings?.[key] === true, disabled: this.busy || this.loading || !this.settings,
         ariaLabel: title, onChange: value => { void this.mutate(() => rpcProduct("settings.update", {patch: {[key]: value}}), "设置已保存。"); return false; }})}
@@ -226,7 +226,7 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
     void this.mutate(async () => {
       await rpcProduct("preference.set", {key, value, scope});
       await rpcProduct("source.set", {source_id:`preference:${scope}:${key}`,enabled:true,reason:"user_saved_preference"});
-    }, "偏好已保存，后续使用会采用新内容。", () => {
+    }, "偏好已保存。", () => {
       this.preferenceKey = ""; this.preferenceValue = "";
       this.preferenceScope = "user/local"; this.preferenceStructured = false;
     });
@@ -235,25 +235,25 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
   private generalPage() {
     return html`
       <mirally-capabilities-settings></mirally-capabilities-settings>
-      ${renderSettingsSection({title: "会话操作权限", description: "控制会话中已支持的命令、独立浏览器和屏幕观察。操作使用当前 Windows 用户的权限；工作运行的独立确认及尚未实现的能力不受此设置影响。"}, html`
-        ${renderSettingsRow({title: "默认确认方式", description: "持续信任会自动批准上述操作，直到改回逐次确认。请只在信任模型与会话内容时启用。", control: html`<select class="settings-input" aria-label="默认确认方式" data-testid="mirally-action-approval-mode" .value=${live(this.settings?.action_approval_mode || 'ask')} ?disabled=${this.busy || this.loading || !this.settings}
+      ${renderSettingsSection({title: "会话操作权限"}, html`
+        ${renderSettingsRow({title: "默认确认方式", description: "自动批准允许模型直接执行命令、操作浏览器和读取屏幕。", control: html`<select class="settings-input" aria-label="默认确认方式" data-testid="mirally-action-approval-mode" .value=${live(this.settings?.action_approval_mode || 'ask')} ?disabled=${this.busy || this.loading || !this.settings}
           @change=${(event: Event) => {const value=(event.target as HTMLSelectElement).value; void this.mutate(() => rpcProduct("settings.update", {patch: {action_approval_mode: value}}), "会话操作权限已保存。");}}>
-          <option value="ask">逐次确认</option><option value="trusted">持续信任</option></select>`})}
-        ${this.toggle("weixin_auto_approve_enabled", "微信继承自动批准", "开启后，已允许远程控制的绑定微信可继承会话自动批准；关闭时微信操作仍需确认。", "mirally-weixin-auto-approve")}
+          <option value="ask">逐次确认</option><option value="trusted">自动批准（持续）</option></select>`})}
+        ${this.toggle("weixin_auto_approve_enabled", "微信继承自动批准", "仅对已允许远程控制的微信生效。", "mirally-weixin-auto-approve")}
       `)}
-      ${renderSettingsSection({title: "桌面窗口"}, html`${renderSettingsRow({title: "关闭主窗口时", description: "仅影响 Mirally 桌面窗口。隐藏后点击托盘图标可返回；选择「退出 Mirally」始终会停止宿主与后台。",
+      ${renderSettingsSection({title: "桌面窗口"}, html`${renderSettingsRow({title: "关闭主窗口时",
         control: html`<select class="settings-input" aria-label="关闭主窗口时" data-testid="mirally-settings-close-behavior" .value=${live(this.closeBehavior)} ?disabled=${this.busy || this.loading}
           @change=${(event: Event) => {const value=(event.target as HTMLSelectElement).value;void this.mutate(()=>requestProduct('/api/ui-preferences',{method:'POST',body:JSON.stringify({key:'mirally.window.closeBehavior',value})}), '关闭方式已保存。');}}>
           <option value="tray">隐藏到系统托盘</option><option value="exit">退出 Mirally</option>
         </select>`})}
-        ${renderSettingsRow({title: "截图/录屏时隐藏侧边伙伴", description: "默认开启，保存后立即作用于侧栏、悬浮球和桌宠；返回主窗口后正常显示。仅适用于支持 Windows 窗口排除的截图与录屏软件。Mirally 自己的拖动截图仍会临时隐藏伙伴，避免遮住选区。",
+        ${renderSettingsRow({title: "截图/录屏时隐藏伙伴", description: "适用于支持 Windows 窗口排除的截图与录屏软件。",
           control: html`<span data-testid="mirally-settings-hide-companion-from-capture">${renderSettingsToggle({checked: this.hideCompanionFromCapture, disabled: this.busy || this.loading,
-            ariaLabel: "截图/录屏时隐藏侧边伙伴", onChange: value => {void this.mutate(() => requestProduct('/api/ui-preferences', {method: 'POST', body: JSON.stringify({key: 'mirally.companion.hideFromCapture', value})}), '截图与录屏显示方式已保存。'); return false; }})}</span>`})}`)}
+            ariaLabel: "截图/录屏时隐藏伙伴", onChange: value => {void this.mutate(() => requestProduct('/api/ui-preferences', {method: 'POST', body: JSON.stringify({key: 'mirally.companion.hideFromCapture', value})}), '截图与录屏显示方式已保存。'); return false; }})}</span>`})}`)}
       ${renderSettingsSection({title: "了解你与陪伴你"}, html`
-        ${this.toggle("memory_enabled", "使用记忆", "在对话中使用已启用的个人记忆。关闭后不再读取这些记忆。", "mirally-settings-memory")}
-        ${renderSettingsRow({title: "电脑活动", description: "查看已有记录、采集范围与运行状态，开始采集前需确认当前范围。",
+        ${this.toggle("memory_enabled", "使用记忆", undefined, "mirally-settings-memory")}
+        ${renderSettingsRow({title: "电脑活动",
           control: html`<button class="btn btn--sm" data-testid="mirally-settings-open-activity" @click=${() => void this.navigate("activity")}>管理活动</button>`})}
-        ${renderSettingsRow({title: "记忆管理", description: "检索记忆与来源，查看候选内容。",
+        ${renderSettingsRow({title: "记忆管理",
           control: html`<button class="btn btn--sm" data-testid="mirally-settings-open-memory" @click=${() => void this.navigate("memory")}>查看记忆</button>`})}
       `)}
       ${renderSettingsSection({title: "运行状态"}, html`
@@ -268,7 +268,7 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
   private profilePage() {
     return html`
       <form @submit=${(event: SubmitEvent) => this.savePreference(event)}>
-        ${renderSettingsSection({title: "添加或修改偏好", description: "保存即允许 Mirally 使用此偏好；相同名称会更新并启用已有偏好。变更可能停止正在进行的回复，以免继续使用旧内容。"}, html`
+        ${renderSettingsSection({title: "添加或修改偏好", description: "保存后会使用此偏好；更新可能中断正在进行的回复。"}, html`
           ${this.field("名称", html`<input class="settings-input" aria-label="偏好名称" data-testid="mirally-settings-preference-key" .value=${live(this.preferenceKey)} @input=${(event: Event) => {this.preferenceKey = (event.target as HTMLInputElement).value;}} required maxlength="512" ?disabled=${this.busy || this.loading}>`)}
           ${this.field("内容", html`<textarea class="settings-input" aria-label="偏好内容" data-testid="mirally-settings-preference-value" .value=${live(this.preferenceValue)} @input=${(event: Event) => {this.preferenceValue = (event.target as HTMLTextAreaElement).value;}} required maxlength="12000" rows="3" ?disabled=${this.busy || this.loading}></textarea>`, this.preferenceStructured ? "此偏好包含结构化数据，请以 JSON 格式编辑。" : undefined)}
           ${renderSettingsRow({title: "", control: html`<button class="btn primary" type="submit" data-testid="mirally-settings-preference-save" ?disabled=${this.busy || this.loading}>保存偏好</button>`})}
@@ -279,8 +279,8 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
           control: html`<button class="btn btn--sm" data-testid="mirally-settings-preference-edit" ?disabled=${this.busy || this.loading}
             @click=${() => {this.preferenceKey = preference.key; this.preferenceValue = textValue(preference.value) || ""; this.preferenceScope = preference.scope; this.preferenceStructured = typeof preference.value !== "string";}}>编辑</button>
             <button class="btn btn--sm" data-testid="mirally-settings-preference-revoke" ?disabled=${this.busy || this.loading}
-            @click=${() => void this.mutate(() => rpcProduct("source.set", {source_id: `preference:${preference.scope}:${preference.key}`, enabled: false, reason: "user_withdrew_preference"}), "已撤回该偏好的使用。重新保存同名偏好可以启用。")}>撤回使用</button>`}))
-        : renderSettingsEmpty("还没有保存的偏好。你也可以在对话中明确让 Mirally 记住你的偏好。"))}
+            @click=${() => void this.mutate(() => rpcProduct("source.set", {source_id: `preference:${preference.scope}:${preference.key}`, enabled: false, reason: "user_withdrew_preference"}), "已撤回该偏好。")}>撤回使用</button>`}))
+        : renderSettingsEmpty("还没有保存的偏好。"))}
     `;
   }
 
@@ -307,7 +307,7 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
     const connections = [{id: 'default', name: '默认连接'}, ...Object.entries(this.settings?.model_connections || {}).map(([id, item]) => ({id, name: item.name}))];
     const uses = Object.entries(this.settings?.model_routes || {chat: 'default', background: 'default'}).filter(([,id])=>id===this.connectionId).map(([purpose])=>purpose==='chat'?'对话':'后台整理与主动联系');
     if (this.settings?.capabilities?.web_enabled && this.settings.capabilities.search_connection===this.connectionId) uses.push('网页研究');
-    return renderSettingsSection({title: '模型连接与用途', description: '分别为对话和后台整理选择已保存的连接。每个连接独立保存服务地址、能力和凭据；默认连接兼容原单模型设置。'}, html`
+    return renderSettingsSection({title: '连接与用途'}, html`
       ${this.field('编辑连接', html`<select class="settings-input" aria-label="编辑连接" data-testid="mirally-settings-connection-select" .value=${live(this.connectionId)} ?disabled=${this.busy || this.loading || this.modelDirty}
         @change=${(event:Event)=>this.selectConnection((event.target as HTMLSelectElement).value)}>${connections.map(item=>html`<option value=${item.id}>${item.name}</option>`)}${this.connectionId==='new'?html`<option value="new">新连接</option>`:nothing}</select>`)}
       ${renderSettingsRow({title: this.modelDirty ? '有未保存的更改' : '管理连接', description: uses.length ? `当前用于：${uses.join('、')}` : '该连接尚未分配用途。', control: html`
@@ -345,7 +345,7 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
     void this.mutate(async () => {
       const saved = await rpcProduct<{connection_id:string}>('model.connection.save', {model, name:this.connectionName, ...(this.connectionId==='new'?{}:{connection_id:this.connectionId})});
       savedId = saved.connection_id;
-    }, "模型连接已保存。可读取模型列表或测试文字回复。", () => {this.connectionId=savedId;this.clearModelKey=false;this.modelDirty = false; this.modelTest = null; this.discoveredModels = null;});
+    }, "模型连接已保存。", () => {this.connectionId=savedId;this.clearModelKey=false;this.modelDirty = false; this.modelTest = null; this.discoveredModels = null;});
   }
 
   private async discoverModels() {
@@ -355,7 +355,7 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
     await this.mutate(async () => {
       const result = await requestProduct<{models: DiscoveredModel[]; truncated?: boolean}>("/api/models/discover", {method: "POST", body: JSON.stringify({connection_id:this.connectionId})});
       if (this.isConnected && view === this.viewEpoch && load === this.loadEpoch) this.discoveredModels = result.models;
-    }, "已读取服务提供的模型信息。选择模型后请保存；列表声明不等于逐项能力测试通过。", undefined, false);
+    }, "模型列表已读取。", undefined, false);
   }
 
   private async testModel() {
@@ -365,7 +365,7 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
     await this.mutate(async () => {
       const result = await requestProduct<{text: string; model: string; elapsed_ms: number; mode: string}>("/api/models/test", {method: "POST", body: JSON.stringify({connection_id:this.connectionId})});
       if (this.isConnected && view === this.viewEpoch && load === this.loadEpoch) this.modelTest = result;
-    }, "模型请求已完成。此检查只验证文字生成，图片与工具等能力需在对应场景验证。", undefined, false);
+    }, "文字测试已完成。", undefined, false);
   }
 
   private modelPage() {
@@ -376,7 +376,7 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
     const labels: Record<string, string> = {default: '服务默认', off: '关闭', low: 'Low · 低', medium: 'Medium · 中', high: 'High · 高', max: 'Max · 最高'};
     return html`${this.connectionSection()}<form data-testid="mirally-settings-model-form" @submit=${(event: SubmitEvent) => this.saveModel(event)}>
       ${this.connectionId !== 'default' ? renderSettingsSection({title:'连接名称'},this.field('名称',html`<input class="settings-input" data-testid="mirally-settings-connection-name" aria-label="连接名称" required maxlength="128" .value=${live(this.connectionName)} ?disabled=${this.busy||this.loading} @input=${(event:Event)=>{this.connectionName=(event.target as HTMLInputElement).value;this.modelDirty=true;}}>`)) : nothing}
-      ${renderSettingsSection({title: "连接信息", description: "配置对话与后台整理共用的服务。预设只在你选择时填入；API Key 留空保留已保存的凭据。"}, html`
+      ${renderSettingsSection({title: "连接信息"}, html`
         ${this.field("服务预设", html`<select class="settings-input" aria-label="服务预设" data-testid="mirally-settings-model-preset"
           .value=${live(deepseek ? 'deepseek' : 'custom')} ?disabled=${this.busy || this.loading}
           @change=${(event: Event) => {if (!this.model) return; const choice=(event.target as HTMLSelectElement).value;
@@ -388,30 +388,30 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
           .value=${live(this.model?.api_format || "openai-chat")} ?disabled=${this.busy || this.loading}
           @change=${(event: Event) => this.changeModel({api_format: (event.target as HTMLSelectElement).value})}>
           <option value="openai-chat">OpenAI Chat Completions 兼容</option><option value="openai-responses">OpenAI Responses 兼容</option><option value="anthropic-messages">Anthropic Messages 兼容</option>
-        </select>`, deepseek ? "DeepSeek 官方预设使用 Responses；也可选择 Chat Completions。切换格式后请重新测试。" : undefined)}
+        </select>`)}
         ${this.modelInput("base_url", "服务地址", "url", {placeholder: "https://api.example.com/v1"})}
-        ${this.modelInput("model_id", "默认模型 ID", "text", {placeholder: "可稍后从模型列表添加", description: "可先保存服务和凭据；添加第一个模型后，它会成为此连接的默认模型。"})}
+        ${this.modelInput("model_id", "默认模型 ID", "text", {description: "可留空，稍后从模型列表添加。"})}
         ${this.field("API Key", html`<input class="settings-input" type="password" aria-label="API Key" data-testid="mirally-settings-model-key" autocomplete="new-password" spellcheck="false"
-          placeholder=${this.savedConnectionModel.api_key_configured ? "已保存，留空保持不变" : "填写 API Key（本地服务可留空）"} ?disabled=${this.busy || this.loading}
-          @input=${() => {this.modelDirty = true; this.modelTest = null;}}>`, this.savedConnectionModel.api_key_configured ? "凭据已保存；输入内容发送后会立即从此输入框清空。" : "输入内容发送后会立即清空，保存失败时请重新输入。")}
-        ${this.savedConnectionModel.api_key_configured ? renderSettingsRow({title:'清除已保存凭据', description:'启用后保存将删除此连接的 API Key；不会影响其它连接。',control:html`<span data-testid="mirally-settings-model-clear-key">${renderSettingsToggle({checked:this.clearModelKey,disabled:this.busy||this.loading,ariaLabel:'清除已保存凭据',onChange:value=>{this.clearModelKey=value;this.modelDirty=true;}})}</span>`}) : nothing}
+          ?disabled=${this.busy || this.loading}
+          @input=${() => {this.modelDirty = true; this.modelTest = null;}}>`, this.savedConnectionModel.api_key_configured ? "已保存；留空保持不变。" : "本地服务可留空。")}
+        ${this.savedConnectionModel.api_key_configured ? renderSettingsRow({title:'清除已保存凭据', description:'保存连接时删除此连接的 API Key。',control:html`<span data-testid="mirally-settings-model-clear-key"><input type="checkbox" aria-label="清除已保存凭据" .checked=${live(this.clearModelKey)} ?disabled=${this.busy||this.loading} @change=${(event: Event)=>{this.clearModelKey=(event.target as HTMLInputElement).checked;this.modelDirty=true;}}></span>`}) : nothing}
       `)}
-      ${renderSettingsSection({title: "模型能力", description: "选项决定请求方式，不会让服务获得额外能力。服务列表未声明的能力请查阅对应模型文档。"}, html`
-        ${this.modelInput("max_tokens", "最大输出 token", "number", {min: 128, max: 262144, step: "1", description: "包含服务计入输出的推理 token；设得过低可能只有推理而没有完整回复。"})}
-        ${this.modelInput("context_window", "上下文窗口 token", "number", {min: 128, max: 10000000, step: "1", description: "按服务实际窗口填写，用于会话上下文预算；选择列表模型时会采用服务声明值。"})}
-        ${this.modelInput("temperature", "温度", "number", {min: 0, max: 2, step: "0.1", description: deepseek ? "DeepSeek 的思考模式可能忽略采样参数，具体以模型服务为准。" : undefined})}
-        ${renderSettingsRow({title: "图片输入", description: deepseek ? "当前官方 Flash 支持图片，Pro 不支持。选择模型列表项会按服务声明更新此项。" : "将图片材料提交给支持视觉的模型；仅启用此项不能使纯文本模型识图。", control: html`<span data-testid="mirally-settings-model-images">${renderSettingsToggle({checked: this.model?.image_enabled === true, disabled: this.busy || this.loading || !this.model, ariaLabel: "图片输入", onChange: value => this.changeModel({image_enabled: value})})}</span>`})}
+      ${renderSettingsSection({title: "模型参数"}, html`
+        ${this.modelInput("max_tokens", "最大输出 token", "number", {min: 128, max: 262144, step: "1", description: "包含模型的推理 token。"})}
+        ${this.modelInput("context_window", "上下文窗口 token", "number", {min: 128, max: 10000000, step: "1", description: "填写模型支持的上下文窗口大小。"})}
+        ${this.modelInput("temperature", "温度", "number", {min: 0, max: 2, step: "0.1", description: deepseek ? "思考模式可能忽略此参数。" : undefined})}
+        ${renderSettingsRow({title: "图片输入", description: "仅在模型支持图片时启用。", control: html`<span data-testid="mirally-settings-model-images"><input type="checkbox" aria-label="图片输入" .checked=${live(this.model?.image_enabled === true)} ?disabled=${this.busy || this.loading || !this.model} @change=${(event: Event) => this.changeModel({image_enabled: (event.target as HTMLInputElement).checked})}></span>`})}
         ${this.field("推理强度", html`<select class="settings-input" aria-label="推理强度" data-testid="mirally-settings-model-reasoning"
           .value=${live(this.model?.reasoning_effort || 'default')} ?disabled=${this.busy || this.loading || !this.model}
           @change=${(event: Event) => this.changeModel({reasoning_effort: (event.target as HTMLSelectElement).value})}>
           ${levels.map(level => html`<option value=${level}>${labels[level]}</option>`)}
-        </select>`, deepseek ? "关闭会明确关闭思考；服务默认遵从接口默认值。Low / High / Max 对应 DeepSeek 实际推理档位。" : "按模型实际支持档位选择。服务默认不指定强度，关闭由兼容服务支持情况决定。")}
+        </select>`, "按模型支持的档位选择。")}
       `)}
-      ${renderSettingsSection({}, renderSettingsRow({title: this.savedConnectionModel.model_id ? `当前保存：${this.savedConnectionModel.model_id}` : "尚未配置模型", description: this.modelDirty ? "有未保存的更改。保存后才能检查这组连接。" : "设置已保存，检查操作使用当前保存的连接。",
+      ${renderSettingsSection({}, renderSettingsRow({title: this.savedConnectionModel.model_id ? `当前保存：${this.savedConnectionModel.model_id}` : "尚未配置模型", description: this.modelDirty ? "有未保存的更改。" : undefined,
         control: html`<button class="btn primary" type="submit" data-testid="mirally-settings-model-save" ?disabled=${this.busy || this.loading || !this.model}>保存连接</button>`}))}
     </form>
     ${this.catalogSection()}
-    ${renderSettingsSection({title: "检查连接", description: "读取模型列表不发起推理；测试文字回复会向已保存服务发送一条固定短消息，可能产生少量费用，不发送会话或材料。"}, html`
+    ${renderSettingsSection({title: "检查连接", description: "文字测试会发送固定短消息，可能产生费用。"}, html`
       ${renderSettingsRow({title: "模型列表与文字测试", control: html`
         <button class="btn btn--sm" type="button" data-testid="mirally-settings-model-discover" ?disabled=${this.busy || this.loading || this.modelDirty || !this.savedConnectionModel.base_url} @click=${() => void this.discoverModels()}>读取可用模型</button>
         <button class="btn btn--sm" type="button" data-testid="mirally-settings-model-test" ?disabled=${this.busy || this.loading || this.modelDirty || !this.savedConnectionModel.model_id} @click=${() => void this.testModel()}>测试文字回复</button>`})}
@@ -420,8 +420,8 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
         ${this.field("服务提供的模型", html`<select class="settings-input" aria-label="服务提供的模型" data-testid="mirally-settings-model-catalog" .value=${live(this.discoveredSelection)} ?disabled=${this.busy || this.loading}
           @change=${(event: Event) => {this.discoveredSelection=(event.target as HTMLSelectElement).value;}}>
           <option value="">选择模型…</option>${this.discoveredModels.map(item=>html`<option value=${item.id}>${item.name}</option>`)}
-        </select>`, selected ? modelCapabilityText(selected) : '选择模型后可添加到此连接；服务声明仍需核实。')}
-        ${selected ? renderSettingsRow({title: "添加所选模型", description: "采用服务声明的信息作为初始值，可在保存前检查和修改。",
+        </select>`, selected ? modelCapabilityText(selected) : undefined)}
+        ${selected ? renderSettingsRow({title: "添加所选模型",
           control: html`<button class="btn btn--sm" type="button" data-testid="mirally-settings-model-adopt" ?disabled=${this.busy || this.loading}
             @click=${() => {if (this.model) {this.catalogEditing=false; this.catalogDraft=adoptDiscoveredModel({...modelDraft(this.savedConnectionModel),image_enabled:false,reasoning_effort:'default'}, selected);}}}>添加到模型列表</button>`}) : nothing}
       ` : renderSettingsEmpty("服务返回了空模型列表，仍可手动填写模型 ID。") : nothing}
@@ -437,7 +437,7 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
       <input class="settings-input" type=${type} aria-label=${`附加模型${label}`} data-testid=${`mirally-catalog-${key}`} .value=${live(draft?.[key] || '')}
         ?disabled=${this.busy || this.loading || (key === 'model_id' && this.catalogEditing)} required min=${min ?? nothing} max=${max ?? nothing} step=${step ?? nothing}
         @input=${(event: Event) => set({[key]:(event.target as HTMLInputElement).value})}>`);
-    return renderSettingsSection({title:'此连接的模型', description:'同一服务的模型共用地址与凭据，每个模型可单独设置能力和参数。第一个模型自动设为连接默认模型，会话内可选择已保存的模型。'}, html`
+    return renderSettingsSection({title:'此连接的模型'}, html`
       ${this.savedConnectionModel.model_id ? renderSettingsRow({title:this.savedConnectionModel.model_id, description:'连接默认模型，在上方编辑。'}) : nothing}
       ${entries.map(item => renderSettingsRow({title:item.model_id || '', description:item.image_enabled ? '图片输入已启用' : '文字输入', control:html`
         <button class="btn btn--sm" type="button" data-testid=${`mirally-catalog-edit-${item.model_id}`} ?disabled=${this.busy||this.loading||this.modelDirty} @click=${()=>{this.catalogEditing=true;this.catalogDraft=modelDraft({...this.savedConnectionModel,...item});this.deletingModel='';}}>编辑</button>
@@ -451,7 +451,7 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
           const model={model_id:current.model_id.trim(),max_tokens:Number(current.max_tokens),context_window:Number(current.context_window),temperature:Number(current.temperature),image_enabled:current.image_enabled,reasoning_effort:current.reasoning_effort,reasoning_enabled:current.reasoning_effort !== 'off'};
           void this.mutate(()=>rpcProduct('model.catalog.save',{connection_id:this.connectionId,model}),firstModel?'模型已保存，并设为此连接的默认模型。':'模型已保存。',()=>{this.catalogDraft=null;});}}>
           ${input('model_id','模型 ID')}${input('context_window','上下文窗口 token','number',128,10000000,'1')}${input('max_tokens','最大输出 token','number',128,262144,'1')}${input('temperature','温度','number',0,2,'0.1')}
-          ${renderSettingsRow({title:'图片输入',control:renderSettingsToggle({checked:draft.image_enabled,disabled:this.busy||this.loading,ariaLabel:'附加模型图片输入',onChange:value=>set({image_enabled:value})})})}
+          ${renderSettingsRow({title:'图片输入',control:html`<input type="checkbox" aria-label="附加模型图片输入" .checked=${live(draft.image_enabled)} ?disabled=${this.busy||this.loading} @change=${(event:Event)=>set({image_enabled:(event.target as HTMLInputElement).checked})}>`})}
           ${this.field('推理强度',html`<select class="settings-input" aria-label="附加模型推理强度" .value=${live(draft.reasoning_effort)} @change=${(event:Event)=>set({reasoning_effort:(event.target as HTMLSelectElement).value})}>
             ${['default','off','low','medium','high','max'].map(value=>html`<option value=${value}>${({default:'服务默认',off:'关闭',low:'Low',medium:'Medium',high:'High',max:'Max'} as Record<string,string>)[value]}</option>`)}</select>`)}
           ${renderSettingsRow({title:this.catalogEditing?'编辑模型':'添加模型',control:html`<button class="btn primary" type="submit" data-testid="mirally-catalog-save" ?disabled=${this.busy||this.loading}>保存模型</button><button class="btn btn--sm" type="button" @click=${()=>{this.catalogDraft=null;}}>取消</button>`})}
@@ -463,15 +463,15 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
     const enabled = this.settings?.background_enabled && this.settings?.general_initiative_enabled && !this.settings?.do_not_disturb;
     return html`
       ${renderSettingsSection({title: "联系与打扰"}, html`
-        ${this.toggle("background_enabled", "后台整理", "允许使用当前模型整理活动与记忆；会按下方预算产生模型请求。", "mirally-settings-background")}
-        ${this.toggle("general_initiative_enabled", "主动联系", "结合已有上下文判断是否留一条有用的消息，消息进入收件箱。需要同时启用后台整理。", "mirally-settings-initiative")}
-        ${this.toggle("do_not_disturb", "免打扰", "暂停主动联系；你明确创建的定时提醒仍会进入收件箱。", "mirally-settings-dnd")}
+        ${this.toggle("background_enabled", "后台整理", "整理活动与记忆会按下方预算产生模型费用。", "mirally-settings-background")}
+        ${this.toggle("general_initiative_enabled", "主动联系", "需要开启后台整理。", "mirally-settings-initiative")}
+        ${this.toggle("do_not_disturb", "免打扰", "暂停主动联系，保留已设置的定时提醒。", "mirally-settings-dnd")}
         ${renderSettingsRow({title: "当前联系状态", control: renderSettingsStatus({kind: enabled ? "ok" : "muted", label: enabled ? "允许按需联系" : "主动联系已暂停"})})}
       `)}
       <form @submit=${(event: SubmitEvent) => {event.preventDefault(); if (!this.budget) return;
         const budget = Object.fromEntries(Object.entries(this.budget).map(([key, value]) => [key, Number(value)]));
         void this.mutate(() => rpcProduct("memory.configure", {patch: budget}), "后台整理预算已保存。", () => {this.budgetDirty = false;});}}>
-        ${renderSettingsSection({title: "记忆整理预算", description: "这些预算约束记忆整理。主动联系另有最多每四小时检查一次的限制，不能在这里调整。"}, html`
+        ${renderSettingsSection({title: "记忆整理预算"}, html`
           ${([["max_calls_per_hour", "每小时最多调用次数", 0, 1000], ["max_tokens_per_day", "每天最多 token", 0, 10000000], ["max_output_tokens", "单次最大输出 token", 128, 262144]] as const).map(([name, label, min, max]) => this.field(label, html`<input class="settings-input" type="number" aria-label=${label} data-testid=${`mirally-settings-budget-${name.replaceAll("_", "-")}`}
             .value=${live(this.budget?.[name] || "")} required min=${min} max=${max} step="1" ?disabled=${this.busy || this.loading}
             @input=${(event: Event) => {if (this.budget) {this.budget = {...this.budget, [name]: (event.target as HTMLInputElement).value}; this.budgetDirty = true;}}}>`))}
@@ -490,9 +490,9 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
         ${renderSettingsRow({title: "对话模型", control: renderSettingsValue((this.settings?.model_routes?.chat && this.settings.model_routes.chat !== 'default' ? this.settings.model_connections?.[this.settings.model_routes.chat]?.model : this.settings?.model)?.model_id || "尚未配置")})}
         ${renderSettingsRow({title: "当前运行状态", control: renderSettingsStatus({kind: this.status?.ready ? "ok" : "warn", label: this.status?.ready ? "已就绪" : "尚未确认"})})}
       `)}
-      ${renderSettingsSection({title: "诊断信息"}, renderSettingsRow({title: "本机运行详情", description: "目录、后台 worker 状态与时间，用于排查问题。",
+      ${renderSettingsSection({title: "诊断信息"}, renderSettingsRow({title: "本机运行详情",
         stacked: true, control: html`<details data-testid="mirally-settings-diagnostics"><summary>查看诊断信息</summary><pre class="mirally-product-debug">${JSON.stringify(this.status, null, 2)}</pre></details>`}))}
-      ${renderSettingsSection({title: "退出", danger: true}, renderSettingsRow({title: "退出 Mirally", description: "停止当前 Mirally 宿主。后台任务与对话会一并停止。",
+      ${renderSettingsSection({title: "退出", danger: true}, renderSettingsRow({title: "退出 Mirally", description: "后台任务与对话会一并停止。",
         control: html`<button class="btn btn--sm" data-testid="mirally-settings-quit" ?disabled=${this.busy || this.loading}
           @click=${() => void this.mutate(async () => {
             await requestProduct("/api/shutdown", {method: "POST", body: "{}"});

@@ -27,7 +27,8 @@ export function createChatModelSetupBanner(
 ): ChatComposerDisabledBanner {
   return {
     kind: "above-composer",
-    text: `${text} ${t("modelSetup.commandHint")}`,
+    text,
+    hideWhenModelSetupWelcome: true,
     actionLabel: t("modelSetup.required.action"),
     onAction,
   };

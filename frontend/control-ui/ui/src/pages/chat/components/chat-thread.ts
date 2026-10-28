@@ -91,7 +91,10 @@ function renderTranscriptShell(
               }
               ${
                 projection.isEmpty && !projection.searchOpen
-                  ? renderWelcomeState({ ...props, onModelSetup: undefined })
+                  ? renderWelcomeState({
+                      ...props,
+                      onModelSetup: props.modelSetupRequired ? props.onModelSetup : undefined,
+                    })
                   : nothing
               }
               ${

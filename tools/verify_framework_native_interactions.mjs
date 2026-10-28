@@ -42,7 +42,8 @@ try {
   await page.goto(runtime.url+'/chat/main/'+encodeURIComponent(first.id)+'#token='+runtime.token);
   await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected');
   const card=page.locator('openclaw-chat-pane.chat-pane-cache__pane--active mirally-native-interactions');
-  const plan=card.locator('input[type="checkbox"]').first();await plan.waitFor();
+  const options=page.locator('openclaw-chat-pane.chat-pane-cache__pane--active mirally-chat-options');
+  const modeTrigger=options.getByRole('button',{name:/会话模式与权限/});await modeTrigger.waitFor();
   await api(`/api/sessions/${first.id}/messages`,{commandId:'question',text:'请先询问我选择。'});
   await card.getByText('选择本地验证方案',{exact:true}).waitFor();
   await card.getByLabel('方案 A',{exact:false}).check();
@@ -50,7 +51,7 @@ try {
   await until(async()=>(await rpc('command.list',{conversation_id:first.id,command_id:'question'})).commands.some(c=>c.state==='completed'),'answer completes native turn');
   assert.match(JSON.stringify(requests[1].messages),/方案 A/);
   assert.ok(requests[1].messages.some(m=>m.role==='tool'&&m.tool_call_id==='ui-1'));
-  await plan.check();
+  await modeTrigger.click();await options.locator('wa-dropdown-item[value="plan"]').click();
   await until(async()=>{const v=await rpc('interaction.plan.get',{conversation_id:first.id});return v.active||v.pending;},'plan toggle');
   await api(`/api/sessions/${first.id}/messages`,{commandId:'plan',text:'请展示完整计划供我确认。'});
   await card.getByText('审核计划',{exact:true}).waitFor();
@@ -59,8 +60,11 @@ try {
   await until(async()=>(await rpc('command.list',{conversation_id:first.id,command_id:'plan'})).commands.some(c=>c.state==='completed'),'plan completes native turn');
   assert.equal((await rpc('interaction.plan.get',{conversation_id:first.id})).active,false);
   assert.ok(requests.at(-1).messages.some(m=>m.role==='tool'&&m.tool_call_id==='ui-3'));
-  await card.getByRole('button',{name:'压缩上下文',exact:true}).click();
-  await card.locator('[role="status"]').waitFor();
+  assert.equal(await card.getByRole('button',{name:'压缩上下文',exact:true}).count(),0,'maintenance no longer occupies every input');
+  await page.locator('openclaw-chat-pane.chat-pane-cache__pane--active .chat-header-session-menu__trigger').click();
+  const compactItem=page.locator('openclaw-chat-pane.chat-pane-cache__pane--active openclaw-chat-header-session-menu wa-dropdown-item[value="compact-context"]');
+  await compactItem.waitFor();await compactItem.click();
+  await page.locator('.app-toast__message').waitFor();
   await page.locator('openclaw-chat-pane.chat-pane-cache__pane--active .chat-header-session-menu__trigger').click();
   const forkItem=page.locator('openclaw-chat-pane.chat-pane-cache__pane--active openclaw-chat-header-session-menu wa-dropdown-item[value="fork"]');
   await forkItem.waitFor();assert.equal(await forkItem.getAttribute('disabled'),null,'native fork is available in retained menu');

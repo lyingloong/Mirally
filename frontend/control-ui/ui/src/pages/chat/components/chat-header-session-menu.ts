@@ -29,7 +29,10 @@ import {
   type ChatSessionSharingProps,
 } from "./chat-session-sharing.ts";
 
-export type HeaderMenuAction = SessionManagementAction | { kind: "continue-in-terminal" };
+export type HeaderMenuAction =
+  | SessionManagementAction
+  | { kind: "continue-in-terminal" }
+  | { kind: "compact-context" };
 export type HeaderMenuActionKind = HeaderMenuAction["kind"];
 
 export type HeaderMenuQuickAction = {
@@ -83,6 +86,7 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
   > = {};
   @property({ attribute: false }) forkDisabled = false;
   @property({ attribute: false }) forkFromLastCompleted = false;
+  @property({ attribute: false }) contextCompacting = false;
   @property({ attribute: false }) archiveAllowed = false;
   @property({ attribute: false }) archiveShortcut = false;
   @property({ attribute: false }) deleteAllowed = false;
@@ -200,7 +204,10 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
       event.preventDefault();
       return;
     }
-    if (value === "continue-in-terminal" && !this.actionDisabled(value)) {
+    if (
+      (value === "continue-in-terminal" || value === "compact-context") &&
+      !this.actionDisabled(value)
+    ) {
       event.currentTarget.open = false;
       this.onAction({ kind: value });
     }
@@ -381,6 +388,15 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
           : nothing
       }
       ${renderMirallySessionOrganization(this.session, this.actionDisabledReasons, this.archiveAllowed, false, this.forkDisabled)}
+      <wa-dropdown-item
+        class="session-menu__item"
+        value="compact-context"
+        ?disabled=${this.actionDisabled("compact-context", this.onboarding || this.contextCompacting)}
+        title=${this.actionTitle("compact-context")}
+      >
+        <span slot="icon" class="session-menu__icon" aria-hidden="true">${icons.layers}</span>
+        <span class="session-menu__text">${this.contextCompacting ? "正在压缩…" : "压缩上下文"}</span>
+      </wa-dropdown-item>
       ${this.renderQuickActions("panels", this.panelActions)}
       ${this.renderQuickActions("layout", this.layoutActions)}
       ${

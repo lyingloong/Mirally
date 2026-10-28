@@ -1,14 +1,13 @@
 import {html, nothing, type PropertyValues} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {OpenClawLightDomElement} from '../../lit/openclaw-element.ts';
-import {rpcProduct, requestProduct, errorMessage} from './api.ts';
+import {rpcProduct, errorMessage} from './api.ts';
 import './product.css';
 
 type Question = {id:string; question:string; header?:string; detail?:string; multiSelect?:boolean;
   options?:{label:string; description?:string}[]; intent?:{kind:string; approve:string}};
 type Request = {id:string; conversation_id:string; questions:Question[]; state:'open'|'continued'; can_reply:boolean; message?:string};
 type Answer = {id:string; selected:string[]; custom?:string};
-type Plan = {available:boolean; active:boolean; pending?:boolean};
 
 /** Native DSH waits stay on their actual turn; the card only carries the human answer. */
 @customElement('mirally-native-interactions')
@@ -19,11 +18,8 @@ export class MirallyNativeInteractions extends OpenClawLightDomElement {
   @state() private drafts = new Map<string, Answer>();
   @state() private submitting = '';
   @state() private error = '';
-  @state() private plan: Plan | null = null;
-  @state() private planBusy = false;
-  @state() private compactBusy = false;
-  @state() private compactResult = '';
   private epoch = 0;
+  private readVersion = 0;
   private timer?: ReturnType<typeof setTimeout>;
   private get conversationId() { return this.sessionKey.replace(/^agent:main:/, ''); }
   private readonly changed = (event:Event) => {
@@ -34,28 +30,23 @@ export class MirallyNativeInteractions extends OpenClawLightDomElement {
   override disconnectedCallback() { ++this.epoch; clearTimeout(this.timer); window.removeEventListener('mirally-product-event', this.changed); super.disconnectedCallback(); }
   protected override updated(changed:PropertyValues) {
     if (changed.has('sessionKey') || changed.has('presented')) {
-      ++this.epoch; this.requests=[]; this.drafts=new Map(); this.error=''; this.submitting=''; this.plan=null; this.planBusy=false; this.compactBusy=false; this.compactResult='';
+      ++this.epoch; this.requests=[]; this.drafts=new Map(); this.error=''; this.submitting='';
       void this.refresh();
     }
   }
   private async refresh() {
     clearTimeout(this.timer);
     if (!this.isConnected || !this.presented || !this.conversationId) return;
-    const epoch=this.epoch, id=this.conversationId;
+    const epoch=this.epoch, version=++this.readVersion, id=this.conversationId;
     try {
-      const [questions,plan]=await Promise.allSettled([
-        rpcProduct<{questions:Request[]}>('interaction.questions.list',{conversation_id:id}),
-        rpcProduct<Plan>('interaction.plan.get',{conversation_id:id}),
-      ]);
-      if (!this.isConnected || epoch!==this.epoch || id!==this.conversationId) return;
-      if (questions.status==='fulfilled') {
-        this.requests=questions.value.questions;
-        const live=new Set(this.requests.flatMap(request=>request.questions.map(question=>this.key(request,question))));
-        this.drafts=new Map([...this.drafts].filter(([key])=>live.has(key)));
-      }
-      if (plan.status==='fulfilled' && !this.planBusy) this.plan=plan.value;
+      const questions=await rpcProduct<{questions:Request[]}>('interaction.questions.list',{conversation_id:id});
+      if (!this.isConnected || epoch!==this.epoch || version!==this.readVersion || id!==this.conversationId) return;
+      this.requests=questions.questions;
+      const live=new Set(this.requests.flatMap(request=>request.questions.map(question=>this.key(request,question))));
+      this.drafts=new Map([...this.drafts].filter(([key])=>live.has(key)));
+    } catch { /* Keep the current answer draft during a transient disconnect. */
     } finally {
-      if (this.isConnected && epoch===this.epoch && this.presented) this.timer=setTimeout(()=>void this.refresh(),3000);
+      if (this.isConnected && epoch===this.epoch && version===this.readVersion && this.presented) this.timer=setTimeout(()=>void this.refresh(),3000);
     }
   }
   private key(request:Request, question:Question) { return JSON.stringify([request.id,question.id]); }
@@ -81,31 +72,9 @@ export class MirallyNativeInteractions extends OpenClawLightDomElement {
       if (this.isConnected && epoch===this.epoch && id===this.conversationId) {this.error=errorMessage(error);await this.refresh();}
     } finally { if (this.isConnected && epoch===this.epoch && id===this.conversationId) this.submitting=''; }
   }
-  private async setPlan(active:boolean) {
-    if (this.planBusy) return;
-    const epoch=this.epoch, id=this.conversationId; this.planBusy=true; this.error='';
-    try {
-      const result=await rpcProduct<Plan>('interaction.plan.set',{conversation_id:id,active});
-      if (this.isConnected && epoch===this.epoch && id===this.conversationId) this.plan=result;
-    } catch(error) {if (this.isConnected && epoch===this.epoch && id===this.conversationId) this.error=errorMessage(error);}
-    finally {if (this.isConnected && epoch===this.epoch && id===this.conversationId) this.planBusy=false;}
-  }
-  private async compact() {
-    if (this.compactBusy) return;
-    const epoch=this.epoch, id=this.conversationId; this.compactBusy=true; this.compactResult=''; this.error='';
-    try {
-      const outcome=await requestProduct<{result:{kind:string; text?:string}}>(`/api/sessions/${encodeURIComponent(id)}/native/commands`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({line:'/compact'})});
-      if (this.isConnected && epoch===this.epoch && id===this.conversationId) {
-        if (outcome.result.kind==='error') this.error=outcome.result.text??'压缩未完成。';
-        else this.compactResult=outcome.result.text??'已完成上下文压缩。';
-      }
-    } catch(error) {if (this.isConnected && epoch===this.epoch && id===this.conversationId) this.error=errorMessage(error);}
-    finally {if (this.isConnected && epoch===this.epoch && id===this.conversationId) this.compactBusy=false;}
-  }
   override render() {
     if (!this.presented || !this.conversationId) return nothing;
-    return html`${this.plan?.available?html`<div class="mirally-session-permission"><label><input type="checkbox" .checked=${this.plan.pending ?? this.plan.active} ?disabled=${this.planBusy} @change=${(event:Event)=>this.setPlan((event.target as HTMLInputElement).checked)}> 计划模式</label><span>${this.plan.pending!==undefined?'将在下一步应用；':''}先调研与设计，审核计划后再实施。</span><button type="button" class="btn" ?disabled=${this.compactBusy} @click=${()=>this.compact()}>${this.compactBusy?'正在压缩…':'压缩上下文'}</button></div>`:nothing}
-      ${this.compactResult?html`<p role="status">${this.compactResult}</p>`:nothing}
+    return html`
       ${this.error?html`<p class="mirally-native-question__error" role="alert">${this.error}</p>`:nothing}
       ${this.requests.map(request=>html`<section class="mirally-native-question" role="region" aria-label="Mirally 等待你的回答">
         <div class="mirally-action-approval__heading"><strong>${request.questions.some(question=>question.intent?.kind==='plan-review')?'审核计划':'需要你的回答'}</strong><span>${request.state==='open'?'正在等待':'原回合已继续'}</span></div>

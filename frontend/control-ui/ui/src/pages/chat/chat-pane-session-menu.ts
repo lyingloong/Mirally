@@ -35,6 +35,7 @@ import {
 } from "../../lib/sessions/session-key.ts";
 import { runSessionNavigationAction } from "../../lib/sessions/session-menu-navigation.ts";
 import { showToast } from "../../lib/toast.ts";
+import { executeSlashCommand } from "./chat-command-executor.ts";
 import { ChatPaneContext } from "./chat-pane-context.ts";
 import { headerPlatformByClient } from "./chat-pane-shared.ts";
 import { resolveChatAgentId, selectedChatSessionRow } from "./chat-state-route.ts";
@@ -43,6 +44,94 @@ import type { ChatPaneHeaderAction } from "./components/chat-pane-header.ts";
 import { buildContinueInTerminalCommand } from "./continue-in-terminal-command.ts";
 
 export abstract class ChatPaneSessionMenu extends ChatPaneContext {
+  private readonly headerCompactions = new Set<string>();
+
+  private headerCompactionKey(row: GatewaySessionRow): string {
+    return `${this.connectionGeneration}:${row.key}:${row.sessionId ?? ""}`;
+  }
+
+  protected isHeaderSessionCompacting(row: GatewaySessionRow): boolean {
+    return this.headerCompactions.has(this.headerCompactionKey(row));
+  }
+
+  protected headerCompactDisabledReason(row: GatewaySessionRow): string | undefined {
+    const access = readSessionMethodAccess(this.context.gateway.snapshot, {
+      method: "sessions.compact",
+      requiredScope: "operator.admin",
+    });
+    if (!access.allowed) {
+      return access.reason;
+    }
+    if (row.archived) {
+      return "请先恢复会话。";
+    }
+    if (row.hasActiveRun || row.status === "running" || this.state?.chatRunId) {
+      return "请等待当前回复完成。";
+    }
+    return undefined;
+  }
+
+  private async compactHeaderSession(row: GatewaySessionRow): Promise<void> {
+    const state = this.state;
+    const scope = this.captureHeaderSessionActionScope();
+    const matchesSelectedSession = () => {
+      if (!state || this.state !== state || !areUiSessionKeysEquivalent(state.sessionKey, row.key)) {
+        return false;
+      }
+      const selected = selectedChatSessionRow(state);
+      return selected?.sessionId === row.sessionId;
+    };
+    if (!state || !scope || !matchesSelectedSession() || this.isHeaderSessionCompacting(row)) {
+      return;
+    }
+    const reason = this.headerCompactDisabledReason(row);
+    if (reason) {
+      this.publishHeaderError(reason);
+      return;
+    }
+    const owner = this.headerOutcomeOwner;
+    const key = this.headerCompactionKey(row);
+    const isCurrent = () =>
+      matchesSelectedSession() &&
+      this.isHeaderSessionActionCurrent(scope, owner);
+    this.headerCompactions.add(key);
+    this.requestUpdate();
+    try {
+      const result = await executeSlashCommand(scope.client, row.key, "compact", "", {
+        sessions: scope.sessions,
+        sessionAccessSnapshot: scope.gateway.snapshot,
+        readSessionAccessSnapshot: () => scope.gateway.snapshot,
+        isCurrent,
+        agentId: resolveChatAgentId(state),
+      });
+      if (!isCurrent()) {
+        return;
+      }
+      if (result.failed) {
+        this.publishHeaderError(result.content ?? t("chat.commandResults.compaction.failed"), owner);
+        return;
+      }
+      // The same executor as /compact distinguishes an actual summary from a
+      // skipped operation. Never report a skipped compaction as a success.
+      if (result.action === "refresh") {
+        await state.refreshCurrentChat?.();
+      }
+      if (isCurrent()) {
+        showToast({
+          message: result.content ?? t("chat.composer.contextCompacted"),
+          anchor: this,
+        });
+      }
+    } catch (error) {
+      if (isCurrent()) {
+        this.publishHeaderError(error, owner);
+      }
+    } finally {
+      this.headerCompactions.delete(key);
+      this.requestUpdate();
+    }
+  }
+
   protected canArchiveHeaderSession(row: GatewaySessionRow): boolean {
     return (
       !row.archived &&
@@ -143,6 +232,10 @@ export abstract class ChatPaneSessionMenu extends ChatPaneContext {
   }
 
   protected async handleHeaderSessionAction(action: HeaderMenuAction, row: GatewaySessionRow) {
+    if (action.kind === "compact-context") {
+      await this.compactHeaderSession(row);
+      return;
+    }
     if (action.kind === "toggle-archived" && !row.archived && !this.canArchiveHeaderSession(row)) {
       return;
     }

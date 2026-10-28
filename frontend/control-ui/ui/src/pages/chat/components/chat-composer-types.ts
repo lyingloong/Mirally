@@ -61,6 +61,8 @@ export type CapabilityMenuProps = ChatComposerCapabilityMenuProps;
 type ChatComposerDisabledBannerContent = {
   title?: string;
   text: string;
+  /** The rendered setup welcome already owns the same recovery action. */
+  hideWhenModelSetupWelcome?: boolean;
   tone?: "info" | "neutral";
   icon?: "warning" | "archive";
   actionLabel: string;
@@ -77,6 +79,7 @@ export type ChatComposerDisabledBanner = ChatComposerDisabledBannerContent &
 export type ChatComposerProps = ChatAttachmentControlsProps & {
   paneId: string;
   sessionKey: string;
+  presented?: boolean;
   currentAgentId: string;
   connected: boolean;
   offline?: boolean;

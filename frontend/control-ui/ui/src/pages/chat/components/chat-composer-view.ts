@@ -1,4 +1,5 @@
 import "../../../styles/chat/composer-surface.css";
+import "../../mirally/chat-options.ts";
 import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
 import { html, nothing, type TemplateResult } from "lit";
 import { guard } from "lit/directives/guard.js";
@@ -154,6 +155,7 @@ export function renderChatComposerView(context: ChatComposerViewContext) {
               ? "agent-chat__disabled-banner--neutral"
               : "info"
           } callout--action"
+          ?data-model-setup=${props.disabledBanner.hideWhenModelSetupWelcome === true}
           role="status"
         >
           ${
@@ -588,6 +590,7 @@ export function renderChatComposerView(context: ChatComposerViewContext) {
                     },
                   })}
                   ${composerLeadControl}
+                  ${props.suggestionComposer ? nothing : html`<mirally-chat-options .sessionKey=${props.sessionKey} .presented=${props.presented ?? true}></mirally-chat-options>`}
                 </div>
                 <div class="agent-chat__composer-trail">
                   <div class="agent-chat__composer-meta agent-chat__composer-context">

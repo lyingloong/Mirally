@@ -1,7 +1,7 @@
 /** Headless UI and real product host, using only an isolated temporary home. */
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
-import {readFile, mkdtemp, rm, unlink, realpath} from 'node:fs/promises';
+import {readFile, mkdtemp, rm, unlink, realpath, mkdir} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 import {resolve, dirname, join, basename} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -37,28 +37,65 @@ try{
   await page.route('**/*',route=>{const url=new URL(route.request().url());return url.hostname==='127.0.0.1'?route.continue():route.abort();});
   const ready=()=>page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected');
   const pane=()=>page.locator('openclaw-chat-pane.chat-pane-cache__pane--active');
-  const toggle=()=>pane().locator('mirally-action-approvals input[type="checkbox"]');
-  async function open(id){await page.goto(runtime.url+'/chat/main/'+encodeURIComponent(id)+'#token='+runtime.token);await ready();await page.waitForFunction(key=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active')?.state?.sessionKey===key,'agent:main:'+id);await toggle().waitFor();await page.waitForFunction(()=>{const e=document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active mirally-action-approvals input');return e&&!e.disabled;});}
-  await open(first.id);assert.equal(await toggle().isChecked(),false);await toggle().check();
-  await page.waitForFunction(()=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active mirally-action-approvals input')?.checked===true);
+  const options=()=>pane().locator('mirally-chat-options');
+  const trigger=()=>options().getByRole('button',{name:/会话模式与权限/});
+  const item=value=>options().locator(`wa-dropdown-item[value="${value}"]`);
+  async function open(id){await page.goto(runtime.url+'/chat/main/'+encodeURIComponent(id)+'#token='+runtime.token);await ready();await page.waitForFunction(key=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active')?.state?.sessionKey===key,'agent:main:'+id);await trigger().waitFor();await page.waitForFunction(()=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active mirally-chat-options')?.permission!==null);}
+  async function choose(value){await trigger().click();await item(value).click();await page.waitForFunction(()=>!document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active mirally-chat-options')?.busy);}
+  await open(first.id);
+  const welcomeButton=()=>pane().locator('.agent-chat__welcome--setup > button');
+  await welcomeButton().waitFor();
+  assert.equal(await pane().locator('.agent-chat__disabled-banner[data-model-setup]').isVisible(),false,'empty welcome owns the only visible model setup action');
+  await welcomeButton().click();await page.getByTestId('mirally-settings-model-save').waitFor();
+  await open(first.id);assert.match(await trigger().innerText(),/逐次确认/);await choose('session');
+  await page.waitForFunction(()=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active mirally-chat-options')?.permission?.session_auto_approve===true);
   assert.equal((await rpc('action.permissions.get',{conversation_id:first.id})).session_auto_approve,true);
-  await open(second.id);assert.equal(await toggle().isChecked(),false);
-  await open(first.id);assert.equal(await toggle().isChecked(),true);
-  await page.goto(runtime.url+'/settings/general#token='+runtime.token);await ready();
+  await open(second.id);assert.match(await trigger().innerText(),/逐次确认/);
+  await open(first.id);assert.match(await trigger().innerText(),/自动批准/);
+  // Open settings from the actual permission menu, not a fabricated navigation path.
+  await choose('settings');await ready();
   const mode=page.getByTestId('mirally-action-approval-mode');await mode.waitFor();
   await page.waitForFunction(()=>{const e=document.querySelector('[data-testid="mirally-action-approval-mode"]');return e&&!e.disabled;});
   assert.equal(await mode.inputValue(),'ask');await mode.selectOption('trusted');
   await page.waitForFunction(()=>document.querySelector('[data-testid="mirally-action-approval-mode"]')?.value==='trusted');
   for(let i=0;i<100&&(await rpc('settings.get')).action_approval_mode!=='trusted';i++)await delay(100);
   assert.equal((await rpc('settings.get')).action_approval_mode,'trusted');
-  await open(second.id);assert.equal(await toggle().isChecked(),false);
-  assert.match(await pane().locator('mirally-action-approvals').innerText(),/全局持续信任已开启，电脑端动作自动批准/);
-  assert.match(await pane().locator('mirally-action-approvals').innerText(),/关闭本开关不会关闭全局信任/);
+  if(process.env.MIRALLY_UI_CAPTURE_DIR){await mkdir(process.env.MIRALLY_UI_CAPTURE_DIR,{recursive:true});await page.screenshot({path:join(process.env.MIRALLY_UI_CAPTURE_DIR,'general-settings.png'),fullPage:true});}
+  await open(second.id);assert.equal((await rpc('action.permissions.get',{conversation_id:second.id})).session_auto_approve,false);
+  assert.match(await trigger().innerText(),/自动批准/);
+  await trigger().click();await options().getByText('自动批准 · 全局设置',{exact:true}).waitFor();
+  assert.equal(await item('ask').count(),0,'no ineffective session-off option under global trust');
+  assert.equal(await item('session').count(),0,'no redundant session grant under global trust');
+  // The existing popup must be keyboard dismissible and return focus to its trigger.
+  await page.keyboard.press('Escape');await trigger().focus();await page.keyboard.press('Enter');
+  await options().getByText('自动批准 · 全局设置',{exact:true}).waitFor();await page.keyboard.press('Escape');
+  assert.equal(await trigger().evaluate(e=>e===document.activeElement),true);
+  assert.equal(await pane().locator('.mirally-session-permission').count(),0);
+  const captureDir=process.env.MIRALLY_UI_CAPTURE_DIR;
+  if(captureDir){await mkdir(captureDir,{recursive:true});await page.screenshot({path:join(captureDir,'chat-wide.png'),fullPage:true});}
+  await page.setViewportSize({width:390,height:844});
+  await trigger().click();await options().getByText('自动批准 · 全局设置',{exact:true}).waitFor();
+  const bounds=await options().locator('wa-dropdown').evaluate(e=>{const r=e.shadowRoot.querySelector('[part="menu"]').getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:innerWidth,height:innerHeight};});
+  assert.ok(bounds.left>=0&&bounds.right<=bounds.width+1&&bounds.top>=0&&bounds.bottom<=bounds.height+1,JSON.stringify(bounds));
+  if(captureDir)await page.screenshot({path:join(captureDir,'chat-narrow-menu.png'),fullPage:true});
+  await page.keyboard.press('Escape');
+  const overflow=await pane().evaluate(e=>e.scrollWidth>e.clientWidth+1);assert.equal(overflow,false,'narrow chat must not horizontally overflow');
+  await page.setViewportSize({width:1280,height:900});
   await stop();await start();await open(first.id);
-  assert.equal(await toggle().isChecked(),false,'session grant should expire after host restart');
-  assert.match(await pane().locator('mirally-action-approvals').innerText(),/全局持续信任已开启/);
+  assert.equal((await rpc('action.permissions.get',{conversation_id:first.id})).session_auto_approve,false,'session grant should expire after host restart');
+  assert.match(await trigger().innerText(),/自动批准/);
   assert.equal((await rpc('settings.get')).action_approval_mode,'trusted','global setting persists');
-  assert.deepEqual(errors,[]);console.log(JSON.stringify({passed:true,checks:['session toggle and cross-session isolation','global settings and chat status','restart clears session grant and retains global trust'],external_requests:0}));
+  // Return to per-action mode: the visible state must follow the actual global policy.
+  await choose('settings');await mode.selectOption('ask');
+  for(let i=0;i<100&&(await rpc('settings.get')).action_approval_mode!=='ask';i++)await delay(100);
+  await open(first.id);assert.match(await trigger().innerText(),/逐次确认/);
+  await choose('session');await choose('ask');assert.match(await trigger().innerText(),/逐次确认/);
+  // A nonempty conversation still needs its recovery action when no model is configured.
+  await call(`/api/sessions/${first.id}/messages`,{text:'本地界面恢复验证',commandId:'model-setup-history-fixture'});
+  await page.waitForFunction(()=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active')?.state?.chatMessages?.some(m=>m.role==='user'));
+  assert.equal(await welcomeButton().count(),0);
+  await pane().locator('.agent-chat__disabled-banner[data-model-setup]').waitFor({state:'visible'});
+  assert.deepEqual(errors,[]);console.log(JSON.stringify({passed:true,checks:['session choices and cross-session isolation','global effective state and real settings navigation','keyboard and narrow popup bounds','restart clears session grant and retains global trust','disable global and session trust','single working model setup action for empty chat; history keeps recovery'],external_requests:0}));
 }finally{
   await browser?.close();await stop();
   const canonical=await realpath(home);assert.equal(dirname(canonical),await realpath(tmpdir()));assert.ok(basename(canonical).startsWith('mirally-permission-ui-'));

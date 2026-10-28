@@ -21,7 +21,7 @@ const deferred = () => {let resolve, reject; const promise = new Promise((yes, n
 
 function fixture(handler = method => method === 'conversation.list' ? {conversations: []}
   : method === 'settings.get' ? {weixin_remote_control_enabled: false} : {...baseStatus}) {
-  const calls = [], timers = new Map(), listeners = new Map(); let timerId = 0;
+  const calls = [], timers = new Map(), listeners = new Map(), toggles=[]; let timerId = 0;
   const document = {hidden: false, addEventListener: (name, fn) => listeners.set('document.' + name, fn),
     removeEventListener: name => listeners.delete('document.' + name)};
   const sandbox = {
@@ -41,9 +41,10 @@ function fixture(handler = method => method === 'conversation.list' ? {conversat
     renderSettingsRow: props => html`${props.title}${props.description}${props.control}`,
     renderSettingsSection: (props, content) => html`${props.title}${props.description}${content}`,
     renderSettingsStatus: props => props.label,
+    renderSettingsToggle: props => {toggles.push(props);return props.ariaLabel;},
   };
   vm.runInNewContext(compiled + '\nglobalThis.Page = MirallyChannelsPage;', sandbox);
-  return {page: new sandbox.Page(), document, calls, timers, listeners,
+  return {page: new sandbox.Page(), document, calls, timers, listeners, toggles,
     render: page => stringify(page.render())};
 }
 
@@ -59,21 +60,20 @@ test('channels renders local QR, requires explicit bind, and never renders proto
   assert.doesNotMatch(bind, /secret-token|remote-body/); assert.equal(f.calls.length, 0);
 });
 
-test('Weixin setup explains the server-free path and existing work controls without requiring the optional webpage', () => {
+test('Weixin help and optional web controls are available in separate closed disclosures', () => {
   const f = fixture();
   f.page.status = {...baseStatus, state: 'connected', bound: true, enabled: true};
   const rendered = f.render(f.page);
-  assert.match(rendered, /无需自建云服务器或端口映射/);
-  assert.match(rendered, /保持联网并运行 Mirally/);
-  assert.match(rendered, /私人 HTTPS 和手机网页配对都不是微信的使用前置/);
+  assert.match(rendered, /电脑需联网并保持 Mirally 运行/);
+  assert.match(rendered, /<details data-testid="mirally-weixin-help"><summary>微信使用帮助/);
+  assert.match(rendered, /<details data-testid="mirally-mobile-options"><summary>手机网页（可选）/);
+  assert.doesNotMatch(rendered, /<details[^>]*\bopen\b/);
   for (const command of ['/history [更早游标]', '/works', '/work 工作编号', '/work-use 工作编号', '/work-review 完整审批编号', '/work-approve 确认码', '/work-cancel 完整运行编号', '/work-logs 完整运行编号 [字节偏移]', '/work-notify [on|off]', '/stop']) {
     assert.ok(rendered.includes(command), `The real settings should introduce ${command}`);
   }
   assert.match(rendered, /会话后台命令/);
   assert.match(rendered, /“菜单”或“帮助”查看全部命令/);
-  assert.match(rendered, /当前会话最近正文，每页最多 6 条，长消息会节选/);
-  assert.match(rendered, /只调整微信工作通知，不改消息页通知，也不停止工作/);
-  assert.match(rendered, /不需要开启下方的手机网页/);
+  assert.match(rendered, /每次返回最近 6 条/);
   assert.doesNotMatch(rendered, /暂不执行命令/);
   assert.equal(f.calls.length, 0, 'Reading instructions must not configure or execute anything');
 });
@@ -148,7 +148,7 @@ test('hidden documents do not poll; visible connected pages schedule one two-sec
 test('unknown deliveries and unbind are explicit; failures do not leak remote payloads', async () => {
   const f = fixture(() => {throw new Error('secret bot token and raw response');});
   f.page.status = {...baseStatus, state: 'connected', bound: true, enabled: true, outbox: {pending: 1, unknown: 2, failed: 1}};
-  assert.match(f.render(f.page), /不会自动重复发送/);
+  assert.match(f.render(f.page), /为避免重复发送/);
   assert.doesNotMatch(f.render(f.page), /mirally-weixin-unbind-confirm/);
   f.page.confirmingUnbind = true;
   assert.match(f.render(f.page), /mirally-weixin-unbind-confirm/);
@@ -186,9 +186,9 @@ test('remote control requires a binding and persists explicit settings changes',
     return {conversations: []};
   });
   await f.page.refresh(true);
-  assert.match(f.render(f.page), /data-testid="mirally-weixin-remote-control"[^>]*\?disabled=true/);
+  f.render(f.page); assert.equal(f.toggles.at(-1).disabled,true);
   f.page.acceptStatus({...baseStatus, state: 'connected', bound: true, enabled: true});
-  assert.match(f.render(f.page), /data-testid="mirally-weixin-remote-control"[^>]*\?disabled=false/);
+  f.render(f.page); assert.equal(f.toggles.at(-1).disabled,false);
   await f.page.setRemoteControl(true);
   assert.equal(f.page.remoteControl, true);
   assert.equal(f.calls.filter(call => call.method === 'settings.update').length, 1);
@@ -206,5 +206,5 @@ test('remote control save failure preserves the previous value and hides protoco
   assert.equal(f.page.remoteControl, false);
   assert.match(f.page.error, /未能保存/);
   assert.doesNotMatch(f.render(f.page), /private response/);
-  assert.match(f.render(f.page), /data-testid="mirally-weixin-remote-control"[^>]*\.checked=false/);
+  f.render(f.page); assert.equal(f.toggles.at(-1).checked,false);
 });

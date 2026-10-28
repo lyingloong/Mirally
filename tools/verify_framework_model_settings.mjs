@@ -73,7 +73,7 @@ try{
   assert.equal(await page.getByTestId('mirally-catalog-model_id').inputValue(),'fixture-text');
   assert.equal(await page.getByTestId('mirally-catalog-context_window').inputValue(),'700000');
   assert.equal(await page.getByTestId('mirally-catalog-max_tokens').inputValue(),'1024');
-  assert.equal(await page.getByTestId('mirally-catalog-form').getByRole('switch',{name:'附加模型图片输入'}).isChecked(),false);
+  assert.equal(await page.getByTestId('mirally-catalog-form').getByRole('checkbox',{name:'附加模型图片输入'}).isChecked(),false);
   await page.getByTestId('mirally-catalog-save').click();
   await test('notice').filter({hasText:'模型已保存'}).waitFor();await ready();
   assert.equal((await settings()).model.model_id,'fixture-vision');

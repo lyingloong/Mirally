@@ -327,6 +327,7 @@ export abstract class ChatPaneHeader extends ChatPaneDiscussion {
     const continueInTerminalDisabledReason = row
       ? this.continueInTerminalDisabledReason(row)
       : undefined;
+    const compactDisabledReason = row ? this.headerCompactDisabledReason(row) : undefined;
     const actionDisabledReasons: Partial<Record<HeaderMenuActionKind, string>> = {
       ...sessionActionDisabledReasons,
       ...(assignmentAccess && !assignmentAccess.allowed
@@ -335,6 +336,7 @@ export abstract class ChatPaneHeader extends ChatPaneDiscussion {
       ...(continueInTerminalDisabledReason
         ? { "continue-in-terminal": continueInTerminalDisabledReason }
         : {}),
+      ...(compactDisabledReason ? { "compact-context": compactDisabledReason } : {}),
     };
     const desktopEnvironmentId = resolveChatPaneDesktopTarget(row);
     const desktopPanelAvailable =
@@ -632,6 +634,7 @@ export abstract class ChatPaneHeader extends ChatPaneDiscussion {
               .actionDisabledReasons=${actionDisabledReasons}
               .forkDisabled=${this.state.sessionsLoading || row.modelSelectionLocked === true}
               .forkFromLastCompleted=${row.hasActiveRun === true}
+              .contextCompacting=${this.isHeaderSessionCompacting(row)}
               .archiveAllowed=${archiveAllowed}
               .archiveShortcut=${this.active && this.presented && !this.onboarding}
               .deleteAllowed=${deleteAllowed}

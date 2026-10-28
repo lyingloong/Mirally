@@ -2,7 +2,7 @@
 // locale preferences stay compatible; translated UI never inherits host branding.
 const EN: Record<string, string> = {
   "modelSetup.required.title": "Connect a model to Mirally",
-  "modelSetup.required.body": "Add your AI provider connection so Mirally can chat and help with your life and work.",
+  "modelSetup.required.body": "Connect an AI provider to start chatting.",
   "modelSetup.required.action": "Connect a model",
   "chat.welcome.suggestions.whatCanYouDo": "What can we work on together?",
   "chat.welcome.suggestions.summarizeRecentSessions": "Help me organize my recent conversations",
@@ -22,7 +22,7 @@ const EN: Record<string, string> = {
 const ZH: Record<string, string> = {
   "chat.modelControls.mirallySessionModelUnavailable": "暂不支持单独为此会话切换模型。可在「设置 → 模型连接」管理对话模型。",
   "modelSetup.required.title": "为 Mirally 连接模型",
-  "modelSetup.required.body": "添加你自己的 AI 服务连接，开始生活与工作中的对话和协作。",
+  "modelSetup.required.body": "连接 AI 服务后开始对话。",
   "modelSetup.required.action": "连接模型",
   "chat.welcome.suggestions.whatCanYouDo": "我们可以一起做些什么？",
   "chat.welcome.suggestions.summarizeRecentSessions": "帮我整理最近的对话",

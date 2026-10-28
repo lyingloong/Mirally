@@ -19,9 +19,19 @@ page.on('pageerror', error => errors.push(error.message));
 const test = id => page.getByTestId(id);
 let status = {state: 'unbound', enabled: false, bound: false, installation_id: 'browser-fixture', revision: 1,
   outbox: {pending: 0, unknown: 0, failed: 0}};
-let failNext = '';
+let failNext = '', remoteControl = false;
 await page.route('**/api/rpc', async route => {
   const data = route.request().postDataJSON();
+  if (data.method === 'settings.get') {
+    const response=await route.fetch(), json=await response.json();
+    json.result.weixin_remote_control_enabled=remoteControl;
+    return route.fulfill({response,json});
+  }
+  if (data.method === 'settings.update' && typeof data.params?.patch?.weixin_remote_control_enabled === 'boolean') {
+    assert.equal(status.bound,true,'fixture still requires a real local binding step');
+    remoteControl=data.params.patch.weixin_remote_control_enabled;
+    return route.fulfill({json:{result:{weixin_remote_control_enabled:remoteControl}}});
+  }
   if (data.method === 'conversation.list') return route.fulfill({json: {result: {conversations: [
     {conversation_id: 'fixture-existing', title: '已有工作会话'}, {id: 'fixture-legacy', title: '另一会话'},
   ]}}});
@@ -63,11 +73,15 @@ try {
   checks.push('actual Mirally settings navigation and shared design language');
 
   const entryText = await test('mirally-weixin-page').innerText();
-  assert.match(entryText, /无需自建云服务器或端口映射/);
-  assert.match(entryText, /手机网页（可选扩展）/);
-  assert.match(entryText, /不是微信的使用前置/);
-  for (const command of ['/works', '/work-review', '/work-logs', '/work-notify']) assert.ok(entryText.includes(command));
-  checks.push('WeChat-only setup needs no server or webpage; optional web and real chat commands are clear');
+  assert.match(entryText, /电脑需联网并保持 Mirally 运行/);
+  const help=test('mirally-weixin-help'),web=test('mirally-mobile-options');
+  assert.equal(await help.getAttribute('open'),null);assert.equal(await web.getAttribute('open'),null);
+  assert.equal(await help.locator('code').first().isVisible(),false);
+  await help.locator('summary').click();
+  for (const command of ['/works', '/work-review', '/work-logs', '/work-notify']) assert.ok((await help.innerText()).includes(command));
+  await help.locator('summary').click();
+  await web.locator('summary').click();await web.locator('mirally-mobile-settings').waitFor({state:'visible'});await web.locator('summary').click();
+  checks.push('Weixin setup remains primary; help and optional web controls expand independently');
 
   await test('mirally-weixin-login').evaluate(button => {button.click(); button.click();});
   await test('mirally-weixin-qr').waitFor(); await settled();
@@ -98,8 +112,12 @@ try {
   assert.equal(status.conversation_id, 'fixture-existing');
   assert.equal(await test('mirally-weixin-conversation').inputValue(), 'fixture-existing');
   assert.equal(await test('mirally-weixin-code').count(), 0);
-  assert.match(await test('mirally-weixin-page').innerText(), /\/history/);
-  assert.match(await test('mirally-weixin-page').innerText(), /菜单/);
+  await help.locator('summary').click();
+  assert.match(await help.innerText(), /\/history/);assert.match(await help.innerText(), /菜单/);
+  await help.locator('summary').click();
+  const remote=test('mirally-weixin-remote-control').getByRole('switch');
+  await test('mirally-weixin-remote-control').locator('wa-switch').click();await settled();assert.equal(await remote.isChecked(),true);
+  await remote.focus();await page.keyboard.press('Space');await settled();assert.equal(await remote.isChecked(),false);
   checks.push('verification code, explicit local binding, existing conversation identity');
 
   await test('mirally-weixin-conversation').selectOption(''); await test('mirally-weixin-select').click(); await settled();
@@ -111,7 +129,7 @@ try {
 
   status.outbox = {pending: 1, unknown: 2, failed: 1}; status.last_error = 'private-token remote-body';
   await refresh();
-  assert.match(await test('mirally-weixin-page').innerText(), /不会自动重复发送/);
+  assert.match(await test('mirally-weixin-page').innerText(), /为避免重复发送/);
   assert.doesNotMatch(await test('mirally-weixin-page').innerText(), /private-token|remote-body/);
   failNext = 'weixin.disconnect'; await test('mirally-weixin-disconnect').click();
   await test('mirally-weixin-error').waitFor();

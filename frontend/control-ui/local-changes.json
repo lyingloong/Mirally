@@ -17,9 +17,14 @@
   "ui/src/pages/config/config-page.ts": "Describe the retained appearance controls as Mirally settings.",
   "ui/src/components/command-palette-catalog-search.ts": "Use real Mirally product pages and supported reminder/model search.",
   "ui/src/pages/config/settings-search.ts": "Index retained Appearance controls without old administration sections.",
-  "ui/src/pages/chat/components/chat-header-session-menu.ts": "Expose native DSH conversation forks and Mirally-owned organization with captured metadata revisions; retain original menu visuals and capability checks.",
+  "ui/src/pages/chat/components/chat-header-session-menu.ts": "Expose native DSH forks and context compaction beside Mirally organization; retain original menu visuals and capability checks.",
   "ui/src/pages/chat/components/chat-message-bubble.ts": "Display trusted cross-surface input origins on individual user messages without changing the retained conversation layout.",
-  "ui/src/pages/chat/chat-view.ts": "Show conversation-bound action approvals, native DSH questions, plan review and manual compaction beside the retained composer.",
+  "ui/src/pages/chat/chat-view.ts": "Show conversation-bound action approvals, native DSH questions and plan review beside the retained composer.",
+  "ui/src/pages/chat/components/chat-composer-view.ts": "Integrate truthful Mirally mode and effective action policy choices into the retained composer toolbar.",
+  "ui/src/pages/chat/components/chat-composer-types.ts": "Pass pane presentation state to Mirally choices and mark setup banners whose recovery action is already in the visible welcome.",
+  "ui/src/pages/chat/chat-pane-header.ts": "Expose actual busy and capability state for native context compaction in the retained conversation menu.",
+  "ui/src/pages/chat/chat-model-setup.ts": "Mark the Mirally model recovery banner so actual empty-chat onboarding owns the sole visible setup action.",
+  "ui/src/pages/chat/components/chat-thread.ts": "Keep the real model setup action in the retained empty-chat welcome without changing other welcome states.",
   "ui/src/pages/chat/chat-pane-session-controls.ts": "Explain Mirally's per-conversation model selection boundary without implying the configured model is unavailable.",
   "ui/src/i18n/locales/en-model-controls.ts": "Provide Mirally-specific guidance for the unavailable per-conversation model selector.",
   "ui/src/components/session-menu.ts": "Expose native DSH conversation forks and Mirally-owned organization with captured metadata revisions; retain original menu visuals and capability checks.",
@@ -58,5 +63,5 @@
   "ui/src/components/session-organizer-batch-mutations.ts": "Restore Mirally-owned conversation organization with captured metadata revisions and field-specific mutation access; retain original visuals and reject unsupported session operations.",
   "ui/src/components/session-organizer-operations.runtime.ts": "Restore Mirally-owned conversation organization with captured metadata revisions and field-specific mutation access; retain original visuals and reject unsupported session operations.",
   "ui/src/pages/chat/chat-pane-base.ts": "Restore Mirally-owned conversation organization with captured metadata revisions and field-specific mutation access; retain original visuals and reject unsupported session operations.",
-  "ui/src/pages/chat/chat-pane-session-menu.ts": "Restore Mirally-owned conversation organization with captured metadata revisions and field-specific mutation access; retain original visuals and reject unsupported session operations."
+  "ui/src/pages/chat/chat-pane-session-menu.ts": "Restore Mirally conversation organization and reuse the native compact command with session ownership, duplicate prevention and truthful outcomes; retain original visuals and mutation access."
 }
