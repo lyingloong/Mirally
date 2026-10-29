@@ -35,6 +35,8 @@ type ProductStatus = {
   now_utc_ms?: number; workers?: Record<string, unknown>;
 };
 type BudgetDraft = {max_calls_per_hour: string; max_tokens_per_day: string; max_output_tokens: string};
+type CalendarSettings = {time_zone: string | null; confirmed: boolean; detected_time_zone: string | null;
+  channels: {desktop: boolean; weixin: boolean}};
 
 const PAGE_COPY: Record<SettingsPageId, {title: string; subtitle?: string}> = {
   general: {title: "通用"},
@@ -66,6 +68,8 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
 
   @property({type: String}) page: string = "general";
   @state() private settings: ProductSettings | null = null;
+  @state() private calendarSettings: CalendarSettings | null = null;
+  @state() private timeZoneDraft = '';
   @state() private status: ProductStatus | null = null;
   @state() private preferences: Preference[] = [];
   @state() private closeBehavior: 'tray' | 'exit' = 'tray';
@@ -148,13 +152,16 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
     const request = ++this.loadEpoch, view = this.viewEpoch;
     this.loading = true; this.error = "";
     try {
-      const [settings, status, preferences, presentation] = await Promise.all([
+      const [settings, status, preferences, presentation, calendarSettings] = await Promise.all([
         rpcProduct<ProductSettings>("settings.get"), rpcProduct<ProductStatus>("system.status"),
         rpcProduct<{preferences: Preference[]}>("preference.list"),
         requestProduct<{preferences: Record<string, unknown>}>("/api/ui-preferences"),
+        rpcProduct<CalendarSettings>("calendar.settings.get"),
       ]);
       if (!this.isConnected || view !== this.viewEpoch || request !== this.loadEpoch) return;
       this.settings = settings; this.status = status; this.preferences = preferences.preferences || [];
+      this.calendarSettings = calendarSettings;
+      this.timeZoneDraft = calendarSettings.time_zone || calendarSettings.detected_time_zone || '';
       // A refresh may observe another window's service or credential changes.
       // Probe results belong to their original saved connection, not this one.
       this.discoveredModels = null; this.modelTest = null;
@@ -235,6 +242,22 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
   private generalPage() {
     return html`
       <mirally-capabilities-settings></mirally-capabilities-settings>
+      ${renderSettingsSection({title: "日期与时间"}, html`
+        ${this.field("时区", html`<form @submit=${(event: SubmitEvent) => {
+          event.preventDefault(); const value = this.timeZoneDraft.trim(); if (!value) return;
+          void this.mutate(() => rpcProduct("calendar.settings.update", {time_zone:value}), "时区已保存。");
+        }}><input class="settings-input" aria-label="时区" list="mirally-time-zones" data-testid="mirally-time-zone"
+          .value=${live(this.timeZoneDraft)} @input=${(event: Event) => {this.timeZoneDraft = (event.target as HTMLInputElement).value;}}
+          placeholder="Asia/Shanghai" required ?disabled=${this.busy || this.loading}>
+          <datalist id="mirally-time-zones">${(typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : ['Asia/Shanghai', 'UTC']).map(zone => html`<option value=${zone}></option>`)}</datalist>
+          <button class="btn" type="submit" ?disabled=${this.busy || this.loading}>${this.calendarSettings?.confirmed ? '保存' : '确认时区'}</button></form>`,
+          this.calendarSettings?.confirmed ? undefined : '请确认日历和提醒使用的时区。')}
+        ${(['desktop','weixin'] as const).map(channel => renderSettingsRow({title:channel === 'desktop' ? '桌面提醒' : '微信提醒', control:renderSettingsToggle({
+          checked:this.calendarSettings?.channels?.[channel] === true, disabled:this.busy || this.loading || !this.calendarSettings,
+          ariaLabel:channel === 'desktop' ? '桌面提醒' : '微信提醒', onChange:value => {
+            void this.mutate(() => rpcProduct('calendar.settings.update',{channels:{[channel]:value}}), '提醒方式已保存。'); return false;
+          }})}))}
+      `)}
       ${renderSettingsSection({title: "会话操作权限"}, html`
         ${renderSettingsRow({title: "默认确认方式", description: "自动批准允许模型直接执行命令、操作浏览器和读取屏幕。", control: html`<select class="settings-input" aria-label="默认确认方式" data-testid="mirally-action-approval-mode" .value=${live(this.settings?.action_approval_mode || 'ask')} ?disabled=${this.busy || this.loading || !this.settings}
           @change=${(event: Event) => {const value=(event.target as HTMLSelectElement).value; void this.mutate(() => rpcProduct("settings.update", {patch: {action_approval_mode: value}}), "会话操作权限已保存。");}}>

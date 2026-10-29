@@ -49,7 +49,7 @@ test('real session experiment is readable and controllable over bound Weixin', {
         if(turn==='progress'){tool='mirally_job_list';args={};}
         if(turn==='stop'){tool='mirally_stop_job';args={job_id:jobId};}
         if(turn==='remote_start'){tool='mirally_run_command';args={command:`Set-Content -LiteralPath '${join(home,'remote-marker.txt').replaceAll("'","''")}' -Value yes`,cwd:home};}
-        if(turn==='question'){tool='ask_user_question';args={questions:[{id:'mode',question:'请选择远程方案',options:[{label:'方案 A'},{label:'方案 B'}]}]};}
+        if(turn==='question'){tool='ask_user_question';args={questions:[{id:'mode',question:'请选择远程方案',options:[{label:'方案 A'},{label:'方案 B'}]},{id:'note',question:'请补充备注'}]};}
       }else if(turn==='progress'&&toolResults.length===1){
         const found=JSON.stringify(toolResults[0]).match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i); if(!found)throw Error('no job id in '+JSON.stringify(toolResults));
         jobId=found[0];tool='mirally_job_status';args={job_id:jobId};
@@ -102,21 +102,21 @@ test('real session experiment is readable and controllable over bound Weixin', {
   await until(()=>replies.slice(afterEnable).some(text=>text.includes('EXPERIMENT_PROGRESS_73')&&text.includes('running')),'progress after enabling');
   const previous=replies.length;send(3,'微信停止实验');
   const request=await until(()=>replies.slice(previous).find(text=>text.includes('/approve ')),'remote stop approval');
-  const code=request.match(/\/approve ([a-f0-9]{16})/)[1];send(4,`/deny ${code}`);
+  const code=request.match(/\/approve ([0-9]{9})/)[1];send(4,`/deny ${code}`);
   await until(()=>replies.slice(previous).some(text=>text.includes('未批准')),'denied stop reply');
   const before=replies.length;send(5,'微信停止实验');
   const approved=await until(()=>replies.slice(before).find(text=>text.includes('/approve ')),'second remote stop approval');
-  send(6,`/approve ${approved.match(/\/approve ([a-f0-9]{16})/)[1]}`);
+  send(6,`/approve ${approved.match(/\/approve ([0-9]{9})/)[1]}`);
   await until(()=>replies.slice(before).some(text=>text.includes('cancelled')),'stopped reply');
   const startAt=replies.length;send(7,'微信启动新命令');
   const startReview=await until(()=>replies.slice(startAt).find(text=>text.includes('/approve ')),'remote command approval');
   assert.match(startReview,/remote-marker/);
-  send(8,`/deny ${startReview.match(/\/approve ([a-f0-9]{16})/)[1]}`);
+  send(8,`/deny ${startReview.match(/\/approve ([0-9]{9})/)[1]}`);
   await until(()=>replies.slice(startAt).some(text=>text.includes('未批准')),'denied command');
   assert.equal(existsSync(join(home,'remote-marker.txt')),false);
   const startAgain=replies.length;send(9,'微信启动新命令');
   const approvedStart=await until(()=>replies.slice(startAgain).find(text=>text.includes('/approve ')),'remote command second approval');
-  send(10,`/approve ${approvedStart.match(/\/approve ([a-f0-9]{16})/)[1]}`);
+  send(10,`/approve ${approvedStart.match(/\/approve ([0-9]{9})/)[1]}`);
   await until(()=>existsSync(join(home,'remote-marker.txt')),'approved remote command effect');
   await until(()=>replies.slice(startAgain).some(text=>text.includes('实验结果')),'remote command completed');
   assert.equal((await readFile(join(home,'remote-marker.txt'),'utf8')).trim(),'yes');
@@ -127,7 +127,7 @@ test('real session experiment is readable and controllable over bound Weixin', {
   const trustedAt=replies.length;send(101,'微信启动新命令');
   const trustedReview=await until(()=>replies.slice(trustedAt).find(text=>text.includes('/approve ')),'trusted without remote inheritance still prompts');
   assert.equal(existsSync(join(home,'remote-marker.txt')),false);
-  send(102,`/deny ${trustedReview.match(/\/approve ([a-f0-9]{16})/)[1]}`);
+  send(102,`/deny ${trustedReview.match(/\/approve ([0-9]{9})/)[1]}`);
   await until(()=>replies.slice(trustedAt).some(text=>text.includes('未批准')),'trusted remote denial completed');
   await rpc('settings.update',{patch:{weixin_auto_approve_enabled:true}});
   const inheritedAt=replies.length;send(103,'微信启动新命令');
@@ -140,19 +140,21 @@ test('real session experiment is readable and controllable over bound Weixin', {
   const revokedTrustAt=replies.length;send(104,'微信启动新命令');
   const revokedTrust=await until(()=>replies.slice(revokedTrustAt).find(text=>text.includes('/approve ')),'remote inheritance revoked prompts');
   assert.equal(existsSync(join(home,'remote-marker.txt')),false);
-  send(105,`/deny ${revokedTrust.match(/\/approve ([a-f0-9]{16})/)[1]}`);
+  send(105,`/deny ${revokedTrust.match(/\/approve ([0-9]{9})/)[1]}`);
   await until(()=>replies.slice(revokedTrustAt).some(text=>text.includes('未批准')),'revoked trust denial completed');
   const questionAt=replies.length;send(106,'微信询问方案');
-  const question=await until(()=>replies.slice(questionAt).find(text=>text.includes('/answer ')),'native question delivered to WeChat');
+  const question=await until(()=>replies.slice(questionAt).find(text=>text.includes('Mirally 需要你的回答')),'native question delivered to WeChat');
   assert.match(question,/请选择远程方案/);
   await delay(200);
-  send(107,`/answer ${question.match(/\/answer ([a-f0-9]{16})/)[1]} 方案 B`);
+  send(107,'2');
+  await until(()=>replies.slice(questionAt).some(text=>text.includes('请补充备注')),'second question delivered separately');
+  await delay(200);send(108,'明早继续');
   await until(()=>requests.some(r=>r.prompt.includes('微信询问方案')&&JSON.stringify(r.toolResults).includes('方案 B')),'native structured answer reaches same model turn');
   await until(()=>replies.slice(questionAt).some(text=>text.includes('实验结果')&&text.includes('方案 B')),'native question turn resumes over WeChat');
   const beforeDisable=replies.length;send(11,'微信启动新命令');
   const revoked=await until(()=>replies.slice(beforeDisable).find(text=>text.includes('/approve ')),'pending command');
   await rpc('settings.update',{patch:{weixin_remote_control_enabled:false}});
-  send(12,`/approve ${revoked.match(/\/approve ([a-f0-9]{16})/)[1]}`);
+  send(12,`/approve ${revoked.match(/\/approve ([0-9]{9})/)[1]}`);
   await delay(1000);
   assert.equal(existsSync(join(home,'remote-marker.txt')),false,'revoked approval cannot execute');
   const history=await api(`/api/sessions/${session.id}/history`);
@@ -186,11 +188,13 @@ test('real session experiment is readable and controllable over bound Weixin', {
   await rpc('settings.update',{patch:{weixin_remote_control_enabled:true}});
   const namedTurnAt=replies.length, namedPrompt='微信询问方案：微信命名对话验证';
   send(204,namedPrompt);
-  const namedQuestion=await until(()=>replies.slice(namedTurnAt).find(text=>text.includes('/answer ')),'named native session question').catch(async error=>{
+  const namedQuestion=await until(()=>replies.slice(namedTurnAt).find(text=>text.includes('Mirally 需要你的回答')),'named native session question').catch(async error=>{
     error.message+=` replies=${JSON.stringify(replies.slice(namedTurnAt))} errors=${modelErrors.map(item=>item.message)} commands=${JSON.stringify(await rpc('command.list',{conversation_id:named.conversation_id}))}`;
     throw error;
   });
-  send(205,`/answer ${namedQuestion.match(/\/answer ([a-f0-9]{16})/)[1]} 方案 A`);
+  send(205,'1');
+  await until(()=>replies.slice(namedTurnAt).some(text=>text.includes('请补充备注')),'second named question delivered');
+  await delay(200);send(2070,'按计划');
   await until(()=>replies.slice(namedTurnAt).some(text=>text.includes('实验结果')&&text.includes('方案 A')),'named native turn completes');
   const namedHistory=await api(`/api/sessions/${named.conversation_id}/history`);
   assert.ok(namedHistory.messages.some(message=>message.role==='user'&&message.input_origin==='weixin'&&message.text===namedPrompt));

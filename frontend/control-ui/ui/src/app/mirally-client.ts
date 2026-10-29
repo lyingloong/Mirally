@@ -2,6 +2,7 @@
 import type { GatewayBrowserClient, GatewayBrowserClientOptions, GatewayHelloOk, GatewayEventFrame } from "../api/gateway.ts";
 
 import {readMirallyModel, MIRALLY_READ_METHODS, selectedProductModel} from "./mirally-read-models.ts";
+import {DesktopReminders} from './desktop-reminders.ts';
 
 type Data = Record<string, any>;
 const key = (id: string) => `agent:main:${id}`;
@@ -55,6 +56,8 @@ export class MirallyBrowserClient {
   private configHash = "";
   private preferences: Data = {};
   private metadataRows = new Map<string, Data>();
+  private desktopReminders = new DesktopReminders((method,params)=>this.rpc(method,params),
+    () => (window as any).pywebview?.api);
   supportsSessionPatch(params: unknown) {
     if (!params || typeof params !== 'object' || Array.isArray(params)) return false;
     const fields = Object.keys(params).filter(field => !PATCH_CONTEXT.has(field));
@@ -72,7 +75,7 @@ export class MirallyBrowserClient {
   }
   get needsWakeReconnect() { return !this.connected; }
   start() { if (!this.stopped) return; this.stopped = false; const generation = ++this.generation; void this.connect(generation); }
-  stop() { this.stopped = true; ++this.generation; this.connected = false; this.stream?.abort(); clearTimeout(this.retry); this.reasoningStreams.clear(); this.assistantAttempts.clear(); this.partials.clear(); }
+  stop() { this.stopped = true; this.desktopReminders.stop(); ++this.generation; this.connected = false; this.stream?.abort(); clearTimeout(this.retry); this.reasoningStreams.clear(); this.assistantAttempts.clear(); this.partials.clear(); }
 
   /** Render-only rows: they never enter the transcript, outbox or message cache. */
   getReasoningStream(sessionKey: string, runId?: string | null, history: Data[] = []) {
@@ -140,7 +143,7 @@ export class MirallyBrowserClient {
       await this.loadPresentation();
       if (this.stopped || generation !== this.generation) return;
       this.refreshNativeCapturePreference();
-      this.connected = true; this.recoveryScopeReady = true;
+      this.connected = true; this.recoveryScopeReady = true; this.desktopReminders.start();
       this.opts.onHello?.({type: "hello-ok", protocol: 3, server: {version: "Mirally", connId: this.instanceId, controlUiBuildSource: "configured"},
         features: {methods: METHODS, events: ["chat", "agent", "sessions.changed", "config.changed"]},
         snapshot: {presence: [], health: health.product, stateVersion: {presence: 0, health: 0}, uptimeMs: 0,
@@ -214,7 +217,7 @@ export class MirallyBrowserClient {
       modelOverrideSource: s.model_selection ? 'user' : null}));
   }
   private message(message: Data) { return {id: message.id, role: message.role, timestamp: message.time, __openclaw: message.__openclaw,
-    ...(['desktop', 'weixin', 'mobile'].includes(message.input_origin) && message.role === 'user' ? {input_origin: message.input_origin} : {}),
+    ...(['desktop', 'weixin', 'mobile', 'schedule'].includes(message.input_origin) && message.role === 'user' ? {input_origin: message.input_origin} : {}),
     native_session_id: message.native_session_id, native_seq: message.native_seq, ...(message.toolCallId ? {toolCallId: message.toolCallId} : {}),
     content: Array.isArray(message.content) ? message.content.filter((block: Data) => block.type === 'text' && typeof block.text === 'string'
       || message.role === 'assistant' && block.type === 'thinking' && typeof block.thinking === 'string'
@@ -236,7 +239,7 @@ export class MirallyBrowserClient {
       return;
     }
     if (event.type === 'configuration') { this.emit('config.changed', {paths:event.fields || []}); return; }
-    const id = event.session_id; if (!id) { if (["artifact", "action", "inbox", "interaction", "work"].includes(event.type)) window.dispatchEvent(new CustomEvent("mirally-product-event", {detail: event})); return; }
+    const id = event.session_id; if (!id) { if (["artifact", "action", "inbox", "interaction", "work", "calendar", "schedule"].includes(event.type)) window.dispatchEvent(new CustomEvent("mirally-product-event", {detail: event})); return; }
     const runId = event.command_id || this.activeRuns(id).at(-1);
     const partialKey = `${id}:${runId || ""}`;
     if (event.type === 'session-metadata') {this.emit('sessions.changed', {key: key(id), agentId: 'main', reason: 'metadata'}); return;}

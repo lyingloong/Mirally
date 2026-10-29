@@ -85,6 +85,7 @@ def main(argv: list[str] | None = None) -> int:
         print("Node: " + str(node))
         print("Kernel: " + str(kernel))
         print("Built: " + str((kernel / "packages/core/agent/lib/index.js").is_file()))
+        print("Schedule built: " + str((kernel / "packages/schedule/schedule/lib/index.js").is_file()))
         print("Control UI source: " + str((frontend / "ui/src/app/app-host.ts").is_file()))
         print("Control UI built: " + str(frontend_entry.is_file() and frontend_marker.is_file()))
         return 0
@@ -97,6 +98,8 @@ def main(argv: list[str] | None = None) -> int:
         subprocess.run([*npm_command(node), "run", "build"], cwd=frontend, env=env, check=True)
     if not (kernel / "packages/core/agent/lib/index.js").is_file():
         raise RuntimeError("The kernel build did not produce its native Agent entry")
+    if not (kernel / "packages/schedule/schedule/lib/index.js").is_file():
+        raise RuntimeError("The kernel schedule package has not been built. Run tools/setup_framework.py without --skip-build.")
     if not frontend_entry.is_file() or not frontend_marker.is_file():
         raise RuntimeError("The original Mirally Control UI has not been built. Run tools/setup_framework.py without --skip-build; no replacement page will be selected.")
     for path in (kernel / "packages/mirally").glob("*/src/*.mjs"):

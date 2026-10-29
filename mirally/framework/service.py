@@ -25,9 +25,10 @@ from urllib.parse import urlsplit
 from .context import ContextReader, memory_config
 from .channels import CHANNEL_SCHEMA, WeixinChannels
 from .work import WORK_SCHEMA, WorkOwner
+from .calendar import CALENDAR_SCHEMA, CalendarOwner
 
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 CONVERSATION_FORKS_SCHEMA = """CREATE TABLE IF NOT EXISTS conversation_forks (
     conversation_id TEXT PRIMARY KEY REFERENCES conversations(id),
     parent_conversation_id TEXT NOT NULL,parent_generation INTEGER NOT NULL,
@@ -90,7 +91,7 @@ class FrameworkService:
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.execute("PRAGMA busy_timeout=10000")
         try:
-            if self.db.execute("PRAGMA user_version").fetchone()[0] not in (0, 1, 2, 3, 4, 5, 6, 7, SCHEMA_VERSION):
+            if self.db.execute("PRAGMA user_version").fetchone()[0] not in (0, 1, 2, 3, 4, 5, 6, 7, 8, SCHEMA_VERSION):
                 raise FrameworkError("SCHEMA_VERSION", "unsupported product database schema")
             self.db.execute("PRAGMA journal_mode=WAL")
             self.db.execute("PRAGMA synchronous=FULL")
@@ -102,10 +103,12 @@ class FrameworkService:
             self.model_connections = ModelConnections(self)
             self.channels = WeixinChannels(self)
             self.work = WorkOwner(self)
+            self.calendar = CalendarOwner(self)
             with self._transaction():
                 # A process died after reserving an external effect. Reconcile
                 # the provider; never turn this back into pending automatically.
                 self.db.execute("UPDATE deliveries SET status='unknown',updated_at=? WHERE status='sending'", (self.clock(),))
+                self.db.execute("UPDATE calendar_deliveries SET status='unknown',updated_at=? WHERE status='sending'", (self.clock(),))
                 self.db.execute("UPDATE commands SET state='unknown',updated_at=? WHERE state='submitted'", (self.clock(),))
             self._update_controller()
         except BaseException:
@@ -114,11 +117,16 @@ class FrameworkService:
 
     def _initialize(self) -> None:
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, 3, 4, 5, 6, 7, SCHEMA_VERSION):
+        if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, SCHEMA_VERSION):
             raise FrameworkError("SCHEMA_VERSION", "unsupported product database schema")
         if version == SCHEMA_VERSION:
+            # Development builds of schema 9 before notes were added can be
+            # opened without losing their local events.
+            if 'notes' not in {row[1] for row in self.db.execute('PRAGMA table_info(calendar_events)')}:
+                with self._transaction():
+                    self.db.execute("ALTER TABLE calendar_events ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
             return
-        if version in (1, 2, 3, 4, 5, 6, 7):
+        if version in (1, 2, 3, 4, 5, 6, 7, 8):
             with self._transaction():
                 if version == 1:
                     self.db.execute(INITIATIVE_RUNS_SCHEMA)
@@ -139,6 +147,8 @@ class FrameworkService:
                     if 'model_selection_json' not in columns:
                         self.db.execute(f'ALTER TABLE {table} ADD COLUMN model_selection_json TEXT')
                 self.db.execute(CONVERSATION_FORKS_SCHEMA)
+                for statement in CALENDAR_SCHEMA:
+                    self.db.execute(statement)
                 self.db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             return
         with self._transaction():
@@ -175,7 +185,7 @@ class FrameworkService:
                 "CREATE TABLE inbox (delivery_id TEXT PRIMARY KEY REFERENCES deliveries(id),state TEXT NOT NULL,updated_at INTEGER NOT NULL)",
                 INITIATIVE_RUNS_SCHEMA,
             )
-            for statement in (*statements, *CHANNEL_SCHEMA, *WORK_SCHEMA, CONVERSATION_FORKS_SCHEMA):
+            for statement in (*statements, *CHANNEL_SCHEMA, *WORK_SCHEMA, CONVERSATION_FORKS_SCHEMA, *CALENDAR_SCHEMA):
                 self.db.execute(statement)
             self.db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
 
@@ -203,6 +213,7 @@ class FrameworkService:
         routes = {
             **self.channels.routes(),
             **self.work.routes(),
+            **self.calendar.routes(),
             "system.status": self.status, "settings.get": self.settings_get,
             "settings.update": self.settings_update, "internal.settings.get": self.settings_internal,
             "model.connections.list": self.model_connections.list, "model.connection.save": self.model_connections.save,
@@ -1182,6 +1193,7 @@ class FrameworkService:
             self._record("commitments", commitment_id)
             self.db.execute("UPDATE commitments SET status='cancelled' WHERE id=? AND status<>'fulfilled'", (commitment_id,))
             self.db.execute("UPDATE deliveries SET status='cancelled',updated_at=? WHERE kind='commitment' AND reference_id=? AND status NOT IN ('delivered','failed')", (self.clock(), commitment_id))
+            self.calendar.cancel_deliveries(commitment_id)
         return self._record("commitments", commitment_id)
 
     def initiative_offer(self, title: str, body: str, reason: str, expires_at_utc_ms: int,
@@ -1277,6 +1289,7 @@ class FrameworkService:
             for row in self.db.execute("SELECT id FROM commitments WHERE status='pending' AND due_at<=? ORDER BY due_at LIMIT 100", (now,)).fetchall():
                 identity = self._queue_delivery("commitment", self._record("commitments", row[0]))
                 if identity:
+                    self.calendar.queue_deliveries(row[0])
                     generated.append(identity)
             settings = self._settings()
             if settings["general_initiative_enabled"] and not settings["do_not_disturb"]:

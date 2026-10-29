@@ -332,7 +332,7 @@ class FrameworkChannelsTests(unittest.TestCase):
         self.service.db.execute("ALTER TABLE conversations DROP COLUMN title_mode")
         self.service.db.execute("PRAGMA user_version=3")
         self.restart()
-        self.assertEqual(self.service.db.execute("PRAGMA user_version").fetchone()[0], 8)
+        self.assertEqual(self.service.db.execute("PRAGMA user_version").fetchone()[0], 9)
         self.assertTrue(self.service.call("settings.get")["do_not_disturb"])
         self.assertIsNone(self.state()["installation_id"])
         self.service.db.execute("PRAGMA user_version=99")

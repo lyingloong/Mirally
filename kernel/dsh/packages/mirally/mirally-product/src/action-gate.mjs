@@ -1,5 +1,5 @@
 /** Local, one-action decisions bound to the exact live conversation command. */
-import {randomUUID, randomBytes} from 'node:crypto';
+import {randomUUID, randomInt} from 'node:crypto';
 
 const failure = message => Object.assign(new Error(message), {code:'action_approval_invalid', status:400});
 
@@ -59,7 +59,9 @@ export class ActionGate {
       const value = {id, conversation_id:conversation.conversation_id, session_id:sessionId, command_id:commandId,
         kind, title, detail, created_at:createdAt, expires_at:createdAt + this.timeoutMs};
       const policy = this.host.commandPolicies?.get(commandId);
-      const remote = policy?.origin === 'weixin' ? {scope: policy, code: randomBytes(8).toString('hex'), delivered: false} : null;
+      let code;
+      do { code = String(randomInt(100000000, 1000000000)); } while ([...this.pending.values()].some(entry => entry.remote?.code === code));
+      const remote = policy?.origin === 'weixin' ? {scope: policy, code, delivered: false} : null;
       this.pending.set(id, {value, finish, remote});
       signal?.addEventListener('abort', abort, {once:true});
       if (signal?.aborted) return abort();

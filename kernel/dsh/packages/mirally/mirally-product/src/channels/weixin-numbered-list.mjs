@@ -25,8 +25,11 @@ export class WeixinNumberedLists {
     if (!list || list.expires <= this.now() || list.installation_id !== event.installation_id
       || list.revision !== event.revision || list.conversation_id !== event.conversation_id
       || !Number.isSafeInteger(index) || index < 1 || index > list.ids.length) {
-      throw Object.assign(new Error(kind === 'sessions' ? '会话序号已失效，请发送“会话”重新查看。'
-        : '工作序号已失效，请发送“我的工作”重新查看。'), {code: 'weixin_list_expired'});
+      const message = kind === 'sessions' ? '会话序号已失效，请发送“会话”重新查看。'
+        : kind === 'works' ? '工作序号已失效，请发送“我的工作”重新查看。'
+        : kind === 'calendar' ? '日程序号已失效，请发送“日程”重新查看。'
+        : '序号已失效，请重新查看工作详情或重新准备动作。';
+      throw Object.assign(new Error(message), {code: 'weixin_list_expired'});
     }
     return list.ids[index - 1];
   }

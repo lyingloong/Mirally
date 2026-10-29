@@ -39,7 +39,7 @@ test('微信审批完整分段送达后才能确认，且绑定身份、会话�
   assert.equal(f.rows[0].status,'sent');
   const assembled=f.sent.map(s=>s.replace(/^\[\d+\/\d+\] /,'')).join('');
   assert.ok(assembled.includes(text));
-  const code=assembled.match(/\/approve ([a-f0-9]{16})/)[1];
+  const code=assembled.match(/\/approve ([0-9]{9})/)[1];
   await assert.rejects(f.host.actionGate.decideRemote({...f.scope, revision:2},code,true));
   await assert.rejects(f.host.actionGate.decideRemote({...f.scope, conversation_id:'elsewhere'},code,true));
   f.setCommand('another');
@@ -55,7 +55,7 @@ test('部分投递或结果未知时不能确认', async () => {
   const result=f.host.actionGate.request({sessionId:'native',commandId:'command',kind:'shell',title:'命令',detail:'x'.repeat(12000)});
   await tick();
   assert.equal(f.rows[0].status,'unknown');
-  const code=f.rows[0].text.match(/\/approve ([a-f0-9]{16})/)[1];
+  const code=f.rows[0].text.match(/\/approve ([0-9]{9})/)[1];
   await assert.rejects(f.host.actionGate.decideRemote(f.scope,code,true));
   f.host.actionGate.dispose();
   assert.equal(await result,false);
@@ -65,7 +65,7 @@ test('只处理绑定微信账号发来的确认消息', async () => {
   const f=await setup();
   const result=f.host.actionGate.request({sessionId:'native',commandId:'command',kind:'shell',title:'命令',detail:'echo test'});
   await tick();
-  const code=f.rows[0].text.match(/\/approve ([a-f0-9]{16})/)[1];
+  const code=f.rows[0].text.match(/\/approve ([0-9]{9})/)[1];
   const message={message_type:1,message_state:2,message_id:'1',from_user_id:'stranger',to_user_id:'bot',
     create_time_ms:Date.now(),context_token:'context',item_list:[{type:1,text_item:{text:`/approve ${code}`}}]};
   await f.host.weixin.receive({...f.state},message);

@@ -73,6 +73,8 @@ test('history contains only real user/assistant body and remote image loading is
 test('message origin labels follow recorded user channel and current surface',()=>{
   const f=fixture('lib/chat/input-origin.ts');const label=f.run('inputOriginLabel');
   assert.equal(label({role:'user',input_origin:'weixin'},'desktop'),'微信');
+  assert.equal(label({role:'user',input_origin:'schedule'},'desktop'),'定时任务');
+  assert.equal(label({role:'user',input_origin:'schedule'},'mobile'),'定时任务');
   assert.equal(label({role:'user',input_origin:'mobile'},'desktop'),'手机网页');
   assert.equal(label({role:'user',input_origin:'desktop'},'desktop'),null);
   assert.equal(label({role:'user',input_origin:'desktop'},'mobile'),'电脑');

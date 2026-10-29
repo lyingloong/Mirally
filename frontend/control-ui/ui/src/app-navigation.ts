@@ -340,7 +340,7 @@ const MIRALLY_NAVIGATION_COPY: Partial<Record<NavigationRouteId, MirallyNavigati
   "new-session": ["新对话", "New conversation", "从一件想聊、想做的事开始", "Start with something to discuss or do"],
   custodian: ["消息", "Inbox", "查看 Mirally 的主动联系与提醒投递", "Review messages and reminders from Mirally"],
   tasks: ["工作", "Work", "关注进展、确认运行并查看成果", "Follow progress, approve runs, and review results"],
-  cron: ["提醒", "Reminders", "管理约定、到期时间与提醒状态", "Manage commitments, due dates, and reminder status"],
+  cron: ["日历", "Calendar", "查看日程与提醒", "View events and reminders"],
   activity: ["活动", "Activity", "选择允许 Mirally 了解的活动范围", "Choose which activities Mirally may understand"],
   memory: ["记忆", "Memory", "查看与管理 Mirally 记住的信息", "Review and manage what Mirally remembers"],
   plugins: ["扩展", "Extensions", "连接 Skill、MCP 与 Mirally 插件", "Connect Skills, MCP, and Mirally plugins"],

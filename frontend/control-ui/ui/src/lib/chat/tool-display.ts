@@ -88,6 +88,16 @@ Object.assign(TOOL_MAP, {
   mirally_create_work: { icon: "listChecks", title: "整理工作", label: "整理工作" },
   mirally_update_work: { icon: "listChecks", title: "更新工作", label: "更新工作" },
   mirally_current_work: { icon: "listChecks", title: "查看当前工作", label: "查看当前工作" },
+  mirally_calendar_time: { icon: "clock", title: "查看日期与时间", label: "查看日期与时间" },
+  mirally_calendar_events: { icon: "clock", title: "查看日程", label: "查看日程" },
+  mirally_create_event: { icon: "clock", title: "安排日程", label: "安排日程" },
+  mirally_update_event: { icon: "clock", title: "更新日程", label: "更新日程" },
+  mirally_cancel_event: { icon: "clock", title: "取消日程", label: "取消日程" },
+  mirally_remind_at: { icon: "clock", title: "设置提醒", label: "设置提醒" },
+  mirally_cancel_reminder: { icon: "clock", title: "取消提醒", label: "取消提醒" },
+  mirally_schedule_action: { icon: "clock", title: "安排定时任务", label: "安排定时任务" },
+  mirally_scheduled_actions: { icon: "clock", title: "查看定时任务", label: "查看定时任务" },
+  mirally_manage_scheduled_action: { icon: "clock", title: "管理定时任务", label: "管理定时任务" },
 });
 
 function shortenHomeInString(input: string): string {

@@ -68,7 +68,7 @@ test('Weixin help and optional web controls are available in separate closed dis
   assert.match(rendered, /<details data-testid="mirally-weixin-help"><summary>微信使用帮助/);
   assert.match(rendered, /<details data-testid="mirally-mobile-options"><summary>手机网页（可选）/);
   assert.doesNotMatch(rendered, /<details[^>]*\bopen\b/);
-  for (const command of ['/history [更早游标]', '/works', '/work 工作编号', '/work-use 工作编号', '/work-review 完整审批编号', '/work-approve 确认码', '/work-cancel 完整运行编号', '/work-logs 完整运行编号 [字节偏移]', '/work-notify [on|off]', '/stop']) {
+  for (const command of ['/history [更早游标]', '/works', '/work 工作编号', '/work-use 工作编号', '/work-review 1', '/work-approve 确认码', '/work-cancel 1', '/work-logs 1 [字节偏移]', '/work-notify [on|off]', '/stop']) {
     assert.ok(rendered.includes(command), `The real settings should introduce ${command}`);
   }
   assert.match(rendered, /会话后台命令/);

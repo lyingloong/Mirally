@@ -82,7 +82,7 @@ export function projectMessages(events, commands = [], sequenceOffset = 0, {conv
     const content = extra.content ?? contentOf(message.content, role, conversationId), text = extra.text ?? textOf(message.content);
     if (!text && !content.length) return;
     const id = extra.id ?? message.id ?? `${nativeSessionId}:${event.seq}`, seq = sequenceOffset + event.seq + 1;
-    let origin = role === 'user' && ['desktop', 'weixin', 'mobile'].includes(message.source?.mirally_input_origin)
+    let origin = role === 'user' && ['desktop', 'weixin', 'mobile', 'schedule'].includes(message.source?.mirally_input_origin)
       ? message.source.mirally_input_origin : undefined;
     if (role === 'user' && message.source?.mirally_input_origin === undefined && conversationId && commandId) {
       const expectedId = `mirally-${createHash('sha256').update(`${conversationId}:${commandId}`).digest('hex')}`;

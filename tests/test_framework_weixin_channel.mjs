@@ -556,7 +556,7 @@ test('Weixin Chinese menu is deterministic and requires no mobile webpage', asyn
   const f = fixture(t);
   await f.channel.receive(f.state(), inbound('menu', '菜单'));
   const text = [...f.deliveries.values()].at(-1).text;
-  assert.match(text, /无需自建云服务器或打开网页/);
+  assert.match(text, /电脑保持 Mirally 联网运行/);
   for (const command of ['/works', '/history', '/sessions']) assert.ok(text.includes(command));
   assert.equal(f.calls.some(call => call.kind === 'submit'), false);
 });

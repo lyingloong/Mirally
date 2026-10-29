@@ -26,11 +26,14 @@ import {installDesktopObservation} from './desktop-observation.mjs';
 import {continuationHistory} from './continuation.mjs';
 import {NativeRuntime} from './native-runtime.mjs';
 import {installNativeInteractions, NATIVE_INTERACTION_METHODS} from './native-interactions.mjs';
+import {installCalendarTools} from './calendar-tools.mjs';
+import {ScheduledActions, installScheduledActionTools} from './scheduled-actions.mjs';
 export {projectMessages} from './history-presentation.mjs';
 
 const REMOTE_INPUT = Symbol('trusted channel input');
 const WEIXIN_READ_TOOLS = new Set(['mirally_context', 'mirally_preferences', 'mirally_reminders',
-  'mirally_workspace_roots', 'mirally_list_files', 'mirally_read_file', 'mirally_search_files', 'mirally_works', 'mirally_work_status', 'mirally_current_work']);
+  'mirally_workspace_roots', 'mirally_list_files', 'mirally_read_file', 'mirally_search_files', 'mirally_works', 'mirally_work_status', 'mirally_current_work',
+  'mirally_calendar_time','mirally_calendar_events']);
 const WEIXIN_SESSION_READ_TOOLS = new Set(['mirally_job_list', 'mirally_job_status', 'job_list', 'job_output']);
 const WEIXIN_ACTION_TOOLS = new Set(['mirally_action', 'mirally_run_command', 'mirally_stop_job',
   'mirally_browser_open', 'mirally_browser_read', 'mirally_browser_click', 'mirally_browser_fill',
@@ -38,12 +41,15 @@ const WEIXIN_ACTION_TOOLS = new Set(['mirally_action', 'mirally_run_command', 'm
   'read','read_image','glob','grep','write','edit','pwsh','bash','job_kill','working_directory',
   'subagent','subagent_fork','list_agents','send_message','interrupt_agent',
   'todo_write','ask_user_question','exit_plan_mode','web_search','web_fetch','mirally_create_work','mirally_update_work',
-  'create_goal','get_goal','update_goal','skill','workflow','list_subagent_models']);
+  'create_goal','get_goal','update_goal','skill','workflow','list_subagent_models',
+  'mirally_create_event','mirally_update_event','mirally_cancel_event','mirally_remind_at','mirally_cancel_reminder']);
 const NATIVE_MUTATIONS = new Set(['pwsh','bash','write','edit','job_kill']);
 const DELEGATED_PRODUCT_ACTIONS = new Set(['mirally_action','mirally_run_command','mirally_stop_job',
   'mirally_browser_open','mirally_browser_read','mirally_browser_click','mirally_browser_fill',
   'mirally_desktop_foreground','mirally_desktop_windows','mirally_desktop_screenshot','mirally_update_work',
-  'run_skill_script','mirally_write_workspace_file','mirally_create_file','mirally_create_work','mirally_create_reminder','mirally_set_preference']);
+  'run_skill_script','mirally_write_workspace_file','mirally_create_file','mirally_create_work','mirally_create_reminder','mirally_set_preference',
+  'mirally_create_event','mirally_update_event','mirally_cancel_event','mirally_remind_at','mirally_cancel_reminder',
+  'mirally_schedule_action','mirally_manage_scheduled_action']);
 
 export const name = 'mirally-product';
 export const inject = ['agents', 'agentLoop', 'sessions', 'sessionPersistence', 'llm', 'tools', 'systemPrompt'];
@@ -60,6 +66,10 @@ const PUBLIC_METHODS = new Set([
   'source.set', 'source.list', 'context.read', 'preference.set', 'preference.list', 'memory.correct',
   'commitment.create', 'commitment.cancel', 'commitment.list', 'initiative.offer', 'initiative.list',
   'initiative.dismiss', 'delivery.list', 'inbox.list', 'inbox.ack',
+  'calendar.settings.get','calendar.settings.update','calendar.time.resolve','calendar.event.create','calendar.event.list',
+  'calendar.event.get','calendar.event.update','calendar.event.cancel',
+  'calendar.reminder.create','calendar.reminder.cancel',
+  'calendar.delivery.list','calendar.delivery.get','calendar.delivery.claim','calendar.delivery.ack',
   'extensions.list', 'extensions.configure', 'extensions.disable', 'extensions.prompt', 'extensions.runScript',
   'skills.list', 'skills.read', 'mcp.resources.list', 'mcp.resources.read', 'mcp.resources.templates',
   'mcp.prompts.list', 'mcp.prompts.get', 'mcp.tools.call', 'mcp.tools.list', 'scripts.run',
@@ -188,6 +198,9 @@ export class MirallyProduct extends Service {
     this.installNativeObservers();
     this.work = new WorkHost(this);
     this.installProductTools();
+    installCalendarTools(this);
+    this.scheduledActions = new ScheduledActions(this);
+    installScheduledActionTools(this,this.scheduledActions);
     // Only the explicit isolated test mode accepts a loopback protocol fixture.
     // This address is never configurable through public product RPC.
     const testWeixinUrl = this.config.testMode && process.env.MIRALLY_TEST_WEIXIN_URL;
@@ -203,6 +216,8 @@ export class MirallyProduct extends Service {
     renameSync(temporary, join(this.home, 'runtime.json'));
     this.deliveryTimer = setInterval(() => { void this.tickDelivery(); }, 1000);
     this.deliveryTimer.unref();
+    this.scheduleTimer = setInterval(() => { void this.scheduledActions.tick().catch(error=>this.ctx.logger.warn(`Scheduled action: ${error.message}`)); }, 1000);
+    this.scheduleTimer.unref();
     this.ctx.logger.info(`Mirally ready at ${this.url}`);
   }
 
@@ -226,7 +241,7 @@ export class MirallyProduct extends Service {
     if (!conversation || conversation.conversation_id !== conversationId || !agent
       || this.consumedCommandId(agent) !== commandId) return false;
     const policy = this.commandPolicy(agent);
-    if (!policy || !['desktop', 'weixin'].includes(policy.origin)) return false;
+    if (!policy || !['desktop', 'weixin', 'schedule'].includes(policy.origin)) return false;
     const settings = await this.rpc('settings.get');
     if (policy.origin === 'weixin' && settings.weixin_auto_approve_enabled !== true) return false;
     return settings.action_approval_mode === 'trusted' || this.sessionActionGrants.get(conversationId) === conversation.generation;
@@ -286,6 +301,14 @@ export class MirallyProduct extends Service {
     return this.send(input.conversation_id, {text: input.text, commandId}, scope);
   }
 
+  async sendScheduled(conversationId, request, scheduleId) {
+    if (!this.scheduledActions?.ownsDispatch(scheduleId, conversationId, request.commandId))
+      throw failure('定时任务已变化。', 'schedule_scope_revoked', 403);
+    const scope = Object.freeze({origin:'schedule', schedule_id:scheduleId, conversation_id:conversationId,
+      command_id:request.commandId, [REMOTE_INPUT]:true});
+    return this.send(conversationId, request, scope);
+  }
+
   async cancelMobileCommands(deviceId) {
     for (const [native, commandId] of this.activeCommands) {
       const policy = this.commandPolicies.get(commandId);
@@ -304,6 +327,7 @@ export class MirallyProduct extends Service {
   async authorizeInput(scope) {
     if (scope.origin === 'weixin') return this.weixin.authorize(scope);
     if (scope.origin === 'mobile' && this.mobile?.authorize(scope.principal)) return;
+    if (scope.origin === 'schedule' && this.scheduledActions?.ownsDispatch(scope.schedule_id,scope.conversation_id,scope.command_id)) return;
     throw failure('远程输入授权已失效。', 'remote_scope_revoked', 403);
   }
 
@@ -570,7 +594,7 @@ export class MirallyProduct extends Service {
     if (typeof request.text !== 'string' || !request.text.trim()) throw failure('Message text is required');
     if (request.text.length > 100000) throw failure('Message is too long', 'message_too_large', 413);
     if (typeof request.commandId !== 'string' || !request.commandId || request.commandId.length > 200) throw failure('commandId is required');
-    if (scope && scope[REMOTE_INPUT] !== true || /^(weixin|mobile)-/.test(request.commandId) && !scope)
+    if (scope && scope[REMOTE_INPUT] !== true || /^(weixin|mobile|schedule)-/.test(request.commandId) && !scope)
       throw failure('Reserved channel command identity', 'invalid_request', 403);
     if (request.work !== undefined && (scope || !request.work || typeof request.work !== 'object' || Array.isArray(request.work)
       || Object.keys(request.work).some(key => !['title', 'goal', 'request_id'].includes(key))
@@ -651,12 +675,15 @@ export class MirallyProduct extends Service {
         continuation = continuationHistory(await this.history(id), permitted.generations, permitted.omitted);
       }
       const remoteSettings = scope?.origin === 'weixin' ? await this.rpc('settings.get') : null;
+      const calendarSettings = await this.rpc('calendar.settings.get');
       const channelInstruction = scope?.origin === 'weixin'
         ? `This is the user's WeChat channel in the same conversation. You may inspect managed jobs in this conversation. ${remoteSettings?.weixin_remote_control_enabled === true
           ? 'Remote commands, isolated browser actions and desktop observation are available through their tools under the configured authorization policy. Call the appropriate tool; report its actual result.'
           : 'Remote commands, browser actions and desktop observation are currently disabled in the channel settings.'} Other tools remain subject to their actual access checks.`
         : scope?.origin === 'mobile' ? 'This mobile channel is restricted to explicitly allowed read-only tools; describe unavailable actions honestly.' : undefined;
       this.contexts.set(conversation.session_id, JSON.stringify({instruction: 'Treat this personal context as sourced data; preserve gaps and uncertainty. Use mirally_create_file only when file output is permitted; never claim a saved file before tool success.',
+        calendar_clock:{now_utc:new Date().toISOString(),time_zone:calendarSettings.time_zone,confirmed:calendarSettings.confirmed,
+          ...(calendarSettings.confirmed ? {local_time:new Intl.DateTimeFormat('sv-SE',{timeZone:calendarSettings.time_zone,dateStyle:'short',timeStyle:'medium'}).format(new Date())} : {})},
         ...(scope ? {input_channel: scope.origin, instruction_for_channel: channelInstruction} : {}),
         ...(continuation ? {conversation_continuation:continuation} : {}), file_output_permitted: allowFiles, ...context}));
       await this.guard(conversation.session_id);
@@ -835,8 +862,8 @@ export class MirallyProduct extends Service {
           if (!conversation) throw failure('Tool requires an owned conversation');
           await this.guard(exec.agent.id);
           const input = params(args);
-          if (['context.read', 'commitment.create', 'work.by_conversation'].includes(method)) input.conversation_id = conversation.conversation_id;
-          if (method === 'commitment.create') {
+          if (['context.read', 'commitment.create', 'calendar.reminder.create', 'work.by_conversation'].includes(method)) input.conversation_id = conversation.conversation_id;
+          if (['commitment.create','calendar.reminder.create'].includes(method)) {
             input.request_id = `${this.activeCommands.get(exec.agent.id)}:${toolName}:${createHash('sha256').update(JSON.stringify(args)).digest('hex')}`;
           }
           return this.rpc(method, input);
@@ -901,12 +928,12 @@ export class MirallyProduct extends Service {
     register('mirally_set_preference', 'Save a preference only when the user explicitly asks to remember it.',
       {type: 'object', properties: {key: {type: 'string'}, value: {type: 'string'}}, required: ['key', 'value'], additionalProperties: false},
       'preference.set', args => ({key: args.key, value: args.value}));
-    register('mirally_create_reminder', 'Create an explicit reminder requested by the user. due_at must be an ISO timestamp with time zone.',
+    register('mirally_create_reminder', 'Compatibility reminder tool. Prefer mirally_remind_at so the confirmed product timezone is applied to local time. due_at must be an ISO timestamp with explicit timezone.',
       {type: 'object', properties: {title: {type: 'string'}, due_at: {type: 'string'}, body: {type: 'string'}}, required: ['title', 'due_at'], additionalProperties: false},
-      'commitment.create', args => {
-        const due = Date.parse(args.due_at);
-        if (!Number.isSafeInteger(due)) throw failure('Reminder time must be an ISO timestamp with time zone');
-        return {title: args.title, due_at_utc_ms: due, body: args.body ?? args.title};
+      'calendar.reminder.create', args => {
+        if (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(args.due_at) || !Number.isSafeInteger(Date.parse(args.due_at)))
+          throw failure('Reminder time must be an ISO timestamp with time zone');
+        return {title: args.title, due_at:args.due_at, body: args.body ?? args.title};
       });
   }
 
@@ -958,6 +985,7 @@ export class MirallyProduct extends Service {
     try {
       await this.rpc('delivery.tick');
       await this.work?.tick();
+      await this.weixin?.notifyReminders();
       const inbox = this.work ? await this.work.inbox() : await this.rpc('inbox.list');
       const signature = JSON.stringify(inbox);
       if (signature !== this.inboxSignature) {
@@ -1294,6 +1322,8 @@ export class MirallyProduct extends Service {
     if (this.stopping) return;
     this.stopping = true;
     this.ready = false;
+    clearInterval(this.scheduleTimer);
+    await this.scheduledActions?.dispose();
     this.actionGate?.dispose();
     await this.mobile?.stop();
     await this.weixin?.stop();

@@ -2,6 +2,8 @@
 
 本目录是用户授权直接修改的内核源码，随 Mirally 在同一个 Git 仓库维护。上游项目是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)。
 
+2026-10-29：新增 Mirally 日历工具与渠道提醒，以及会话定时执行。定时执行复用 DSH schedule 的纯时间规则，以产品 owner 保存动作并经 Mirally 会话准入和既有权限运行，不挂载另一份上游调度 runtime；回复结束与目标成功分开。微信问题改为逐题投递，数字选择仍受绑定与送达校验。见[日历与定时能力](../../docs/calendar-and-scheduling.md)。
+
 2026-10-27：产品宿主增加 `work-host.mjs`、`mobile.mjs` 与微信工作适配，接入 Python 工作/真实脚本监督、独立手机配对与有限 RPC。远程消息沿用唯一 DSH 历史和实际 command 的工具边界，模型不能签发运行审批；工作结果不复制另一份 transcript。手机前端复用原主题与组件，私人 HTTPS 转发另配置。未修改上游许可证、UFO、gitlink 或 `.gitmodules`；实际边界及验证见[手机工作说明](../../docs/mobile-work-guide.md)。
 
 同日按用户的无自有云服务器条件，微信成为当前手机主入口，网页保留可选。微信适配补充有界正文历史、真实运行日志和仅切微信渠道的通知开关，沿用身份/路由版本核验与持久 outbox；不要求网页可达，不引入第二套 Agent 或新服务器依赖。

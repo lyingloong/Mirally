@@ -17,6 +17,53 @@ function fixture() {
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 const questions=[{id:'mode',question:'Choose a mode',options:[{label:'Fast'},{label:'Full'}]}];
 
+test('Weixin receives and answers one delivered question at a time without a question code',async()=>{
+  const {host,agent,bridge,dispatch}=fixture(), scope={origin:'weixin',installation_id:'install',revision:4,conversation_id:'conversation',command_id:'command'};
+  const sent=[];host.commandPolicies=new Map([['command',scope]]);
+  host.weixin={authorize:async p=>{assert.equal(p,scope);},requestUserQuestion:async(value,s,c,index)=>sent.push({value,s,c,index})};
+  const items=[...questions,{id:'notes',question:'Add notes'}];
+  const waiting=dispatch('user-questions/request',{agent,questions:items});await flush();
+  assert.deepEqual(sent.map(row=>row.index),[0]);
+  const id=sent[0].value.id;
+  assert.equal(await bridge.answerActiveRemote(scope,'2'),null,'undelivered questions cannot consume messages');
+  bridge.remoteDelivered(id,scope,0);
+  await assert.rejects(bridge.answerActiveRemote(scope,'3'),/有效的选项/);
+  assert.deepEqual(await bridge.answerActiveRemote(scope,'2'),{complete:false});
+  assert.deepEqual(sent.map(row=>row.index),[0,1]);
+  bridge.remoteDelivered(id,scope,0);
+  assert.equal(await bridge.answerActiveRemote(scope,'备注'),null,'an old receipt cannot enable a new question');
+  bridge.remoteDelivered(id,scope,1);
+  assert.deepEqual(await bridge.answerActiveRemote(scope,'备注'),{complete:true});
+  assert.deepEqual(await waiting,{answers:[{id:'mode',selected:['Full']},{id:'notes',selected:[],custom:'备注'}]});
+  bridge.stop();
+});
+
+test('Weixin stale route cannot consume a delivered answer',async()=>{
+  const {host,agent,bridge,dispatch}=fixture(), scope={origin:'weixin',installation_id:'install',revision:4,conversation_id:'conversation',command_id:'command'};
+  const sent=[];host.commandPolicies=new Map([['command',scope]]);
+  host.weixin={authorize:async()=>{},requestUserQuestion:async(value)=>sent.push(value)};
+  const waiting=dispatch('user-questions/request',{agent,questions});await flush();
+  bridge.remoteDelivered(sent[0].id,scope,0);
+  assert.equal(await bridge.answerActiveRemote({...scope,revision:5},'1'),null);
+  bridge.stop();await assert.rejects(waiting);
+});
+
+test('a desktop question can be answered on the bound phone only while remote control stays enabled',async()=>{
+  const {host,agent,bridge,dispatch}=fixture(),scope={installation_id:'install',revision:4,conversation_id:'conversation'};
+  let enabled=true;const sent=[];
+  host.commandPolicies=new Map([['command',{origin:'desktop'}]]);
+  host.rpc=async()=>({weixin_remote_control_enabled:enabled});
+  host.weixin={state:async()=>({...scope,enabled:true,bound:true,context_token:'context'}),authorize:async()=>{},
+    requestUserQuestion:async(value)=>sent.push(value)};
+  const waiting=dispatch('user-questions/request',{agent,questions});await flush();
+  assert.equal(sent.length,1);bridge.remoteDelivered(sent[0].id,scope,0);
+  enabled=false;
+  await assert.rejects(bridge.answerActiveRemote(scope,'1'),/远程控制已关闭/);
+  enabled=true;
+  assert.deepEqual(await bridge.answerActiveRemote(scope,'1'),{complete:true});
+  assert.deepEqual(await waiting,{answers:[{id:'mode',selected:['Fast']}]});bridge.stop();
+});
+
 test('native escalation uses the complete logged operation and the owning root action gate',async()=>{
   const {host,child,bridge,dispatch}=fixture();
   assert.equal(await dispatch('approval/request',{agent:child,toolName:'write',callId:'call',reason:'Write outside workspace'}),'allowed-once');

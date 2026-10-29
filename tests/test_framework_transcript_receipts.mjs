@@ -98,6 +98,7 @@ test('send and replay acknowledge the same positive native user receipt and comm
       if (method === 'command.admit') { const replay = admitted; admitted = true; return {...command('run-a', messageId), should_dispatch: !replay}; }
       if (method === 'command.ack') return {};
       if (method === 'context.read') return {};
+      if (method === 'calendar.settings.get') return {time_zone:'Asia/Shanghai',confirmed:true};
       if (method === 'internal.conversation.autotitle') return {changed: false};
       throw new Error('Unexpected RPC ' + method);
     }});
@@ -113,13 +114,13 @@ test('send and replay acknowledge the same positive native user receipt and comm
 });
 
 test('source projection preserves native channel receipts only on human messages and never guesses old sources', () => {
-  const users = ['desktop', 'weixin', 'mobile', undefined, 'unknown'].map((origin, index) => ({
+  const users = ['desktop', 'weixin', 'mobile', 'schedule', undefined, 'unknown'].map((origin, index) => ({
     ...user('u' + index, 'text'), source: {kind: 'user', ...(origin ? {mirally_input_origin: origin} : {})},
   }));
   const events = users.map((message, index) => event(index, 'user/message', message));
-  events.push(event(5, 'assistant/message', {turn: 1, message: {id: 'reply', source: {mirally_input_origin: 'weixin'}, content: [{type:'text',text:'answer'}]}}));
+  events.push(event(6, 'assistant/message', {turn: 1, message: {id: 'reply', source: {mirally_input_origin: 'weixin'}, content: [{type:'text',text:'answer'}]}}));
   const rows = projectMessages(JSON.parse(JSON.stringify(events)));
-  assert.deepEqual(rows.map(row => row.input_origin), ['desktop', 'weixin', 'mobile', undefined, undefined, undefined]);
+  assert.deepEqual(rows.map(row => row.input_origin), ['desktop', 'weixin', 'mobile', 'schedule', undefined, undefined, undefined]);
 });
 
 test('old WeChat origin requires matching channel receipt, native session, identity and content', () => {

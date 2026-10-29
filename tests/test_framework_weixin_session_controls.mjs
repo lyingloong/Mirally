@@ -133,11 +133,12 @@ test('duplicate titles and short-ID collisions cannot silently select another co
   const f = fixture(t, [first, sameTitle, collision]);
   await f.send('切换 桌面实验');
   assert.equal(f.state.revision, 1);
-  assert.match(f.deliveries.at(-1).text, /同名会话/);
-  for (const row of [first, sameTitle]) assert.ok(f.deliveries.at(-1).text.includes('切换 ' + row.conversation_id));
+  assert.match(f.deliveries.at(-1).text, /多个匹配的会话/);
+  assert.match(f.deliveries.at(-1).text, /1\. 桌面实验\n2\. 桌面实验/);
+  assert.doesNotMatch(f.deliveries.at(-1).text, /conversation_/);
   await f.send('切换 abcdef012345');
   assert.equal(f.state.revision, 1);
-  assert.match(f.deliveries.at(-1).text, /编号不唯一/);
+  assert.match(f.deliveries.at(-1).text, /多个匹配的会话/);
   assert.equal(f.calls.some(call => call.method === 'cancel-weixin'), false);
   await f.send('切换 ' + collision.conversation_id);
   assert.equal(f.state.conversation_id, collision.conversation_id);
@@ -149,8 +150,8 @@ test('an exact title that is another conversation short ID requires disambiguati
   await f.send('切换 0123456789ab');
   assert.equal(f.state.revision, 1);
   assert.equal(f.calls.some(call => call.method === 'cancel-weixin'), false);
-  assert.match(f.deliveries.at(-1).text, /编号不唯一/);
-  for (const row of [first, titleTarget]) assert.ok(f.deliveries.at(-1).text.includes('切换 ' + row.conversation_id));
+  assert.match(f.deliveries.at(-1).text, /多个匹配的会话/);
+  assert.doesNotMatch(f.deliveries.at(-1).text, /conversation_/);
 });
 
 test('switching to the selected conversation leaves its running turn and route intact', async t => {
@@ -168,11 +169,12 @@ test('title lookup delegates candidate uniqueness to one product owner operation
   const f = fixture(t, rows);
   await f.send('切换 桌面实验');
   assert.equal(f.state.revision, 1);
-  assert.match(f.deliveries.at(-1).text, /同名会话/);
-  assert.ok(f.deliveries.at(-1).text.includes(older.conversation_id));
+  assert.match(f.deliveries.at(-1).text, /多个匹配的会话/);
+  assert.match(f.deliveries.at(-1).text, /2\. 桌面实验/);
   assert.deepEqual(f.calls.filter(call => call.method === 'internal.conversation.resolve').map(call => call.params), [{selector: '桌面实验'}]);
   assert.equal(f.calls.some(call => call.method === 'conversation.list'), false);
-  await f.send('切换 ' + older.conversation_id);
+  f.channel.numberedLists.settle('command-1:control', true);
+  await f.send('切换 2');
   assert.equal(f.state.conversation_id, older.conversation_id);
 });
 

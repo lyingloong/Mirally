@@ -19,8 +19,9 @@ class OriginalUISetupTests(unittest.TestCase):
         root = Path(directory) / "用户 workspace"
         node = root / "Node 24" / "node.exe"
         kernel = root / "kernel/dsh/packages/core/agent/lib/index.js"
+        schedule = root / "kernel/dsh/packages/schedule/schedule/lib/index.js"
         frontend = root / "frontend/control-ui/dist"
-        for path in (node, kernel, frontend / "index.html", frontend / ".mirally-build.json", node.parent / "node_modules/npm/bin/npm-cli.js"):
+        for path in (node, kernel, schedule, frontend / "index.html", frontend / ".mirally-build.json", node.parent / "node_modules/npm/bin/npm-cli.js"):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("", encoding="utf-8")
         return root, node, frontend
@@ -45,6 +46,14 @@ class OriginalUISetupTests(unittest.TestCase):
             (frontend / ".mirally-build.json").unlink()
             with patch.object(setup, "discover_node", return_value=node):
                 with self.assertRaisesRegex(RuntimeError, "Control UI has not been built"):
+                    setup.main(["--root", str(root), "--skip-install", "--skip-build"])
+
+    def test_missing_schedule_build_is_not_ready(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root, node, _ = self.prepare(temporary)
+            (root / "kernel/dsh/packages/schedule/schedule/lib/index.js").unlink()
+            with patch.object(setup, "discover_node", return_value=node):
+                with self.assertRaisesRegex(RuntimeError, "schedule package has not been built"):
                     setup.main(["--root", str(root), "--skip-install", "--skip-build"])
 
     def test_frontend_install_failure_stops_before_build(self):

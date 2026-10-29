@@ -574,6 +574,23 @@ class FrameworkShell(ControlUIShell):
             def open_browser(self, url):
                 return shell.open_browser(url)
 
+            def notifyReminder(self, title, body):
+                if shell.closed.is_set() or shell.window is None or shell._tray is None:
+                    return False
+                if not isinstance(title, str) or not isinstance(body, str):
+                    return False
+                from System import Action
+                shown = [False]
+                def notify():
+                    if shell.closed.is_set() or shell._tray is None:
+                        return
+                    shell._tray.BalloonTipTitle = title[:63]
+                    shell._tray.BalloonTipText = body[:255] or title[:255]
+                    shell._tray.ShowBalloonTip(10000)
+                    shown[0] = True
+                shell.window.native.Invoke(Action(notify))
+                return shown[0]
+
         self.window = webview.create_window("Mirally", html=startup_html(), js_api=Bridge(),
             width=1280, height=860, min_size=(640, 480), background_color="#0d1520",
             text_select=True, zoomable=True, easy_drag=False)

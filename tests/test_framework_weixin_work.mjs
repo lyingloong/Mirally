@@ -19,7 +19,7 @@ function fixture() {
       if (p.revision !== revision || p.conversation_id !== conversationId) throw Object.assign(Error('revoked'), {code: 'weixin_scope_revoked'});
       return {installation_id: 'install', revision, conversation_id: conversationId};
     },
-    reply: async (e, text) => {await channel.authorize(e); replies.push({event: e, text}); channel.numberedLists.settle(`${e.command_id}:control`, true);},
+    reply: async (e, text) => {await channel.authorize(e); replies.push({event: e, text}); channel.numberedLists.settle(`${e.command_id}:control`, true);channel.works?.confirmationDelivered(`${e.command_id}:control`,true);},
     store: async (method, params) => {
       calls.push({method, params});
       if (method === 'select') {revision++; conversationId = params.conversation_id; return {state: {revision, conversation_id: conversationId}};}
@@ -47,6 +47,7 @@ function fixture() {
   };
   channel.numberedLists = new WeixinNumberedLists(() => now);
   const controls = new WeixinWorks(channel);
+  channel.works=controls;
   return {channel, controls, calls, replies};
 }
 
@@ -59,7 +60,10 @@ test('Weixin common work questions and IDs return real work facts without anothe
   await f.controls.control(event('/work a12345678901'));
   assert.match(f.replies[0].text, /训练实验/);
   assert.match(f.replies[1].text, /第 4 轮/);
-  assert.ok(f.replies[1].text.includes(`/work-logs ${runId} 0`));
+  assert.ok(f.replies[1].text.includes('/work-logs 1 0'));
+  assert.doesNotMatch(f.replies[1].text, /run_[a-f0-9]+/);
+  await f.controls.control(event('/work-logs 1 0'));
+  assert.equal(f.calls.find(c=>c.method==='work.run.logs').params.run_id,runId);
   assert.equal(f.calls.some(c => c.method === 'select'), false, 'viewing never changes the chat route');
 });
 
@@ -120,6 +124,17 @@ test('Weixin work running is prepare then exact approval; repeats use one approv
   assert.doesNotMatch(f.replies.map(r => r.text).join('\n'), /private-token/);
 });
 
+test('Weixin never approves work before its full review is confirmed delivered', async () => {
+  const f=fixture(), original=f.channel.reply;
+  f.channel.reply=async (event,text)=>{await f.channel.authorize(event);f.replies.push({event,text});};
+  await f.controls.control(event('/work-run a12345678901 {"script":"实验.py"}'));
+  const code=/\/work-approve (\d{9})/.exec(f.replies.at(-1).text)[1];
+  f.channel.reply=original;
+  await f.controls.control(event(`/work-approve ${code}`));
+  assert.equal(f.calls.some(call=>call.method==='work.run.start'),false);
+  assert.match(f.replies.at(-1).text,/确认码已失效/);
+});
+
 test('Weixin rejects invalid JSON, unsupported control fields, stale codes and old conversation authority', async () => {
   const f = fixture();
   await f.controls.control(event('/work-run a12345678901 python script.py'));
@@ -160,6 +175,21 @@ test('Weixin review loads full detail after the compact list and approves the ex
   assert.equal(f.calls.filter(c => c.method === 'work.run.start').length, 1);
 });
 
+test('Weixin work detail exposes numeric review and run selectors tied to the shown items',async()=>{
+  const f=fixture(), request=f.channel.product.workRequest;
+  const approval={id:'approval-desktop',work_id:work.id,digest:'d'.repeat(64),expires_at:now+300000,
+    spec:{script:'desktop.py',script_sha256:'a'.repeat(64),arguments:[],cwd:'.',output_paths:[],timeout_seconds:120}};
+  f.channel.product.workRequest=(method,params,principal)=>method==='work.get'
+    ? {work:{...work,pending_approvals:[approval]},runs:[{id:runId,status:'running'}]} : request(method,params,principal);
+  await f.controls.control(event('我的工作'));
+  await f.controls.control(event('查看工作 1'));
+  assert.match(f.replies.at(-1).text,/\/work-review 1/);
+  assert.doesNotMatch(f.replies.at(-1).text,/approval-desktop|run_[a-f0-9]+/);
+  await f.controls.control(event('/work-review 1'));
+  assert.match(f.replies.at(-1).text,/desktop\.py/);
+  assert.match(f.replies.at(-1).text,/\/work-approve \d{9}/);
+});
+
 test('Weixin refuses to make a confirmation code from missing or clipped approval details', async () => {
   const f = fixture();
   await assert.rejects(f.controls.review(event('/work-review x'), work, {id: 'x', digest: 'd'.repeat(64)}), /不完整/);
@@ -177,7 +207,9 @@ test('Weixin logs use a bounded real Run RPC and return copyable next byte offse
   assert.deepEqual(f.calls[0].params, {run_id: runId, offset: 64, limit: 4096});
   assert.equal(f.calls[0].principal.origin, 'weixin');
   assert.match(f.replies[0].text, /真实日志/);
-  assert.ok(f.replies[0].text.includes(`/work-logs ${runId} 97`));
+  assert.ok(f.replies[0].text.includes('/work-logs 1 97'));
+  await f.controls.control(event('/work-logs 1 97'));
+  assert.equal(f.calls.at(-1).params.run_id,runId);
   const request = f.channel.product.workRequest;
   f.channel.product.workRequest = (method, params, principal) => method === 'work.run.logs'
     ? {text: '', next_offset: params.offset, truncated: true, run: {status: 'completed'}} : request(method, params, principal);

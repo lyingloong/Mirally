@@ -25,7 +25,7 @@ export function nativeApprovalDetail(request) {
   const events = request.agent.session?.snapshotEvents?.() ?? [];
   const call = events.findLast(event => event.type === 'tool/call' && event.data.callId === request.callId);
   if (!call || call.data.name !== request.toolName || typeof call.data.arguments !== 'string') return null;
-  const detail = `工具：${request.toolName}\n调用：${request.callId}\n完整参数：\n${call.data.arguments}\n\n申请原因：${request.reason ?? '此操作需要额外权限。'}`;
+  const detail = `工具：${request.toolName}\n完整参数：\n${call.data.arguments}\n\n申请原因：${request.reason ?? '此操作需要额外权限。'}`;
   return detail.length <= 24_000 ? detail : null;
 }
 
@@ -87,6 +87,22 @@ export function installNativeInteractions(host) {
     const value = {id, conversation_id:scope.conversation.conversation_id, session_id:scope.rootSessionId,
       command_id:scope.commandId, questions, state:'open', can_reply:true, created_at:Date.now(),
       ...(request.wait?.callId ? {call_id:request.wait.callId} : {})};
+    const policy=host.commandPolicies?.get(scope.commandId);
+    let remoteScope=policy?.origin==='weixin' ? policy : null, fromDesktop=false;
+    // A question originating on desktop may also be answered by the paired
+    // phone when that same conversation is selected and remote control is on.
+    if (!remoteScope && policy?.origin==='desktop' && host.weixin?.state && host.rpc) {
+      try {
+        const state=await host.weixin.state(), settings=await host.rpc('settings.get');
+        if (settings.weixin_remote_control_enabled === true && state.bound && state.enabled
+          && state.conversation_id===value.conversation_id && state.context_token && sameOwner(host,{agent:request.agent,rootAgent,scope})) {
+          remoteScope={installation_id:state.installation_id,revision:state.revision,conversation_id:state.conversation_id,command_id:scope.commandId};
+          await host.weixin.authorize(remoteScope);fromDesktop=true;
+        }
+      } catch { remoteScope=null; }
+    }
+    request.signal?.throwIfAborted();
+    if (!sameOwner(host,{agent:request.agent,rootAgent,scope})) throw aborted();
     return new Promise((resolve, reject) => {
       let settled = false;
       const finish = (answer, error) => {
@@ -96,13 +112,12 @@ export function installNativeInteractions(host) {
         if (error) reject(error); else resolve(answer);
       };
       const cancel = () => finish(undefined, aborted());
-      const policy=host.commandPolicies?.get(scope.commandId);
-      const remote=policy?.origin==='weixin'?{scope:policy,code:randomBytes(8).toString('hex'),delivered:false,answers:new Map()}:null;
+      const remote=remoteScope?{scope:remoteScope,fromDesktop,code:randomBytes(8).toString('hex'),delivered:false,answers:new Map(),index:0,busy:false}:null;
       pending.set(id, {value, agent:request.agent, rootAgent, scope, finish, remote});
       request.signal?.addEventListener('abort', cancel, {once:true});
       if (request.signal?.aborted) return cancel();
       changed(value.conversation_id);
-      if (remote) Promise.resolve().then(()=>host.weixin.requestUserQuestion(value,remote.scope,remote.code)).catch(()=>{});
+      if (remote) Promise.resolve().then(()=>host.weixin.requestUserQuestion(value,remote.scope,remote.code,0)).catch(()=>{});
     });
   }, {global:true})];
 
@@ -114,36 +129,57 @@ export function installNativeInteractions(host) {
   };
 
   return {
-    remoteDeliveryCurrent(id, scope) {
+    remoteDeliveryCurrent(id, scope, index) {
       const entry=pending.get(id), remote=entry?.remote;
       return Boolean(remote && remote.scope.installation_id===scope.installation_id && remote.scope.revision===scope.revision
-        && remote.scope.conversation_id===scope.conversation_id && sameOwner(host,entry));
+        && remote.scope.conversation_id===scope.conversation_id && (index === undefined || index === remote.index) && sameOwner(host,entry));
     },
-    remoteDelivered(id, scope) {
-      if (this.remoteDeliveryCurrent(id,scope)) pending.get(id).remote.delivered=true;
+    remoteDelivered(id, scope, index) {
+      if (this.remoteDeliveryCurrent(id,scope,index)) pending.get(id).remote.delivered=true;
+    },
+    async answerActiveRemote(event, text) {
+      const entries=[...pending.values()].filter(entry=>entry.remote?.delivered && this.remoteDeliveryCurrent(entry.value.id,event));
+      if (!entries.length) return null;
+      if (entries.length !== 1) throw failure('当前有多个问题，请在电脑中选择要回答的问题。', 'interaction_ambiguous', 409);
+      return this.answerRemote(event,entries[0].remote.code,text);
     },
     async answerRemote(event, code, text) {
       const entry=[...pending.values()].find(item=>item.remote?.code===code);
       if (!entry || !entry.remote.delivered || !this.remoteDeliveryCurrent(entry.value.id,event))
         throw failure('问题已失效，或问题详情尚未完整送达。', 'interaction_stale', 409);
-      await host.weixin.authorize(entry.remote.scope);
-      if (!this.remoteDeliveryCurrent(entry.value.id,event)) throw aborted();
-      const questions=entry.value.questions;
-      let index=0, content=text.trim();
-      if (questions.length>1) {
-        const match=/^(\d+)\s+([\s\S]+)$/.exec(content);
-        if (!match || Number(match[1])<1 || Number(match[1])>questions.length) throw failure(`请使用 /answer ${code} 题号 回答，题号为 1–${questions.length}。`);
-        index=Number(match[1])-1;content=match[2].trim();
-      }
-      if (!content || content.length>24_000) throw failure('请填写不超过 24000 字的回答。');
-      const question=questions[index], option=question.options?.find(item=>item.label===content);
-      const answer={id:question.id,selected:option?[option.label]:[],...(option?{}:{custom:content})};
-      entry.remote.answers.set(question.id,answer);
-      const remaining=questions.map((item,i)=>entry.remote.answers.has(item.id)?null:i+1).filter(item=>item!==null);
-      if (remaining.length) return {complete:false,remaining};
-      await this.request('interaction.questions.answer',{conversation_id:entry.value.conversation_id,question_id:entry.value.id,
-        answers:questions.map(item=>entry.remote.answers.get(item.id))});
-      return {complete:true,remaining:[]};
+      if (entry.remote.busy) throw failure('正在处理上一条回答，请稍候。');
+      entry.remote.busy=true;
+      try {
+        await host.weixin.authorize(entry.remote.scope);
+        if (entry.remote.fromDesktop && (await host.rpc('settings.get')).weixin_remote_control_enabled !== true)
+          throw failure('微信远程控制已关闭，请在电脑中回答。', 'weixin_action_unavailable', 403);
+        if (!entry.remote.delivered || !this.remoteDeliveryCurrent(entry.value.id,event)) throw aborted();
+        const questions=entry.value.questions, index=entry.remote.index, content=text.trim();
+        if (!content || content.length>24_000) throw failure('请填写不超过 24000 字的回答。');
+        const question=questions[index], options=question.options ?? [];
+        let selected=[];
+        if (/^\d+(?:\s*[,，、]\s*\d+)*$/.test(content) && options.length) {
+          const indexes=content.split(/\s*[,，、]\s*/).map(Number);
+          if (indexes.some(n=>!Number.isSafeInteger(n) || n<1 || n>options.length)
+            || new Set(indexes).size!==indexes.length || (!question.multiSelect && indexes.length>1))
+            throw failure('请选择有效的选项编号，或直接填写回答。');
+          selected=indexes.map(n=>options[n-1].label);
+        } else {
+          const option=options.find(item=>item.label===content);
+          if (option) selected=[option.label];
+        }
+        const answer={id:question.id,selected,...(!selected.length?{custom:content}:{})};
+        entry.remote.answers.set(question.id,answer);
+        if (index+1<questions.length) {
+          entry.remote.index=index+1;entry.remote.delivered=false;
+          try { await host.weixin.requestUserQuestion(entry.value,entry.remote.scope,entry.remote.code,index+1); }
+          catch (error) { entry.remote.index=index;entry.remote.delivered=true;entry.remote.answers.delete(question.id);throw error; }
+          return {complete:false};
+        }
+        await this.request('interaction.questions.answer',{conversation_id:entry.value.conversation_id,question_id:entry.value.id,remote_scope:entry.remote.scope,
+          answers:questions.map(item=>entry.remote.answers.get(item.id))});
+        return {complete:true};
+      } finally { entry.remote.busy=false; }
     },
     async request(method, params = {}) {
       if (closed) throw failure('交互服务已关闭。', 'not_ready', 503);
@@ -173,6 +209,12 @@ export function installNativeInteractions(host) {
         const answer = validateNativeAnswers(entry.value.questions, params.answers);
         await host.checkCommandScope(entry.rootAgent, 'ask_user_question');
         await host.guard(entry.scope.rootSessionId);
+        if (params.remote_scope) {
+          if (!entry.remote || params.remote_scope !== entry.remote.scope) throw aborted();
+          await host.weixin.authorize(entry.remote.scope);
+          if (entry.remote.fromDesktop && (await host.rpc('settings.get')).weixin_remote_control_enabled !== true)
+            throw failure('微信远程控制已关闭，请在电脑中回答。', 'weixin_action_unavailable', 403);
+        }
         if (pending.get(params.question_id) !== entry || !sameOwner(host, entry))
           throw failure('问题所属回合已结束或已变化，请在会话中继续。', 'interaction_stale', 409);
         entry.finish(answer);
