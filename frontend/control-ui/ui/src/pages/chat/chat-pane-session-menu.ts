@@ -35,6 +35,7 @@ import {
 } from "../../lib/sessions/session-key.ts";
 import { runSessionNavigationAction } from "../../lib/sessions/session-menu-navigation.ts";
 import { showToast } from "../../lib/toast.ts";
+import { WORK_CONVERSATION_REQUEST, hasQueuedWorkConversationRequest } from "../mirally/work-conversation-request.ts";
 import { executeSlashCommand } from "./chat-command-executor.ts";
 import { ChatPaneContext } from "./chat-pane-context.ts";
 import { headerPlatformByClient } from "./chat-pane-shared.ts";
@@ -45,6 +46,7 @@ import { buildContinueInTerminalCommand } from "./continue-in-terminal-command.t
 
 export abstract class ChatPaneSessionMenu extends ChatPaneContext {
   private readonly headerCompactions = new Set<string>();
+  private readonly headerWorkRequests = new Set<string>();
 
   private headerCompactionKey(row: GatewaySessionRow): string {
     return `${this.connectionGeneration}:${row.key}:${row.sessionId ?? ""}`;
@@ -52,6 +54,44 @@ export abstract class ChatPaneSessionMenu extends ChatPaneContext {
 
   protected isHeaderSessionCompacting(row: GatewaySessionRow): boolean {
     return this.headerCompactions.has(this.headerCompactionKey(row));
+  }
+
+  protected headerWorkDisabledReason(row: GatewaySessionRow): string {
+    const state = this.state;
+    if (!state?.connected) return "请先连接 Mirally。";
+    if (row.archived) return "请先恢复会话。";
+    if (row.hasActiveRun || row.status === "running" || state.chatRunId ||
+        this.headerWorkRequests.has(this.headerCompactionKey(row))) return "请等待当前回复完成。";
+    if (hasQueuedWorkConversationRequest(state.chatQueue)) return "工作请求已在发送队列中。";
+    return "";
+  }
+
+  private async requestHeaderWork(row: GatewaySessionRow): Promise<void> {
+    const state = this.state;
+    const scope = this.captureHeaderSessionActionScope();
+    const matchesSelectedSession = () => Boolean(state && this.state === state &&
+      areUiSessionKeysEquivalent(state.sessionKey, row.key) && selectedChatSessionRow(state)?.sessionId === row.sessionId);
+    if (!state || !scope || !matchesSelectedSession()) return;
+    const key = this.headerCompactionKey(row);
+    if (this.headerWorkRequests.has(key)) return;
+    const reason = this.headerWorkDisabledReason(row);
+    if (reason) { this.publishHeaderError(reason); return; }
+    const owner = this.headerOutcomeOwner;
+    this.headerWorkRequests.add(key);
+    this.requestUpdate();
+    try {
+      // An explicit user turn goes through the ordinary durable chat outbox.
+      // Override text and reply target so the composer's draft and materials
+      // remain untouched and are not accidentally sent with this request.
+      const sent = await state.handleSendChat(WORK_CONVERSATION_REQUEST, {replyTargetOverride: null, followUpMode: "queue"});
+      if (!sent && matchesSelectedSession() && this.isHeaderSessionActionCurrent(scope, owner) && !state.chatError && !state.lastError)
+        this.publishHeaderError("工作请求未能发送，请检查当前对话后重试。", owner);
+    } catch (error) {
+      if (matchesSelectedSession() && this.isHeaderSessionActionCurrent(scope, owner)) this.publishHeaderError(error, owner);
+    } finally {
+      this.headerWorkRequests.delete(key);
+      this.requestUpdate();
+    }
   }
 
   protected headerCompactDisabledReason(row: GatewaySessionRow): string | undefined {
@@ -232,6 +272,16 @@ export abstract class ChatPaneSessionMenu extends ChatPaneContext {
   }
 
   protected async handleHeaderSessionAction(action: HeaderMenuAction, row: GatewaySessionRow) {
+    if (action.kind === "follow-work") {
+      await this.requestHeaderWork(row);
+      return;
+    }
+    if (action.kind === "view-work") {
+      if (this.state && areUiSessionKeysEquivalent(this.state.sessionKey, row.key) &&
+          selectedChatSessionRow(this.state)?.sessionId === row.sessionId)
+        this.context.navigate("tasks", {search: action.workId ? `?work=${encodeURIComponent(action.workId)}` : "?filter=all"});
+      return;
+    }
     if (action.kind === "compact-context") {
       await this.compactHeaderSession(row);
       return;

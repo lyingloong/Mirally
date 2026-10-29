@@ -258,7 +258,10 @@ export class MobileAccess {
         this.require(principal);const conversation=await this.product.conversation(id);
         if(patch.archived===true && this.product.handles?.get(conversation.session_id)?.agent.status!=='idle'
           && this.product.handles?.has(conversation.session_id))throw fault('请先停止当前回复，再归档会话。','conversation_busy',409);
-        return {conversation:await this.product.rpc('conversation.patch',{conversation_id:id,expected_version:params.expected_version,patch})};
+        const updated=await this.product.rpc('conversation.patch',{conversation_id:id,expected_version:params.expected_version,patch});
+        this.product.broadcast?.('session-metadata',{session_id:id,metadata_version:updated.metadata_version});
+        if(typeof patch.title==='string')this.product.broadcast?.('work',{method:'conversation.rename',conversation_id:id});
+        return {conversation:updated};
       });
     }
     if(method==='conversation.history') {

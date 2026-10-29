@@ -2,6 +2,7 @@
 import {createHash, randomUUID} from 'node:crypto';
 import {WeixinApi, validateWeixinBaseUrl} from './weixin-api.mjs';
 import {WeixinWorks, WORK_HELP} from './weixin-work.mjs';
+import {WeixinNumberedLists} from './weixin-numbered-list.mjs';
 
 const MAX_AGE = 10 * 60_000;
 const LOGIN_TTL = 5 * 60_000;
@@ -11,13 +12,14 @@ const TEXT_CONTROLS = new Map([['菜单', '/help'], ['帮助', '/help'], ['会�
 const controlText = text => {
   const exact = TEXT_CONTROLS.get(text);
   if (exact) return exact;
+  const page = /^(会话|会话列表)[ \t]+([1-9]\d{0,3})$/.exec(text);
+  if (page) return `/sessions ${page[2]}`;
   // Explicit, single-line commands only. Ordinary requests keep their exact
   // wording and go to the selected model conversation, without a router model.
   const match = /^(切换会话|切换|新对话)[ \t]+([^\r\n]+)$/.exec(text);
   return match ? `${match[1] === '新对话' ? '/new' : '/use'} ${match[2].trim()}` : null;
 };
-const shortConversationId = item => item.conversation_id.replace(/^conversation_/, '').slice(0, 12);
-const conversationLine = item => `${String(item.title ?? '').replace(/\s+/g, ' ')}\n切换 ${shortConversationId(item)}`;
+const conversationLine = (item, index) => `${index + 1}. ${Array.from(String(item.title ?? '').replace(/\s+/g, ' ')).slice(0, 160).join('')}`;
 const blocked = () => Object.assign(new Error('微信绑定或会话已改变，请重新发起。'), {code: 'weixin_scope_revoked', status: 403});
 const pause = (ms, signal) => new Promise(resolve => {
   if (signal?.aborted) return resolve();
@@ -55,6 +57,7 @@ export class WeixinChannel {
     this.error = '';
     this.jobs = new Set();
     this.receipts = new Set();
+    this.numberedLists = new WeixinNumberedLists(this.now);
     this.closed = false;
     this.management = Promise.resolve();
     this.works = new WeixinWorks(this);
@@ -344,11 +347,20 @@ export class WeixinChannel {
       const conversation = await this.product.conversation(event.conversation_id);
       await this.reply(event, `当前会话：${conversation.title}\n${this.product.summary(conversation).status === 'running' ? '正在回复' : '可以发送文字'}\n\n会话 · 查看历史 · 菜单`, {control: true});
     } else if (name === '/sessions') {
-      const rows = (await this.product.rpc('conversation.list', {archived_filter: 'active', limit: 20})).conversations;
-      await this.reply(event, rows.length ? '最近会话\n\n' + rows.map(item =>
-        `${item.conversation_id === event.conversation_id ? '当前 · ' : ''}${conversationLine(item)}`).join('\n\n')
-        + '\n\n可复制“切换 编号”，或发送“切换 完整标题”。新对话 [名称]'
-        : '暂无会话。发送“新对话”开始。', {control: true});
+      if (value && !/^[1-9]\d{0,3}$/.test(value)) {
+        await this.reply(event, '发送“会话”查看第一页，或发送“会话 2”查看下一页。', {control: true});
+        return;
+      }
+      const page = value ? Number(value) : 1;
+      const candidates = (await this.product.rpc('conversation.list', {archived_filter: 'active', limit: 21, offset: (page - 1) * 20})).conversations;
+      const rows = candidates.slice(0, 20);
+      await this.authorize(event);
+      this.numberedLists.stage('sessions', event, rows.map(item => item.conversation_id));
+      const navigation = [page > 1 ? `上一页：会话 ${page - 1}` : '', candidates.length > 20 ? `下一页：会话 ${page + 1}` : ''].filter(Boolean).join(' · ');
+      await this.reply(event, rows.length ? `最近会话 · 第 ${page} 页\n\n` + rows.map((item, index) =>
+        `${conversationLine(item, index)}${item.conversation_id === event.conversation_id ? ' · 当前' : ''}`).join('\n')
+        + '\n\n发送“切换 1”进入对应会话；也可使用完整标题或编号。' + (navigation ? `\n${navigation}` : '')
+        : page > 1 ? `这一页没有会话。上一页：会话 ${page - 1}` : '暂无会话。发送“新对话”开始。', {control: true});
     } else if (name === '/history') {
       if (value && (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)))) {
         await this.reply(event, '用法：/history 查看最近正文；更早记录使用上一页给出的 /history 数字游标。', {control: true});
@@ -378,7 +390,10 @@ export class WeixinChannel {
           return;
         }
         await this.authorize(event);
-        const {conversations: matches} = await this.product.rpc('internal.conversation.resolve', {selector: value});
+        let selector;
+        try { selector = this.numberedLists.select('sessions', event, value); }
+        catch (error) { await this.reply(event, error.message, {control: true}); return; }
+        const {conversations: matches} = await this.product.rpc('internal.conversation.resolve', {selector: selector ?? value});
         await this.authorize(event);
         if (matches.length !== 1) {
           await this.reply(event, matches.length ? '有同名会话或编号不唯一，请复制完整编号切换：\n\n'
@@ -603,6 +618,7 @@ export class WeixinChannel {
         else this.error = status === 'unknown' ? '有回复未能确认发送，请在桌面查看；不会自动重发。' : '有回复未能送出，请在桌面查看发送状态。';
       } finally { this.sendController = null; }
       const acknowledged = await this.store('ack', {delivery_id: delivery.delivery_id, status, ...(receipt ? {receipt} : {})});
+      this.numberedLists.settle(delivery.key, status === 'sent' && acknowledged.delivery?.status === 'sent');
       if (status === 'sent' && acknowledged.delivery?.status === 'sent' && receipt?.accepted === true
         && receipt.accepted_parts === splitText(delivery.text).length && delivery.key?.startsWith('action-approval:')) this.product.actionGate.remoteDelivered(
         delivery.key.slice('action-approval:'.length), {installation_id:delivery.installation_id, revision:delivery.revision, conversation_id:delivery.conversation_id});

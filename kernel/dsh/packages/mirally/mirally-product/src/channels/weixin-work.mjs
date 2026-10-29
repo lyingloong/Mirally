@@ -2,7 +2,7 @@
 import {randomBytes} from 'node:crypto';
 import {shortWorkId, workSummary} from '../work-host.mjs';
 
-export const WORK_HELP = '工作入口：\n/works 工作列表\n/work 编号 查看工作\n/work-new 目标 新建工作\n/work-use 编号 在微信继续这项工作\n/work-status 当前会话关联的工作\n/work-run 工作编号 {"script":"任务.py","arguments":[]} 准备运行\n/work-review 审批编号 审阅桌面准备的动作\n/work-approve 确认码 批准并启动具体运行\n/work-cancel 完整运行编号 停止真实运行\n/work-logs 完整运行编号 [字节偏移] 查看真实日志\n/work-notify [on|off] 查看或切换微信工作通知\n/stop 会停止会话回复和会话后台命令；工作运行需用 /work-cancel。';
+export const WORK_HELP = '工作入口：\n我的工作（/works）\n查看工作 1（/work 序号）\n进入工作 1（/work-use 序号）\n/work-status 当前会话关联的工作\n/work-run 工作编号 {"script":"任务.py","arguments":[]} 准备运行\n/work-review 审批编号 审阅桌面准备的动作\n/work-approve 确认码 批准并启动具体运行\n/work-cancel 完整运行编号 停止真实运行\n/work-logs 完整运行编号 [字节偏移] 查看真实日志\n/work-notify [on|off] 查看或切换微信工作通知\n/stop 会停止会话回复和会话后台命令；工作运行需用 /work-cancel。';
 const plainLists = new Set(['我的工作怎么样了', '我的工作怎么样了？', '我的工作怎么样了?', '我的工作', '工作列表', '查看工作', '查看我的工作']);
 const controlError = message => Object.assign(new Error(message), {code: 'invalid_work_control'});
 
@@ -11,9 +11,17 @@ export class WeixinWorks {
   get product() { return this.channel.product; }
   request(method, params, event) { return this.product.workRequest(method, params, {...event, origin: 'weixin'}); }
   async reply(event, text) { await this.channel.reply(event, text, {control: true}); }
-  handles(text) { return /^\/(works|work(?:-[a-z]+)?)(?:\s|$)/.test(text) || plainLists.has(text.trim()) || /^工作\s+.+\s+(?:现在怎样|进展|状态)[？?]?$/.test(text); }
+  handles(text) { return /^\/(works|work(?:-[a-z]+)?)(?:\s|$)/.test(text) || plainLists.has(text.trim())
+    || /^(我的工作|工作列表)[ \t]+[1-9]\d{0,3}$/.test(text)
+    || /^(查看工作|进入工作|切换工作)[ \t]+\d+$/.test(text) || /^工作\s+.+\s+(?:现在怎样|进展|状态)[？?]?$/.test(text); }
 
   async resolve(value, event) {
+    const selectedId = this.channel.numberedLists.select('works', event, value);
+    if (selectedId) {
+      const {work} = await this.request('work.get', {work_id: selectedId}, event);
+      if (!work || work.intent === 'archived') throw controlError('这项工作已不可用，请发送“我的工作”重新查看。');
+      return work;
+    }
     const {works} = await this.request('work.list', {limit: 200}, event);
     const matches = works.filter(work => (work.work_id ?? work.id) === value || shortWorkId(work) === value || work.title === value);
     if (matches.length === 1) return matches[0];
@@ -48,23 +56,38 @@ export class WeixinWorks {
     let [name, ...words] = text.split(/\s+/);
     let value = words.join(' ');
     if (plainLists.has(text)) { name = '/works'; value = ''; }
+    const pageShortcut = /^(我的工作|工作列表)[ \t]+([1-9]\d{0,3})$/.exec(text);
+    if (pageShortcut) { name = '/works'; value = pageShortcut[2]; }
+    const shortcut = /^(查看工作|进入工作|切换工作)[ \t]+(\d+)$/.exec(text);
+    if (shortcut) { name = shortcut[1] === '查看工作' ? '/work' : '/work-use'; value = shortcut[2]; }
     const natural = /^工作\s+(.+)\s+(?:现在怎样|进展|状态)[？?]?$/.exec(text);
     if (natural) { name = '/work'; value = natural[1]; }
     try {
       if (name === '/works') {
-        const {works} = await this.request('work.list', {limit: 30}, event);
-        await this.reply(event, works.length ? '你的工作（最多 30 项）：\n' + works.map(work => workSummary(work)).join('\n\n') + '\n\n/work 编号 查看；/work-use 编号 继续讨论。'
-          : '目前没有工作。发送 /work-new 目标 创建，或在桌面把现有实验加入关注。');
+        if (value && !/^[1-9]\d{0,3}$/.test(value)) throw controlError('发送“我的工作”查看第一页，或发送“我的工作 2”查看下一页。');
+        const page = value ? Number(value) : 1;
+        const {works, has_more: hasMore} = await this.request('work.list', {limit: 30, offset: (page - 1) * 30}, event);
+        await this.channel.authorize(event);
+        this.channel.numberedLists.stage('works', event, works.map(work => work.work_id ?? work.id));
+        const navigation = [page > 1 ? `上一页：我的工作 ${page - 1}` : '', hasMore ? `下一页：我的工作 ${page + 1}` : ''].filter(Boolean).join(' · ');
+        await this.reply(event, works.length ? `你的工作 · 第 ${page} 页\n\n` + works.map((work, index) => {
+          const title = Array.from(String(work.title ?? '').replace(/\s+/g, ' ')).slice(0, 120).join('');
+          const [, status, summary] = workSummary(work).split('\n');
+          return `${index + 1}. ${title}\n${status}${summary ? ` · ${Array.from(summary).slice(0, 160).join('')}` : ''}`;
+        }).join('\n\n') + '\n\n发送“查看工作 1”查看状态，“进入工作 1”继续对话。' + (navigation ? `\n${navigation}` : '')
+          : page > 1 ? `这一页没有工作。上一页：我的工作 ${page - 1}` : '目前没有工作。可以在对话中请 Mirally 整理并加入工作列表。');
       } else if (name === '/work-new') {
-        if (!value) throw controlError('请在 /work-new 后写明目标。创建不会自动执行脚本。');
-        const {work} = await this.request('work.create', {title: value.slice(0, 100), goal: value, request_id: event.command_id}, event);
-        await this.reply(event, '已建立工作，尚未启动任何运行。\n' + workSummary(work, {detail: true}));
+        await this.reply(event, '请在对话中告诉 Mirally 要开展或关注的工作，由它结合对话整理工作项。');
       } else if (name === '/work' || name === '/work-use') {
         const work = await this.resolve(value, event);
         const workId = work.work_id ?? work.id;
         if (name === '/work-use') {
           if (!work.conversation_id) throw controlError('这项工作尚未关联会话，请在桌面检查。');
           const current = await this.channel.authorize(event);
+          if (current.conversation_id === work.conversation_id) {
+            await this.reply(event, `当前已在工作「${work.title}」的对话中。`);
+            return;
+          }
           await this.product.cancelWeixinCommands(current.installation_id);
           const {state} = await this.channel.store('select', {expected_revision: current.revision, conversation_id: work.conversation_id});
           await this.reply({...event, revision: state.revision, conversation_id: state.conversation_id},

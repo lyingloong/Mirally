@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {WeixinWorks} from '../kernel/dsh/packages/mirally/mirally-product/src/channels/weixin-work.mjs';
 import {WeixinChannel} from '../kernel/dsh/packages/mirally/mirally-product/src/channels/weixin.mjs';
+import {WeixinNumberedLists} from '../kernel/dsh/packages/mirally/mirally-product/src/channels/weixin-numbered-list.mjs';
 
 const now = 1900000000000;
 const runId = 'run_' + 'a'.repeat(32);
@@ -18,7 +19,7 @@ function fixture() {
       if (p.revision !== revision || p.conversation_id !== conversationId) throw Object.assign(Error('revoked'), {code: 'weixin_scope_revoked'});
       return {installation_id: 'install', revision, conversation_id: conversationId};
     },
-    reply: async (e, text) => {await channel.authorize(e); replies.push({event: e, text});},
+    reply: async (e, text) => {await channel.authorize(e); replies.push({event: e, text}); channel.numberedLists.settle(`${e.command_id}:control`, true);},
     store: async (method, params) => {
       calls.push({method, params});
       if (method === 'select') {revision++; conversationId = params.conversation_id; return {state: {revision, conversation_id: conversationId}};}
@@ -44,6 +45,7 @@ function fixture() {
         throw Error(`unexpected ${method}`);
       }},
   };
+  channel.numberedLists = new WeixinNumberedLists(() => now);
   const controls = new WeixinWorks(channel);
   return {channel, controls, calls, replies};
 }
@@ -61,17 +63,45 @@ test('Weixin common work questions and IDs return real work facts without anothe
   assert.equal(f.calls.some(c => c.method === 'select'), false, 'viewing never changes the chat route');
 });
 
-test('Weixin create only creates a Work; /work-use explicitly changes the existing authoritative conversation route', async () => {
+test('Weixin work creation is requested through the conversation and /work-use changes the authoritative route', async () => {
   const f = fixture();
   await f.controls.control(event('/work-new 整理报告'));
   assert.equal(f.calls.filter(c => c.method.startsWith('work.run')).length, 0);
-  assert.match(f.replies[0].text, /尚未启动/);
-  const create = f.calls.find(c => c.method === 'work.create');
-  assert.equal(create.params.conversation_id, undefined);
+  assert.match(f.replies[0].text, /对话中/);
+  assert.equal(f.calls.some(c => c.method === 'work.create'), false);
   await f.controls.control(event('/work-use a12345678901'));
   assert.equal(f.calls.find(c => c.method === 'select').params.conversation_id, 'work-conversation');
   assert.equal(f.replies.at(-1).event.revision, 3);
   assert.match(f.replies.at(-1).text, /后续消息将继续/);
+});
+
+test('Weixin work numbers refer to the delivered list and use its linked conversation', async () => {
+  const f = fixture();
+  await f.controls.control(event('我的工作'));
+  assert.match(f.replies.at(-1).text, /1\. 训练实验/);
+  await f.controls.control(event('查看工作 1'));
+  assert.match(f.replies.at(-1).text, /第 4 轮/);
+  await f.controls.control(event('进入工作 1'));
+  assert.equal(f.calls.find(c => c.method === 'select').params.conversation_id, 'work-conversation');
+  await f.controls.control(event('/work 1', {revision: 3, conversation_id: 'work-conversation'}));
+  assert.match(f.replies.at(-1).text, /序号已失效/);
+});
+
+test('Weixin work pagination selects a stable identity from the shown page', async () => {
+  const f = fixture();
+  const rows = Array.from({length: 31}, (_, index) => ({...work, id: `work-${index}`, title: `工作 ${index}`, conversation_id: `session-${index}`}));
+  const request = f.channel.product.workRequest;
+  f.channel.product.workRequest = async (method, params, principal) => {
+    if (method === 'work.list') {await f.channel.authorize(principal); const offset=params.offset ?? 0; return {works:rows.slice(offset, offset+params.limit), has_more:offset+params.limit<rows.length};}
+    if (method === 'work.get') {await f.channel.authorize(principal); return {work:rows.find(row=>row.id===params.work_id),runs:[]};}
+    return request(method, params, principal);
+  };
+  await f.controls.control(event('我的工作'));
+  assert.match(f.replies.at(-1).text, /下一页：我的工作 2/);
+  await f.controls.control(event('我的工作 2'));
+  assert.match(f.replies.at(-1).text, /1\. 工作 30/);
+  await f.controls.control(event('进入工作 1'));
+  assert.equal(f.calls.find(call => call.method === 'select').params.conversation_id, 'session-30');
 });
 
 test('Weixin work running is prepare then exact approval; repeats use one approved action and stable Run request', async () => {

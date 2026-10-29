@@ -83,6 +83,13 @@ const TOOL_MAP: Record<string, ToolDisplaySpec> = Object.fromEntries(
   ]),
 );
 
+// Mirally's work projections are product actions, not upstream tool names.
+Object.assign(TOOL_MAP, {
+  mirally_create_work: { icon: "listChecks", title: "整理工作", label: "整理工作" },
+  mirally_update_work: { icon: "listChecks", title: "更新工作", label: "更新工作" },
+  mirally_current_work: { icon: "listChecks", title: "查看当前工作", label: "查看当前工作" },
+});
+
 function shortenHomeInString(input: string): string {
   if (!input) {
     return input;

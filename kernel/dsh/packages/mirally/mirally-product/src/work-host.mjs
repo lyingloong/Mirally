@@ -1,7 +1,7 @@
 /** The authenticated product control plane. Models never approve or launch runs. */
 import {createHash} from 'node:crypto';
 
-export const WORK_METHODS = new Set(['work.create', 'work.list', 'work.get', 'work.update', 'work.observe',
+export const WORK_METHODS = new Set(['work.create', 'work.list', 'work.get', 'work.update', 'work.observe', 'work.by_conversation',
   'work.run.prepare', 'work.run.approve', 'work.run.start', 'work.run.cancel', 'work.run.get', 'work.run.logs', 'work.run.artifact',
   'work.settings.get', 'work.settings.update']);
 
@@ -41,18 +41,21 @@ export class WorkHost {
     if (['work.run.prepare', 'work.run.approve', 'work.run.start'].includes(method)) input.actor = actor;
     await this.actor(principal);
     let result = await this.product.rpc(method, input);
-    if (method === 'work.list' || method === 'work.get') {
+    if (method === 'work.list' || method === 'work.get' || method === 'work.by_conversation') {
       result = await this.withConversationActivity(result, method);
       // A remote binding may be revoked while the owner is being read.
       await this.actor(principal);
     }
-    if (!['work.list', 'work.get', 'work.run.get', 'work.run.logs', 'work.run.artifact', 'work.settings.get'].includes(method))
-      this.product.broadcast('work', {method, work_id: result.work?.work_id ?? result.work?.id ?? result.run?.work_id ?? input.work_id});
+    if (!['work.list', 'work.get', 'work.by_conversation', 'work.run.get', 'work.run.logs', 'work.run.artifact', 'work.settings.get'].includes(method))
+      this.product.broadcast('work', {method, work_id: result.work?.work_id ?? result.work?.id ?? result.run?.work_id ?? input.work_id,
+        ...(result.work?.conversation_id ? {conversation_id: result.work.conversation_id} : {})});
+    if (result.conversation_title_changed && result.conversation)
+      this.product.broadcast('session-metadata', {session_id: result.conversation.conversation_id, metadata_version: result.conversation.metadata_version});
     return result;
   }
 
   async withConversationActivity(result, method) {
-    const works = method === 'work.list' ? result.works : [result.work];
+    const works = method === 'work.list' || method === 'work.by_conversation' ? result.works : [result.work];
     if (!Array.isArray(works)) return result;
     const ids = [...new Set(works.map(work => work?.conversation_id).filter(id => typeof id === 'string' && id))];
     const activity = new Map();
@@ -78,7 +81,7 @@ export class WorkHost {
       }
     } catch { /* A failed owner read remains unknown, never an inferred idle. */ }
     const decorate = work => work && ({...work, conversation_activity: activity.get(work.conversation_id) ?? 'unknown'});
-    return method === 'work.list' ? {...result, works: works.map(decorate)} : {...result, work: decorate(result.work)};
+    return method === 'work.list' || method === 'work.by_conversation' ? {...result, works: works.map(decorate)} : {...result, work: decorate(result.work)};
   }
 
   async inbox() {

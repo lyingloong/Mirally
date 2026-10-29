@@ -6,7 +6,7 @@ import {timeLabel, type Rpc} from '../../mobile/api.ts';
 import './product.css';
 
 type Data = Record<string, any>;
-const STATE: Record<string, string> = {idle:'关注中',observing:'关注中',needs_approval:'需要确认',starting:'正在启动',running:'正在运行',cancelling:'正在停止',completed:'运行完成',failed:'运行失败',unknown:'需要核对',ended:'已结束关注',archived:'已归档',cancelled:'已停止',interrupted:'运行中断',blocked:'等待处理',timed_out:'运行超时'};
+const STATE: Record<string, string> = {idle:'待安排',observing:'关注中',needs_approval:'需要确认',starting:'正在启动',running:'正在运行',cancelling:'正在停止',completed:'运行完成',failed:'运行失败',unknown:'需要核对',ended:'已结束关注',archived:'已归档',cancelled:'已停止',interrupted:'运行中断',blocked:'等待处理',timed_out:'运行超时'};
 const workId = (work: Data) => work.id || work.work_id;
 const PROBLEM = new Set(['failed','unknown','blocked','timed_out','interrupted']);
 const needsAttention = (work:Data) => work.status==='needs_approval' || PROBLEM.has(work.status) || PROBLEM.has(work.observation?.state) || (work.pending_approvals||[]).length>0;
@@ -47,6 +47,7 @@ export class MirallyWorkPanel extends OpenClawLightDomElement {
   @property() sort = 'attention';
   @property({type:Boolean}) showCompleted = true;
   @property() selected = '';
+  @property({attribute:false}) initialFilter = 'current';
   @state() private works: Data[] = [];
   @state() private query = '';
   @state() private filter = 'current';
@@ -60,23 +61,22 @@ export class MirallyWorkPanel extends OpenClawLightDomElement {
   @state() private loading = false;
   @state() private error = '';
   @state() private notice = '';
-  @state() private creating = false;
   @state() private editingWork = false;
   @state() private showRunForm = false;
-  @state() private draft = {title:'',goal:'',source_kind:'none',path:''};
+  @state() private draft = {source_kind:'none',path:''};
   @state() private runDraft = {script:'',arguments:'',cwd:'.',output_paths:'',timeout:'300'};
   @state() private review: Data | null = null;
   @state() private logs: Record<string,string> = {};
   private timer: ReturnType<typeof setTimeout> | undefined;
   private epoch = 0;
   private actionEpoch = 0;
-  private createRequest = {content:'',id:''};
   private prepareRequest = {content:'',id:''};
   private mutationError = false;
   private readonly visibilityChanged = () => {this.clearPoll(); if (!document.hidden) void this.refresh();};
   override connectedCallback() {super.connectedCallback();document.addEventListener('visibilitychange',this.visibilityChanged);}
   override disconnectedCallback() {++this.epoch;++this.actionEpoch;this.clearPoll();document.removeEventListener('visibilitychange',this.visibilityChanged);super.disconnectedCallback();}
   protected override updated(changed: PropertyValues) {
+    if (changed.has('initialFilter')) this.filter = this.initialFilter === 'all' ? 'all' : 'current';
     if (changed.has('rpc') || changed.has('selected')) {++this.actionEpoch;this.busy=false;this.review=null;this.showRunForm=false;this.editingWork=false;this.detail=null;this.nextRunOffset=0;this.logs={};void this.refresh();}
   }
   private clearPoll() {if(this.timer!==undefined)clearTimeout(this.timer);this.timer=undefined;}
@@ -122,6 +122,10 @@ export class MirallyWorkPanel extends OpenClawLightDomElement {
     finally{if(this.isConnected&&epoch===this.epoch){this.loading=false;this.schedule();}}
   }
   private choose(id:string) {this.selected=id;this.notice='';this.dispatchEvent(new CustomEvent('work-selected',{detail:{work_id:id},bubbles:true}));}
+  private enterWork(work:Data) {
+    if (typeof work.conversation_id === 'string' && work.conversation_id) this.openConversation(work.conversation_id);
+    else this.choose(workId(work));
+  }
   private downloadArtifact(run:Data,path:string) {
     void this.mutate(async()=>{
       const result=await this.rpc<Data>('work.run.artifact',{run_id:run.id,path});
@@ -138,18 +142,6 @@ export class MirallyWorkPanel extends OpenClawLightDomElement {
     try{await action();if(this.isConnected&&epoch===this.actionEpoch)this.notice=notice;}
     catch(error){if(this.isConnected&&epoch===this.actionEpoch){this.error=errorText(error);this.mutationError=true;}}
     finally{if(this.isConnected&&epoch===this.actionEpoch){this.busy=false;await this.refresh();}}
-  }
-  private create(event:SubmitEvent) {
-    event.preventDefault();const draft={...this.draft};
-    if(!draft.title.trim())return;
-    const content=JSON.stringify(draft);
-    if(content!==this.createRequest.content)this.createRequest={content,id:'ui-work:'+crypto.randomUUID()};
-    void this.mutate(async()=>{
-      const result=await this.rpc<Data>('work.create',{title:draft.title.trim(),goal:draft.goal.trim(),
-        request_id:this.createRequest.id,...(draft.source_kind==='none'?{}:{source:{kind:draft.source_kind,root_id:'workspace',path:draft.path.trim()}})});
-      this.createRequest={content:'',id:''};
-      this.creating=false;this.draft={title:'',goal:'',source_kind:'none',path:''};this.choose(workId(result.work));
-    },'工作已建立。');
   }
   private prepare(event:SubmitEvent) {
     event.preventDefault();const draft={...this.runDraft};let args:unknown;
@@ -177,23 +169,21 @@ export class MirallyWorkPanel extends OpenClawLightDomElement {
     void this.mutate(()=>this.rpc('work.update',{work_id:workId(work),expected_revision:work.revision,patch:{intent}}),'工作已更新。');
   }
   private editWork(work:Data) {
-    this.draft={title:work.title||'',goal:work.goal||'',source_kind:work.source?.kind||'none',path:work.source?.path||''};this.editingWork=true;
+    this.draft={source_kind:work.source?.kind||'none',path:work.source?.path||''};this.editingWork=true;
   }
-  private saveWork(event:SubmitEvent) {
+  private saveSource(event:SubmitEvent) {
     event.preventDefault();const work=this.detail?.work,draft={...this.draft};if(!work)return;
-    void this.mutate(async()=>{await this.rpc('work.update',{work_id:workId(work),expected_revision:work.revision,patch:{title:draft.title.trim(),goal:draft.goal.trim(),
-      source:draft.source_kind==='none'?null:{kind:draft.source_kind,root_id:work.source?.root_id||'workspace',path:draft.path.trim()}}});this.editingWork=false;},'工作与来源已更新。');
+    void this.mutate(async()=>{await this.rpc('work.update',{work_id:workId(work),expected_revision:work.revision,patch:{
+      source:draft.source_kind==='none'?null:{kind:draft.source_kind,root_id:work.source?.root_id||'workspace',path:draft.path.trim()}}});this.editingWork=false;},'状态来源已更新。');
   }
-  private createForm(editing=false) {
-    const field=(key:keyof typeof this.draft,label:string,required=false)=>html`<label class="mirally-product-field">${label}<input .value=${live(this.draft[key])} ?required=${required} ?disabled=${this.busy} maxlength=${key==='goal'?4000:512} @input=${(e:Event)=>this.draft={...this.draft,[key]:(e.target as HTMLInputElement).value}}></label>`;
-    return html`<form class="mirally-product-form mirally-work-card" data-testid="work-create-form" @submit=${editing?this.saveWork:this.create}>
-      <h2>${editing?'工作与状态来源':'建立工作记录'}</h2>${field('title','工作名称',true)}${field('goal','希望得到什么')}
-      ${!editing?html`<p class="mirally-product-meta">建立记录后，可进入对话交代任务，或关联已有程序的状态。建立记录不会自动启动任务。</p>`:nothing}
+  private sourceForm() {
+    return html`<form class="mirally-product-form mirally-work-card" data-testid="work-source-form" @submit=${this.saveSource}>
+      <h2>状态来源</h2>
       <label class="mirally-product-field">状态来源<select .value=${this.draft.source_kind} @change=${(e:Event)=>this.draft={...this.draft,source_kind:(e.target as HTMLSelectElement).value}} ?disabled=${this.busy}>
         <option value="none">暂不关联外部状态</option><option value="json">关注工作区内的 JSON 状态文件</option><option value="log">关注工作区内的日志</option>
       </select></label>
-      ${this.draft.source_kind!=='none'?html`${field('path','工作区内的相对文件路径',true)}<p class="mirally-product-meta">只读取已获准工作区中的文件。关注已有程序不会获得停止或重跑它的权限。</p>${this.draft.source_kind==='json'?html`<details><summary>状态文件格式</summary><pre class="mirally-work-log">${JSON.stringify({state:'running',summary:'正在训练',progress:{current:2,total:10},metrics:{loss:0.3}},null,2)}</pre><p class="mirally-product-meta">以上仅为格式示例。进度与指标必须由实际程序写入；没有数据时不推测百分比。</p></details>`:nothing}`:nothing}
-      <div class="mirally-product-actions"><button type="submit" class="btn primary" ?disabled=${this.busy}>${editing?'保存工作':'建立工作'}</button><button type="button" class="btn" ?disabled=${this.busy} @click=${()=>{this.creating=false;this.editingWork=false;}}>${editing?'取消修改':'返回列表'}</button></div>
+      ${this.draft.source_kind!=='none'?html`<label class="mirally-product-field">工作区内的相对文件路径<input .value=${live(this.draft.path)} required ?disabled=${this.busy} maxlength="512" @input=${(e:Event)=>this.draft={...this.draft,path:(e.target as HTMLInputElement).value}}></label><p class="mirally-product-meta">只读取已获准工作区中的文件。关注已有程序不会获得停止或重跑它的权限。</p>${this.draft.source_kind==='json'?html`<details><summary>状态文件格式</summary><pre class="mirally-work-log">${JSON.stringify({state:'running',summary:'正在训练',progress:{current:2,total:10},metrics:{loss:0.3}},null,2)}</pre><p class="mirally-product-meta">以上仅为格式示例。进度与指标必须由实际程序写入；没有数据时不推测百分比。</p></details>`:nothing}`:nothing}
+      <div class="mirally-product-actions"><button type="submit" class="btn primary" ?disabled=${this.busy}>保存来源</button><button type="button" class="btn" ?disabled=${this.busy} @click=${()=>this.editingWork=false}>取消</button></div>
     </form>`;
   }
   private runForm() {
@@ -234,12 +224,12 @@ export class MirallyWorkPanel extends OpenClawLightDomElement {
           ${work.source&&work.intent==='watching'?html`<button class="btn" ?disabled=${this.busy} @click=${()=>this.mutate(()=>this.rpc('work.observe',{work_id:workId(work)}),'已核对状态来源。')}>核对最新状态</button>`:nothing}
           ${work.intent==='watching'?html`<button class="btn" ?disabled=${this.busy} @click=${()=>this.showRunForm=!this.showRunForm}>准备运行</button><button class="btn" ?disabled=${this.busy} @click=${()=>this.changeIntent('ended')}>结束关注</button>`:html`<button class="btn" ?disabled=${this.busy} @click=${()=>this.changeIntent('watching')}>恢复关注</button>`}
           ${work.intent!=='archived'?html`<button class="btn" ?disabled=${this.busy} @click=${()=>this.changeIntent('archived')}>归档</button>`:nothing}</div>
-        <button class="btn" ?disabled=${this.busy} @click=${()=>this.editWork(work)}>工作与状态来源设置</button>
+        <button class="btn" ?disabled=${this.busy} @click=${()=>this.editWork(work)}>设置状态来源</button>
         <p class="mirally-product-meta">结束关注或归档不等于停止程序。运行完成表示执行已结束，目标与成果仍需核验。</p>
         <details><summary>这项工作的通知</summary><div class="mirally-product-actions">${[['completed','运行完成'],['failed','异常'],['approval','需要确认']].map(([key,label])=>html`<label><input type="checkbox" .checked=${work.notifications?.[key]!==false} ?disabled=${this.busy} @change=${(e:Event)=>this.mutate(()=>this.rpc('work.update',{work_id:workId(work),expected_revision:work.revision,patch:{notifications:{...work.notifications,[key]:(e.target as HTMLInputElement).checked}}}))}>${label}</label>`)}</div></details>
       </section>
       ${observation?html`<section class="mirally-work-card mirally-product-form"><h3>最近观测</h3><p class="mirally-product-meta">${timeLabel(observation.observed_at||observation.updated_at)} · ${work.source?.path||''}</p><pre class="mirally-work-log">${observation.summary||observation.text||'来源暂未提供摘要'}</pre>${observation.progress?html`<p>${observation.progress.current} / ${observation.progress.total}</p>`:nothing}${observation.metrics?html`<dl class="mirally-work-facts">${Object.entries(observation.metrics).map(([key,value])=>html`<dt>${key}</dt><dd>${value}</dd>`)}</dl>`:nothing}</section>`:work.source?html`<p class="mirally-product-meta">尚未读取状态来源。可核对状态后查看事实，不推测完成百分比。</p>`:nothing}
-      ${this.editingWork?this.createForm(true):nothing}${this.showRunForm?this.runForm():nothing}${reviews.map((review:Data)=>this.approvalCard(review))}
+      ${this.editingWork?this.sourceForm():nothing}${this.showRunForm?this.runForm():nothing}${reviews.map((review:Data)=>this.approvalCard(review))}
       ${(this.detail?.runs||[]).map((run:Data)=>this.runCard(run))}
       ${this.detail?.has_more_runs?html`<button class="btn" ?disabled=${this.loading||this.busy} @click=${()=>this.loadMoreRuns()}>${this.loading?'正在加载…':'加载更多运行记录'}</button>`:nothing}
     </div>`;
@@ -257,12 +247,12 @@ export class MirallyWorkPanel extends OpenClawLightDomElement {
     const works=sortWorks(filtered,this.desktopSort,true);
     const filters:[string,string,number][]=[['current','关注中',counts.current],['attention','需要处理',counts.attention],['history','已结束 / 归档',counts.history],['all','全部',counts.all]];
     return html`<div class="mirally-work-overview">
-      <div class="mirally-work-toolbar"><div><h2>我的工作</h2><p class="mirally-product-meta">跟踪工作状态，继续对话，查看运行与成果。</p></div>
-        <div class="mirally-product-actions">${this.openPreparation?html`<button class="btn primary" @click=${()=>this.openPreparation?.()}>开始工作</button>`:nothing}<button class=${this.openPreparation?'btn':'btn primary'} data-testid="work-create" @click=${()=>this.creating=true}>建立工作记录</button><button class="btn" ?disabled=${this.busy||this.loading} @click=${()=>this.refresh()}>刷新</button></div></div>
+      <div class="mirally-work-toolbar"><div><h2>工作对话</h2></div>
+        <div class="mirally-product-actions">${this.openPreparation?html`<button class="btn primary" @click=${()=>this.openPreparation?.()}>开始工作</button>`:nothing}<button class="btn" ?disabled=${this.busy||this.loading} @click=${()=>this.refresh()}>刷新</button></div></div>
       <div class="mirally-work-controls"><nav class="mirally-work-filters" aria-label="筛选工作">${filters.map(([id,label,count])=>html`<button type="button" class="mirally-work-filter" aria-pressed=${this.filter===id?'true':'false'} @click=${()=>this.filter=id}>${label} <span>${count}</span></button>`)}</nav>
         <div class="mirally-work-search"><label><span class="mirally-work-visually-hidden">搜索工作</span><input type="search" placeholder="搜索名称、目标或状态" .value=${live(this.query)} @input=${(event:Event)=>this.query=(event.target as HTMLInputElement).value}></label><label><span class="mirally-work-visually-hidden">排序方式</span><select .value=${this.desktopSort} @change=${(event:Event)=>this.desktopSort=(event.target as HTMLSelectElement).value}><option value="attention">优先处理</option><option value="updated">最近更新</option></select></label></div></div>
       ${this.hasMore?html`<p class="mirally-product-meta">搜索、筛选和统计仅针对已加载的 ${this.works.length} 项工作。</p>`:nothing}
-      ${!works.length?html`<div class="mirally-work-empty"><strong>${!this.loaded&&this.loading?'正在读取工作…':!this.loaded&&this.error?'暂时无法读取工作':this.works.length?'没有符合条件的工作':'还没有工作'}</strong><p class="mirally-product-meta">${!this.loaded&&this.loading?'请稍候。':!this.loaded&&this.error?'请检查连接后重试。':this.works.length?'试试其他筛选条件或搜索词。':'建立记录后，可以继续对话或关注已有程序的状态。'}</p>${!this.works.length&&this.loaded?html`<button class="btn" @click=${()=>this.creating=true}>建立第一项工作</button>`:nothing}</div>`:html`<div class="mirally-work-list mirally-work-list-desktop">${works.map(work=>html`<article class="mirally-work-card mirally-work-row"><button class="mirally-work-row-main" data-testid="work-item" @click=${()=>this.choose(workId(work))}><span class="mirally-work-row-head"><strong>${work.title}</strong><span class="mirally-work-status" data-status=${work.status}>${primaryStatus(work)}</span></span>${work.observation?.summary?html`<span class="mirally-work-row-summary">${work.observation.summary}</span>`:work.goal?html`<span class="mirally-work-row-summary">${work.goal}</span>`:html`<span class="mirally-product-meta">打开查看详情</span>`}<span class="mirally-product-meta">${work.observation?'来源：'+sourceStatus(work)+' · 观测于 '+timeLabel(work.observation.observed_at)+' · ':''}${progressLabel(work)?'进度 '+progressLabel(work)+' · ':''}${work.latest_run?'最近运行：'+runStatus(work)+' · ':''}${work.conversation_activity==='running'?'关联对话正在回复 · ':''}更新于 ${timeLabel(work.updated_at)}${(work.pending_approvals||[]).length?html` · 有待确认的运行`:nothing}</span></button><div class="mirally-work-row-actions">${work.conversation_id?html`<button class="btn" aria-label=${'继续对话：'+work.title} @click=${()=>this.openConversation(work.conversation_id)}>继续对话</button>`:nothing}<button class="btn" aria-label=${'查看工作：'+work.title} @click=${()=>this.choose(workId(work))}>查看详情</button></div></article>`)}</div>`}
+      ${!works.length?html`<div class="mirally-work-empty"><strong>${!this.loaded&&this.loading?'正在读取工作…':!this.loaded&&this.error?'暂时无法读取工作':this.works.length?'没有符合条件的工作':'还没有工作'}</strong><p class="mirally-product-meta">${!this.loaded&&this.loading?'请稍候。':!this.loaded&&this.error?'请检查连接后重试。':this.works.length?'试试其他筛选条件或搜索词。':'在对话中让 Mirally 记录并跟进工作。'}</p></div>`:html`<div class="mirally-work-list mirally-work-list-desktop">${works.map(work=>html`<article class="mirally-work-card mirally-work-row"><button class="mirally-work-row-main" data-testid="work-item" @click=${()=>this.enterWork(work)}><span class="mirally-work-row-head"><strong>${work.title}</strong><span class="mirally-work-status" data-status=${work.status}>${primaryStatus(work)}</span></span>${work.observation?.summary?html`<span class="mirally-work-row-summary">${work.observation.summary}</span>`:work.goal?html`<span class="mirally-work-row-summary">${work.goal}</span>`:nothing}<span class="mirally-product-meta">${work.observation?'来源：'+sourceStatus(work)+' · 观测于 '+timeLabel(work.observation.observed_at)+' · ':''}${progressLabel(work)?'进度 '+progressLabel(work)+' · ':''}${work.latest_run?'最近运行：'+runStatus(work)+' · ':''}${work.conversation_activity==='running'?'关联对话正在回复 · ':''}更新于 ${timeLabel(work.updated_at)}${(work.pending_approvals||[]).length?html` · 有待确认的运行`:nothing}</span></button><div class="mirally-work-row-actions"><button class="btn" aria-label=${'查看工作详情：'+work.title} @click=${()=>this.choose(workId(work))}>详情</button></div></article>`)}</div>`}
       ${this.hasMore?html`<div class="mirally-product-actions"><button class="btn" ?disabled=${this.loading||this.busy} @click=${()=>this.loadMore()}>${this.loading?'正在加载…':'加载更多工作'}</button></div>`:nothing}
     </div>`;
   }
@@ -270,8 +260,8 @@ export class MirallyWorkPanel extends OpenClawLightDomElement {
     const works=sortWorks(this.works,this.sort,this.showCompleted);
     return html`<div class="mirally-work-panel" aria-busy=${this.busy||this.loading?'true':'false'}>
       ${this.error?html`<p role="alert" class="callout danger">${this.error}</p>`:nothing}${this.notice?html`<p role="status" class="callout">${this.notice}</p>`:nothing}
-      ${this.selected?this.workDetail():this.creating?this.createForm():this.desktop?this.desktopList():html`<div class="mirally-product-actions"><button class="btn primary" data-testid="work-create" @click=${()=>this.creating=true}>建立工作记录</button><button class="btn" ?disabled=${this.busy||this.loading} @click=${()=>this.refresh()}>刷新</button></div>
-        ${!works.length?html`<p class="mirally-product-empty">${this.loading&&!this.loaded?'正在读取工作…':this.works.length?'已加载的工作中没有符合显示设置的项目。':'还没有工作。可以建立工作记录，或关注工作区里的实验状态。'}</p>`:html`<div class="mirally-work-list">${works.map(work=>html`<button class="mirally-work-card mirally-work-list-item" data-testid="work-item" @click=${()=>this.choose(workId(work))}><span class="mirally-work-status" data-status=${work.status}>${STATE[work.status]||'状态待核对'}</span><strong>${work.title}</strong><span class="mirally-product-meta">${work.goal||work.observation?.summary||'打开查看状态与成果'}</span><small class="mirally-product-meta">${timeLabel(work.updated_at)}</small></button>`)}</div>`}
+      ${this.selected?this.workDetail():this.desktop?this.desktopList():html`<div class="mirally-product-actions"><button class="btn" ?disabled=${this.busy||this.loading} @click=${()=>this.refresh()}>刷新</button></div>
+        ${!works.length?html`<p class="mirally-product-empty">${this.loading&&!this.loaded?'正在读取工作…':this.works.length?'已加载的工作中没有符合显示设置的项目。':'还没有工作。在对话中让 Mirally 记录并跟进工作。'}</p>`:html`<div class="mirally-work-list">${works.map(work=>html`<article class="mirally-work-card mirally-work-row"><button class="mirally-work-row-main" data-testid="work-item" @click=${()=>this.enterWork(work)}><span class="mirally-work-row-head"><strong>${work.title}</strong><span class="mirally-work-status" data-status=${work.status}>${primaryStatus(work)}</span></span>${work.observation?.summary||work.goal?html`<span class="mirally-work-row-summary">${work.observation?.summary||work.goal}</span>`:nothing}<small class="mirally-product-meta">${timeLabel(work.updated_at)}</small></button><div class="mirally-work-row-actions"><button class="btn" aria-label=${'查看工作详情：'+work.title} @click=${()=>this.choose(workId(work))}>详情</button></div></article>`)}</div>`}
         ${this.hasMore?html`<div class="mirally-work-mobile-more"><p class="mirally-product-meta">当前显示设置仅应用于已加载的 ${this.works.length} 项工作。</p><button class="btn" ?disabled=${this.loading||this.busy} @click=${()=>this.loadMore()}>${this.loading?'正在加载…':'加载更多工作'}</button></div>`:nothing}`}
     </div>`;
   }

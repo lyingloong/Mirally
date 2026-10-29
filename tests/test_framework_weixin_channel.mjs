@@ -357,6 +357,22 @@ test('Weixin restart cannot replay a persisted processing notice from an earlier
   assert.equal(f.calls.filter(call => call.kind === 'send').length, 0);
 });
 
+test('Weixin numbered session selection waits for the list to be delivered', async t => {
+  const waiting = deferred();
+  const f = fixture(t, {sendText: ({text}) => text.startsWith('最近会话') ? waiting.promise : {ret: 0}});
+  await f.channel.start();
+  await f.channel.receive(f.state(), inbound('list', '会话'));
+  const sending = f.channel.pump();
+  await waitFor(() => f.calls.some(call => call.kind === 'send'));
+  await f.channel.receive(f.state(), inbound('early', '切换 2'));
+  assert.equal(f.state().conversation_id, 'conversation-one');
+  assert.ok([...f.deliveries.values()].some(delivery => /序号已失效/.test(delivery.text)));
+  waiting.resolve({ret: 0});
+  await sending;
+  await f.channel.receive(f.state(), inbound('after-delivery', '切换 2'));
+  assert.equal(f.state().conversation_id, 'conversation-two');
+});
+
 test('Weixin malformed or stale timestamps become rejected events without blocking later input', async t => {
   const f = fixture(t);
   for (const [index, create_time_ms] of [undefined, -1, 'bad-time', now - 11 * 60000, now + 61000].entries()) {

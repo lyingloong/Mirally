@@ -660,6 +660,12 @@ class FrameworkService:
                 fields = ",".join(field + "=?" for field in changed)
                 self.db.execute(f"UPDATE conversations SET {fields},metadata_version=metadata_version+1,metadata_updated_at=? WHERE id=?",
                                 [*changed.values(), now, conversation_id])
+            if "title" in patch:
+                # One work follows the conversation's name. Older conversations
+                # may own several works; their distinct names remain untouched.
+                works = self.db.execute("SELECT id,title,intent,revision FROM works WHERE conversation_id=? LIMIT 2", (conversation_id,)).fetchall()
+                if len(works) == 1 and works[0]["intent"] != "archived" and works[0]["title"] != patch["title"]:
+                    self.work.update(works[0]["id"], works[0]["revision"], {"title": patch["title"]})
         return self._conversation(conversation_id)
 
     def conversation_autotitle(self, conversation_id: str, command_id: str, text: str) -> dict[str, Any]:

@@ -21,6 +21,7 @@ for(const page of [desktop,phone])page.on('pageerror',error=>errors.push(error.m
 const checks=[];const pass=label=>{checks.push(label);console.log('PASS '+label);};
 try {
   await desktop.goto(runtime.url+'/settings/channels#token='+runtime.token,{waitUntil:'domcontentloaded'});
+  await desktop.locator('details[data-testid="mirally-mobile-options"] > summary').click();
   await desktop.getByTestId('mobile-pair-create').waitFor();
   await desktop.getByTestId('mobile-pair-create').click();
   await until(async()=>!!(await desktop.getByTestId('mobile-pair-code').textContent())?.trim(),'desktop pairing code');
@@ -35,7 +36,7 @@ try {
 
   const nav=()=>phone.getByRole('navigation',{name:'主要导航'});
   await nav().getByRole('button',{name:'工作',exact:true}).click();
-  await phone.getByTestId('work-item').filter({hasText:'外部实验关注'}).click();
+  await phone.getByRole('button',{name:'查看工作详情：外部实验关注'}).click();
   await phone.getByRole('button',{name:'核对最新状态',exact:true}).click();
   await until(async()=>(await phone.locator('mirally-work-panel').innerText()).includes('第 42 轮'),'real observation');
   await phone.screenshot({path:join(output,'phone-observation.png'),fullPage:true});
@@ -61,7 +62,7 @@ try {
 
   await nav().getByRole('button',{name:'工作',exact:true}).click();
   if(await phone.getByRole('button',{name:'返回工作列表',exact:true}).count())await phone.getByRole('button',{name:'返回工作列表',exact:true}).click();
-  await phone.getByTestId('work-item').filter({hasText:'手机控制脚本'}).click();
+  await phone.getByRole('button',{name:'查看工作详情：手机控制脚本'}).click();
   await phone.getByRole('button',{name:'准备运行',exact:true}).click();
   const form=phone.getByTestId('work-run-form');
   await form.getByLabel('脚本路径（工作区相对路径）',{exact:true}).fill('处理 脚本.py');
@@ -128,7 +129,7 @@ try {
   await filters.getByRole('button',{name:/全部/}).click();
   await desktop.getByRole('searchbox',{name:'搜索工作'}).fill('手机控制脚本');
   await until(async()=>await desktop.getByTestId('work-item').count()===1,'desktop work search');
-  await desktop.getByRole('button',{name:'查看工作：手机控制脚本'}).click();
+  await desktop.getByRole('button',{name:'查看工作详情：手机控制脚本'}).click();
   await desktop.getByTestId('work-approval').waitFor();
   await desktop.getByRole('button',{name:'返回工作列表'}).click();
   await desktop.getByTestId('work-item').filter({hasText:'手机控制脚本'}).waitFor();
@@ -156,7 +157,7 @@ try {
     await desktop.goto(runtime.url+'/tasks#token='+runtime.token,{waitUntil:'domcontentloaded'});
     await desktop.getByTestId('work-item').filter({hasText:'手机控制脚本'}).waitFor();
   }
-  await desktop.getByRole('button',{name:'继续对话：手机控制脚本'}).click();
+  await desktop.getByTestId('work-item').filter({hasText:'手机控制脚本'}).click();
   await until(async()=>new URL(desktop.url()).pathname!=='/tasks','continue work conversation');
   const modelTrigger=desktop.locator('openclaw-chat-pane.chat-pane-cache__pane--active [data-chat-model-select]');
   await modelTrigger.waitFor();

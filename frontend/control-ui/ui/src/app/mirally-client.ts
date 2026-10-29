@@ -236,7 +236,7 @@ export class MirallyBrowserClient {
       return;
     }
     if (event.type === 'configuration') { this.emit('config.changed', {paths:event.fields || []}); return; }
-    const id = event.session_id; if (!id) { if (["artifact", "action", "inbox", "interaction"].includes(event.type)) window.dispatchEvent(new CustomEvent("mirally-product-event", {detail: event})); return; }
+    const id = event.session_id; if (!id) { if (["artifact", "action", "inbox", "interaction", "work"].includes(event.type)) window.dispatchEvent(new CustomEvent("mirally-product-event", {detail: event})); return; }
     const runId = event.command_id || this.activeRuns(id).at(-1);
     const partialKey = `${id}:${runId || ""}`;
     if (event.type === 'session-metadata') {this.emit('sessions.changed', {key: key(id), agentId: 'main', reason: 'metadata'}); return;}

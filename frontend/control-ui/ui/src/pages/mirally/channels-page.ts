@@ -254,19 +254,18 @@ export class MirallyChannelsPage extends OpenClawLightDomElement {
     return renderSettingsSection({title: '常用指令', description: '在微信发送“菜单”或“帮助”查看全部命令。'}, html`
       ${renderSettingsRow({title: '新建会话', control: html`<code>新对话 [名称] · /new [名称]</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '查看会话列表', control: html`<code>会话 · /sessions</code>`, stackedOnNarrow: true})}
-      ${renderSettingsRow({title: '切换会话', control: html`<code>切换 完整标题或编号 · /use 编号</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '切换会话', control: html`<code>切换 1 · /use 1</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '当前会话', control: html`<code>当前会话 · /status</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '回看聊天记录', description: '每次返回最近 6 条；按回复中的命令继续向前翻页。', control: html`<code>/history [更早游标]</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '查看工作列表', control: html`<code>/works</code>`, stackedOnNarrow: true})}
-      ${renderSettingsRow({title: '查看工作详情', control: html`<code>/work 工作编号</code>`, stackedOnNarrow: true})}
-      ${renderSettingsRow({title: '进入工作会话', control: html`<code>/work-use 工作编号</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '查看工作详情', control: html`<code>查看工作 1 · /work 工作编号</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '进入工作会话', control: html`<code>进入工作 1 · /work-use 工作编号</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '审阅待确认动作', description: '核对具体动作后获取一次性确认码。', control: html`<code>/work-review 完整审批编号</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '批准一次运行', control: html`<code>/work-approve 确认码</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '停止工作运行', control: html`<code>/work-cancel 完整运行编号</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '查看运行日志', control: html`<code>/work-logs 完整运行编号 [字节偏移]</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '微信工作通知', description: 'on 开启，off 关闭；不带参数查看当前设置。', control: html`<code>/work-notify [on|off]</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '停止当前会话', description: '停止回复与会话后台命令；工作运行使用 /work-cancel。', control: html`<code>/stop</code>`, stackedOnNarrow: true})}
-      ${renderSettingsRow({title: '创建工作', control: html`<code>/work-new 目标</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '准备工作运行', description: '准备后仍需审阅并批准。', control: html`<code>/work-run 工作编号 脚本参数JSON</code>`, stackedOnNarrow: true})}
     `);
   }

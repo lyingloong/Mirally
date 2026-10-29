@@ -169,7 +169,7 @@ test('real session experiment is readable and controllable over bound Weixin', {
   await until(async()=>(await rpc('weixin.status')).conversation_id===target.id,'Chinese exact-title route');
   await until(()=>replies.slice(switchAt).some(text=>text==='已切换到：手机切换目标'),'Chinese switch feedback');
   const listAt=replies.length;send(202,'会话');
-  await until(()=>replies.slice(listAt).some(text=>text.includes('当前 · 手机切换目标')),'Chinese list marks selected desktop conversation');
+  await until(()=>replies.slice(listAt).some(text=>text.includes('手机切换目标 · 当前')),'Chinese list marks selected desktop conversation');
   assert.equal(requests.length,controlsAt,'channel navigation never invokes the model');
   const namedAt=replies.length;send(203,'新对话 微信命名对话');
   const named=await until(async()=>{
@@ -198,8 +198,17 @@ test('real session experiment is readable and controllable over bound Weixin', {
   assert.equal(namedHistory.messages.some(message=>message.role==='user'&&message.text.startsWith('新对话 ')),false);
   assert.equal((await api(`/api/sessions/${target.id}/history`)).messages.some(message=>message.text===namedPrompt),false);
   assert.equal((await api(`/api/sessions/${session.id}/history`)).messages.some(message=>message.text===namedPrompt),false);
-  send(206,'切换 实验');
+  const numberedAt=replies.length;send(206,'会话');
+  const numbered=await until(()=>replies.slice(numberedAt).find(text=>/^\d+\. 实验(?: · 当前)?$/m.test(text)),'numbered session list');
+  const originalNumber=numbered.match(/^(\d+)\. 实验(?: · 当前)?$/m)[1];
+  send(207,`切换 ${originalNumber}`);
   await until(async()=>(await rpc('weixin.status')).conversation_id===session.id,'Chinese return to original desktop conversation');
   assert.ok((await api(`/api/sessions/${session.id}/history`)).messages.some(message=>message.text==='桌面启动实验'));
+  // Existing work data remains visible; phone numbers select its exact bound session.
+  await rpc('work.create',{title:'实验监测',goal:'观察实验',conversation_id:target.id,request_id:'legacy-work-fixture'});
+  const worksAt=replies.length;send(208,'我的工作');
+  await until(()=>replies.slice(worksAt).some(text=>text.includes('1. 实验监测')),'numbered work list');
+  send(209,'进入工作 1');
+  await until(async()=>(await rpc('weixin.status')).conversation_id===target.id,'numbered work enters original conversation');
   assert.deepEqual(modelErrors,[]);
 });

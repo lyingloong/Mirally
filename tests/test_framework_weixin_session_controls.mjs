@@ -65,13 +65,13 @@ function fixture(t, conversations = [first, second]) {
   return {product, channel, rows, state, calls, deliveries, send};
 }
 
-test('Chinese phone session list marks the current conversation and offers stable copyable routes', async t => {
+test('Chinese phone session list marks the current conversation and offers numbered routes', async t => {
   const f = fixture(t);
   await f.send('会话');
   const text = f.deliveries.at(-1).text;
-  assert.match(text, /当前 · 桌面实验\n切换 0123456789ab/);
-  assert.ok(text.includes('切换 abcdef012345'));
-  assert.ok(text.includes('切换 完整标题'));
+  assert.match(text, /1\. 桌面实验 · 当前/);
+  assert.ok(text.includes('2. GPU 训练 / 第一期'));
+  assert.ok(text.includes('切换 1'));
   assert.equal(f.calls.some(call => call.method === 'submit'), false);
   assert.equal(f.state.revision, 1);
   await f.send('/sessions');
@@ -79,6 +79,39 @@ test('Chinese phone session list marks the current conversation and offers stabl
   await f.send('当前会话');
   assert.match(f.deliveries.at(-1).text, /当前会话：桌面实验/);
   assert.ok(f.deliveries.at(-1).text.length < 100, 'status does not repeat the complete help menu');
+});
+
+test('numbered session selection uses the delivered list snapshot and expires on route changes', async t => {
+  const f = fixture(t);
+  await f.send('切换 2');
+  assert.match(f.deliveries.at(-1).text, /序号已失效/);
+  await f.send('会话', 'list-1');
+  f.channel.numberedLists.settle('command-list-1:control', true);
+  f.rows.reverse(); // A changing recent-session sort cannot change list identity.
+  await f.send('切换 2');
+  assert.equal(f.state.conversation_id, second.conversation_id);
+  await f.send('切换 1');
+  assert.match(f.deliveries.at(-1).text, /序号已失效/);
+  assert.equal(f.state.conversation_id, second.conversation_id);
+  await f.send('1');
+  await Promise.all([...f.channel.jobs]);
+  assert.equal(f.calls.find(call => call.method === 'submit').event.text, '1');
+});
+
+test('older session pages keep their displayed numbering and never use an undelivered replacement page', async t => {
+  const rows = [first, ...Array.from({length: 22}, (_, index) => ({conversation_id: `conversation_page-${index}`, title: `会话 ${index}`}))];
+  const f = fixture(t, rows);
+  await f.send('会话', 'page-one');
+  assert.match(f.deliveries.at(-1).text, /下一页：会话 2/);
+  f.channel.numberedLists.settle('command-page-one:control', true);
+  await f.send('会话 2', 'page-two');
+  assert.match(f.deliveries.at(-1).text, /1\. 会话 19/);
+  assert.match(f.deliveries.at(-1).text, /上一页：会话 1/);
+  await f.send('切换 1');
+  assert.match(f.deliveries.at(-1).text, /序号已失效/);
+  f.channel.numberedLists.settle('command-page-two:control', true);
+  await f.send('切换 1');
+  assert.equal(f.state.conversation_id, 'conversation_page-19');
 });
 
 test('Chinese switch accepts an exact title with spaces or a stable short ID, preserving slash controls', async t => {

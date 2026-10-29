@@ -30,19 +30,19 @@ export {projectMessages} from './history-presentation.mjs';
 
 const REMOTE_INPUT = Symbol('trusted channel input');
 const WEIXIN_READ_TOOLS = new Set(['mirally_context', 'mirally_preferences', 'mirally_reminders',
-  'mirally_workspace_roots', 'mirally_list_files', 'mirally_read_file', 'mirally_search_files', 'mirally_works', 'mirally_work_status']);
+  'mirally_workspace_roots', 'mirally_list_files', 'mirally_read_file', 'mirally_search_files', 'mirally_works', 'mirally_work_status', 'mirally_current_work']);
 const WEIXIN_SESSION_READ_TOOLS = new Set(['mirally_job_list', 'mirally_job_status', 'job_list', 'job_output']);
 const WEIXIN_ACTION_TOOLS = new Set(['mirally_action', 'mirally_run_command', 'mirally_stop_job',
   'mirally_browser_open', 'mirally_browser_read', 'mirally_browser_click', 'mirally_browser_fill',
   'mirally_desktop_foreground', 'mirally_desktop_windows', 'mirally_desktop_screenshot',
   'read','read_image','glob','grep','write','edit','pwsh','bash','job_kill','working_directory',
   'subagent','subagent_fork','list_agents','send_message','interrupt_agent',
-  'todo_write','ask_user_question','exit_plan_mode','web_search','web_fetch',
+  'todo_write','ask_user_question','exit_plan_mode','web_search','web_fetch','mirally_create_work','mirally_update_work',
   'create_goal','get_goal','update_goal','skill','workflow','list_subagent_models']);
 const NATIVE_MUTATIONS = new Set(['pwsh','bash','write','edit','job_kill']);
 const DELEGATED_PRODUCT_ACTIONS = new Set(['mirally_action','mirally_run_command','mirally_stop_job',
   'mirally_browser_open','mirally_browser_read','mirally_browser_click','mirally_browser_fill',
-  'mirally_desktop_foreground','mirally_desktop_windows','mirally_desktop_screenshot',
+  'mirally_desktop_foreground','mirally_desktop_windows','mirally_desktop_screenshot','mirally_update_work',
   'run_skill_script','mirally_write_workspace_file','mirally_create_file','mirally_create_work','mirally_create_reminder','mirally_set_preference']);
 
 export const name = 'mirally-product';
@@ -612,8 +612,6 @@ export class MirallyProduct extends Service {
           throw error;
         }
       }
-      if (request.work) await this.workRequest('work.create', {title: request.work.title, goal: request.work.goal ?? request.text,
-        conversation_id: id, request_id: `command-work:${request.commandId}`});
       const messageId = MessageId(`mirally-${createHash('sha256').update(`${id}:${request.commandId}`).digest('hex')}`);
       this.nativeMessageCommands ??= new Map();
       this.nativeMessageCommands.set(messageId, request.commandId);
@@ -669,7 +667,8 @@ export class MirallyProduct extends Service {
       this.nativeErrors.delete(conversation.session_id);
       // The entry point, never the request body, owns this presentation metadata.
       // Store it with the native message so retries and restarts retain the receipt.
-      const message = Object.freeze({...createUserMessage({content: [{type: 'text', text: request.text}, ...materialContent],
+      const workIntent = request.work ? `\n\n请将这项委托作为当前对话中的工作跟进，结合对话与材料整理名称和目标，并通过工作工具建立或维护工作项。\n参考名称：${request.work.title}${request.work.goal ? `\n参考目标：${request.work.goal}` : ''}` : '';
+      const message = Object.freeze({...createUserMessage({content: [{type: 'text', text: request.text + workIntent}, ...materialContent],
         source: {kind: 'user', mirally_input_origin: scope?.origin ?? 'desktop'}}), id: messageId});
       handle.agent.followup(message);
       try {
@@ -836,7 +835,7 @@ export class MirallyProduct extends Service {
           if (!conversation) throw failure('Tool requires an owned conversation');
           await this.guard(exec.agent.id);
           const input = params(args);
-          if (['context.read', 'commitment.create'].includes(method)) input.conversation_id = conversation.conversation_id;
+          if (['context.read', 'commitment.create', 'work.by_conversation'].includes(method)) input.conversation_id = conversation.conversation_id;
           if (method === 'commitment.create') {
             input.request_id = `${this.activeCommands.get(exec.agent.id)}:${toolName}:${createHash('sha256').update(JSON.stringify(args)).digest('hex')}`;
           }
@@ -854,18 +853,50 @@ export class MirallyProduct extends Service {
     register('mirally_work_status', 'Read a real work and its runs by stable work_id. Observations are evidence and may have gaps; never invent progress.',
       {type: 'object', properties: {work_id: {type: 'string'}}, required: ['work_id'], additionalProperties: false},
       'work.observe', args => ({work_id: args.work_id}));
+    register('mirally_current_work', 'Read work items linked to the current conversation. If multiple older works are returned, ask which one to update; do not guess.',
+      {type: 'object', properties: {}, additionalProperties: false}, 'work.by_conversation', () => ({}));
     this.ctx.tools.register({name: 'mirally_create_work',
-      description: 'Create a work only when the user explicitly asks to entrust or follow a concrete work. This does not start or approve execution. Ordinary chat is not a work.',
+      description: 'When explicitly asked to follow this conversation as work, create its work item using a concise title and goal inferred from the conversation. If it already has one, return that existing work without creating a duplicate. This does not start or approve execution.',
       parameters: {type: 'object', properties: {title: {type: 'string'}, goal: {type: 'string'}}, required: ['title'], additionalProperties: false},
       output: {schema: {type: 'object', additionalProperties: true}, render: (_args, result) => [{type: 'text', text: JSON.stringify(result)}]},
       execute: async (args, exec) => {
         exec.signal.throwIfAborted();
         const conversation = this.nativeConversations.get(exec.agent?.id);
         if (!conversation) throw failure('Tool requires an owned conversation');
+        const policy = this.commandPolicy(exec.agent);
         await this.checkCommandScope(exec.agent, 'mirally_create_work');
         await this.guard(exec.agent.id);
-        return this.workRequest('work.create', {...args, conversation_id: conversation.conversation_id,
-          request_id: `${this.activeCommands.get(exec.agent.id)}:work:${createHash('sha256').update(JSON.stringify(args)).digest('hex')}`});
+        await this.checkCommandScope(exec.agent, 'mirally_create_work');
+        if (this.commandPolicy(exec.agent) !== policy) throw failure('消息来源已改变，请重新发起。', 'work_scope_revoked', 403);
+        const weixinScope = policy?.origin === 'weixin' ? {installation_id: policy.installation_id, revision: policy.revision, command_id: policy.command_id} : undefined;
+        const result = await this.rpc('internal.work.ensure_conversation', {...args, conversation_id: conversation.conversation_id,
+          ...(weixinScope ? {weixin_scope: weixinScope} : {})});
+        this.broadcast('work', {method: 'work.create', work_id: result.work.id, conversation_id: conversation.conversation_id});
+        if (result.conversation_title_changed && result.conversation)
+          this.broadcast('session-metadata', {session_id: conversation.conversation_id, metadata_version: result.conversation.metadata_version});
+        return result;
+      }});
+    this.ctx.tools.register({name: 'mirally_update_work',
+      description: 'When the user asks to change the name or goal of a work, update only a work belonging to this conversation. Obtain its work_id from the work tools. Never invent progress or execution status.',
+      parameters: {type: 'object', properties: {work_id: {type: 'string'}, title: {type: 'string'}, goal: {type: 'string'}}, required: ['work_id'], additionalProperties: false},
+      output: {schema: {type: 'object', additionalProperties: true}, render: (_args, result) => [{type: 'text', text: JSON.stringify(result)}]},
+      execute: async (args, exec) => {
+        exec.signal.throwIfAborted();
+        const conversation = this.nativeConversations.get(exec.agent?.id);
+        if (!conversation) throw failure('Tool requires an owned conversation');
+        const policy = this.commandPolicy(exec.agent);
+        await this.checkCommandScope(exec.agent, 'mirally_update_work');
+        await this.guard(exec.agent.id);
+        await this.checkCommandScope(exec.agent, 'mirally_update_work');
+        const {work_id, ...patch} = args;
+        if (this.commandPolicy(exec.agent) !== policy) throw failure('消息来源已改变，请重新发起。', 'work_scope_revoked', 403);
+        const weixinScope = policy?.origin === 'weixin' ? {installation_id: policy.installation_id, revision: policy.revision, command_id: policy.command_id} : undefined;
+        const result = await this.rpc('internal.work.update_conversation', {conversation_id: conversation.conversation_id, work_id, patch,
+          ...(weixinScope ? {weixin_scope: weixinScope} : {})});
+        this.broadcast('work', {method: 'work.update', work_id, conversation_id: conversation.conversation_id});
+        if (result.conversation_title_changed && result.conversation)
+          this.broadcast('session-metadata', {session_id: conversation.conversation_id, metadata_version: result.conversation.metadata_version});
+        return result;
       }});
     register('mirally_set_preference', 'Save a preference only when the user explicitly asks to remember it.',
       {type: 'object', properties: {key: {type: 'string'}, value: {type: 'string'}}, required: ['key', 'value'], additionalProperties: false},
@@ -1201,6 +1232,7 @@ export class MirallyProduct extends Service {
         }
       }
       this.broadcast('session-metadata', {session_id: id, metadata_version: changed.metadata_version});
+      if (typeof input.patch?.title === 'string') this.broadcast('work', {method: 'conversation.rename', conversation_id: id});
       return json(response, 200, this.summary(changed));
     }
     const matched = /^\/api\/sessions\/([^/]+)\/(history|messages|cancel)$/.exec(pathname);

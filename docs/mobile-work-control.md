@@ -6,6 +6,10 @@
 
 用户后续确认的方向：倾向工作优先，同时手机端也应能管理会话；默认入口和呈现方式等应允许用户设置。以下将工作优先视为可更改的初始推荐，不作为固定产品限制。具体设置项及技术实现仍属于提案。
 
+2026-10-29 用户进一步澄清：工作应与会话有机结合，一个工作对话就是用户继续协作的主入口；工作列表是这些会话的工作视图，不要求用户填写并维护另一份工作记录。用户可在当前对话请求模型结合上下文整理工作，或使用对话中的“加入工作”入口。既有 Work 记录保留为可选的结构化扩展，承载来源、运行、审批及通知等事实，继续引用同一 Conversation 与 DSH Session。历史上同一会话关联多项工作时不自动合并。
+
+对照依据：[Codex app](https://openai.com/index/introducing-the-codex-app/) 以会话组织任务及后续协作；[DSH Session](../kernel/dsh/docs/subsystems/session.md) 用一份事件历史承载模型交互；[字节跳动 Seed](https://seed.bytedance.com/zh/blog/seed2-1-officially-released-advancing-ai-productivity) 和[火山引擎文档](https://docs.volcengine.com/docs/ark/use-managed-agents-in-doubao-work?lang=en)展示豆包办公任务中的对话、过程与产物。各产品有不同能力和边界，以上是对 Mirally 组织方式的参考，不推断其内部数据结构。下方早期 Work/Conversation 分工及创建入口以本段和[实际使用说明](mobile-work-guide.md)为准。
+
 ## 1. 推荐结论
 
 将“工作”作为手机端的主要入口：它表示用户托付给 Mirally、希望持续了解或推进的一件事。用户交代目标即可创建，也可从原会话或正在运行的实验加入关注；不要求另填项目管理表。会话负责讨论，实际运行负责执行事实，工作将它们与材料、结果组织起来。

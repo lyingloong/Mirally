@@ -1,4 +1,4 @@
-import { html, nothing, type TemplateResult } from "lit";
+import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { property, state } from "lit/decorators.js";
 import type { UiSettings } from "../../../app/settings.ts";
 import { renderBoardGrantedCapabilities } from "../../../components/board/board-widget-capabilities.ts";
@@ -23,6 +23,7 @@ import {
 import type { SessionCreatedActor } from "../../../components/session-owner-chip.ts";
 import { t } from "../../../i18n/index.ts";
 import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
+import { getProductHost, rpcProduct } from "../../mirally/api.ts";
 import {
   renderChatSessionSharing,
   selectChatSessionSharingItem,
@@ -32,7 +33,9 @@ import {
 export type HeaderMenuAction =
   | SessionManagementAction
   | { kind: "continue-in-terminal" }
-  | { kind: "compact-context" };
+  | { kind: "compact-context" }
+  | { kind: "follow-work" }
+  | { kind: "view-work"; workId?: string };
 export type HeaderMenuActionKind = HeaderMenuAction["kind"];
 
 export type HeaderMenuQuickAction = {
@@ -87,6 +90,9 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
   @property({ attribute: false }) forkDisabled = false;
   @property({ attribute: false }) forkFromLastCompleted = false;
   @property({ attribute: false }) contextCompacting = false;
+  @property({ attribute: false }) mirallySessionKey = "";
+  @property({ attribute: false }) workPresented = true;
+  @property({ attribute: false }) workDisabledReason = "";
   @property({ attribute: false }) archiveAllowed = false;
   @property({ attribute: false }) archiveShortcut = false;
   @property({ attribute: false }) deleteAllowed = false;
@@ -95,6 +101,82 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
   @property({ attribute: false }) onSettingsChange: (patch: Partial<UiSettings>) => void = () => {};
   @property({ attribute: false }) onAction: (action: HeaderMenuAction) => void = () => {};
   @state() private compactView: CompactMenuView = "root";
+  @state() private workStatus: "loading" | "none" | "linked" | "archived" | "ambiguous" | "unavailable" = "loading";
+  @state() private workRefreshing = false;
+  private workLookupVersion = 0;
+  private workLookupKey = "";
+  private workId?: string;
+  private workTimer?: ReturnType<typeof setTimeout>;
+  private get currentWorkStatus() {
+    return this.mirallySessionKey === this.workLookupKey ? this.workStatus : "loading";
+  }
+
+  private readonly workChanged = (event: Event) => {
+    const detail = (event as CustomEvent).detail;
+    if (detail?.type !== "work" || !this.workPresented || !this.mirallySessionKey) return;
+    let id: string | undefined;
+    try { id = getProductHost().conversationIdForSession?.(this.mirallySessionKey); } catch { return; }
+    if (!detail.conversation_id || detail.conversation_id === id) void this.loadWork();
+  };
+  private readonly workVisibilityChanged = () => {
+    clearTimeout(this.workTimer);
+    if (!document.hidden && this.workPresented && this.mirallySessionKey) void this.loadWork();
+  };
+
+  override connectedCallback() {
+    super.connectedCallback();
+    window.addEventListener("mirally-product-event", this.workChanged);
+    document.addEventListener("visibilitychange", this.workVisibilityChanged);
+  }
+
+  override disconnectedCallback() {
+    ++this.workLookupVersion;
+    clearTimeout(this.workTimer);
+    window.removeEventListener("mirally-product-event", this.workChanged);
+    document.removeEventListener("visibilitychange", this.workVisibilityChanged);
+    super.disconnectedCallback();
+  }
+
+  protected override updated(changed: PropertyValues) {
+    if (changed.has("mirallySessionKey") || changed.has("workPresented")) {
+      ++this.workLookupVersion;
+      clearTimeout(this.workTimer);
+      if (this.workLookupKey !== this.mirallySessionKey) {
+        this.workLookupKey = "";
+        this.workStatus = "loading";
+        this.workId = undefined;
+      }
+      if (this.isConnected && this.workPresented && this.mirallySessionKey && !document.hidden) void this.loadWork();
+    }
+  }
+
+  private async loadWork() {
+    clearTimeout(this.workTimer);
+    const key = this.mirallySessionKey, version = ++this.workLookupVersion;
+    if (this.workLookupKey !== key) { this.workLookupKey = key; this.workStatus = "loading"; this.workId = undefined; }
+    this.workRefreshing = true;
+    try {
+      const id = getProductHost().conversationIdForSession?.(key);
+      if (!id) throw new Error("会话不可用");
+      const result = await rpcProduct<{works: {id?: string; work_id?: string; intent?: string}[]; has_more?: boolean}>(
+        "work.by_conversation", {conversation_id: id, include_archived: true},
+      );
+      if (!this.isConnected || version !== this.workLookupVersion || key !== this.mirallySessionKey) return;
+      if (!Array.isArray(result.works)) throw new Error("工作状态不可用");
+      const active = result.works.some(work => work.intent !== "archived");
+      this.workStatus = active ? "linked" : result.has_more ? "ambiguous" : result.works.length ? "archived" : "none";
+      this.workId = undefined;
+      if (result.works.length === 1 && !result.has_more) this.workId = result.works[0].id ?? result.works[0].work_id;
+    } catch {
+      if (this.isConnected && version === this.workLookupVersion && key === this.mirallySessionKey)
+        this.workStatus = "unavailable";
+    } finally {
+      if (this.isConnected && version === this.workLookupVersion && key === this.mirallySessionKey) {
+        this.workRefreshing = false;
+        if (this.workPresented && !document.hidden) this.workTimer = setTimeout(() => void this.loadWork(), 10000);
+      }
+    }
+  }
   private readonly managementActions = new SessionMenuActions(
     this,
     () => ({
@@ -162,6 +244,19 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
     }
     if (value === "open-command-palette") {
       this.onOpenCommandPalette();
+      return;
+    }
+    if (value === "mirally-work") {
+      if (this.currentWorkStatus === "unavailable") {
+        event.preventDefault();
+        void this.loadWork();
+      } else if (["linked", "archived", "ambiguous"].includes(this.currentWorkStatus)) {
+        event.currentTarget.open = false;
+        this.onAction({kind: "view-work", ...(this.workId ? {workId: this.workId} : {})});
+      } else if (this.currentWorkStatus === "none" && !this.workDisabledReason && !this.workRefreshing) {
+        event.currentTarget.open = false;
+        this.onAction({kind: "follow-work"});
+      }
       return;
     }
     if (value.startsWith("quick:")) {
@@ -388,6 +483,18 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
           : nothing
       }
       ${renderMirallySessionOrganization(this.session, this.actionDisabledReasons, this.archiveAllowed, false, this.forkDisabled)}
+      ${this.mirallySessionKey ? html`<wa-dropdown-item
+        class="session-menu__item"
+        value="mirally-work"
+        ?disabled=${this.currentWorkStatus === "loading" || this.workRefreshing || (this.currentWorkStatus === "none" && Boolean(this.workDisabledReason))}
+        title=${this.currentWorkStatus === "none" ? this.workDisabledReason || nothing : nothing}
+      >
+        <span slot="icon" class="session-menu__icon" aria-hidden="true">${icons.listChecks}</span>
+        <span class="session-menu__text">${this.currentWorkStatus === "loading" ? "读取工作状态…" :
+          this.currentWorkStatus === "unavailable" ? "重新读取工作状态" :
+          this.currentWorkStatus === "archived" ? "查看已归档工作" :
+          this.currentWorkStatus === "linked" || this.currentWorkStatus === "ambiguous" ? "查看关联工作" : "加入工作"}</span>
+      </wa-dropdown-item>` : nothing}
       <wa-dropdown-item
         class="session-menu__item"
         value="compact-context"
@@ -428,6 +535,7 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
   private readonly handleShow = () => {
     this.compactView = "root";
     this.onOpen();
+    if (this.mirallySessionKey) void this.loadWork();
   };
 
   private readonly handleAfterHide = () => {
@@ -437,6 +545,11 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
   override render() {
     const menuLabel = t("chat.sidebar.sessionMenu", { session: this.session.label });
     return html`
+      ${this.currentWorkStatus === "linked" && this.workPresented ? html`<button
+        class="btn btn--ghost btn--sm mirally-chat-work-badge"
+        type="button" aria-label="查看关联工作" ?disabled=${this.workRefreshing}
+        @click=${() => { if (!this.workRefreshing) this.onAction({kind: "view-work", ...(this.workId ? {workId: this.workId} : {})}); }}
+      >${icons.listChecks}<span>工作</span></button>` : nothing}
       <wa-dropdown
         class=${`session-menu chat-header-session-menu${this.compact ? " chat-header-session-menu--compact" : ""}${this.compact && this.compactView === "sharing" ? " chat-header-session-menu--compact-sharing" : ""}`}
         placement="bottom-end"

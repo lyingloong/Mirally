@@ -126,6 +126,9 @@ class WorkOwner:
     def routes(self):
         return {"work.create": self.create, "work.list": self.list, "work.get": self.get,
                 "work.update": self.update, "work.observe": self.observe,
+                "work.by_conversation": self.by_conversation,
+                "internal.work.ensure_conversation": self.ensure_conversation,
+                "internal.work.update_conversation": self.update_conversation,
                 "work.run.prepare": self.prepare, "work.run.approve": self.approve,
                 "work.run.start": self.start, "work.run.cancel": self.cancel,
                 "work.run.get": self.run_get, "work.run.logs": self.logs, "work.run.artifact": self.artifact,
@@ -226,6 +229,66 @@ class WorkOwner:
                               (identity, request_id, title, goal, conversation["conversation_id"], encoded(source) if source else None, encoded(DEFAULT_NOTIFICATIONS), now, now))
         return {"work": self._work(self._row("works", identity))}
 
+    def by_conversation(self, conversation_id, include_archived=False):
+        self.s._conversation(conversation_id)
+        if type(include_archived) is not bool:
+            fail("INVALID_PARAMS", "include_archived 必须为布尔值")
+        rows = self.s.db.execute("SELECT * FROM works WHERE conversation_id=? AND (? OR intent!='archived') ORDER BY updated_at DESC,rowid DESC LIMIT 201", (conversation_id, include_archived)).fetchall()
+        return {"works": [self._work(dict(row), compact=True) for row in rows[:200]], "has_more": len(rows) > 200}
+
+    def _check_weixin_work_scope(self, conversation_id, weixin_scope):
+        if weixin_scope is None:
+            return
+        if not isinstance(weixin_scope, dict) or set(weixin_scope) != {"installation_id", "revision", "command_id"}:
+            fail("INVALID_PARAMS", "微信工作授权无效")
+        text(weixin_scope["installation_id"], "installation_id", 64)
+        text(weixin_scope["command_id"], "command_id", 200)
+        state = self.s.channels._current(weixin_scope["revision"], weixin_scope["installation_id"], enabled=True)
+        command = self.s._command(conversation_id, weixin_scope["command_id"])
+        if (state["conversation_id"] != conversation_id or not self.s._settings().get("weixin_remote_control_enabled")
+                or command["state"] not in {"admitted", "submitted", "applied"}):
+            fail("CONFLICT", "微信工作授权已改变，请重新发起")
+
+    def ensure_conversation(self, conversation_id, title, goal="", weixin_scope=None):
+        """One model-created work projection per conversation; never merge legacy works."""
+        text(title, "title", 512); text(goal, "goal", 16000, True)
+        with self.s._transaction():
+            self._check_weixin_work_scope(conversation_id, weixin_scope)
+            conversation = self.s._conversation(conversation_id)
+            if conversation["archived"]:
+                fail("CONFLICT", "请先恢复已归档会话")
+            rows = self.s.db.execute("SELECT * FROM works WHERE conversation_id=? AND intent!='archived' ORDER BY rowid LIMIT 2", (conversation_id,)).fetchall()
+            if len(rows) > 1:
+                fail("CONFLICT", "此会话关联了多项既有工作，请先明确要维护哪一项")
+            if rows:
+                return {"work": self._work(dict(rows[0])), "created": False}
+            if self.s.db.execute("SELECT 1 FROM works WHERE conversation_id=? AND intent='archived' LIMIT 1", (conversation_id,)).fetchone():
+                fail("CONFLICT", "此会话的工作已归档，请先恢复原工作")
+            mode = self.s.db.execute("SELECT title_mode FROM conversations WHERE id=?", (conversation_id,)).fetchone()[0]
+            changed = mode != "explicit" and conversation["title"] != title
+            if changed:
+                self.s.db.execute("UPDATE conversations SET title=?,title_mode='auto',metadata_version=metadata_version+1,metadata_updated_at=? WHERE id=?", (title, self.s.clock(), conversation_id))
+                conversation = self.s._conversation(conversation_id)
+            elif mode == "pending":
+                # A later first-input autotitle must not override the work name.
+                self.s.db.execute("UPDATE conversations SET title_mode='auto' WHERE id=?", (conversation_id,))
+            if mode == "explicit":
+                title = conversation["title"]
+            result = self.create(title=title, goal=goal, conversation_id=conversation_id)
+            return {**result, "created": True, "conversation": conversation, "conversation_title_changed": changed}
+
+    def update_conversation(self, conversation_id, work_id, patch, weixin_scope=None):
+        """Model may update descriptive fields only on a work in its own conversation."""
+        if not isinstance(patch, dict) or not patch or set(patch) - {"title", "goal"}:
+            fail("INVALID_PARAMS", "只能修改本会话工作的名称和目标")
+        with self.s._transaction():
+            self._check_weixin_work_scope(conversation_id, weixin_scope)
+            conversation = self.s._conversation(conversation_id)
+            work = self._row("works", work_id)
+            if conversation["archived"] or work["conversation_id"] != conversation_id or work["intent"] == "archived":
+                fail("CONFLICT", "工作不属于当前可用会话或已归档")
+            return self.update(work_id=work_id, expected_revision=work["revision"], patch=patch)
+
     def list(self, include_archived=False, limit=100, offset=0):
         if type(include_archived) is not bool:
             fail("INVALID_PARAMS", "include_archived 必须为布尔值")
@@ -262,6 +325,10 @@ class WorkOwner:
         if "notifications" in patch:
             work["notifications_json"] = encoded({**json.loads(work["notifications_json"]), **switches(patch["notifications"], DEFAULT_NOTIFICATIONS)})
         with self.s._transaction():
+            if self._row("works", work_id)["revision"] != expected_revision:
+                fail("CONFLICT", "工作已改变，请刷新后重试")
+            if "intent" in patch and patch["intent"] != "watching" and self.s.db.execute("SELECT 1 FROM work_runs WHERE work_id=? AND status IN ('starting','running','cancelling')", (work_id,)).fetchone():
+                fail("CONFLICT", "请先停止活动运行，再结束或归档工作")
             self.s.db.execute("UPDATE works SET title=?,goal=?,intent=?,source_json=?,notifications_json=?,revision=revision+1,updated_at=?,observation_json=? WHERE id=?", (work["title"], work["goal"], work["intent"], work["source_json"], work["notifications_json"], self.s.clock(), work["observation_json"], work_id))
             self.s.db.execute("UPDATE work_approvals SET status='expired',token=NULL WHERE work_id=? AND status IN ('pending','approved')", (work_id,))
             if "source" in patch:
@@ -272,7 +339,12 @@ class WorkOwner:
                         if receipt is None: receipts[channel] = "suppressed"
                         elif isinstance(receipt, dict) and receipt.get("status") == "queued": receipts[channel] = {**receipt, "status": "suppressed"}
                     self.s.db.execute("UPDATE work_events SET deliveries_json=? WHERE event_id=?", (encoded(receipts), event["event_id"]))
-        return {"work": self._work(self._row("works", work_id))}
+            conversation = self.s._conversation(work["conversation_id"])
+            title_changed = ("title" in patch and work["intent"] != "archived" and not conversation["archived"]
+                and conversation["title"] != work["title"] and len(self.s.db.execute("SELECT id FROM works WHERE conversation_id=? LIMIT 2", (work["conversation_id"],)).fetchall()) == 1)
+            if title_changed:
+                conversation = self.s.conversation_patch(work["conversation_id"], conversation["metadata_version"], {"title": work["title"]})
+        return {"work": self._work(self._row("works", work_id)), "conversation": conversation, "conversation_title_changed": title_changed}
 
     def observe(self, work_id):
         work = self._row("works", work_id)

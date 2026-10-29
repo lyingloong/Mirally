@@ -95,6 +95,48 @@ test('desktop list distinguishes observed state, latest run, and ongoing work',(
   panel.filter='history';assert.doesNotMatch(stringify(panel.desktopList()),/第二轮/);
   panel.filter='current';panel.query='不匹配';assert.doesNotMatch(stringify(panel.desktopList()),/第二轮/);
 });
+test('work lists open their original conversation and keep a separate detail route for legacy records',()=>{
+  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');
+  const opened=[];panel.openConversation=id=>opened.push(id);panel.loaded=true;
+  panel.works=[{id:'work-1',conversation_id:'session-1',title:'GPU 监测',intent:'watching',status:'idle'},
+    {id:'legacy',title:'旧工作',intent:'watching',status:'idle'}];
+  panel.enterWork(panel.works[0]);assert.deepEqual(opened,['session-1']);assert.equal(panel.selected,'');
+  panel.choose('work-1');assert.equal(panel.selected,'work-1','details remain directly accessible');
+  panel.choose('');panel.enterWork(panel.works[1]);assert.equal(panel.selected,'legacy','a legacy work without a route still has details');
+  panel.selected='';panel.desktop=true;let text=stringify(panel.render());
+  assert.doesNotMatch(text,/建立工作记录|建立第一项工作/);assert.match(text,/GPU 监测/);assert.match(text,/详情/);assert.match(text,/待安排/);
+  panel.desktop=false;text=stringify(panel.render());assert.doesNotMatch(text,/建立工作记录/);assert.match(text,/GPU 监测/);assert.match(text,/详情/);
+});
+test('work page opens a linked work and clears its route when returning to the list',()=>{
+  const f=fixture('pages/mirally/work-page.ts',{consume:()=>()=>{},applicationContext:{},pathForRoute:(id,base)=>base+'/tasks',
+    renderSettingsPageHeader:()=>'',rpcProduct:()=>{},sessionNavigationTarget:()=>({options:{}})});
+  let location={pathname:'/app/tasks',search:'?work=work_123'},listener,stopped=false;
+  const router={getState:()=>({location}),subscribe:callback=>{listener=callback;return()=>{stopped=true;};}};
+  const page=f.run('new MirallyWorkPage()');page.context={basePath:'/app',router,replace:(id,options)=>{assert.equal(id,'tasks');location={...location,...options};listener();}};
+  page.updated();assert.equal(page.selectedWork,'work_123');
+  page.workSelected({detail:{work_id:''}});assert.equal(location.search,'');assert.equal(page.selectedWork,'');
+  location={...location,search:'?work=work_456'};listener();assert.equal(page.selectedWork,'work_456');
+  location={...location,search:'?work=bad%2Fid'};listener();assert.equal(page.selectedWork,'');
+  location={...location,search:'?filter=all'};listener();assert.equal(page.initialFilter,'all');
+  page.disconnectedCallback();assert.equal(stopped,true);
+});
+test('work list route can show archived records when a conversation has multiple legacy works',()=>{
+  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');
+  panel.loaded=true;panel.works=[{id:'archived',title:'旧关联工作',intent:'archived',status:'archived'}];
+  assert.doesNotMatch(stringify(panel.desktopList()),/旧关联工作/);
+  panel.initialFilter='all';panel.updated(new Map([['initialFilter','current']]));
+  assert.match(stringify(panel.desktopList()),/旧关联工作/);
+});
+test('source settings retain external monitoring without editing model-owned work content',async()=>{
+  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');
+  panel.selected='w';panel.detail={work:{id:'w',title:'GPU 监测',goal:'原来的任务',revision:4,intent:'watching',source:{kind:'json',root_id:'approved',path:'old.json'}},runs:[]};
+  panel.rpc=async(method,params)=>{f.calls.push({method,params});return {work:panel.detail?.work,runs:[]};};
+  panel.editWork(panel.detail.work);const rendered=stringify(panel.sourceForm());assert.match(rendered,/状态来源/);assert.doesNotMatch(rendered,/工作名称|希望得到什么/);
+  panel.draft.path='new.json';panel.saveSource({preventDefault(){}});await settle();
+  const update=f.calls.find(call=>call.method==='work.update');assert.equal(update.params.expected_revision,4);
+  assert.deepEqual(JSON.parse(JSON.stringify(update.params.patch)),{source:{kind:'json',root_id:'approved',path:'new.json'}});
+  assert.ok(f.calls.every(call=>call.method!=='work.create'));
+});
 test('desktop loads further work pages and refreshes the loaded range',async()=>{
   const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');
   panel.rpc=async(method,params)=>{f.calls.push({method,params});const start=params.offset;return {works:Array.from({length:start===0?200:1},(_,i)=>({id:'w'+(start+i),intent:'watching'})),has_more:start===0,next_offset:start+200};};
@@ -154,11 +196,9 @@ test('watching an external source never renders a stop or rerun of that process'
   const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');panel.detail={work:{id:'w',title:'外部实验',intent:'watching',source:{path:'experiment.json'},status:'observing'},runs:[]};
   const text=stringify(panel.workDetail());assert.match(text,/核对最新状态/);assert.doesNotMatch(text,/停止这次运行/);assert.doesNotMatch(text,/暂停/);
 });
-test('work create and prepare retries retain request IDs until reviewed content changes',async()=>{
+test('work preparation retries retain request IDs until reviewed content changes',async()=>{
   const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');panel.selected='w';
-  panel.rpc=async(method,params)=>{f.calls.push({method,params});if(['work.create','work.run.prepare'].includes(method))throw new Error('回执未知');return{work:{id:'w'},runs:[]};};
-  panel.draft={title:'实验 A',goal:'验证',source_kind:'none',path:''};panel.create({preventDefault(){}});await settle();panel.create({preventDefault(){}});await settle();
-  const creates=f.calls.filter(call=>call.method==='work.create');assert.equal(creates[0].params.request_id,creates[1].params.request_id);
+  panel.rpc=async(method,params)=>{f.calls.push({method,params});if(method==='work.run.prepare')throw new Error('回执未知');return{work:{id:'w'},runs:[]};};
   panel.runDraft={script:'run.py',arguments:'["--check"]',cwd:'.',output_paths:'result.txt',timeout:'300'};panel.prepare({preventDefault(){}});await settle();panel.prepare({preventDefault(){}});await settle();
   const prepares=f.calls.filter(call=>call.method==='work.run.prepare');assert.equal(prepares[0].params.request_id,prepares[1].params.request_id);
   panel.runDraft.arguments='["--changed"]';panel.prepare({preventDefault(){}});await settle();assert.notEqual(f.calls.filter(call=>call.method==='work.run.prepare').at(-1).params.request_id,prepares[0].params.request_id);
@@ -174,11 +214,9 @@ test('native outbox restores the exact Work ownership and refuses corrupt owners
   const restored=f.run('normalizeStoredQueueItem(entry)');assert.equal(restored.mirallyWork.title,'整理报告');assert.equal(restored.mirallyAllowFileWrite,true);
   f.sandbox.entry={...f.sandbox.entry,mirallyWork:{title:'',goal:9}};const invalid=f.run('normalizeStoredQueueItem(entry)');assert.equal(invalid.sendState,'failed');assert.match(invalid.sendError,/工作信息无法恢复/);
 });
-test('acknowledged work creation and preparation permit a new same-content user action',async()=>{
+test('acknowledged work preparation permits a new same-content user action',async()=>{
   const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');
-  panel.rpc=async(method,params)=>{f.calls.push({method,params});if(method==='work.create')return{work:{id:'w'+f.calls.length}};if(method==='work.run.prepare')return{approval:{id:'a'+f.calls.length,status:'pending'}};return{work:{id:panel.selected},runs:[]};};
-  const draft={title:'相同标题',goal:'相同目标',source_kind:'none',path:''};panel.draft={...draft};panel.create({preventDefault(){}});await settle();panel.draft={...draft};panel.create({preventDefault(){}});await settle();
-  const creates=f.calls.filter(call=>call.method==='work.create');assert.equal(creates.length,2);assert.notEqual(creates[0].params.request_id,creates[1].params.request_id);
+  panel.rpc=async(method,params)=>{f.calls.push({method,params});if(method==='work.run.prepare')return{approval:{id:'a'+f.calls.length,status:'pending'}};return{work:{id:panel.selected},runs:[]};};
   panel.runDraft={script:'run.py',arguments:'[]',cwd:'.',output_paths:'result.txt',timeout:'300'};
   panel.prepare({preventDefault(){}});await settle();panel.prepare({preventDefault(){}});await settle();
   const prepares=f.calls.filter(call=>call.method==='work.run.prepare');assert.equal(prepares.length,2);assert.notEqual(prepares[0].params.request_id,prepares[1].params.request_id);

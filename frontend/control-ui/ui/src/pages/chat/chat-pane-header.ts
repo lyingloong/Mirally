@@ -43,6 +43,7 @@ import { readChatSessionActionAccess } from "./chat-session-action-access.ts";
 import { renderBackgroundTasksToggle } from "./components/chat-background-tasks-render.ts";
 import type { BackgroundTasksProps } from "./components/chat-background-tasks.types.ts";
 import { isChatRunWorking } from "./components/chat-composer.ts";
+import { getProductHost } from "../mirally/api.ts";
 import "./components/chat-header-session-menu.ts";
 import type {
   HeaderMenuAction,
@@ -484,6 +485,10 @@ export abstract class ChatPaneHeader extends ChatPaneDiscussion {
       row,
     });
     const key = this.state?.sessionKey ?? "";
+    let mirallySessionKey = "";
+    try {
+      if (row && getProductHost().conversationIdForSession?.(row.key)) mirallySessionKey = row.key;
+    } catch { /* This menu is also used by hosts without Mirally's product API. */ }
     const result = this.state?.sessionsResult;
     const knownGroups = collectKnownSessionGroups(
       this.context.sessions?.state?.groups ?? [],
@@ -635,6 +640,9 @@ export abstract class ChatPaneHeader extends ChatPaneDiscussion {
               .forkDisabled=${this.state.sessionsLoading || row.modelSelectionLocked === true}
               .forkFromLastCompleted=${row.hasActiveRun === true}
               .contextCompacting=${this.isHeaderSessionCompacting(row)}
+              .mirallySessionKey=${mirallySessionKey}
+              .workPresented=${this.presented && this.active}
+              .workDisabledReason=${this.headerWorkDisabledReason(row)}
               .archiveAllowed=${archiveAllowed}
               .archiveShortcut=${this.active && this.presented && !this.onboarding}
               .deleteAllowed=${deleteAllowed}

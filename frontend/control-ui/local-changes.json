@@ -11,6 +11,7 @@
   "ui/src/app/bootstrap.ts": "Inject the Mirally HTTP/SSE client into the retained application context.",
   "ui/src/main.ts": "Disable the upstream Gateway service worker.",
   "ui/src/lib/chat/chat-types.ts": "Retain Mirally work ownership and explicit file-output permission on the exact native outbox item through admission, persistence, edit, retry and HTTP delivery.",
+  "ui/src/lib/chat/tool-display.ts": "Present Mirally work projection tools with clear product-language labels while preserving their original tool identities.",
   "ui/src/lib/chat/outbox-store-codec.ts": "Retain Mirally work ownership and explicit file-output permission on the exact native outbox item through admission, persistence, edit, retry and HTTP delivery.",
   "ui/src/pages/chat/chat-send-submit.ts": "Retain Mirally work ownership and explicit file-output permission on the exact native outbox item through admission, persistence, edit, retry and HTTP delivery.",
   "ui/src/pages/chat/chat-send-delivery.ts": "Retain Mirally work ownership and explicit file-output permission on the exact native outbox item through admission, persistence, edit, retry and HTTP delivery.",
