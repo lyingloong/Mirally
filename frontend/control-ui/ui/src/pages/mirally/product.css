@@ -7,7 +7,7 @@ mirally-extensions-page, mirally-channels-page { display: block; min-width: 0; w
 .mirally-product-field { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; font-size: var(--control-ui-text-sm); }
 .mirally-product-field input, .mirally-product-field select, .mirally-product-field textarea { width: 100%; max-width: 100%; box-sizing: border-box; }
 .mirally-product-field textarea { min-height: 96px; resize: vertical; }
-mirally-memory-page textarea.mirally-prose-input { font-family: var(--font-body); font-size: var(--control-ui-input-text-size); line-height: 1.6; }
+textarea.settings-input.mirally-prose-input { font-family: var(--font-body); font-size: var(--control-ui-input-text-size); line-height: 1.6; }
 .mirally-product-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .mirally-product-item { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4); overflow-wrap: anywhere; }
 .mirally-product-item + .mirally-product-item { border-top: 1px solid var(--border); }

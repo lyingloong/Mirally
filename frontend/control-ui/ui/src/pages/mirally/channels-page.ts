@@ -252,9 +252,10 @@ export class MirallyChannelsPage extends OpenClawLightDomElement {
 
   private workHelpSection() {
     return renderSettingsSection({title: '常用指令', description: '在微信发送“菜单”或“帮助”查看全部命令。'}, html`
-      ${renderSettingsRow({title: '新建会话', control: html`<code>/new</code>`, stackedOnNarrow: true})}
-      ${renderSettingsRow({title: '查看会话列表', control: html`<code>/sessions</code>`, stackedOnNarrow: true})}
-      ${renderSettingsRow({title: '切换会话', control: html`<code>/use 编号</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '新建会话', control: html`<code>新对话 [名称] · /new [名称]</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '查看会话列表', control: html`<code>会话 · /sessions</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '切换会话', control: html`<code>切换 完整标题或编号 · /use 编号</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '当前会话', control: html`<code>当前会话 · /status</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '回看聊天记录', description: '每次返回最近 6 条；按回复中的命令继续向前翻页。', control: html`<code>/history [更早游标]</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '查看工作列表', control: html`<code>/works</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '查看工作详情', control: html`<code>/work 工作编号</code>`, stackedOnNarrow: true})}

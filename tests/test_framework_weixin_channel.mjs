@@ -88,6 +88,8 @@ function fixture(t, {unbound = false, qrResults = [], sendText, updates} = {}) {
       }
       if (name === 'cursor') {current(params); state.cursor = params.cursor; return {state: snapshots()};}
       if (method === 'conversation.list') return {conversations: [{conversation_id: 'conversation-one', title: '桌面工作'}, {conversation_id: 'conversation-two', title: '另一项工作'}]};
+      if (method === 'internal.conversation.resolve') return {conversations: ['conversation-one', 'conversation-two']
+        .filter(id => id === params.selector).map(id => ({conversation_id: id, title: id === 'conversation-one' ? '桌面工作' : '另一项工作'}))};
       throw Error(`unsupported fixture RPC ${method}`);
     },
     conversation: async id => ({conversation_id: id, title: id === 'conversation-one' ? '桌面工作' : '微信对话'}),
@@ -240,15 +242,119 @@ test('Weixin admits only paired direct user messages and deduplicates one model 
   const message = inbound();
   await f.channel.receive(f.state(), message); await f.channel.receive(f.state(), message);
   assert.equal(f.calls.filter(call => call.kind === 'submit').length, 1);
+  await waitFor(() => [...f.deliveries.values()].some(delivery => delivery.status === 'sent'));
   f.completions.get(message.message_id).resolve({state: 'completed', text: '实验仍在运行', ref: {native_session_id: 'native', turn_id: 'turn'}});
   await Promise.all([...f.channel.jobs]);
   assert.equal(f.events.get(message.message_id).state, 'completed');
-  assert.equal(f.deliveries.size, 1);
+  assert.equal(f.deliveries.size, 2);
   await f.channel.pump();
   const sent = f.calls.filter(call => call.kind === 'send');
-  assert.equal(sent.length, 1); assert.equal(sent[0].options.text, '实验仍在运行');
+  assert.equal(sent.length, 2); assert.equal(sent[0].options.text, '收到，正在处理。');
+  assert.equal(sent[1].options.text, '实验仍在运行');
   assert.equal(sent[0].options.to, 'owner'); assert.equal(sent[0].options.contextToken, 'private-context');
-  assert.equal([...f.deliveries.values()][0].status, 'sent');
+  assert.ok([...f.deliveries.values()].every(delivery => delivery.status === 'sent'));
+});
+
+test('Weixin acknowledges an admitted slow turn before model completion, outside its transcript', async t => {
+  const f = fixture(t);
+  await f.channel.start();
+  await f.channel.receive(f.state(), inbound('slow-turn'));
+  await waitFor(() => f.calls.some(call => call.kind === 'send'));
+  assert.equal(f.events.get('slow-turn').state, 'submitted');
+  const receipt = [...f.deliveries.values()][0];
+  assert.match(receipt.key, /^received:/);
+  assert.equal(receipt.command_id, undefined, 'receipt does not wait for the model command to complete');
+  assert.equal(receipt.conversation_id, 'conversation-one');
+  assert.equal(f.calls.find(call => call.kind === 'send').options.text, '收到，正在处理。');
+  assert.equal(f.calls.filter(call => call.kind === 'submit').length, 1);
+  assert.equal(f.calls.find(call => call.kind === 'submit').event.text, '实验进展怎么样？');
+  f.completions.get('slow-turn').resolve({state: 'completed', text: '完成了', ref: {turn_id: 'slow'}});
+  await Promise.all([...f.channel.jobs]);
+  await f.channel.pump();
+  assert.deepEqual(f.calls.filter(call => call.kind === 'send').map(call => call.options.text), ['收到，正在处理。', '完成了']);
+});
+
+test('Weixin slow receipt delivery does not block a model result and preserves send order', async t => {
+  const pendingSend = deferred();
+  const f = fixture(t, {sendText: ({text}) => text === '收到，正在处理。' ? pendingSend.promise : {ret: 0}});
+  await f.channel.start();
+  await f.channel.receive(f.state(), inbound('slow-receipt'));
+  await waitFor(() => f.calls.some(call => call.kind === 'send'));
+  f.completions.get('slow-receipt').resolve({state: 'completed', text: '快速结果', ref: {turn_id: 'fast'}});
+  await Promise.all([...f.channel.jobs]);
+  assert.equal(f.events.get('slow-receipt').state, 'completed');
+  assert.equal(f.deliveries.size, 2, 'result is persisted while receipt send is still pending');
+  assert.equal(f.calls.filter(call => call.kind === 'send').length, 1);
+  pendingSend.resolve({ret: 0});
+  await f.channel.pump(); await f.channel.pump();
+  assert.deepEqual(f.calls.filter(call => call.kind === 'send').map(call => call.options.text), ['收到，正在处理。', '快速结果']);
+});
+
+test('Weixin unknown receipt delivery never repeats the receipt or the model and does not suppress its result', async t => {
+  const f = fixture(t, {sendText: ({text}) => {
+    if (text === '收到，正在处理。') throw new WeixinApiError('lost receipt', {kind: 'network', deliveryState: 'unknown'});
+    return {ret: 0};
+  }});
+  await f.channel.start();
+  await f.channel.receive(f.state(), inbound('lost-receipt'));
+  await waitFor(() => [...f.deliveries.values()].some(delivery => delivery.status === 'unknown'));
+  f.completions.get('lost-receipt').resolve({state: 'completed', text: '最终结果', ref: {turn_id: 'done'}});
+  await Promise.all([...f.channel.jobs]);
+  await f.channel.pump(); await f.channel.pump();
+  await f.channel.receive(f.state(), inbound('lost-receipt'));
+  assert.equal(f.calls.filter(call => call.kind === 'submit').length, 1);
+  assert.deepEqual(f.calls.filter(call => call.kind === 'send').map(call => call.options.text), ['收到，正在处理。', '最终结果']);
+});
+
+test('Weixin receipt storage failure cannot turn an accepted command into a failed or replayed input', async t => {
+  const f = fixture(t);
+  const rpc = f.product.rpc;
+  f.product.rpc = async (method, params) => {
+    if (method === 'channel.weixin.enqueue' && params.key.startsWith('received:')) throw Error('receipt storage failure');
+    return rpc(method, params);
+  };
+  await f.channel.receive(f.state(), inbound('unrecorded-receipt'));
+  assert.equal(f.events.get('unrecorded-receipt').state, 'submitted');
+  f.completions.get('unrecorded-receipt').resolve({state: 'completed', text: '保留正确结果', ref: {turn_id: 'saved'}});
+  await Promise.all([...f.channel.jobs]);
+  assert.equal(f.events.get('unrecorded-receipt').state, 'completed');
+  assert.deepEqual([...f.deliveries.values()].map(delivery => delivery.text), ['保留正确结果']);
+  assert.equal(f.calls.filter(call => call.kind === 'submit').length, 1);
+});
+
+test('Weixin never acknowledges rejected or busy inputs as processing', async t => {
+  for (const code of ['conversation_busy', 'weixin_scope_revoked']) {
+    const f = fixture(t);
+    f.product.sendWeixin = async () => {throw Object.assign(Error('not admitted'), {code});};
+    await f.channel.receive(f.state(), inbound(`rejected-${code}`));
+    assert.ok([...f.deliveries.values()].every(delivery => !delivery.key.startsWith('received:')));
+    assert.equal(f.deliveries.size, 1, 'rejection has its own actionable reply');
+  }
+});
+
+test('Weixin discards a queued processing notice once its turn has ended', async t => {
+  const f = fixture(t);
+  await f.channel.start();
+  const pump = f.channel.pump.bind(f.channel);
+  f.channel.pump = async () => {};
+  await f.channel.receive(f.state(), inbound('fast-turn'));
+  f.completions.get('fast-turn').resolve({state: 'completed', text: '直接送达结果', ref: {turn_id: 'fast'}});
+  await Promise.all([...f.channel.jobs]);
+  f.channel.pump = pump;
+  await pump();
+  assert.equal([...f.deliveries.values()].find(delivery => delivery.key.startsWith('received:')).status, 'cancelled');
+  assert.deepEqual(f.calls.filter(call => call.kind === 'send').map(call => call.options.text), ['直接送达结果']);
+});
+
+test('Weixin restart cannot replay a persisted processing notice from an earlier process', async t => {
+  const f = fixture(t);
+  await f.channel.store('enqueue', {installation_id: 'installation', revision: 1,
+    key: 'received:interrupted-command', conversation_id: 'conversation-one',
+    text: '收到，正在处理。', context_token: 'private-context'});
+  await f.channel.start();
+  await f.channel.pump();
+  assert.equal([...f.deliveries.values()][0].status, 'cancelled');
+  assert.equal(f.calls.filter(call => call.kind === 'send').length, 0);
 });
 
 test('Weixin malformed or stale timestamps become rejected events without blocking later input', async t => {
@@ -282,39 +388,42 @@ test('Weixin startup reconciles a failed submission without conflicting with an 
   assert.ok(f.channel.connection);
 });
 
-test('Weixin sends a multipart reply sequentially under one receipt and never retries unknown suffixes', async t => {
+test('Weixin sends a multipart reply sequentially under one delivery and never retries unknown suffixes', async t => {
   let attempt = 0;
-  const f = fixture(t, {sendText: async () => {
+  const f = fixture(t, {sendText: async ({text}) => {
+    if (text === '收到，正在处理。') return {ret: 0};
     attempt++; if (attempt === 2) throw new WeixinApiError('fixture network failure', {code: 'network', kind: 'network', deliveryState: 'unknown'});
     return {ret: 0};
   }});
   await f.channel.start();
   await f.channel.receive(f.state(), inbound());
+  await waitFor(() => [...f.deliveries.values()].some(delivery => delivery.status === 'sent'));
   f.completions.get('message-one').resolve({state: 'completed', text: '中'.repeat(10000), ref: {turn_id: 'long'}});
   await Promise.all([...f.channel.jobs]);
-  assert.equal(f.deliveries.size, 1, 'multipart text is a single durable delivery');
+  assert.equal([...f.deliveries.values()].filter(delivery => delivery.command_id).length, 1, 'multipart result is a single durable delivery');
   await f.channel.pump();
-  const sent = f.calls.filter(call => call.kind === 'send');
+  const sent = f.calls.filter(call => call.kind === 'send' && call.options.text !== '收到，正在处理。');
   assert.equal(sent.length, 2);
   assert.match(sent[0].options.text, /^\[1\/3\]/); assert.match(sent[1].options.text, /^\[2\/3\]/);
   assert.notEqual(sent[0].options.clientId, sent[1].options.clientId);
-  const delivery = [...f.deliveries.values()][0];
+  const delivery = [...f.deliveries.values()].find(delivery => delivery.command_id);
   assert.equal(delivery.status, 'unknown');
   assert.equal(delivery.receipt.accepted_parts, 1); assert.equal(delivery.receipt.failed_part, 1);
-  await f.channel.pump(); assert.equal(f.calls.filter(call => call.kind === 'send').length, 2);
+  await f.channel.pump(); assert.equal(f.calls.filter(call => call.kind === 'send').length, 3);
 });
 
 test('Weixin rechecks source authorization before every outgoing segment', async t => {
   let alreadySent = false;
-  const f = fixture(t, {sendText: async () => {alreadySent = true; return {ret: 0};}});
+  const f = fixture(t, {sendText: async ({text}) => {if (text !== '收到，正在处理。') alreadySent = true; return {ret: 0};}});
   f.product.canDeliverWeixin = async () => !alreadySent;
   await f.channel.start();
   await f.channel.receive(f.state(), inbound());
+  await waitFor(() => [...f.deliveries.values()].some(delivery => delivery.status === 'sent'));
   f.completions.get('message-one').resolve({state: 'completed', text: 'x'.repeat(8000), ref: {turn_id: 'revocable'}});
   await Promise.all([...f.channel.jobs]);
   await f.channel.pump();
-  assert.equal(f.calls.filter(call => call.kind === 'send').length, 1, 'later segments stop when source permissions change');
-  const delivery = [...f.deliveries.values()][0];
+  assert.equal(f.calls.filter(call => call.kind === 'send').length, 2, 'later segments stop when source permissions change');
+  const delivery = [...f.deliveries.values()].find(delivery => delivery.command_id);
   assert.equal(delivery.status, 'cancelled'); assert.equal(delivery.receipt.accepted_parts, 1);
 });
 
@@ -367,10 +476,12 @@ test('Weixin unbind cancels pending work and makes stale routes unusable; stop c
   const route = f.state();
   await f.channel.receive(route, inbound());
   await f.channel.request('weixin.unbind', {expected_revision: route.revision});
+  const sendsAtUnbind = f.calls.filter(call => call.kind === 'send').length;
   assert.equal(f.state().token, null); assert.equal(f.state().enabled, false);
   assert.equal(f.calls.find(call => call.kind === 'poll').options.signal.aborted, true);
   await assert.rejects(f.channel.authorize(route), {code: 'weixin_scope_revoked'});
-  assert.equal(f.calls.filter(call => call.kind === 'send').length, 0);
+  await f.channel.pump();
+  assert.equal(f.calls.filter(call => call.kind === 'send').length, sendsAtUnbind);
   await f.channel.stop();
   assert.equal(f.channel.closed, true); assert.equal(f.channel.connection, null); assert.equal(f.channel.jobs.size, 0);
 });
@@ -436,8 +547,8 @@ test('Weixin Chinese menu is deterministic and requires no mobile webpage', asyn
 
 test('Weixin can switch to a complete short legacy conversation ID without allowing short ambiguous prefixes', async t => {
   const f = fixture(t), rpc = f.product.rpc;
-  f.product.rpc = (method, params) => method === 'conversation.list'
-    ? {conversations: [{conversation_id: 'main', title: '主会话'}, {conversation_id: 'main-other', title: '其他'}]}
+  f.product.rpc = (method, params) => method === 'internal.conversation.resolve'
+    ? {conversations: params.selector === 'main' ? [{conversation_id: 'main', title: '主会话'}] : []}
     : rpc(method, params);
   await f.channel.receive(f.state(), inbound('use-too-short-prefix', '/use mai'));
   assert.equal(f.state().conversation_id, 'conversation-one');

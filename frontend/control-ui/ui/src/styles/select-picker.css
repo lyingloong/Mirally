@@ -24,7 +24,7 @@ wa-select.settings-select:focus-within::part(combobox),
 wa-select.settings-select::part(expand-icon),
 .picker-select__chevron {
   margin-inline-start: var(--space-2);
-  font-size: var(--control-ui-text-sm);
+  font-size: var(--control-ui-text-md);
   color: var(--muted);
 }
 
@@ -48,7 +48,7 @@ wa-select.settings-select wa-option,
 
   padding: 6px 8px;
   border-radius: calc(var(--radius-md) - 4px);
-  font-size: var(--control-ui-text-sm);
+  font-size: var(--control-ui-text-md);
   color: var(--text);
   cursor: var(--cursor-action);
 }
@@ -96,7 +96,7 @@ wa-select.settings-select wa-option::part(checked-icon),
   min-width: 0;
   overflow: hidden;
   color: color-mix(in srgb, var(--muted) 80%, var(--text));
-  font-size: 0.75rem;
+  font-size: var(--control-ui-text-sm);
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: normal;
@@ -154,7 +154,7 @@ openclaw-select-picker {
   gap: 8px;
   width: 100%;
   font: inherit;
-  font-size: var(--control-ui-text-sm);
+  font-size: var(--control-ui-text-md);
   text-align: start;
 }
 

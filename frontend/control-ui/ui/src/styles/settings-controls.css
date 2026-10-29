@@ -104,11 +104,23 @@ wa-radio-group.settings-segmented::part(form-control-label) {
   clip: rect(0, 0, 0, 0);
 }
 
+/* The visible row owns the label; keep the component's slotted accessible
+   label from leaving a label-to-control gap above the select. */
+wa-select.settings-select:has(> .settings-control__sr-label)::part(form-control-label) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
 /* The parent selector also wins over the shared .btn hover/active chrome. */
 .settings-segmented > .settings-segmented__btn {
   display: inline-flex;
   align-items: center;
-  font-size: var(--control-ui-text-sm);
+  font-size: var(--control-ui-text-md);
   font-weight: 550;
   padding: 0 12px;
   border: none;
@@ -126,7 +138,7 @@ wa-radio-group.settings-segmented::part(form-control-label) {
 .settings-segmented--accent > .settings-segmented__btn {
   min-height: 28px;
   padding: 4px 12px;
-  font-size: 12px;
+  font-size: var(--control-ui-text-md);
   font-weight: 500;
   color: var(--text);
   transition:
@@ -140,7 +152,7 @@ wa-radio-group.settings-segmented::part(form-control-label) {
   align-items: normal;
   flex: 1;
   padding: 6px 12px;
-  font-size: 12px;
+  font-size: var(--control-ui-text-md);
   font-weight: 600;
   white-space: normal;
   transition:
@@ -151,7 +163,7 @@ wa-radio-group.settings-segmented::part(form-control-label) {
 
 .settings-segmented--compact > .settings-segmented__btn {
   padding: 0 6px;
-  font-size: 10px;
+  font-size: var(--control-ui-text-sm);
 }
 
 .settings-segmented > .settings-segmented__btn--active {
@@ -223,11 +235,12 @@ wa-radio-group.settings-segmented::part(form-control-label) {
 
   .settings-segmented__btn[data-compact-label]::after {
     content: attr(data-compact-label);
-    font-size: var(--control-ui-text-sm);
+    font-size: var(--control-ui-text-md);
   }
 }
 
 input.settings-input,
+select.settings-input:not([multiple]),
 select.settings-select:not([multiple]) {
   height: var(--settings-control-height);
   padding-block: 0;
@@ -248,9 +261,17 @@ select.settings-select:not([multiple]) {
 }
 
 .settings-select {
-  --control-ui-touch-input-size: var(--control-ui-text-sm);
+  --control-ui-touch-input-size: var(--control-ui-text-md);
 
-  font-size: var(--control-ui-text-sm);
+  font-size: var(--control-ui-text-md);
+}
+
+/* A native popup otherwise falls back to the platform option font instead of
+   the selected interface face. Keep desktop choices on the same type ramp. */
+select:is(.settings-input, .settings-select) > :is(option, optgroup) {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-elevated);
 }
 
 @media (pointer: coarse) {

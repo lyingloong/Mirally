@@ -20,6 +20,9 @@ test('real session experiment is readable and controllable over bound Weixin', {
   if(!existsSync(python)||!existsSync(join(root,'kernel/dsh/packages/core/agent/lib/index.js'))){t.skip('requires built kernel');return;}
   const home=await mkdtemp(join(tmpdir(),'mirally weixin e2e 中文 '));
   const queue=[], replies=[], modelErrors=[], requests=[]; let child, logs='', jobId, remoteHintSeen=false;
+  let releaseProgress;
+  const progressGate=new Promise(resolve=>{releaseProgress=resolve;});
+  let progressReleased=false;
   const fixture=createServer(async(req,res)=>{
     try{
       const chunks=[];for await(const chunk of req)chunks.push(chunk);
@@ -37,6 +40,7 @@ test('real session experiment is readable and controllable over bound Weixin', {
       const toolResults=suffix.filter(m=>m.role==='tool');
       requests.push({prompt,last:last?.role,toolResults});
       const turn=prompt.includes('桌面启动实验')?'start':prompt.includes('微信查询进度')?'progress':prompt.includes('微信停止实验')?'stop':prompt.includes('微信启动新命令')?'remote_start':prompt.includes('微信询问方案')?'question':null;
+      if(turn==='progress'&&!progressReleased) await progressGate;
       if(turn==='remote_start' && JSON.stringify(input.messages).includes('Remote commands, isolated browser actions and desktop observation are available')) remoteHintSeen=true;
       if(!turn) throw Error('unexpected user prompt '+prompt);
       let tool, args;
@@ -59,6 +63,7 @@ test('real session experiment is readable and controllable over bound Weixin', {
   });
   await new Promise(resolve=>fixture.listen(0,'127.0.0.1',resolve));
   t.after(async()=>{
+    releaseProgress();
     if(child?.exitCode===null){child.stdin.end();try{await Promise.race([once(child,'exit'),delay(7000).then(()=>{throw Error('cleanup timeout');})]);}catch{child.kill();await Promise.race([once(child,'exit'),delay(3000)]);}}
     fixture.closeAllConnections();await new Promise(resolve=>fixture.close(resolve));
     const canonical=await realpath(home);assert.equal(dirname(canonical),await realpath(tmpdir()));assert.ok(basename(canonical).startsWith('mirally weixin e2e 中文 '));await rm(canonical,{recursive:true,force:true});
@@ -85,6 +90,9 @@ test('real session experiment is readable and controllable over bound Weixin', {
   await until(async()=>(await rpc('command.list',{conversation_id:session.id,command_id:'desktop-start'})).commands.some(x=>x.state==='completed'),'desktop turn complete');
   const send=(id,text)=>queue.push({message_type:1,message_state:2,message_id:String(id),from_user_id:'owner',to_user_id:'bot',create_time_ms:Date.now(),context_token:'fixture-context',item_list:[{type:1,text_item:{text}}]});
   send(1,'微信查询进度');
+  await until(()=>replies.includes('收到，正在处理。'),'receipt before model completes');
+  assert.equal(replies.some(text=>text.includes('EXPERIMENT_PROGRESS_73')),false);
+  progressReleased=true;releaseProgress();
   await until(()=>replies.some(text=>text.includes('EXPERIMENT_PROGRESS_73')),'progress reply');
   send(2,'微信停止实验');
   await until(()=>requests.some(x=>x.prompt.includes('微信停止实验') && x.toolResults.length),'disabled stop');
@@ -110,8 +118,8 @@ test('real session experiment is readable and controllable over bound Weixin', {
   const approvedStart=await until(()=>replies.slice(startAgain).find(text=>text.includes('/approve ')),'remote command second approval');
   send(10,`/approve ${approvedStart.match(/\/approve ([a-f0-9]{16})/)[1]}`);
   await until(()=>existsSync(join(home,'remote-marker.txt')),'approved remote command effect');
-  assert.equal((await readFile(join(home,'remote-marker.txt'),'utf8')).trim(),'yes');
   await until(()=>replies.slice(startAgain).some(text=>text.includes('实验结果')),'remote command completed');
+  assert.equal((await readFile(join(home,'remote-marker.txt'),'utf8')).trim(),'yes');
   await rm(join(home,'remote-marker.txt'));
   // Global trust does not automatically grant a paired channel trust. Its
   // separate switch takes effect for the next remote command in either direction.
@@ -150,6 +158,48 @@ test('real session experiment is readable and controllable over bound Weixin', {
   const history=await api(`/api/sessions/${session.id}/history`);
   assert.ok(history.messages.some(message=>message.role==='user'&&message.input_origin==='desktop'&&message.text==='桌面启动实验'));
   assert.ok(history.messages.some(message=>message.role==='user'&&message.input_origin==='weixin'&&message.text==='微信查询进度'));
+  assert.equal(history.messages.some(message=>message.text==='收到，正在处理。'),false,'transport receipt does not enter model history');
   assert.equal(remoteHintSeen,true,'enabled WeChat capability context must reach the model');
+
+  // Phone controls use the same durable product owner and native DSH history.
+  // They do not submit a router-model turn or create a channel-only transcript.
+  const target=await api('/api/sessions',{title:'手机切换目标'},201);
+  const controlsAt=requests.length, switchAt=replies.length;
+  send(201,'切换 手机切换目标');
+  await until(async()=>(await rpc('weixin.status')).conversation_id===target.id,'Chinese exact-title route');
+  await until(()=>replies.slice(switchAt).some(text=>text==='已切换到：手机切换目标'),'Chinese switch feedback');
+  const listAt=replies.length;send(202,'会话');
+  await until(()=>replies.slice(listAt).some(text=>text.includes('当前 · 手机切换目标')),'Chinese list marks selected desktop conversation');
+  assert.equal(requests.length,controlsAt,'channel navigation never invokes the model');
+  const namedAt=replies.length;send(203,'新对话 微信命名对话');
+  const named=await until(async()=>{
+    const state=await rpc('weixin.status');
+    return state.conversation_id!==target.id&&state.conversation_title==='微信命名对话'&&state;
+  },'named conversation owner selection');
+  assert.match(named.conversation_id,/^conversation_weixin_[a-f0-9]{32}$/);
+  await until(()=>replies.slice(namedAt).some(text=>text==='已切换到：微信命名对话'),'named conversation feedback');
+  const listed=(await api('/api/sessions')).sessions.find(item=>item.id===named.conversation_id);
+  assert.equal(listed.title,'微信命名对话');
+  assert.equal(requests.length,controlsAt,'named creation stays outside model context');
+  // The preceding revocation check deliberately disabled remote tools. Native
+  // structured questions use that existing permission, so enable it explicitly.
+  await rpc('settings.update',{patch:{weixin_remote_control_enabled:true}});
+  const namedTurnAt=replies.length, namedPrompt='微信询问方案：微信命名对话验证';
+  send(204,namedPrompt);
+  const namedQuestion=await until(()=>replies.slice(namedTurnAt).find(text=>text.includes('/answer ')),'named native session question').catch(async error=>{
+    error.message+=` replies=${JSON.stringify(replies.slice(namedTurnAt))} errors=${modelErrors.map(item=>item.message)} commands=${JSON.stringify(await rpc('command.list',{conversation_id:named.conversation_id}))}`;
+    throw error;
+  });
+  send(205,`/answer ${namedQuestion.match(/\/answer ([a-f0-9]{16})/)[1]} 方案 A`);
+  await until(()=>replies.slice(namedTurnAt).some(text=>text.includes('实验结果')&&text.includes('方案 A')),'named native turn completes');
+  const namedHistory=await api(`/api/sessions/${named.conversation_id}/history`);
+  assert.ok(namedHistory.messages.some(message=>message.role==='user'&&message.input_origin==='weixin'&&message.text===namedPrompt));
+  assert.ok(namedHistory.messages.some(message=>message.role==='assistant'&&message.text.includes('方案 A')));
+  assert.equal(namedHistory.messages.some(message=>message.role==='user'&&message.text.startsWith('新对话 ')),false);
+  assert.equal((await api(`/api/sessions/${target.id}/history`)).messages.some(message=>message.text===namedPrompt),false);
+  assert.equal((await api(`/api/sessions/${session.id}/history`)).messages.some(message=>message.text===namedPrompt),false);
+  send(206,'切换 实验');
+  await until(async()=>(await rpc('weixin.status')).conversation_id===session.id,'Chinese return to original desktop conversation');
+  assert.ok((await api(`/api/sessions/${session.id}/history`)).messages.some(message=>message.text==='桌面启动实验'));
   assert.deepEqual(modelErrors,[]);
 });

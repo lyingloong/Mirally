@@ -385,7 +385,7 @@ html:is(.openclaw-native-macos, .openclaw-native-nav, .openclaw-native-web-chrom
   background: transparent;
   color: var(--muted);
   font: inherit;
-  font-size: calc(12.5px * var(--control-ui-text-scale));
+  font-size: var(--control-ui-text-md);
   font-weight: 550;
   transition:
     background var(--duration-fast) ease,
@@ -426,7 +426,7 @@ html:is(.openclaw-native-macos, .openclaw-native-nav, .openclaw-native-web-chrom
   background: color-mix(in srgb, var(--card) 70%, transparent);
   color: var(--muted);
   font-family: var(--mono);
-  font-size: calc(10px * var(--control-ui-text-scale));
+  font-size: var(--control-ui-text-xs);
   font-weight: 550;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -435,10 +435,10 @@ html:is(.openclaw-native-macos, .openclaw-native-nav, .openclaw-native-web-chrom
 .settings-sidebar__title {
   margin: 14px 0 0;
   padding: 0 9px;
-  font-size: calc(21px * var(--control-ui-text-scale));
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
+  font-size: var(--control-ui-text-title);
+  font-weight: 600;
+  letter-spacing: normal;
+  line-height: 1.35;
   color: var(--text-strong);
 }
 
@@ -553,7 +553,7 @@ html:is(.openclaw-native-macos, .openclaw-native-nav, .openclaw-native-web-chrom
   background: color-mix(in srgb, var(--card) 72%, transparent);
   color: var(--text);
   font: inherit;
-  font-size: calc(12.5px * var(--control-ui-text-scale));
+  font-size: var(--control-ui-text-md);
   outline: none;
   transition:
     border-color var(--duration-fast) ease,
@@ -614,7 +614,7 @@ html:is(.openclaw-native-macos, .openclaw-native-nav, .openclaw-native-web-chrom
 .settings-sidebar__empty {
   margin: 8px 9px 0;
   color: var(--muted);
-  font-size: calc(12.5px * var(--control-ui-text-scale));
+  font-size: var(--control-ui-text-sm);
   line-height: 1.45;
 }
 

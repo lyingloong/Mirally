@@ -267,7 +267,7 @@
 }
 
 .settings-theme-card__label {
-  font-size: 13px;
+  font-size: var(--control-ui-text-md);
   font-weight: 600;
   color: var(--text);
   overflow: hidden;
@@ -584,14 +584,14 @@
 }
 
 .settings-theme-import__title {
-  font-size: 13px;
+  font-size: var(--control-ui-text-md);
   font-weight: 650;
   color: var(--text-strong);
 }
 
 .settings-theme-import__hint {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--control-ui-text-sm);
   line-height: 1.45;
   color: var(--muted);
 }
@@ -603,7 +603,7 @@
   width: max-content;
   max-width: 100%;
   color: var(--accent);
-  font-size: 12px;
+  font-size: var(--control-ui-text-sm);
   font-weight: 600;
 }
 
@@ -622,7 +622,7 @@
 
 .settings-theme-import__inline-hint {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--control-ui-text-sm);
   line-height: 1.5;
   color: var(--muted);
 }
@@ -637,10 +637,9 @@
 }
 
 .settings-theme-import__label {
-  font-size: 12px; /* was 11px */
+  font-size: var(--control-ui-text-sm);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: normal;
   color: var(--muted);
 }
 
@@ -677,15 +676,14 @@
 }
 
 .settings-theme-import__meta-label {
-  font-size: 12px; /* was 11px */
+  font-size: var(--control-ui-text-sm);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: normal;
   color: var(--muted);
 }
 
 .settings-theme-import__meta-value {
-  font-size: 12px;
+  font-size: var(--control-ui-text-sm);
   color: var(--text);
   overflow-wrap: anywhere;
 }
@@ -693,7 +691,7 @@
 .settings-theme-import__message {
   padding: 10px 12px;
   border-radius: var(--radius-md);
-  font-size: 12px;
+  font-size: var(--control-ui-text-sm);
   line-height: 1.45;
 }
 
@@ -747,13 +745,13 @@
 
 .settings-text-scale__sample {
   font-weight: 650;
-  font-size: 13px;
+  font-size: var(--control-ui-text-md);
   line-height: 1.2;
 }
 
 .settings-text-scale__label {
   color: var(--muted);
-  font-size: 12px; /* was 11px */
+  font-size: var(--control-ui-text-sm);
   line-height: 1.2;
 }
 

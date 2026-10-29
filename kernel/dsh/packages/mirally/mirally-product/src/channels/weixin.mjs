@@ -1,12 +1,23 @@
 /** Product channel: no model loop, transcript or authority is owned here. */
-import {randomUUID} from 'node:crypto';
+import {createHash, randomUUID} from 'node:crypto';
 import {WeixinApi, validateWeixinBaseUrl} from './weixin-api.mjs';
 import {WeixinWorks, WORK_HELP} from './weixin-work.mjs';
 
 const MAX_AGE = 10 * 60_000;
 const LOGIN_TTL = 5 * 60_000;
-const HELP = '这是你的 Mirally 微信入口。电脑保持 Mirally 联网运行即可，无需自建云服务器或打开网页。\n会话：\n/new 新建会话\n/sessions 列出会话\n/use 编号 切换会话\n/history [更早游标] 回看当前会话正文\n/status 查看当前会话\n/stop 停止当前回复\n/help 或“菜单”查看帮助\n动作确认：收到完整详情后用 /approve 确认码 或 /deny 确认码。\n回答问题：/answer 问题码 [题号] 回答。\n' + WORK_HELP;
-const TEXT_CONTROLS = new Map([['菜单', '/help'], ['帮助', '/help'], ['会话列表', '/sessions'], ['查看历史', '/history']]);
+const HELP = 'Mirally 微信菜单\n会话（/sessions）\n切换 完整标题或编号（/use）\n新对话 [名称]（/new）\n当前会话（/status）\n查看历史（/history [更早游标]）\n停止回复（/stop）\n菜单（/help）\n\n电脑保持 Mirally 联网运行，无需自建云服务器或打开网页。\n动作确认：/approve 确认码；拒绝：/deny 确认码。\n回答问题：/answer 问题码 [题号] 回答。\n' + WORK_HELP;
+const TEXT_CONTROLS = new Map([['菜单', '/help'], ['帮助', '/help'], ['会话', '/sessions'], ['会话列表', '/sessions'],
+  ['当前会话', '/status'], ['新对话', '/new'], ['查看历史', '/history'], ['停止回复', '/stop']]);
+const controlText = text => {
+  const exact = TEXT_CONTROLS.get(text);
+  if (exact) return exact;
+  // Explicit, single-line commands only. Ordinary requests keep their exact
+  // wording and go to the selected model conversation, without a router model.
+  const match = /^(切换会话|切换|新对话)[ \t]+([^\r\n]+)$/.exec(text);
+  return match ? `${match[1] === '新对话' ? '/new' : '/use'} ${match[2].trim()}` : null;
+};
+const shortConversationId = item => item.conversation_id.replace(/^conversation_/, '').slice(0, 12);
+const conversationLine = item => `${String(item.title ?? '').replace(/\s+/g, ' ')}\n切换 ${shortConversationId(item)}`;
 const blocked = () => Object.assign(new Error('微信绑定或会话已改变，请重新发起。'), {code: 'weixin_scope_revoked', status: 403});
 const pause = (ms, signal) => new Promise(resolve => {
   if (signal?.aborted) return resolve();
@@ -43,6 +54,7 @@ export class WeixinChannel {
     this.phase = 'unbound';
     this.error = '';
     this.jobs = new Set();
+    this.receipts = new Set();
     this.closed = false;
     this.management = Promise.resolve();
     this.works = new WeixinWorks(this);
@@ -279,7 +291,7 @@ export class WeixinChannel {
       if (message.context_token) await this.reply(event, '当前只支持新收到的文字消息，请重新发送文字。', {control: true});
       return;
     }
-    if (text.startsWith('/') || TEXT_CONTROLS.has(text) || this.works.handles(text)) {
+    if (text.startsWith('/') || controlText(text) || this.works.handles(text)) {
       try {
         if (this.works.handles(text)) await this.works.control(event);
         else await this.control(event, state);
@@ -293,7 +305,13 @@ export class WeixinChannel {
       await this.store('event', {installation_id: event.installation_id, event_id: id, state: 'submitted'});
       const accepted = await this.product.sendWeixin(event);
       if (!accepted.accepted) throw blocked();
-      const job = this.finish(event).catch(() => {}).finally(() => this.jobs.delete(job));
+      // This is transport feedback, not another model message or a completed
+      // result. A failed receipt must never reject or replay an admitted turn.
+      await this.acknowledge(event).catch(() => { this.error = '消息已接入，但接收反馈未能发送。'; });
+      const job = this.finish(event).catch(() => {}).finally(() => {
+        this.receipts.delete(`received:${event.command_id}`);
+        this.jobs.delete(job);
+      });
       this.jobs.add(job);
     } catch (error) {
       await this.store('event', {installation_id: event.installation_id, event_id: id, state: error.code === 'conversation_busy' ? 'rejected' : 'unknown'});
@@ -304,8 +322,8 @@ export class WeixinChannel {
 
   async control(event, state) {
     const text = event.text.trim();
-    const [name, ...arguments_] = (TEXT_CONTROLS.get(text) ?? text).split(/\s+/);
-    const value = arguments_.join(' ');
+    const [, name, argument = ''] = /^(\S+)(?:\s+([\s\S]*))?$/.exec(controlText(text) ?? text);
+    const value = argument.trim();
     const current = await this.authorize(event);
     if (name === '/approve' || name === '/deny') {
       if (!/^[a-f0-9]{16}$/.test(value)) throw blocked();
@@ -324,11 +342,13 @@ export class WeixinChannel {
     } else if (name === '/help') await this.reply(event, HELP, {control: true});
     else if (name === '/status') {
       const conversation = await this.product.conversation(event.conversation_id);
-      await this.reply(event, `当前会话：${conversation.title}\n${this.product.summary(conversation).status === 'running' ? '正在回复' : '可以发送文字'}\n${HELP}`, {control: true});
+      await this.reply(event, `当前会话：${conversation.title}\n${this.product.summary(conversation).status === 'running' ? '正在回复' : '可以发送文字'}\n\n会话 · 查看历史 · 菜单`, {control: true});
     } else if (name === '/sessions') {
       const rows = (await this.product.rpc('conversation.list', {archived_filter: 'active', limit: 20})).conversations;
-      const shortId = item => item.conversation_id.replace(/^conversation_/, '').slice(0, 12);
-      await this.reply(event, '最近会话（最多 20 项）。发送 /use 编号 切换；/new 新建。\n' + rows.map(item => `${shortId(item)}  ${item.title}`).join('\n'), {control: true});
+      await this.reply(event, rows.length ? '最近会话\n\n' + rows.map(item =>
+        `${item.conversation_id === event.conversation_id ? '当前 · ' : ''}${conversationLine(item)}`).join('\n\n')
+        + '\n\n可复制“切换 编号”，或发送“切换 完整标题”。新对话 [名称]'
+        : '暂无会话。发送“新对话”开始。', {control: true});
     } else if (name === '/history') {
       if (value && (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)))) {
         await this.reply(event, '用法：/history 查看最近正文；更早记录使用上一页给出的 /history 数字游标。', {control: true});
@@ -353,14 +373,37 @@ export class WeixinChannel {
     } else if (name === '/new' || name === '/use') {
       let conversationId;
       if (name === '/use') {
-        if (!/^[A-Za-z0-9_-]{1,128}$/.test(value)) throw blocked();
-        const rows = (await this.product.rpc('conversation.list', {archived_filter: 'active', limit: 200})).conversations;
-        const exact = rows.filter(item => item.conversation_id === value);
-        const matches = exact.length ? exact : rows.filter(item => value.length >= 8 && item.conversation_id.replace(/^conversation_/, '').startsWith(value));
-        if (matches.length !== 1) throw blocked();
+        if (!value || Array.from(value).length > 512 || /[\r\n]/.test(value)) {
+          await this.reply(event, '发送“切换 完整标题或编号”；“会话”查看列表。', {control: true});
+          return;
+        }
+        await this.authorize(event);
+        const {conversations: matches} = await this.product.rpc('internal.conversation.resolve', {selector: value});
+        await this.authorize(event);
+        if (matches.length !== 1) {
+          await this.reply(event, matches.length ? '有同名会话或编号不唯一，请复制完整编号切换：\n\n'
+            + matches.slice(0, 8).map(item => `${String(item.title ?? '').replace(/\s+/g, ' ')}\n切换 ${item.conversation_id}`).join('\n\n')
+            : '未找到这项会话。发送“会话”查看列表，或使用完整标题。', {control: true});
+          return;
+        }
         conversationId = matches[0].conversation_id;
+        if (conversationId === current.conversation_id) {
+          await this.reply(event, `当前已在：${matches[0].title}`, {control: true});
+          return;
+        }
+      } else if (value) {
+        if (Array.from(value).length > 512 || /[\r\n]/.test(value)) {
+          await this.reply(event, '对话名称请使用 512 字以内的单行文字。', {control: true});
+          return;
+        }
+        await this.authorize(event);
+        ({conversation_id: conversationId} = await this.product.rpc('conversation.ensure', {
+          conversation_id: 'conversation_weixin_' + createHash('sha256').update(event.installation_id + '\0' + event.event_id).digest('hex').slice(0, 32),
+          title: value,
+        }));
       }
-      await this.product.cancelWeixinCommands(state.installation_id);
+      await this.authorize(event);
+      await this.product.cancelWeixinCommands(current.installation_id);
       const {state: selected} = await this.store('select', {expected_revision: current.revision, ...(conversationId ? {conversation_id: conversationId} : {})});
       const conversation = await this.product.conversation(selected.conversation_id);
       await this.reply({...event, revision: selected.revision, conversation_id: selected.conversation_id}, `已切换到：${conversation.title}`, {control: true});
@@ -369,6 +412,7 @@ export class WeixinChannel {
 
   async finish(event) {
     const result = await this.product.finishWeixin(event);
+    this.receipts.delete(`received:${event.command_id}`);
     try { await this.authorize(event); } catch { return; }
     if (result.state === 'completed' && result.text) {
       await this.reply(event, result.text);
@@ -377,6 +421,28 @@ export class WeixinChannel {
       await this.reply(event, result.state === 'cancelled' ? '这轮回复已停止。' : '这轮回复未能确认完成，请到桌面查看；不会自动重新执行。', {control: true});
       await this.store('event', {installation_id: event.installation_id, event_id: event.event_id, state: 'unknown'});
     }
+  }
+
+  async acknowledge(event) {
+    await this.authorize(event);
+    const key = `received:${event.command_id}`;
+    this.receipts.add(key);
+    try {
+      await this.store('enqueue', {
+        installation_id: event.installation_id, revision: event.revision,
+        key, conversation_id: event.conversation_id,
+        text: '收到，正在处理。', context_token: event.context_token,
+      });
+    } catch (error) { this.receipts.delete(key); throw error; }
+    // The network may be slow. Completion and further input must not wait for
+    // the receipt to be delivered; the ordered outbox owns both deliveries.
+    void this.pump().catch(() => {});
+  }
+
+  canDeliverReceipt(delivery) {
+    // Waiting feedback belongs to an active turn in this process. Never replay
+    // an old "processing" notice after completion, interruption or restart.
+    return !delivery.key?.startsWith('received:') || this.receipts.has(delivery.key);
   }
 
   async reply(event, text, {control = false} = {}) {
@@ -512,7 +578,7 @@ export class WeixinChannel {
       let status = 'unknown', receipt, acceptedParts = 0, failedPart;
       try {
         await this.authorize({...delivery, conversation_id: delivery.state.conversation_id});
-        if (delivery.command_id && !await this.product.canDeliverWeixin(delivery) || !await this.canDeliverWork(delivery) || !this.canDeliverAction(delivery)) {
+        if (!this.canDeliverReceipt(delivery) || delivery.command_id && !await this.product.canDeliverWeixin(delivery) || !await this.canDeliverWork(delivery) || !this.canDeliverAction(delivery)) {
           status = 'cancelled';
         } else {
           const controller = new AbortController(); this.sendController = controller;
@@ -520,7 +586,8 @@ export class WeixinChannel {
           for (let index = 0; index < parts.length; index++) {
             failedPart = index;
             await this.authorize({...delivery, conversation_id: delivery.state.conversation_id});
-            if (delivery.command_id && !await this.product.canDeliverWeixin(delivery) || !await this.canDeliverWork(delivery) || !this.canDeliverAction(delivery)) throw blocked();
+            if (delivery.command_id && !await this.product.canDeliverWeixin(delivery) || !await this.canDeliverWork(delivery)
+              || !this.canDeliverAction(delivery) || !this.canDeliverReceipt(delivery)) throw blocked();
             await this.api(delivery.state.base_url).sendText({token: delivery.state.token, to: delivery.state.peer_id,
               text: parts[index], contextToken: delivery.context_token || delivery.state.context_token,
               clientId: `${delivery.delivery_id}:${index}`, signal: AbortSignal.any([controller.signal, this.connection.signal])});
@@ -545,7 +612,7 @@ export class WeixinChannel {
       if (delivery.key?.startsWith('work-notification:')) await this.product.rpc('work.notifications.ack', {
         event_id: delivery.key.slice('work-notification:'.length), channel: 'weixin',
         installation_id: delivery.installation_id, revision: delivery.revision, status: status === 'cancelled' ? 'suppressed' : status});
-      if (status !== 'sent') return;
+      if (status !== 'sent' && !(status === 'cancelled' && delivery.key?.startsWith('received:'))) return;
     }
   }
 

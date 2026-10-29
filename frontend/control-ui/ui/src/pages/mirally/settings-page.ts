@@ -270,7 +270,7 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
       <form @submit=${(event: SubmitEvent) => this.savePreference(event)}>
         ${renderSettingsSection({title: "添加或修改偏好", description: "保存后会使用此偏好；更新可能中断正在进行的回复。"}, html`
           ${this.field("名称", html`<input class="settings-input" aria-label="偏好名称" data-testid="mirally-settings-preference-key" .value=${live(this.preferenceKey)} @input=${(event: Event) => {this.preferenceKey = (event.target as HTMLInputElement).value;}} required maxlength="512" ?disabled=${this.busy || this.loading}>`)}
-          ${this.field("内容", html`<textarea class="settings-input" aria-label="偏好内容" data-testid="mirally-settings-preference-value" .value=${live(this.preferenceValue)} @input=${(event: Event) => {this.preferenceValue = (event.target as HTMLTextAreaElement).value;}} required maxlength="12000" rows="3" ?disabled=${this.busy || this.loading}></textarea>`, this.preferenceStructured ? "此偏好包含结构化数据，请以 JSON 格式编辑。" : undefined)}
+          ${this.field("内容", html`<textarea class=${this.preferenceStructured ? "settings-input" : "settings-input mirally-prose-input"} aria-label="偏好内容" data-testid="mirally-settings-preference-value" .value=${live(this.preferenceValue)} @input=${(event: Event) => {this.preferenceValue = (event.target as HTMLTextAreaElement).value;}} required maxlength="12000" rows="3" ?disabled=${this.busy || this.loading}></textarea>`, this.preferenceStructured ? "此偏好包含结构化数据，请以 JSON 格式编辑。" : undefined)}
           ${renderSettingsRow({title: "", control: html`<button class="btn primary" type="submit" data-testid="mirally-settings-preference-save" ?disabled=${this.busy || this.loading}>保存偏好</button>`})}
         `)}
       </form>

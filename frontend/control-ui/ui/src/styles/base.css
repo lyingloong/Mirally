@@ -247,7 +247,7 @@
   --control-ui-text-md: calc(13px * var(--control-ui-text-scale));
   --control-ui-text-lg: calc(14px * var(--control-ui-text-scale));
   --control-ui-text-title: calc(22px * var(--control-ui-text-scale));
-  --control-ui-input-text-size: max(16px, calc(14px * var(--control-ui-text-scale)));
+  --control-ui-input-text-size: var(--control-ui-text-md);
   --chat-text-size: var(--control-ui-text-lg);
   --chat-block-gap: var(--chat-text-size);
 

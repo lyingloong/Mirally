@@ -11,6 +11,7 @@ import copy
 import hashlib
 import json
 import math
+import re
 import sqlite3
 import threading
 import time
@@ -217,6 +218,7 @@ class FrameworkService:
             "internal.conversation.fork": self.conversation_fork,
             "internal.conversation.continuation": self.conversation_continuation,
             "internal.conversation.activity_batch": self.conversation_activity_batch,
+            "internal.conversation.resolve": self.conversation_resolve,
             "conversation.history_refs": self.conversation_history_refs,
             "command.admit": self.command_admit, "command.ack": self.command_ack, "command.list": self.command_list,
             "interaction.stop": self.interaction_stop, "source.set": self.source_set, "source.list": self.source_list,
@@ -695,6 +697,27 @@ class FrameworkService:
         return {"conversations": [self._conversation(row[0]) for row in self.db.execute("""SELECT c.id FROM conversations c
             WHERE """ + clause + """ ORDER BY c.pinned DESC,MAX(c.metadata_updated_at,
             COALESCE((SELECT MAX(updated_at) FROM commands WHERE conversation_id=c.id),c.created_at)) DESC,c.id DESC LIMIT ? OFFSET ?""", (limit, offset))]}
+
+    def conversation_resolve(self, selector: str) -> dict[str, Any]:
+        """Resolve one phone route from a single SQLite snapshot, never list offsets.
+
+        Full identities are authoritative. Otherwise exact titles and literal
+        short identities share one namespace and must be disambiguated together.
+        Nine rows are enough to distinguish a unique target from a bounded list
+        of eight alternatives without materializing every product conversation.
+        """
+        _text(selector, "selector", 512)
+        if "\r" in selector or "\n" in selector:
+            raise FrameworkError("INVALID_PARAMS", "selector must be single-line text")
+        params = {"selector": selector, "prefix": bool(re.fullmatch(r"[A-Za-z0-9_-]{8,128}", selector))}
+        rows = self.db.execute("""WITH exact AS (SELECT id FROM conversations WHERE id=:selector)
+            SELECT c.id AS conversation_id,c.title FROM conversations c WHERE c.archived=0 AND
+            CASE WHEN EXISTS(SELECT 1 FROM exact) THEN c.id IN (SELECT id FROM exact)
+            ELSE c.title=:selector OR (:prefix AND substr(
+                CASE WHEN substr(c.id,1,13)='conversation_' THEN substr(c.id,14) ELSE c.id END,
+                1,length(:selector))=:selector) END
+            ORDER BY c.id LIMIT 9""", params)
+        return {"conversations": [dict(row) for row in rows]}
 
     def conversation_weixin_receipts(self, conversation_id: str, limit: int = 200, offset: int = 0) -> dict[str, Any]:
         """Return only evidence needed to project old channel input, never credentials or text."""
