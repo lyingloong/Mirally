@@ -264,7 +264,6 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
         ${renderSettingsRow({title: "默认确认方式", description: "自动批准允许模型直接执行命令、操作浏览器和读取屏幕。", control: html`<select class="settings-input" aria-label="默认确认方式" data-testid="mirally-action-approval-mode" .value=${live(this.settings?.action_approval_mode || 'ask')} ?disabled=${this.busy || this.loading || !this.settings}
           @change=${(event: Event) => {const value=(event.target as HTMLSelectElement).value; void this.mutate(() => rpcProduct("settings.update", {patch: {action_approval_mode: value}}), "会话操作权限已保存。");}}>
           <option value="ask">逐次确认</option><option value="trusted">自动批准（持续）</option></select>`})}
-        ${this.toggle("weixin_auto_approve_enabled", "微信继承自动批准", "仅对已允许远程控制的微信生效。", "mirally-weixin-auto-approve")}
       `)}
       ${renderSettingsSection({title: "桌面窗口"}, html`${renderSettingsRow({title: "关闭主窗口时",
         control: html`<select class="settings-input" aria-label="关闭主窗口时" data-testid="mirally-settings-close-behavior" .value=${live(this.closeBehavior)} ?disabled=${this.busy || this.loading}

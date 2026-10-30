@@ -44,7 +44,7 @@ test('real session experiment is readable and controllable over bound Weixin', {
       requests.push({prompt,last:last?.role,toolResults});
       const turn=prompt.includes('桌面启动实验')?'start':prompt.includes('微信查询进度')?'progress':prompt.includes('微信停止实验')?'stop':prompt.includes('微信启动新命令')?'remote_start':prompt.includes('微信询问方案')?'question':null;
       if(turn==='progress'&&!progressReleased) await progressGate;
-      if(turn==='remote_start' && JSON.stringify(input.messages).includes('Remote commands, isolated browser actions and desktop observation are available')) remoteHintSeen=true;
+      if(turn==='remote_start' && JSON.stringify(input.messages).includes('This message is from WeChat.')) remoteHintSeen=true;
       if(!turn) throw Error('unexpected user prompt '+prompt);
       let tool, args;
       if(!toolResults.length){
@@ -97,12 +97,6 @@ test('real session experiment is readable and controllable over bound Weixin', {
   assert.equal(replies.some(text=>text.includes('EXPERIMENT_PROGRESS_73')),false);
   progressReleased=true;releaseProgress();
   await until(()=>replies.some(text=>text.includes('EXPERIMENT_PROGRESS_73')),'progress reply');
-  send(2,'微信停止实验');
-  await until(()=>requests.some(x=>x.prompt.includes('微信停止实验') && x.toolResults.length),'disabled stop');
-  assert.equal(replies.some(text=>text.includes('/approve ')),false);
-  await rpc('settings.update',{patch:{weixin_remote_control_enabled:true}});
-  const afterEnable=replies.length;send(20,'微信查询进度');
-  await until(()=>replies.slice(afterEnable).some(text=>text.includes('EXPERIMENT_PROGRESS_73')&&text.includes('running')),'progress after enabling');
   const previous=replies.length;send(3,'微信停止实验');
   const request=await until(()=>replies.slice(previous).find(text=>text.includes('/approve ')),'remote stop approval');
   const code=request.match(/\/approve ([0-9]{9})/)[1];send(4,`/deny ${code}`);
@@ -124,27 +118,14 @@ test('real session experiment is readable and controllable over bound Weixin', {
   await until(()=>replies.slice(startAgain).some(text=>text.includes('实验结果')),'remote command completed');
   assert.equal((await readFile(join(home,'remote-marker.txt'),'utf8')).trim(),'yes');
   await rm(join(home,'remote-marker.txt'));
-  // Global trust does not automatically grant a paired channel trust. Its
-  // separate switch takes effect for the next remote command in either direction.
+  // The paired channel inherits the same global approval mode as desktop.
   await rpc('settings.update',{patch:{action_approval_mode:'trusted'}});
   const trustedAt=replies.length;send(101,'微信启动新命令');
-  const trustedReview=await until(()=>replies.slice(trustedAt).find(text=>text.includes('/approve ')),'trusted without remote inheritance still prompts');
-  assert.equal(existsSync(join(home,'remote-marker.txt')),false);
-  send(102,`/deny ${trustedReview.match(/\/approve ([0-9]{9})/)[1]}`);
-  await until(()=>replies.slice(trustedAt).some(text=>text.includes('未批准')),'trusted remote denial completed');
-  await rpc('settings.update',{patch:{weixin_auto_approve_enabled:true}});
-  const inheritedAt=replies.length;send(103,'微信启动新命令');
-  await until(()=>existsSync(join(home,'remote-marker.txt')),'remote inherited trust executed');
-  await until(()=>replies.slice(inheritedAt).some(text=>text.includes('实验结果')),'inherited remote command completed');
-  assert.equal(replies.slice(inheritedAt).some(text=>text.includes('/approve ')),false);
-  assert.equal((await readFile(join(home,'remote-marker.txt'),'utf8')).trim(),'yes');
+  await until(()=>existsSync(join(home,'remote-marker.txt')),'trusted WeChat command executed');
+  await until(()=>replies.slice(trustedAt).some(text=>text.includes('实验结果')),'trusted command completed');
+  assert.equal(replies.slice(trustedAt).some(text=>text.includes('/approve ')),false);
   await rm(join(home,'remote-marker.txt'));
-  await rpc('settings.update',{patch:{weixin_auto_approve_enabled:false}});
-  const revokedTrustAt=replies.length;send(104,'微信启动新命令');
-  const revokedTrust=await until(()=>replies.slice(revokedTrustAt).find(text=>text.includes('/approve ')),'remote inheritance revoked prompts');
-  assert.equal(existsSync(join(home,'remote-marker.txt')),false);
-  send(105,`/deny ${revokedTrust.match(/\/approve ([0-9]{9})/)[1]}`);
-  await until(()=>replies.slice(revokedTrustAt).some(text=>text.includes('未批准')),'revoked trust denial completed');
+  await rpc('settings.update',{patch:{action_approval_mode:'ask'}});
   const questionAt=replies.length;send(106,'微信询问方案');
   const question=await until(()=>replies.slice(questionAt).find(text=>text.includes('Mirally 需要你的回答')),'native question delivered to WeChat');
   assert.match(question,/请选择远程方案/);
@@ -156,10 +137,10 @@ test('real session experiment is readable and controllable over bound Weixin', {
   await until(()=>replies.slice(questionAt).some(text=>text.includes('实验结果')&&text.includes('方案 B')),'native question turn resumes over WeChat');
   const beforeDisable=replies.length;send(11,'微信启动新命令');
   const revoked=await until(()=>replies.slice(beforeDisable).find(text=>text.includes('/approve ')),'pending command');
-  await rpc('settings.update',{patch:{weixin_remote_control_enabled:false}});
-  send(12,`/approve ${revoked.match(/\/approve ([0-9]{9})/)[1]}`);
+  const bound=await rpc('weixin.status');await rpc('weixin.disconnect',{expected_revision:bound.revision});
   await delay(1000);
-  assert.equal(existsSync(join(home,'remote-marker.txt')),false,'revoked approval cannot execute');
+  assert.equal(existsSync(join(home,'remote-marker.txt')),false,'disconnected channel cannot execute pending approval');
+  const disconnected=await rpc('weixin.status');await rpc('weixin.reconnect',{expected_revision:disconnected.revision});
   const history=await api(`/api/sessions/${session.id}/history`);
   assert.ok(history.messages.some(message=>message.role==='user'&&message.input_origin==='desktop'&&message.text==='桌面启动实验'));
   assert.ok(history.messages.some(message=>message.role==='user'&&message.input_origin==='weixin'&&message.text==='微信查询进度'));
@@ -186,9 +167,6 @@ test('real session experiment is readable and controllable over bound Weixin', {
   const listed=(await api('/api/sessions')).sessions.find(item=>item.id===named.conversation_id);
   assert.equal(listed.title,'微信命名对话');
   assert.equal(requests.length,controlsAt,'named creation stays outside model context');
-  // The preceding revocation check deliberately disabled remote tools. Native
-  // structured questions use that existing permission, so enable it explicitly.
-  await rpc('settings.update',{patch:{weixin_remote_control_enabled:true}});
   const namedTurnAt=replies.length, namedPrompt='微信询问方案：微信命名对话验证';
   send(204,namedPrompt);
   const namedQuestion=await until(()=>replies.slice(namedTurnAt).find(text=>text.includes('Mirally 需要你的回答')),'named native session question').catch(async error=>{

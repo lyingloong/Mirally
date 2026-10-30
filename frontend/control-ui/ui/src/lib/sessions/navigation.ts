@@ -220,14 +220,9 @@ export function compareSessionRowsByUpdatedAt(a: GatewaySessionRow, b: GatewaySe
   if (pinnedStateDiff !== 0) {
     return pinnedStateDiff;
   }
-  const pinnedDiff = (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0);
-  if (pinnedDiff !== 0) {
-    return pinnedDiff;
-  }
   const updatedDiff = (b.updatedAt ?? 0) - (a.updatedAt ?? 0);
-  // Stable key tie-break mirrors the gateway comparator (session-list-order.ts)
-  // so tied rows don't swap when the canonical refresh replaces an event merge.
-  return updatedDiff !== 0 ? updatedDiff : a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
+  // Match the product owner's descending identity tie-break for equal timestamps.
+  return updatedDiff !== 0 ? updatedDiff : a.key < b.key ? 1 : a.key > b.key ? -1 : 0;
 }
 
 export function resolveSessionNavigation(input: SessionNavigationInput): SessionNavigation {

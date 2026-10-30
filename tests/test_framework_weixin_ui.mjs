@@ -189,37 +189,8 @@ test('conversation records normalize the public identity and passive polls prese
   fail = false; await f.page.refresh(true); assert.equal(f.page.error, '');
 });
 
-test('remote control requires a binding and persists explicit settings changes', async () => {
-  let enabled = false;
-  const f = fixture((method, params) => {
-    if (method === 'weixin.status') return {...baseStatus};
-    if (method === 'settings.get') return {weixin_remote_control_enabled: enabled};
-    if (method === 'settings.update') {
-      assert.equal(params.patch.weixin_remote_control_enabled, true);
-      enabled = true; return {weixin_remote_control_enabled: enabled};
-    }
-    return {conversations: []};
-  });
-  await f.page.refresh(true);
-  f.render(f.page); assert.equal(f.toggles.at(-1).disabled,true);
-  f.page.acceptStatus({...baseStatus, state: 'connected', bound: true, enabled: true});
-  f.render(f.page); assert.equal(f.toggles.at(-1).disabled,false);
-  await f.page.setRemoteControl(true);
-  assert.equal(f.page.remoteControl, true);
-  assert.equal(f.calls.filter(call => call.method === 'settings.update').length, 1);
-  assert.match(f.page.notice, /已允许/);
-});
-
-test('remote control save failure preserves the previous value and hides protocol errors', async () => {
-  const f = fixture(method => {
-    if (method === 'settings.update') throw new Error('private response');
-    return {...baseStatus};
-  });
-  f.page.acceptStatus({...baseStatus, state: 'connected', bound: true, enabled: true});
-  f.page.remoteControl = false;
-  await f.page.setRemoteControl(true);
-  assert.equal(f.page.remoteControl, false);
-  assert.match(f.page.error, /未能保存/);
-  assert.doesNotMatch(f.render(f.page), /private response/);
-  f.render(f.page); assert.equal(f.toggles.at(-1).checked,false);
+test('WeChat settings omit the obsolete remote-control switch', async () => {
+  const f=fixture();await f.page.refresh(true);
+  f.page.acceptStatus({...baseStatus,state:'connected',bound:true,enabled:true});
+  assert.doesNotMatch(f.render(f.page),/允许微信远程控制/);
 });

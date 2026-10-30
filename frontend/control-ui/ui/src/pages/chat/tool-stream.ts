@@ -119,7 +119,7 @@ function buildToolStreamMessage(entry: ToolStreamEntry): Record<string, unknown>
   content.push({
     type: "toolcall",
     name: entry.name,
-    arguments: entry.args ?? {},
+    ...(entry.args !== undefined ? { arguments: entry.args } : {}),
     ...(entry.parentToolCallId ? { parentToolCallId: entry.parentToolCallId } : {}),
     ...(entry.details !== undefined ? { details: entry.details } : {}),
   });
@@ -575,7 +575,9 @@ export function handleAgentEvent(host: ToolStreamHost, payload?: AgentEventPaylo
   if (payload.runId === host.chatRunId) {
     reconcileChatRunStartup(host, { state: "activity", runId: payload.runId, seq: payload.seq });
   }
-  const args = phase === "start" ? data.args : undefined;
+  // A rejected invocation may never emit a start event. Use its actual result
+  // arguments only when there is no prior start, without inventing an empty call.
+  const args = phase === "start" || (phase === "result" && entry?.args === undefined) ? data.args : undefined;
   const parentToolCallId = toTrimmedString(data.parentToolCallId) ?? undefined;
   const output =
     phase === "update"

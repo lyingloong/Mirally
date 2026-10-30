@@ -48,7 +48,7 @@ test('Weixin stale route cannot consume a delivered answer',async()=>{
   bridge.stop();await assert.rejects(waiting);
 });
 
-test('a desktop question can be answered on the bound phone only while remote control stays enabled',async()=>{
+test('a desktop question can be answered on the bound phone',async()=>{
   const {host,agent,bridge,dispatch}=fixture(),scope={installation_id:'install',revision:4,conversation_id:'conversation'};
   let enabled=true;const sent=[];
   host.commandPolicies=new Map([['command',{origin:'desktop'}]]);
@@ -58,8 +58,6 @@ test('a desktop question can be answered on the bound phone only while remote co
   const waiting=dispatch('user-questions/request',{agent,questions});await flush();
   assert.equal(sent.length,1);bridge.remoteDelivered(sent[0].id,scope,0);
   enabled=false;
-  await assert.rejects(bridge.answerActiveRemote(scope,'1'),/远程控制已关闭/);
-  enabled=true;
   assert.deepEqual(await bridge.answerActiveRemote(scope,'1'),{complete:true});
   assert.deepEqual(await waiting,{answers:[{id:'mode',selected:['Fast']}]});bridge.stop();
 });

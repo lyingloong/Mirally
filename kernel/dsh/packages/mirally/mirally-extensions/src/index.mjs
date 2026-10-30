@@ -326,7 +326,10 @@ class ExtensionRuntime {
     if (!script) throw new Error('Script is not in the configured allowlist');
     const call = execution(input, scope);
     const signal = combine(call.signal, entry.controller.signal, this.stopController.signal);
-    const confirmed = scope.model !== true && input.confirmed === true;
+    const permission = this.product.authorizations?.getStore();
+    const confirmed = scope.model !== true ? input.confirmed === true
+      : permission?.confirmed === true && permission.toolName === 'run_skill_script'
+        && permission.sessionId === call.sessionId && permission.commandId === this.product.consumedCommandId(scope.agent);
     const task = runConfiguredScript(script, input.args ?? [], {
       signal, python: this.python,
       authorize: () => this.authorize(entry, call.sessionId, 'script', confirmed),

@@ -1,6 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {AsyncLocalStorage} from 'node:async_hooks';
 import {MirallyProduct} from '../kernel/dsh/packages/mirally/mirally-product/src/index.mjs';
+import {installBasicCapabilities} from '../kernel/dsh/packages/mirally/mirally-product/src/basic-capabilities.mjs';
 
 function fixture() {
   const hooks = new Map(), calls = [], messages = [{id: 'remote-message', source: {kind: 'user'}}];
@@ -14,49 +16,65 @@ function fixture() {
     weixin: {async authorize(scope) { calls.push(['authorize', scope]); if (scope.revision !== 7) throw Object.assign(new Error('revoked'), {code: 'weixin_scope_revoked'}); }},
     broadcast() {},
     guard:async()=>({allow:true}),
+    rpc:async method=>{assert.equal(method,'settings.get');return {weixin_remote_control_enabled:false};},
+    authorizations:new AsyncLocalStorage(),
   });
   const agent = {id: 'native', session: {snapshotEvents: () => messages.map(message => ({type: 'user/message', data: {message}}))}};
   product.installNativeObservers();
   return {product, hooks, calls, agent, messages};
 }
 
-test('Weixin final native tool hook denies product writes, files, scripts and arbitrary MCP/plugin tools', async () => {
-  const f = fixture(); let effects = 0;
-  for (const name of ['mirally_set_preference', 'mirally_create_reminder', 'mirally_create_file', 'mirally_write_workspace_file',
-    'run_skill_script', 'mcp__server__readOnlyNamedButWrites', 'trusted_plugin_echo', 'mirally_web_fetch', 'desktop_click']) {
-    await assert.rejects(f.hooks.get('tools/execute')({agent: f.agent, name, arguments: {}, signal: new AbortController().signal},
-      () => {effects++;}), {code: 'weixin_read_only'});
-  }
-  assert.equal(effects, 0, 'no denied tool reaches its concrete effect');
-  for (const name of ['mirally_context', 'mirally_preferences', 'mirally_reminders', 'mirally_workspace_roots', 'mirally_list_files', 'mirally_read_file', 'mirally_search_files']) {
-    await f.hooks.get('tools/execute')({agent: f.agent, name, arguments: {}, signal: new AbortController().signal}, () => {effects++;});
-  }
-  assert.equal(effects, 7);
+test('Weixin uses the same tool scope as desktop while retaining binding authentication', async () => {
+  const f=fixture(); let effects=0;
+  for (const name of ['mirally_set_preference','mirally_create_file','run_skill_script','mcp__server__write','mirally_web_search'])
+    await f.hooks.get('tools/execute')({agent:f.agent,name,arguments:{},signal:new AbortController().signal},()=>{effects++;});
+  assert.equal(effects,5);
+  f.product.commandPolicies.get('weixin-remote').revision=6;
+  await assert.rejects(f.product.checkCommandScope(f.agent,'mirally_create_file'),{code:'weixin_scope_revoked'});
 });
 
-test('Weixin tool scope follows consumed input, not a later admitted desktop command', async () => {
-  const f = fixture();
-  f.product.activeCommands.set('native', 'desktop-next');
-  assert.equal(f.product.commandPolicy(f.agent).origin, 'weixin');
-  await assert.rejects(f.product.checkCommandScope(f.agent, 'mirally_set_preference'), {code: 'weixin_read_only'});
-  f.messages.push({id: 'desktop-message', source: {kind: 'user'}});
-  await f.product.checkCommandScope(f.agent, 'mirally_set_preference');
-  assert.equal(f.product.commandPolicy(f.agent).origin, 'desktop');
+test('scope follows consumed input rather than a later admitted desktop command', async () => {
+  const f=fixture();f.product.activeCommands.set('native','desktop-next');
+  assert.equal(f.product.commandPolicy(f.agent).origin,'weixin');
+  await f.product.checkCommandScope(f.agent,'mirally_set_preference');
+  f.messages.push({id:'desktop-message',source:{kind:'user'}});
+  assert.equal(f.product.commandPolicy(f.agent).origin,'desktop');
 });
 
-test('session job queries remain available while actions require the current user setting', async () => {
-  const f=fixture(); let enabled=false;
-  f.product.rpc=async method => {assert.equal(method,'settings.get'); return {weixin_remote_control_enabled:enabled};};
-  await f.product.checkCommandScope(f.agent,'mirally_job_list');
-  await f.product.checkCommandScope(f.agent,'mirally_job_status');
-  for (const name of ['mirally_run_command','mirally_stop_job','mirally_action','mirally_browser_open','mirally_desktop_screenshot'])
-    await assert.rejects(f.product.checkCommandScope(f.agent,name),{code:'weixin_action_unavailable'});
-  enabled=true;
-  for (const name of ['mirally_run_command','mirally_stop_job','mirally_action','mirally_browser_open','mirally_desktop_screenshot'])
-    await f.product.checkCommandScope(f.agent,name);
-  await assert.rejects(f.product.checkCommandScope(f.agent,'mcp__arbitrary'),{code:'weixin_read_only'});
-  enabled=false;
-  await assert.rejects(f.product.checkCommandScope(f.agent,'mirally_run_command'),{code:'weixin_action_unavailable'});
+test('Weixin search reaches the real capability check and the configured provider', async () => {
+  const f=fixture(),tools=new Map();let web=false,queries=[];
+  f.product.ctx.tools={register:tool=>tools.set(tool.name,tool)};
+  f.product.rpc=async method=>method==='settings.get'?{weixin_remote_control_enabled:true}
+    :method==='capabilities.get'?{web_enabled:web,revision:1,search_connection:'chat'}
+    :method==='internal.settings.get'?{model:{provider:'fixture',model_id:'fixture'}}:null;
+  installBasicCapabilities(f.product,{webProviders:{deepseek:()=>({search:async args=>{queries.push(args);return {results:[{title:'来源'}]};}})}});
+  const exec={agent:f.agent,name:'mirally_web_search',arguments:{query:'测试网页',count:2},signal:new AbortController().signal};
+  const invoke=()=>f.hooks.get('tools/execute')(exec,()=>tools.get(exec.name).execute(exec.arguments,exec));
+  await assert.rejects(invoke(),/网页研究尚未开启/);assert.deepEqual(queries,[]);
+  web=true;assert.equal((await invoke()).results[0].title,'来源');assert.deepEqual(queries,[{query:'测试网页',count:2}]);
+});
+
+test('Weixin web result is withheld when remote authority is revoked while awaiting the provider', async () => {
+  const f=fixture();let release,started;
+  const begun=new Promise(resolve=>started=resolve);
+  const exec={agent:f.agent,name:'mirally_web_fetch',arguments:{url:'https://example.com'},signal:new AbortController().signal};
+  const pending=f.hooks.get('tools/execute')(exec,async()=>{started();return new Promise(resolve=>release=resolve);});
+  await begun;f.product.commandPolicies.get('weixin-remote').revision=6;release({text:'late'});
+  await assert.rejects(pending,{code:'weixin_scope_revoked'});
+});
+
+test('scheduled Weixin turns retain channel authority and allow product writes', async () => {
+  const f=fixture();const policy=f.product.commandPolicies.get('weixin-remote');
+  Object.assign(policy,{schedule_id:'schedule-1',target_conversation_id:'target',command_id:'weixin-remote'});
+  let route={installation_id:'installation',revision:7,conversation_id:'conversation'}, enabled=true;
+  f.product.rpc=async()=>({weixin_remote_control_enabled:enabled});
+  f.product.scheduledActions={authorizeWeixinOccurrence:async()=>({...route})};
+  await f.product.checkCommandScope(f.agent,'mirally_run_command');
+  await f.product.checkCommandScope(f.agent,'mirally_set_preference');
+  await f.product.checkCommandScope(f.agent,'mirally_create_event');
+  await f.product.checkCommandScope(f.agent,'mirally_write_workspace_file');
+  route.revision++;await assert.rejects(f.product.checkCommandScope(f.agent,'mirally_run_command'),{code:'schedule_scope_revoked'});
+  route.revision--;enabled=false;await f.product.checkCommandScope(f.agent,'mirally_run_command');
 });
 
 test('Weixin pre-step admission recognizes a fresh command before its user/message is appended after restart', async () => {

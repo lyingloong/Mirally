@@ -23,7 +23,7 @@ import {
 import type { SessionCreatedActor } from "../../../components/session-owner-chip.ts";
 import { t } from "../../../i18n/index.ts";
 import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
-import { getProductHost, rpcProduct } from "../../mirally/api.ts";
+import { getProductHost, requestProduct, rpcProduct } from "../../mirally/api.ts";
 import {
   renderChatSessionSharing,
   selectChatSessionSharingItem,
@@ -101,6 +101,47 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
   @property({ attribute: false }) onSettingsChange: (patch: Partial<UiSettings>) => void = () => {};
   @property({ attribute: false }) onAction: (action: HeaderMenuAction) => void = () => {};
   @state() private compactView: CompactMenuView = "root";
+  @state() private recapOpen = false;
+  @state() private recapBusy = false;
+  @state() private recapText = "";
+  @state() private recapStale = false;
+  @state() private recapNotice = "";
+  private recapEpoch = 0;
+
+  private async openRecap() {
+    const key = this.mirallySessionKey, epoch = ++this.recapEpoch;
+    this.recapOpen = true; this.recapBusy = true; this.recapText = ""; this.recapNotice = ""; this.recapStale = false;
+    await this.updateComplete;
+    if (epoch !== this.recapEpoch || !this.isConnected) return;
+    this.querySelector<HTMLDialogElement>(".mirally-recap-dialog")?.showModal();
+    try {
+      const id = getProductHost().conversationIdForSession?.(key);
+      if (!id) throw new Error("会话不可用");
+      const result = await requestProduct<{recap: {text: string; stale: boolean} | null}>(`/api/sessions/${encodeURIComponent(id)}/recap`);
+      if (epoch !== this.recapEpoch || key !== this.mirallySessionKey || !this.isConnected) return;
+      const recap = result.recap;
+      this.recapText = recap?.text ?? ""; this.recapStale = recap?.stale === true;
+    } catch { if (epoch === this.recapEpoch) this.recapNotice = "无法读取摘要，请重试。"; }
+    finally { if (epoch === this.recapEpoch) this.recapBusy = false; }
+  }
+
+  private async generateRecap() {
+    const key = this.mirallySessionKey, epoch = this.recapEpoch;
+    this.recapBusy = true; this.recapNotice = "";
+    try {
+      const id = getProductHost().conversationIdForSession?.(key);
+      if (!id) throw new Error("会话不可用");
+      const result = await requestProduct<{status: string; recap?: {text: string; stale: boolean}}>(
+        `/api/sessions/${encodeURIComponent(id)}/recap`, {method: "POST"});
+      if (epoch !== this.recapEpoch || key !== this.mirallySessionKey || !this.isConnected) return;
+      if (result.recap) { this.recapText = result.recap.text; this.recapStale = result.recap.stale === true; }
+      const notices: Record<string, string> = {stale: "对话已有新内容，请重新生成。", disabled: "后台模型不可用。", pending: "正在生成，请稍后重试。", unavailable: "模型不可用，请检查模型设置。", incomplete_history: "会话历史不完整，无法生成摘要。", empty: "这段对话还没有内容。", budget: "已达到模型调用额度，请稍后重试。", deferred: "当前正在处理其他任务，请稍后重试。"};
+      this.recapNotice = notices[result.status] ?? (result.status === "ready" ? "" : "摘要暂不可用，请重试。");
+    } catch { if (epoch === this.recapEpoch) this.recapNotice = "生成失败，请重试。"; }
+    finally { if (epoch === this.recapEpoch) this.recapBusy = false; }
+  }
+
+  private closeRecap() { ++this.recapEpoch; this.recapOpen = false; this.recapBusy = false; }
   @state() private workStatus: "loading" | "none" | "linked" | "archived" | "ambiguous" | "unavailable" = "loading";
   @state() private workRefreshing = false;
   private workLookupVersion = 0;
@@ -130,6 +171,7 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
   }
 
   override disconnectedCallback() {
+    ++this.recapEpoch;
     ++this.workLookupVersion;
     clearTimeout(this.workTimer);
     window.removeEventListener("mirally-product-event", this.workChanged);
@@ -138,6 +180,7 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
   }
 
   protected override updated(changed: PropertyValues) {
+    if (changed.has("mirallySessionKey") && this.recapOpen) this.closeRecap();
     if (changed.has("mirallySessionKey") || changed.has("workPresented")) {
       ++this.workLookupVersion;
       clearTimeout(this.workTimer);
@@ -244,6 +287,11 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
     }
     if (value === "open-command-palette") {
       this.onOpenCommandPalette();
+      return;
+    }
+    if (value === "mirally-recap") {
+      event.currentTarget.open = false;
+      void this.openRecap();
       return;
     }
     if (value === "mirally-work") {
@@ -483,6 +531,10 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
           : nothing
       }
       ${renderMirallySessionOrganization(this.session, this.actionDisabledReasons, this.archiveAllowed, false, this.forkDisabled)}
+      ${this.mirallySessionKey ? html`<wa-dropdown-item class="session-menu__item" value="mirally-recap">
+        <span slot="icon" class="session-menu__icon" aria-hidden="true">${icons.fileText}</span>
+        <span class="session-menu__text">会话摘要</span>
+      </wa-dropdown-item>` : nothing}
       ${this.mirallySessionKey ? html`<wa-dropdown-item
         class="session-menu__item"
         value="mirally-work"
@@ -578,6 +630,23 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
             : this.renderRootView()
         }
       </wa-dropdown>
+      ${this.recapOpen ? html`<dialog class="mirally-recap-dialog" aria-labelledby="mirally-recap-title" @close=${this.closeRecap}>
+        <style>
+          .mirally-recap-dialog { box-sizing:border-box; width:min(480px, calc(100vw - 32px)); max-height:calc(100vh - 32px); overflow:auto; padding:20px; color:var(--text); background:var(--bg-elevated); border:1px solid var(--border-strong); border-radius:var(--radius-lg); }
+          .mirally-recap-dialog::backdrop { background:rgba(0,0,0,.45); }
+          .mirally-recap-dialog h2 { margin:0 0 16px; color:var(--text-strong); font-size:16px; }
+          .mirally-recap-dialog p { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.6; }
+          .mirally-recap-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:20px; }
+        </style>
+        <h2 id="mirally-recap-title">会话摘要</h2>
+        ${this.recapText ? html`<p>${this.recapText}</p>${this.recapStale ? html`<p>摘要未包含最新消息</p>` : nothing}` :
+          html`<p>${this.recapBusy ? "处理中…" : "暂无摘要"}</p>`}
+        ${this.recapNotice ? html`<p role="status">${this.recapNotice}</p>` : nothing}
+        <div class="mirally-recap-actions">
+          <button class="btn btn--ghost" type="button" @click=${() => this.querySelector<HTMLDialogElement>(".mirally-recap-dialog")?.close()}>关闭</button>
+          <button class="btn" type="button" ?disabled=${this.recapBusy} @click=${() => void this.generateRecap()}>${this.recapBusy ? "处理中…" : this.recapText ? "更新摘要" : "生成摘要"}</button>
+        </div>
+      </dialog>` : nothing}
     `;
   }
 }

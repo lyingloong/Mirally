@@ -108,24 +108,27 @@ class WorkConversationTests(unittest.TestCase):
         with self.assertRaises(FrameworkError):
             self.service.call("work.run.approve", {"approval_id": approval["id"], "expected_digest": approval["digest"], "actor": "desktop"})
 
-    def test_remote_work_mutations_recheck_binding_setting_and_command_in_owner_transaction(self):
+    def test_remote_work_mutations_recheck_binding_and_command_in_owner_transaction(self):
         saved = self.service.call("channel.weixin.save", {"token":"fixture", "peer_id":"peer", "bot_id":"bot",
             "base_url":"https://ilinkai.weixin.qq.com"})["state"]
         bound = self.service.call("channel.weixin.bind", {"expected_revision":saved["revision"],
             "conversation_id":self.conversation})["state"]
-        self.service.call("settings.update", {"patch":{"weixin_remote_control_enabled":True}})
         command = "weixin-fixture-command"
         self.service.call("conversation.bind", {"conversation_id":self.conversation, "session_id":"native-fixture"})
         self.service.call("command.admit", {"conversation_id":self.conversation, "command_id":command, "text":"创建工作"})
         scope = {"installation_id":bound["installation_id"], "revision":bound["revision"], "command_id":command}
         work = self.service.call("internal.work.ensure_conversation", {"conversation_id":self.conversation,
             "title":"GPU", "weixin_scope":scope})["work"]
+        # Old per-channel flags no longer restrict the authenticated channel.
         self.service.call("settings.update", {"patch":{"weixin_remote_control_enabled":False}})
+        allowed = self.service.call("internal.work.update_conversation", {"conversation_id":self.conversation,
+            "work_id":work["id"], "patch":{"goal":"与桌面一致"}, "weixin_scope":scope})["work"]
+        self.assertEqual(allowed["goal"], "与桌面一致")
+        forged = {**scope, "installation_id":"0" * 32}
         with self.assertRaises(FrameworkError):
             self.service.call("internal.work.update_conversation", {"conversation_id":self.conversation,
-                "work_id":work["id"], "patch":{"goal":"未授权的修改"}, "weixin_scope":scope})
+                "work_id":work["id"], "patch":{"goal":"未授权的修改"}, "weixin_scope":forged})
         self.assertNotEqual(self.service.call("work.get", {"work_id":work["id"]})["work"]["goal"], "未授权的修改")
-        self.service.call("settings.update", {"patch":{"weixin_remote_control_enabled":True}})
         self.service.call("command.ack", {"conversation_id":self.conversation, "command_id":command, "state":"cancelled"})
         with self.assertRaises(FrameworkError):
             self.service.call("internal.work.update_conversation", {"conversation_id":self.conversation,

@@ -26,7 +26,8 @@ async function fixture(t,{image=false,owner='conversation'}={}) {
   const checks=[];
   const channel={allowLoopback:true,product:{materials:{read:async id=>{assert.equal(id,artifactId);return {record:{id,name:image?'image.png':'报告.txt',conversation_id:owner},data:bytes};}},
     rpc:async method=>method==='settings.get'?{weixin_remote_control_enabled:allowed}:{commands:[{state:commandState}]},canDeliverWeixin:async()=>allowed,
-    checkWeixinDelegation:async(scope,delivery)=>{checks.push({scope,delivery});if(!allowed)throw Error('revoked');}},
+    checkWeixinDelegation:async(scope,delivery)=>{checks.push({scope,delivery});if(!allowed)throw Error('revoked');},
+    checkWeixinSchedule:async scope=>{checks.push({scope,schedule:true});if(!allowed)throw Error('revoked');}},
     authorize:async scope=>{if(!allowed||scope.installation_id!=='bound'||scope.revision!==3||scope.conversation_id!=='conversation')throw Error('revoked');return state;},
     store:async(method,params)=>{assert.equal(method,'enqueue');let item=outbox.get(params.key);if(!item){item={...params,delivery_id:'delivery-1',status:'pending'};outbox.set(params.key,item);}else assert.equal(item.text,params.text);return {delivery:item};}};
   const transport=new WeixinOutboundMedia(channel,{fixtureOrigin:origin});
@@ -80,4 +81,20 @@ test('delegated artifact preserves source authorization and target ownership thr
   f.changeCommandState('completed');const receipt=await f.transport.dispatch({...queued,status:'sending',state:f.state},new AbortController().signal);
   assert.equal(receipt.accepted,true);assert.ok(f.checks.some(c=>c.delivery===true&&c.scope.target_conversation_id==='target'&&c.scope.source_command_id==='source-command'));
   const other=await fixture(t,{owner:'different'});await assert.rejects(other.transport.queue(scope,artifactId),/不属于当前会话/);assert.equal(other.outbox.size,0);
+});
+
+test('scheduled artifact uses occurrence authority and current channel token through durable delivery',async t=>{
+  const f=await fixture(t,{owner:'target'});
+  const scope={...event,context_token:undefined,schedule_id:'schedule-one',target_conversation_id:'target',command_id:'schedule-command'};
+  const first=await f.transport.queue(scope,artifactId);
+  assert.equal((await f.transport.queue(scope,artifactId)).delivery_id,first.delivery_id);
+  const queued=[...f.outbox.values()][0];
+  assert.equal(JSON.parse(queued.text).schedule_id,'schedule-one');
+  f.changeCommandState('completed');
+  const receipt=await f.transport.dispatch({...queued,status:'sending',state:f.state},new AbortController().signal);
+  assert.equal(receipt.accepted,true);assert.equal(f.wire.msg.context_token,'context');
+  assert.ok(f.checks.some(c=>c.schedule&&c.scope.command_id==='schedule-command'&&c.scope.target_conversation_id==='target'));
+  const g=await fixture(t,{owner:'target'});await g.transport.queue(scope,artifactId);g.changeCommandState('completed');g.revoke();
+  await assert.rejects(g.transport.dispatch({...([...g.outbox.values()][0]),status:'sending',state:g.state},new AbortController().signal));
+  assert.equal(g.wire,undefined);
 });

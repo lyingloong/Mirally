@@ -35,6 +35,8 @@ test('model creates local-time meetings and real iLink receives reminder for the
         if(req.url.startsWith('/ilink/bot/get_qrcode_status')) return res.end(JSON.stringify({status:'confirmed',bot_token:'fixture-token',ilink_bot_id:'bot',ilink_user_id:'owner'}));
         if(req.url==='/ilink/bot/getupdates'){await delay(100);return res.end(JSON.stringify({ret:0,msgs:queue.splice(0),get_updates_buf:'cursor'}));}
         if(req.url==='/ilink/bot/sendmessage'){replies.push(JSON.parse(body).msg.item_list[0].text_item.text);return res.end(JSON.stringify({ret:0}));}
+        if(req.url==='/ilink/bot/getconfig')return res.end(JSON.stringify({ret:0,typing_ticket:'fixture-ticket'}));
+        if(['/ilink/bot/sendtyping','/ilink/bot/msg/notifystart','/ilink/bot/msg/notifystop'].includes(req.url))return res.end(JSON.stringify({ret:0}));
         throw Error(`unexpected ilink ${req.url}`);
       }
       const input=JSON.parse(body); requests.push(input);
@@ -122,6 +124,13 @@ test('model creates local-time meetings and real iLink receives reminder for the
       await until(async()=>(await rpc('commitment.list')).commitments.some(item=>item.title==='页面提醒'),'UI reminder');
       const uiReminder=(await rpc('commitment.list')).commitments.find(item=>item.title==='页面提醒');
       assert.equal(new Date(uiReminder.due_at).toISOString(),`${tomorrow}T04:00:00.000Z`);
+      await rpc('calendar.recurrence.create',{title:'周日提醒',frequency:'weekly',weekday:6,local_time:'10:30',conversation_id:session.id});
+      await page.getByRole('button',{name:'刷新',exact:true}).click();
+      const repeating=page.getByTestId('mirally-reminder-item').filter({hasText:'周日提醒'});
+      await repeating.waitFor();
+      assert.match(await repeating.innerText(),/每周日 10:30/);
+      await repeating.getByRole('button',{name:'取消重复提醒'}).click();
+      await until(async()=>(await rpc('calendar.recurrence.list')).recurrences.length===0,'UI cancels repeating reminder');
       await page.setViewportSize({width:480,height:800});
       await page.getByRole('button',{name:'日程',exact:true}).click();
       await page.getByTestId('mirally-calendar-event').filter({hasText:'明日上午会议'}).waitFor();

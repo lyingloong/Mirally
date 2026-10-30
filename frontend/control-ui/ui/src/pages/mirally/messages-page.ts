@@ -13,6 +13,8 @@ import './calendar-panel.ts';
 type Item = Record<string, any>;
 const statuses: Record<string, string> = {pending:'待提醒', fulfilled:'已进入消息', cancelled:'已取消', expired:'已过期', unread:'未读', read:'已读', dismissed:'已忽略', replied:'已回复'};
 const deliveryStates: Record<string,string> = {pending:'待发送',sending:'发送中',sent:'已发送',failed:'发送失败',unknown:'结果未知',cancelled:'已取消'};
+const weekdays = ['周一','周二','周三','周四','周五','周六','周日'];
+const repeatLabel = (item: Item) => item.frequency === 'daily' ? `每天 ${item.local_time}` : `每${weekdays[item.weekday] ?? '周'} ${item.local_time}`;
 const date = (value: number, zone: string) => {
   if (!Number.isFinite(value)) return '时间未记录';
   try { return new Date(value).toLocaleString('zh-CN',zone ? {timeZone:zone} : undefined); }
@@ -37,6 +39,7 @@ class MirallyMessagesPage extends OpenClawLightDomElement {
   @state() private timeZone = '';
   @state() private timeZoneConfirmed = false;
   @state() private deliveries: Item[] = [];
+  @state() private recurrences: Item[] = [];
   private epoch = 0;
   private view = 0;
   private requestId = String(readDraft().requestId||'').slice(0,128);
@@ -50,13 +53,15 @@ class MirallyMessagesPage extends OpenClawLightDomElement {
   protected override updated(changed: PropertyValues) { if (changed.has('page')) { ++this.view;this.busy=false;this.items=[]; this.failure=''; this.notice=''; void this.refresh(); } }
   private async refresh() {
     const epoch=++this.epoch, page=this.page; this.loading=true;
-    try { const [result,calendar,desktop,weixin]=await Promise.all([rpcProduct<Item>(page==='inbox'?'inbox.list':'commitment.list'),
+    try { const [result,calendar,desktop,weixin,recurrences]=await Promise.all([rpcProduct<Item>(page==='inbox'?'inbox.list':'commitment.list'),
       rpcProduct<{time_zone:string|null;confirmed:boolean}>('calendar.settings.get'),
       page==='reminders'?rpcProduct<{deliveries:Item[]}>('calendar.delivery.list',{channel:'desktop',include_terminal:true}):Promise.resolve({deliveries:[]}),
-      page==='reminders'?rpcProduct<{deliveries:Item[]}>('calendar.delivery.list',{channel:'weixin',include_terminal:true}):Promise.resolve({deliveries:[]})]);
+      page==='reminders'?rpcProduct<{deliveries:Item[]}>('calendar.delivery.list',{channel:'weixin',include_terminal:true}):Promise.resolve({deliveries:[]}),
+      page==='reminders'?rpcProduct<{recurrences:Item[]}>('calendar.recurrence.list'):Promise.resolve({recurrences:[]})]);
       if (!this.isConnected || epoch!==this.epoch) return;
       this.timeZone=calendar.time_zone || ''; this.timeZoneConfirmed=calendar.confirmed;
       this.deliveries=[...desktop.deliveries,...weixin.deliveries];
+      this.recurrences=recurrences.recurrences;
       this.items=page==='inbox'?result.items:result.commitments; this.failure='';
       if (!Array.isArray(this.items)) throw new Error('服务没有返回有效列表，请刷新重试。');
     } catch(error) { if (this.isConnected && epoch===this.epoch) { this.failure=errorMessage(error); this.items=[]; } }
@@ -98,6 +103,10 @@ class MirallyMessagesPage extends OpenClawLightDomElement {
   override render() {
     const reminders=this.page==='reminders';
     const list=this.items.filter(item=>reminders||!this.unreadOnly||item.state==='unread');
+    if (reminders) for (const series of this.recurrences) {
+      if (!list.some(item=>item.id===series.current_commitment_id)) list.push({id:series.current_commitment_id,title:series.title,body:series.body,status:'pending',due_at:series.next_due_at_utc_ms});
+    }
+    const seriesByCommitment = new Map(this.recurrences.map(item=>[item.current_commitment_id,item]));
     const notice=html`${this.failure?html`<p role="alert" class="mirally-product-notice" data-error>${this.failure}</p>`:nothing}${this.notice?html`<p role="status" class="mirally-product-notice">${this.notice}</p>`:nothing}`;
     return html`${renderSettingsPageHeader({title:reminders?'日历':'消息'})}${renderSettingsWorkspace(renderSettingsPage(html`
       ${reminders?html`<div class="mirally-product-actions"><button class=${this.calendarView?'btn primary':'btn'} aria-pressed=${String(this.calendarView)} @click=${()=>this.calendarView=true}>日程</button><button class=${this.calendarView?'btn':'btn primary'} aria-pressed=${String(!this.calendarView)} @click=${()=>this.calendarView=false}>提醒</button></div>`:nothing}
@@ -107,10 +116,10 @@ class MirallyMessagesPage extends OpenClawLightDomElement {
         ${this.loading?html`<p role="status" class="mirally-product-empty">正在读取…</p>`:!list.length?html`<p class="mirally-product-empty">${this.failure?'读取失败，刷新后重试。':reminders?'还没有提醒。':'这里暂时没有消息。'}</p>`:list.map(item=>html`
           <article class="mirally-product-item" data-testid=${reminders?'mirally-reminder-item':'mirally-inbox-item'}>
             <h3>${item.title}</h3>${item.body&&item.body!==item.title?html`<p class="mirally-product-body">${item.body}</p>`:nothing}
-            <p class="mirally-product-meta">${statuses[reminders?item.status:item.state]||'状态待核对'} · ${date(reminders?item.due_at:item.updated_at,this.timeZone)}</p>
+            <p class="mirally-product-meta">${statuses[reminders?item.status:item.state]||'状态待核对'} · ${date(reminders?item.due_at:item.updated_at,this.timeZone)}${reminders&&seriesByCommitment.has(item.id)?` · ${repeatLabel(seriesByCommitment.get(item.id)!)}`:''}</p>
             ${reminders&&this.deliveries.some(delivery=>delivery.commitment_id===item.id)?html`<p class="mirally-product-meta">${this.deliveries.filter(delivery=>delivery.commitment_id===item.id).map(delivery=>`${delivery.channel==='desktop'?'桌面':'微信'}：${deliveryStates[delivery.status]||'状态待核对'}`).join(' · ')}</p>`:nothing}
             <div class="mirally-product-actions">
-              ${reminders&&item.status==='pending'?html`<button class="btn" ?disabled=${this.busy} @click=${()=>this.mutate(()=>rpcProduct('commitment.cancel',{commitment_id:item.id}),'提醒已取消。')}>取消提醒</button>`:nothing}
+              ${reminders&&item.status==='pending'?html`<button class="btn" ?disabled=${this.busy} @click=${()=>this.mutate(()=>seriesByCommitment.has(item.id)?rpcProduct('calendar.recurrence.cancel',{recurrence_id:seriesByCommitment.get(item.id)!.id}):rpcProduct('calendar.reminder.cancel',{commitment_id:item.id}),seriesByCommitment.has(item.id)?'重复提醒已取消。':'提醒已取消。')}>${seriesByCommitment.has(item.id)?'取消重复提醒':'取消提醒'}</button>`:nothing}
               ${!reminders&&item.state==='unread'?html`<button class="btn" data-testid="mirally-inbox-read" ?disabled=${this.busy} @click=${()=>this.mutate(()=>rpcProduct('inbox.ack',{delivery_id:item.delivery_id,state:'read'}),'已标记为已读。')}>标记已读</button>`:nothing}
               ${!reminders&&item.conversation_id&&!item.withdrawn?html`<button class="btn" @click=${()=>this.openConversation(item)}>接着聊</button>`:nothing}
             </div>

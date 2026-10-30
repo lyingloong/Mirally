@@ -45,7 +45,8 @@ class FrameworkChannelsTests(unittest.TestCase):
 
     def bound(self):
         saved = self.save()
-        return self.call("bind", expected_revision=saved["revision"])["state"]
+        conversation = self.service.call('conversation.ensure')['conversation_id']
+        return self.call("bind", expected_revision=saved["revision"], conversation_id=conversation)["state"]
 
     def event(self, state=None, identity="event-one", text="实验进度如何？", **extra):
         state = state or self.state()
@@ -82,7 +83,9 @@ class FrameworkChannelsTests(unittest.TestCase):
         self.assertTrue(bound["enabled"])
         self.assertTrue(bound["bound"])
         self.assertEqual(bound["revision"], 2)
-        self.assertTrue(self.service.call("conversation.get", {"conversation_id": bound["conversation_id"]})["title"].startswith("新对话-"))
+        self.assertEqual(bound['mode'], 'assistant')
+        self.assertEqual(self.service.call("conversation.get", {"conversation_id": bound["conversation_id"]})["title"], "微信助理")
+        self.assertTrue(self.service.call("conversation.get", {"conversation_id": bound["conversation_id"]})['pinned'])
         for method in ("settings.get", "internal.settings.get", "system.status"):
             wire = json.dumps(self.service.call(method))
             self.assertNotIn("secret-wechat-token", wire)
@@ -140,8 +143,7 @@ class FrameworkChannelsTests(unittest.TestCase):
         args = dict(installation_id=assistant['installation_id'],revision=assistant['revision'],source_conversation_id=source,
                     source_command_id='source-command',target_conversation_id=target,target_generation=1,
                     target_command_id='target-command',content_hash='a'*64)
-        with self.assertRaises(FrameworkError):
-            self.call('delegate', **args)
+        self.call('delegate', **args)
         self.service.call('settings.update', {'patch':{'weixin_remote_control_enabled':True}})
         self.call('delegate', **args)
         check = {key:value for key,value in args.items() if key not in ('target_generation','content_hash')}
@@ -149,8 +151,7 @@ class FrameworkChannelsTests(unittest.TestCase):
         with self.assertRaises(FrameworkError):
             self.call('delegate', **{**args,'content_hash':'b'*64})
         self.service.call('settings.update', {'patch':{'weixin_remote_control_enabled':False}})
-        with self.assertRaises(FrameworkError):
-            self.call('delegation_check', **check)
+        self.call('delegation_check', **check)
         restored = self.call('mode', expected_revision=assistant['revision'], mode='direct')['state']
         self.assertEqual(restored['conversation_id'],target)
         self.assertEqual(restored['assistant_conversation_id'],source)
@@ -166,6 +167,34 @@ class FrameworkChannelsTests(unittest.TestCase):
         self.assertEqual(self.state()['conversation_id'], state['conversation_id'])
         self.assertEqual(self.service.db.execute('PRAGMA user_version').fetchone()[0], SCHEMA_VERSION)
         self.assertIsNotNone(self.service.db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='channel_weixin_delegations'").fetchone())
+
+    def test_assistant_is_pinned_once_and_explicit_unpin_survives_restart(self):
+        direct = self.bound()
+        assistant = self.call('mode', expected_revision=direct['revision'], mode='assistant')['state']
+        identity = assistant['assistant_conversation_id']
+        conversation = self.service.conversation_get(identity)
+        self.assertTrue(conversation['pinned'])
+        self.assertEqual(self.service.conversation_list('active')['conversations'][0]['conversation_id'], identity)
+        self.service.conversation_patch(identity, conversation['metadata_version'], {'pinned':False})
+        self.restart()
+        self.assertFalse(self.service.conversation_get(identity)['pinned'])
+        current = self.state()
+        selected = self.call('mode', expected_revision=current['revision'], mode='direct')['state']
+        self.call('mode', expected_revision=selected['revision'], mode='assistant')
+        self.assertFalse(self.service.conversation_get(identity)['pinned'])
+
+    def test_existing_assistant_is_pinned_once_after_upgrade(self):
+        direct = self.bound()
+        state = self.call('mode', expected_revision=direct['revision'], mode='assistant')['state']
+        identity = state['assistant_conversation_id']
+        conversation = self.service.conversation_get(identity)
+        self.service.conversation_patch(identity, conversation['metadata_version'], {'pinned':False})
+        stored = json.loads(self.service.db.execute("SELECT value_json FROM settings WHERE key='weixin_assistant'").fetchone()[0])
+        del stored['assistant_pin_initialized']
+        self.service.db.execute("UPDATE settings SET value_json=? WHERE key='weixin_assistant'", (json.dumps(stored),))
+        self.restart()
+        self.assertTrue(self.service.conversation_get(identity)['pinned'])
+        self.assertEqual(self.state()['conversation_id'], identity)
 
     def test_history_evidence_only_joins_real_matching_weixin_event_and_command(self):
         state = self.bound()

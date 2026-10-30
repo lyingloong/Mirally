@@ -19,7 +19,7 @@ test('original UI coalesces durable and late live tool projections by the exact 
   const code = (Array.isArray(result) ? result[0] : result).output.find(file => file.type === 'chunk' && file.isEntry).code;
   const {coalesceToolActivityMessages} = await import('data:text/javascript;base64,' + Buffer.from(code + '\n//# sourceURL=original-tool-coalescer-test.mjs').toString('base64'));
   const log = [{seq: 0, time: 1, type: 'user/message', data: {id: 'user', source: {kind: 'user'}, content: [{type: 'text', text: '查看提醒'}]}},
-    {seq: 1, time: 2, type: 'tool/call', data: {turn: 1, step: 1, callId: 'provider-reused', name: 'mirally_reminders', arguments: '{}'}},
+    {seq: 1, time: 2, type: 'tool/call', data: {turn: 1, step: 1, callId: 'provider-reused', name: 'mirally_reminders', arguments: '{"query":"校园班车","count":10}'}},
     {seq: 2, time: 3, type: 'tool/result', sourceEventSeqs: [1], data: {turn: 1, step: 1, message: {toolCallId: 'provider-reused', isError: false, content: [{type: 'text', text: '真实结果'}]}}}];
   const rows = projectMessages(log, [{command_id: 'run', runtime_request_id: 'user'}], 0, {nativeSessionId: 'native-one'});
   const durable = rows[1], live = {role: 'assistant', runId: 'run', toolCallId: durable.toolCallId, timestamp: 2,
@@ -32,6 +32,8 @@ test('original UI coalesces durable and late live tool projections by the exact 
     assert.equal(tools.length, 1, 'History and a late live start must remain one card');
     const result = tools[0].message.content.filter(block => ['toolresult', 'tool_result'].includes(block.type));
     assert.equal(result.length, 1); assert.equal(result[0].text, '真实结果');
+    const call=tools[0].message.content.find(block=>['toolcall','tool_call'].includes(block.type));
+    assert.deepEqual({...call.arguments}, {query:'校园班车',count:10}, 'Persisted arguments must win over an empty live projection');
     assert.equal(tools[0].message.__openclawToolStreamResultReceived, true, 'A late running echo cannot resurrect the spinner');
   }
   const other = projectMessages(log, [{command_id: 'run', runtime_request_id: 'user'}], 10, {nativeSessionId: 'native-two'})[1];

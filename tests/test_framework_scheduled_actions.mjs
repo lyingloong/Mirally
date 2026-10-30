@@ -89,13 +89,30 @@ test('unknown admission or crash is never replayed automatically',async t=>{
   await restored.tick();assert.equal(f.calls.length,0);
 });
 
-test('remote creation, revoked scope, changed session and corrupted state fail closed',async t=>{
+test('invalid remote identity, revoked scope, changed session and corrupted state fail closed',async t=>{
   const f=fixture(t),tool=f.tools.get('mirally_schedule_action'),input={title:'检查',prompt:'检查实验',after_seconds:60};
-  f.policy.origin='weixin';await assert.rejects(tool.execute(input,f.exec),{code:'schedule_remote_unavailable'});f.policy.origin='desktop';
+  f.policy.origin='weixin';await assert.rejects(tool.execute(input,f.exec),{code:'schedule_store_invalid'});f.policy.origin='desktop';
   f.host.rpc=async()=>{f.policy.origin='weixin';return {confirmed:true,time_zone:'Asia/Shanghai'};};
-  await assert.rejects(tool.execute(input,f.exec),{code:'schedule_remote_unavailable'});assert.equal(f.actions.list().length,0);
+  await assert.rejects(tool.execute(input,f.exec),{code:'schedule_store_invalid'});assert.equal(f.actions.list().length,0);
   f.policy.origin='desktop';f.host.rpc=async()=>({confirmed:true,time_zone:'Asia/Shanghai'});
   await tool.execute(input,f.exec);f.conversation.generation=2;f.setTime(f.now()+60_000);await f.actions.tick();
   assert.equal(f.calls.length,0);assert.equal(f.actions.list()[0].status,'unknown');
   writeFileSync(join(f.home,'scheduled-actions.json'),'broken');assert.throws(()=>new ScheduledActions(f.host),{code:'schedule_store_invalid'});
+});
+
+test('WeChat scheduling records provenance and a remote change cannot inherit desktop execution',async t=>{
+  const f=fixture(t),create=f.tools.get('mirally_schedule_action'),update=f.tools.get('mirally_update_scheduled_action'),manage=f.tools.get('mirally_manage_scheduled_action');
+  const desktop=(await create.execute({title:'桌面任务',prompt:'原内容',after_seconds:60},f.exec)).schedule;
+  f.policy.origin='weixin';f.policy.installation_id='a'.repeat(32);f.policy.conversation_id='source';
+  const changed=(await update.execute({schedule_id:desktop.id,title:'远程修改',prompt:'远程内容',after_seconds:120},f.exec)).schedule;
+  assert.deepEqual(changed.authority,{origin:'weixin',installation_id:'a'.repeat(32),source_conversation_id:'source'});
+  await manage.execute({schedule_id:desktop.id,operation:'pause'},f.exec);
+  f.policy.installation_id='b'.repeat(32);
+  const resumed=(await manage.execute({schedule_id:desktop.id,operation:'resume'},f.exec)).schedule;
+  assert.equal(resumed.authority.installation_id,'b'.repeat(32));
+  f.host.rpc=async method=>method==='calendar.settings.get'?{confirmed:true,time_zone:'Asia/Shanghai'}
+    :method==='channel.weixin.get'?{state:{bound:true,enabled:true,token:'fixture',installation_id:'b'.repeat(32),revision:1,conversation_id:'source'}}
+    :method==='settings.get'?{weixin_remote_control_enabled:true}:{commands:[]};
+  f.setTime(f.now()+120_000);await f.actions.tick();assert.equal(f.calls.length,0);
+  assert.equal(f.actions.list()[0].status,'paused');
 });

@@ -44,7 +44,7 @@ class AssistantDelegationSecurityTests(unittest.TestCase):
         forged={**self.scope,'source_command_id':'another'}
         with self.assertRaises(FrameworkError):
             self.call('internal.work.update_conversation',conversation_id=self.target,work_id=work['id'],patch={'goal':'伪造'},weixin_scope=forged)
-        self.call('settings.update',patch={'weixin_remote_control_enabled':False})
+        self.call('channel.weixin.enable',expected_revision=self.state['revision'],enabled=False)
         with self.assertRaises(FrameworkError):
             self.check()
         with self.assertRaises(FrameworkError):
@@ -75,7 +75,7 @@ class AssistantDelegationSecurityTests(unittest.TestCase):
         self.call('channel.weixin.delegation_check',**params,delivery=True)
         with self.assertRaises(FrameworkError):
             self.call('channel.weixin.delegation_check',**{**params,'source_command_id':'forged'},delivery=True)
-        self.call('settings.update',patch={'weixin_remote_control_enabled':False})
+        self.call('channel.weixin.enable',expected_revision=self.state['revision'],enabled=False)
         with self.assertRaises(FrameworkError):
             self.call('channel.weixin.delegation_check',**params,delivery=True)
 
@@ -88,6 +88,28 @@ class AssistantDelegationSecurityTests(unittest.TestCase):
         with self.assertRaises(FrameworkError):
             self.call('channel.weixin.admit',installation_id=self.state['installation_id'],revision=self.state['revision'],
                       event_id='voice-1',text='语音',content_identity='2'*64)
+
+    def test_delegated_preference_and_workspace_writes_recheck_scope_atomically(self):
+        revision=self.call('capabilities.get')['revision']
+        self.call('capabilities.configure',expected_revision=revision,patch={'workspace_write_enabled':True})
+        self.call('preference.set',key='voice',value='short',conversation_id=self.target,weixin_scope=self.scope)
+        self.call('internal.workspace.write',path='remote.txt',content='ok',conversation_id=self.target,weixin_scope=self.scope)
+        self.call('channel.weixin.enable',expected_revision=self.state['revision'],enabled=False)
+        with self.assertRaises(FrameworkError):
+            self.call('preference.set',key='tone',value='revoked',conversation_id=self.target,weixin_scope=self.scope)
+        with self.assertRaises(FrameworkError):
+            self.call('internal.workspace.write',path='revoked.txt',content='no',conversation_id=self.target,weixin_scope=self.scope)
+        self.assertFalse((self.s.home/'workspace'/'revoked.txt').exists())
+        self.assertFalse(any(item['key']=='tone' for item in self.call('preference.list')['preferences']))
+
+    def test_direct_weixin_preference_and_workspace_reject_stale_revision(self):
+        state=self.call('channel.weixin.mode',expected_revision=self.state['revision'],mode='direct')['state']
+        self.call('command.admit',conversation_id=self.target,command_id='weixin-direct',text='保存偏好')
+        scope={'installation_id':state['installation_id'],'revision':state['revision'],'command_id':'weixin-direct'}
+        self.call('preference.set',key='direct',value='yes',conversation_id=self.target,weixin_scope=scope)
+        self.call('channel.weixin.select',expected_revision=state['revision'],conversation_id=self.source)
+        with self.assertRaises(FrameworkError):
+            self.call('preference.set',key='stale',value='no',conversation_id=self.target,weixin_scope=scope)
 
 
 if __name__ == '__main__': unittest.main()

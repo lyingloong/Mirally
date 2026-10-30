@@ -134,6 +134,7 @@ class WeixinChannels:
             service.db.execute("INSERT OR IGNORE INTO channel_weixin(singleton) VALUES(1)")
             service.db.execute("UPDATE channel_weixin_events SET state='unknown',updated_at=? WHERE state='submitted'", (service.clock(),))
             service.db.execute("UPDATE channel_weixin_outbox SET status='unknown',updated_at=? WHERE status='sending'", (service.clock(),))
+            self._initialize_assistant_pin(self._state())
 
     def routes(self):
         return {"channel.weixin." + key: getattr(self, key) for key in (
@@ -178,13 +179,27 @@ class WeixinChannels:
         result['mode'] = saved.get('mode', 'direct')
         result['assistant_conversation_id'] = saved.get('assistant_conversation_id')
         result['direct_conversation_id'] = saved.get('direct_conversation_id') or (result['conversation_id'] if result['mode'] == 'direct' else None)
+        result['assistant_pin_initialized'] = saved.get('assistant_pin_initialized') is True
         return result
 
     def _save_mode(self, state, mode, assistant_id, direct_id):
         value = {'installation_id':state['installation_id'], 'mode':mode,
-                 'assistant_conversation_id':assistant_id, 'direct_conversation_id':direct_id}
+                 'assistant_conversation_id':assistant_id, 'direct_conversation_id':direct_id,
+                 'assistant_pin_initialized':state.get('assistant_pin_initialized') is True}
         self.db.execute("INSERT INTO settings VALUES('weixin_assistant',?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json",
                         (json.dumps(value, ensure_ascii=False, separators=(',', ':')),))
+
+    def _initialize_assistant_pin(self, state):
+        """Pin the assistant once; a later explicit user unpin remains respected."""
+        assistant_id = state.get('assistant_conversation_id')
+        if not state.get('installation_id') or not assistant_id or state.get('assistant_pin_initialized'):
+            return
+        row = self.db.execute('SELECT pinned,archived,metadata_version FROM conversations WHERE id=?', (assistant_id,)).fetchone()
+        if not row:
+            return
+        if not row['pinned'] and not row['archived']:
+            self.service.conversation_patch(assistant_id, row['metadata_version'], {'pinned': True})
+        self._save_mode({**state, 'assistant_pin_initialized':True}, state['mode'], assistant_id, state['direct_conversation_id'])
 
     def _current(self, revision, installation_id=None, *, enabled=False):
         _integer(revision, "revision")
@@ -252,10 +267,18 @@ class WeixinChannels:
             current = self._current(expected_revision)
             if not current["token"] or not current["peer_id"]:
                 _fail("CHANNEL_UNCONFIGURED", "Scan and confirm WeChat login first")
+            use_assistant = conversation_id is None
             conversation_id = self._conversation(conversation_id)
             self._cancel_pending()
-            self.db.execute("UPDATE channel_weixin SET revision=revision+1,bound=1,enabled=1,conversation_id=? WHERE singleton=1", (conversation_id,))
-            self._save_mode(current, 'direct', current['assistant_conversation_id'], conversation_id)
+            assistant = current['assistant_conversation_id']
+            target = conversation_id
+            if use_assistant:
+                assistant = assistant or 'conversation_weixin_assistant_' + current['installation_id']
+                self.service.conversation_ensure(conversation_id=assistant, title='微信助理')
+                target = self._conversation(assistant)
+            self.db.execute("UPDATE channel_weixin SET revision=revision+1,bound=1,enabled=1,conversation_id=? WHERE singleton=1", (target,))
+            self._save_mode(current, 'assistant' if use_assistant else 'direct', assistant, conversation_id)
+            self._initialize_assistant_pin(self._state())
         return self.get()
 
     def select(self, expected_revision, conversation_id=None):
@@ -288,6 +311,7 @@ class WeixinChannels:
             self._cancel_pending()
             self.db.execute("UPDATE channel_weixin SET revision=revision+1,conversation_id=? WHERE singleton=1", (target,))
             self._save_mode(current, mode, assistant, direct)
+            self._initialize_assistant_pin(self._state())
         return self.get()
 
     def delegate(self, installation_id, revision, source_conversation_id, source_command_id,
@@ -304,7 +328,6 @@ class WeixinChannels:
             source = self.service._command(source_conversation_id, source_command_id)
             target = self.service._conversation(target_conversation_id)
             if (current['mode'] != 'assistant' or current['conversation_id'] != source_conversation_id
-                    or not self.service._settings().get('weixin_remote_control_enabled')
                     or source['state'] not in ('admitted','submitted','applied')
                     or target['archived'] or target['frozen'] or target['generation'] != target_generation
                     or target_conversation_id == source_conversation_id):
@@ -333,7 +356,6 @@ class WeixinChannels:
             source_conversation = self.service._conversation(source_conversation_id)
             target = self.service._conversation(target_conversation_id)
             if (current['mode'] != 'assistant' or current['conversation_id'] != source_conversation_id
-                or not self.service._settings().get('weixin_remote_control_enabled')
                 or source['state'] not in (('admitted','submitted','applied','completed') if delivery else ('admitted','submitted','applied'))
                 or source_conversation['archived'] or source_conversation['frozen'] or source_conversation['generation'] != source['generation']
                 or target['archived'] or target['frozen']

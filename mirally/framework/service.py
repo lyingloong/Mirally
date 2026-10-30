@@ -28,7 +28,7 @@ from .work import WORK_SCHEMA, WorkOwner
 from .calendar import CALENDAR_SCHEMA, CalendarOwner
 
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 CONVERSATION_FORKS_SCHEMA = """CREATE TABLE IF NOT EXISTS conversation_forks (
     conversation_id TEXT PRIMARY KEY REFERENCES conversations(id),
     parent_conversation_id TEXT NOT NULL,parent_generation INTEGER NOT NULL,
@@ -91,7 +91,7 @@ class FrameworkService:
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.execute("PRAGMA busy_timeout=10000")
         try:
-            if self.db.execute("PRAGMA user_version").fetchone()[0] not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, SCHEMA_VERSION):
+            if self.db.execute("PRAGMA user_version").fetchone()[0] not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, SCHEMA_VERSION):
                 raise FrameworkError("SCHEMA_VERSION", "unsupported product database schema")
             self.db.execute("PRAGMA journal_mode=WAL")
             self.db.execute("PRAGMA synchronous=FULL")
@@ -104,6 +104,8 @@ class FrameworkService:
             self.channels = WeixinChannels(self)
             self.work = WorkOwner(self)
             self.calendar = CalendarOwner(self)
+            from .recaps import Recaps
+            self.recaps = Recaps(self)
             with self._transaction():
                 # A process died after reserving an external effect. Reconcile
                 # the provider; never turn this back into pending automatically.
@@ -117,7 +119,7 @@ class FrameworkService:
 
     def _initialize(self) -> None:
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, SCHEMA_VERSION):
+        if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, SCHEMA_VERSION):
             raise FrameworkError("SCHEMA_VERSION", "unsupported product database schema")
         if version == SCHEMA_VERSION:
             # Development builds of schema 9 before notes were added can be
@@ -126,7 +128,7 @@ class FrameworkService:
                 with self._transaction():
                     self.db.execute("ALTER TABLE calendar_events ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
             return
-        if version in (1, 2, 3, 4, 5, 6, 7, 8, 9):
+        if version in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10):
             with self._transaction():
                 if version == 1:
                     self.db.execute(INITIATIVE_RUNS_SCHEMA)
@@ -218,6 +220,7 @@ class FrameworkService:
             **self.channels.routes(),
             **self.work.routes(),
             **self.calendar.routes(),
+            **self.recaps.routes(),
             "system.status": self.status, "settings.get": self.settings_get,
             "settings.update": self.settings_update, "internal.settings.get": self.settings_internal,
             "model.connections.list": self.model_connections.list, "model.connection.save": self.model_connections.save,
@@ -316,9 +319,13 @@ class FrameworkService:
         from .capabilities import search_files
         return search_files(self,query,root_id,path)
 
-    def workspace_write(self, path, content, expected_sha256=None):
+    def workspace_write(self, path, content, expected_sha256=None, conversation_id=None, weixin_scope=None):
         from .capabilities import write_file
-        return write_file(self,path,content,expected_sha256)
+        if weixin_scope is None:
+            return write_file(self,path,content,expected_sha256)
+        with self._transaction():
+            self.work._check_weixin_work_scope(conversation_id, weixin_scope)
+            return write_file(self,path,content,expected_sha256)
 
     def status(self) -> dict[str, Any]:
         workers = self._controller_status()
@@ -496,7 +503,7 @@ class FrameworkService:
     def _conversation(self, conversation_id: str) -> dict[str, Any]:
         row = self.db.execute("""SELECT c.id AS conversation_id,c.title,c.created_at,c.pinned,c.archived,
             c.metadata_version,c.metadata_updated_at,c.pinned_at,c.archived_at,c.model_selection_json,
-            MAX(c.metadata_updated_at,COALESCE((SELECT MAX(updated_at) FROM commands WHERE conversation_id=c.id),c.created_at)) AS updated_at,
+            COALESCE((SELECT MAX(updated_at) FROM commands WHERE conversation_id=c.id),c.created_at) AS updated_at,
             c.current_generation AS generation,g.session_id,g.frozen
             FROM conversations c JOIN generations g ON g.conversation_id=c.id AND g.generation=c.current_generation WHERE c.id=?""", (conversation_id,)).fetchone()
         if row is None:
@@ -504,6 +511,7 @@ class FrameworkService:
         result = dict(row)
         selection = result.pop('model_selection_json')
         result['model_selection'] = json.loads(selection) if selection else None
+        result['recap'] = self.recaps.get(conversation_id) if hasattr(self, 'recaps') else None
         result["frozen"] = bool(result["frozen"])
         result["pinned"], result["archived"] = bool(result["pinned"]), bool(result["archived"])
         result["needs_session"] = result["session_id"] is None or result["frozen"]
@@ -716,8 +724,8 @@ class FrameworkService:
         _integer(offset, "offset", 0, 2**31 - 1)
         clause = {"all": "1=1", "active": "c.archived=0", "archived": "c.archived=1"}[archived_filter]
         return {"conversations": [self._conversation(row[0]) for row in self.db.execute("""SELECT c.id FROM conversations c
-            WHERE """ + clause + """ ORDER BY c.pinned DESC,MAX(c.metadata_updated_at,
-            COALESCE((SELECT MAX(updated_at) FROM commands WHERE conversation_id=c.id),c.created_at)) DESC,c.id DESC LIMIT ? OFFSET ?""", (limit, offset))]}
+            WHERE """ + clause + """ ORDER BY c.pinned DESC,
+            COALESCE((SELECT MAX(updated_at) FROM commands WHERE conversation_id=c.id),c.created_at) DESC,c.id DESC LIMIT ? OFFSET ?""", (limit, offset))]}
 
     def conversation_resolve(self, selector: str) -> dict[str, Any]:
         """Resolve one phone route from a single SQLite snapshot, never list offsets.
@@ -977,13 +985,15 @@ class FrameworkService:
         return {"preferences": [{"scope": row["scope"], "key": row["key"], "value": json.loads(row["value_json"]), "revision": row["revision"]} for row in self.db.execute("SELECT * FROM preferences ORDER BY scope,key")
                                 if self._source(f"preference:{row['scope']}:{row['key']}")["enabled"]]}
 
-    def preference_set(self, key: str, value: Any, scope: str = "user/local") -> dict[str, Any]:
+    def preference_set(self, key: str, value: Any, scope: str = "user/local", conversation_id: str | None = None, weixin_scope: dict | None = None) -> dict[str, Any]:
         _text(key, "key")
         _text(scope, "scope")
         encoded = _json(value)
         if len(encoded.encode("utf-8")) > 16384:
             raise FrameworkError("INVALID_PARAMS", "preference exceeds size limit")
         with self._transaction():
+            if weixin_scope is not None:
+                self.work._check_weixin_work_scope(conversation_id, weixin_scope)
             old = self.db.execute("SELECT * FROM preferences WHERE scope=? AND key=?", (scope, key)).fetchone()
             if old and old["value_json"] == encoded:
                 return {"scope": scope, "key": key, "value": value, "revision": old["revision"], "affected": []}
@@ -1295,6 +1305,7 @@ class FrameworkService:
                 if identity:
                     self.calendar.queue_deliveries(row[0])
                     generated.append(identity)
+            self.calendar.advance_recurrences(now)
             settings = self._settings()
             if settings["general_initiative_enabled"] and not settings["do_not_disturb"]:
                 for row in self.db.execute("SELECT id FROM initiatives WHERE status='pending' AND not_before<=? AND expires_at>? ORDER BY created_at LIMIT 20", (now, now)).fetchall():

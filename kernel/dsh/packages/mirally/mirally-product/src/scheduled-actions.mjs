@@ -13,6 +13,20 @@ const MAX_JOBS = 1000;
 const MAX_HISTORY = 50;
 const selectors = ['at', 'after_seconds', 'every_seconds', 'daily', 'weekly', 'cron'];
 
+// Legacy jobs predate provenance and are desktop-owned. Remote provenance is
+// never inferred from a conversation, its name, or a caller-provided prompt.
+function scheduleAuthority(value) {
+  if (value === undefined || value === null) return {origin:'desktop'};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw fail('定时任务来源无效。', 'schedule_store_invalid');
+  if (value.origin === 'desktop' && Object.keys(value).length === 1) return {origin:'desktop'};
+  if (value.origin === 'weixin' && Object.keys(value).length === 3
+    && typeof value.installation_id === 'string' && /^[a-f0-9]{32}$/.test(value.installation_id)
+    && typeof value.source_conversation_id === 'string' && value.source_conversation_id.length > 0
+    && value.source_conversation_id.length <= 512)
+    return {origin:'weixin', installation_id:value.installation_id, source_conversation_id:value.source_conversation_id};
+  throw fail('定时任务来源无效。', 'schedule_store_invalid');
+}
+
 function boundedText(value, label, max) {
   if (typeof value !== 'string' || !value.trim() || value.length > max) throw fail(`${label}不能为空且不能超过 ${max} 个字符。`);
   return value.trim();
@@ -64,6 +78,7 @@ export class ScheduledActions {
         || !Array.isArray(job.history) || job.history.length > MAX_HISTORY || job.record?.id !== job.id)
         throw fail('定时任务记录无效。', 'schedule_store_invalid');
       try { decodeScheduleRecord(job.record); } catch { throw fail('定时任务时间规则无效。', 'schedule_store_invalid'); }
+      scheduleAuthority(job.authority);
     }
     return value;
   }
@@ -101,12 +116,16 @@ export class ScheduledActions {
     return scheduleRecord(id, normalized, this.now(), zone);
   }
 
-  create({conversation_id, generation, input, request_key, authorize = async () => {}}) {
+  create({conversation_id, generation, input, request_key, authority, authorize = async () => {}}) {
     return this.serialize(async () => {
       if (typeof conversation_id !== 'string' || !conversation_id || !Number.isSafeInteger(generation) || generation < 1)
         throw fail('会话不可用。');
       const key = boundedText(request_key, '请求标识', 300);
-      const digest = createHash('sha256').update(JSON.stringify([conversation_id, generation, input])).digest('hex');
+      const provenance = scheduleAuthority(authority);
+      // Keep the old digest for desktop jobs so existing idempotent retries
+      // remain compatible after upgrading the store.
+      const digest = createHash('sha256').update(JSON.stringify(provenance.origin === 'desktop'
+        ? [conversation_id, generation, input] : [conversation_id, generation, input, provenance])).digest('hex');
       const prior = this.state.jobs.find(job => job.request_key === key);
       if (prior) {
         if (prior.digest !== digest) throw fail('此请求已用于其他定时任务。', 'schedule_conflict');
@@ -116,7 +135,8 @@ export class ScheduledActions {
       const id = `schedule_${randomUUID()}`;
       const record = await this.recordForInput(id, input);
       await authorize();
-      const job = {id, conversation_id, generation, request_key:key, digest, record, status:'active', created_at:this.now(), history:[]};
+      const job = {id, conversation_id, generation, request_key:key, digest, record, status:'active', created_at:this.now(), history:[],
+        ...(provenance.origin === 'weixin' ? {authority:provenance} : {})};
       const next = clone(this.state); next.jobs.push(job); this.save(next); this.changed(job);
       return clone(job);
     });
@@ -146,12 +166,43 @@ export class ScheduledActions {
       && job.pending?.command_id === command_id);
   }
 
-  change(conversation_id, id, operation, authorize = async () => {}) {
+  /** Recheck the stable binding and current user policy, never a stored token. */
+  async authorizeWeixinOccurrence(id, conversationId, commandId) {
+    const job = this.state.jobs.find(item => item.id === id && item.conversation_id === conversationId);
+    const authority = scheduleAuthority(job?.authority);
+    const pending = job?.status === 'dispatching' && job.pending?.command_id === commandId;
+    const accepted = !['cancelled','unknown'].includes(job?.status) && job?.history?.some(entry => entry.command_id === commandId && entry.status === 'accepted');
+    if (!job || authority.origin !== 'weixin' || !(pending || accepted))
+      throw fail('定时微信任务已变化。', 'schedule_scope_revoked');
+    const {state} = await this.host.rpc('channel.weixin.get');
+    if (!state?.bound || !state.enabled || !state.token || state.installation_id !== authority.installation_id
+      || !Number.isSafeInteger(state.revision) || typeof state.conversation_id !== 'string' || !state.conversation_id)
+      throw fail('微信连接已关闭，定时任务已暂停。', 'schedule_scope_revoked');
+    const conversation = await this.host.conversation(conversationId);
+    if (conversation.archived || conversation.frozen || conversation.generation !== job.generation)
+      throw fail('定时任务所属会话已变化。', 'schedule_scope_revoked');
+    const latest = this.state.jobs.find(item => item.id === id && item.conversation_id === conversationId);
+    const latestAuthority = scheduleAuthority(latest?.authority);
+    const stillPending = latest?.status === 'dispatching' && latest.pending?.command_id === commandId;
+    const stillAccepted = !['cancelled','unknown'].includes(latest?.status) && latest?.history?.some(entry => entry.command_id === commandId && entry.status === 'accepted');
+    if (!latest || latestAuthority.origin !== 'weixin' || latestAuthority.installation_id !== authority.installation_id
+      || latestAuthority.source_conversation_id !== authority.source_conversation_id || !(stillPending || stillAccepted))
+      throw fail('定时微信任务已变化。', 'schedule_scope_revoked');
+    // Return only the current route identity. Credentials remain owned by the channel.
+    return {installation_id:state.installation_id,revision:state.revision,conversation_id:state.conversation_id};
+  }
+
+  change(conversation_id, id, operation, authorize = async () => {}, authority) {
     return this.serialize(async () => {
       const next = clone(this.state), job = next.jobs.find(item => item.id === id && item.conversation_id === conversation_id);
       if (!job) throw fail('找不到此会话的定时任务。', 'schedule_not_found');
+      const actor = scheduleAuthority(authority);
       if (operation === 'pause' && job.status === 'active') job.status = 'paused';
-      else if (operation === 'resume' && job.status === 'paused') job.status = 'active';
+      else if (operation === 'resume' && job.status === 'paused') {
+        job.status = 'active';
+        // A remote resume is a fresh remote grant, never a desktop grant.
+        if (actor.origin === 'weixin') job.authority = actor;
+      }
       else if (operation === 'cancel' && !['dispatching','cancelled'].includes(job.status)) job.status = 'cancelled';
       else throw fail('当前状态无法执行此操作。', 'schedule_conflict');
       await authorize();
@@ -159,13 +210,15 @@ export class ScheduledActions {
     });
   }
 
-  update(conversation_id, id, input, authorize = async () => {}) {
+  update(conversation_id, id, input, authorize = async () => {}, authority) {
     return this.serialize(async () => {
       const next = clone(this.state), job = next.jobs.find(item => item.id === id && item.conversation_id === conversation_id);
       if (!job) throw fail('找不到此会话的定时任务。', 'schedule_not_found');
       if (!['active','paused'].includes(job.status)) throw fail('此任务已结束或执行结果未知，请先检查原会话。', 'schedule_conflict');
+      const actor = scheduleAuthority(authority);
       job.record = await this.recordForInput(id, input);
       await authorize();
+      if (actor.origin === 'weixin') job.authority = actor;
       job.updated_at = this.now(); this.save(next); this.changed(job); return clone(job);
     });
   }
@@ -225,19 +278,29 @@ export class ScheduledActions {
         const commandId = `schedule-${createHash('sha256').update(`${job.id}:${occurrence.occurrenceAt}`).digest('hex').slice(0, 40)}`;
         job.status = 'dispatching'; job.pending = {command_id:commandId, occurrence_at:occurrence.occurrenceAt};
         this.save(state); this.changed(job);
-        let result, error;
+        let result, error, dispatchStarted = false;
         try {
           const conversation = await this.host.conversation(job.conversation_id);
           if (conversation.archived || conversation.frozen || conversation.generation !== job.generation)
             throw fail('会话已归档、停止或发生变化，请检查任务。', 'schedule_conversation_changed');
-          result = await this.host.sendScheduled(job.conversation_id, {commandId, text:`定时任务「${job.record.title}」到期。请执行用户事先安排的任务：\n${job.record.prompt}`}, job.id);
+          const request = {commandId, text:`定时任务「${job.record.title}」到期。请执行用户事先安排的任务：\n${job.record.prompt}`};
+          if (scheduleAuthority(job.authority).origin === 'weixin') {
+            await this.authorizeWeixinOccurrence(job.id,job.conversation_id,commandId);
+            if (typeof this.host.sendWeixinScheduled !== 'function') throw fail('微信定时执行尚未接入，请在电脑中设置。','schedule_remote_unavailable');
+            dispatchStarted = true;
+            result = await this.host.sendWeixinScheduled(job.conversation_id,request,job.id);
+          } else { dispatchStarted = true; result = await this.host.sendScheduled(job.conversation_id,request,job.id); }
           if (!result?.accepted) throw fail('原会话没有确认接收任务。', 'schedule_admission_unknown');
         } catch (caught) { error = caught; }
         state = clone(this.state); job = state.jobs.find(value => value.id === item.id);
         if (!job || job.status !== 'dispatching' || job.pending?.command_id !== commandId) continue;
-        job.history.push({command_id:commandId, occurrence_at:occurrence.occurrenceAt, dispatched_at:this.now(), status:error?'unknown':'accepted'});
+        // Explicit pre-dispatch revocation cannot have executed an action; keep
+        // it paused instead of presenting an unconfirmed execution outcome.
+        const revoked = !dispatchStarted && error && ['schedule_scope_revoked','schedule_remote_unavailable'].includes(error.code);
+        if (!revoked) job.history.push({command_id:commandId, occurrence_at:occurrence.occurrenceAt, dispatched_at:this.now(), status:error?'unknown':'accepted'});
         job.history = job.history.slice(-MAX_HISTORY); delete job.pending;
-        if (error) { job.status = 'unknown'; job.last_error = String(error.message ?? error).slice(0, 1000); }
+        if (revoked) { job.status = 'paused'; job.last_error = String(error.message ?? error).slice(0, 1000); }
+        else if (error) { job.status = 'unknown'; job.last_error = String(error.message ?? error).slice(0, 1000); }
         else if (occurrence.nextScheduledAt) { job.record.scheduledAt = occurrence.nextScheduledAt; job.status = 'active'; delete job.last_error; }
         else { job.status = 'dispatched'; delete job.last_error; }
         this.save(state); this.changed(job);
@@ -266,14 +329,17 @@ export function installScheduledActionTools(host, schedules) {
     const owner = host.nativeRuntime.owner(exec.agent);
     if (!owner || owner.rootSessionId !== exec.agent.id || !owner.commandId) throw fail('请在主会话中管理定时任务。', 'schedule_scope');
     const policy = host.commandPolicy(exec.agent);
-    if (write && policy?.origin !== 'desktop') throw fail('当前只能在电脑会话中设置定时执行。', 'schedule_remote_unavailable');
+    if (write && policy?.origin !== 'desktop' && policy?.origin !== 'weixin') throw fail('当前来源不能设置定时执行。', 'schedule_remote_unavailable');
+    if (write && policy?.schedule_id) throw fail('定时回合不能自行修改定时任务。','schedule_scope');
     await host.checkCommandScope(exec.agent, name);
     await host.guard(exec.agent.id);
     await host.checkCommandScope(exec.agent, name);
     exec.signal.throwIfAborted();
     if (host.commandPolicy(exec.agent) !== policy || host.consumedCommandId(exec.agent) !== owner.commandId)
       throw fail('会话或授权已变化，请重新操作。', 'schedule_scope');
-    return owner;
+    const authority = policy?.origin === 'weixin' ? scheduleAuthority({origin:'weixin',installation_id:policy.installation_id,
+      source_conversation_id:policy.conversation_id}) : {origin:'desktop'};
+    return {...owner, schedule_authority:authority};
   };
   host.ctx.tools.register({name:'mirally_schedule_action',
     description:'Only when the user explicitly requests future action in this conversation, schedule an agent task. For a simple reminder use the reminder/calendar tool instead. A scheduled action still requires the normal permissions. Supply exactly one time selector and never claim the task has executed.',
@@ -281,9 +347,10 @@ export function installScheduledActionTools(host, schedules) {
     execute:async (input,exec)=>{const owner=await context(exec,'mirally_schedule_action',true);
       const digest=createHash('sha256').update(JSON.stringify(input)).digest('hex');
       return {schedule:await schedules.create({conversation_id:owner.conversation.conversation_id,generation:owner.conversation.generation,
-        input,request_key:`${owner.commandId}:scheduled-action:${digest}`,
+        input,authority:owner.schedule_authority,request_key:`${owner.commandId}:scheduled-action:${digest}`,
         authorize:async()=>{const current=await context(exec,'mirally_schedule_action',true);
-          if (current.commandId !== owner.commandId || current.conversation.generation !== owner.conversation.generation) throw fail('会话已变化。','schedule_scope');}})};}});
+          if (current.commandId !== owner.commandId || current.conversation.generation !== owner.conversation.generation
+            || JSON.stringify(current.schedule_authority)!==JSON.stringify(owner.schedule_authority)) throw fail('会话已变化。','schedule_scope');}})};}});
   host.ctx.tools.register({name:'mirally_scheduled_actions',description:'List scheduled agent actions in this conversation. A dispatched action is accepted for execution, not necessarily completed.',
     parameters:{type:'object',properties:{},additionalProperties:false},output:render,
     execute:async (_input,exec)=>{const owner=await context(exec,'mirally_scheduled_actions');return {schedules:await schedules.listObserved(owner.conversation.conversation_id)};}});
@@ -292,11 +359,13 @@ export function installScheduledActionTools(host, schedules) {
     execute:async (input,exec)=>{const owner=await context(exec,'mirally_manage_scheduled_action',true);
       return {schedule:await schedules.change(owner.conversation.conversation_id,input.schedule_id,input.operation,async()=>{
         const current=await context(exec,'mirally_manage_scheduled_action',true);
-        if (current.commandId !== owner.commandId || current.conversation.generation !== owner.conversation.generation) throw fail('会话已变化。','schedule_scope');})};}});
+        if (current.commandId !== owner.commandId || current.conversation.generation !== owner.conversation.generation
+          || JSON.stringify(current.schedule_authority)!==JSON.stringify(owner.schedule_authority)) throw fail('会话已变化。','schedule_scope');},owner.schedule_authority)};}});
   host.ctx.tools.register({name:'mirally_update_scheduled_action',description:'Replace the title, task and timing of an active or paused scheduled action in this conversation. First list the task and preserve any details the user did not change. Exactly one time selector is required.',
     parameters:{type:'object',properties:{schedule_id:{type:'string'},title:{type:'string'},prompt:{type:'string'},...timeProperties},required:['schedule_id','title','prompt'],additionalProperties:false},output:render,
     execute:async (args,exec)=>{const owner=await context(exec,'mirally_update_scheduled_action',true);const {schedule_id,...input}=args;
       return {schedule:await schedules.update(owner.conversation.conversation_id,schedule_id,input,async()=>{
         const current=await context(exec,'mirally_update_scheduled_action',true);
-        if (current.commandId !== owner.commandId || current.conversation.generation !== owner.conversation.generation) throw fail('会话已变化。','schedule_scope');})};}});
+        if (current.commandId !== owner.commandId || current.conversation.generation !== owner.conversation.generation
+          || JSON.stringify(current.schedule_authority)!==JSON.stringify(owner.schedule_authority)) throw fail('会话已变化。','schedule_scope');},owner.schedule_authority)};}});
 }

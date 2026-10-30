@@ -251,8 +251,7 @@ class WorkOwner:
                 target_conversation_id=conversation_id, target_command_id=weixin_scope['command_id'])
         elif state['conversation_id'] != conversation_id:
             fail("CONFLICT", "微信工作授权已改变，请重新发起")
-        if (not self.s._settings().get("weixin_remote_control_enabled")
-                or command["state"] not in {"admitted", "submitted", "applied"}):
+        if command["state"] not in {"admitted", "submitted", "applied"}:
             fail("CONFLICT", "微信工作授权已改变，请重新发起")
 
     def ensure_conversation(self, conversation_id, title, goal="", weixin_scope=None):

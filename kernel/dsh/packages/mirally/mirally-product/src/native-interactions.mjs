@@ -90,11 +90,11 @@ export function installNativeInteractions(host) {
     const policy=host.commandPolicies?.get(scope.commandId);
     let remoteScope=policy?.origin==='weixin' ? policy : null, fromDesktop=false;
     // A question originating on desktop may also be answered by the paired
-    // phone when that same conversation is selected and remote control is on.
+    // phone when that same conversation is selected.
     if (!remoteScope && policy?.origin==='desktop' && host.weixin?.state && host.rpc) {
       try {
-        const state=await host.weixin.state(), settings=await host.rpc('settings.get');
-        if (settings.weixin_remote_control_enabled === true && state.bound && state.enabled
+        const state=await host.weixin.state();
+        if (state.bound && state.enabled
           && state.conversation_id===value.conversation_id && state.context_token && sameOwner(host,{agent:request.agent,rootAgent,scope})) {
           remoteScope={installation_id:state.installation_id,revision:state.revision,conversation_id:state.conversation_id,command_id:scope.commandId};
           await host.weixin.authorize(remoteScope);fromDesktop=true;
@@ -151,8 +151,6 @@ export function installNativeInteractions(host) {
       entry.remote.busy=true;
       try {
         await host.weixin.authorize(entry.remote.scope);
-        if (entry.remote.fromDesktop && (await host.rpc('settings.get')).weixin_remote_control_enabled !== true)
-          throw failure('微信远程控制已关闭，请在电脑中回答。', 'weixin_action_unavailable', 403);
         if (!entry.remote.delivered || !this.remoteDeliveryCurrent(entry.value.id,event)) throw aborted();
         const questions=entry.value.questions, index=entry.remote.index, content=text.trim();
         if (!content || content.length>24_000) throw failure('请填写不超过 24000 字的回答。');
@@ -212,8 +210,6 @@ export function installNativeInteractions(host) {
         if (params.remote_scope) {
           if (!entry.remote || params.remote_scope !== entry.remote.scope) throw aborted();
           await host.weixin.authorize(entry.remote.scope);
-          if (entry.remote.fromDesktop && (await host.rpc('settings.get')).weixin_remote_control_enabled !== true)
-            throw failure('微信远程控制已关闭，请在电脑中回答。', 'weixin_action_unavailable', 403);
         }
         if (pending.get(params.question_id) !== entry || !sameOwner(host, entry))
           throw failure('问题所属回合已结束或已变化，请在会话中继续。', 'interaction_stale', 409);

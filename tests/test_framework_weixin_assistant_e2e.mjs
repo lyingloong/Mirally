@@ -86,6 +86,8 @@ test('assistant coordinates the original DSH session with remote authority', {ti
   await rpc('settings.update',{patch:{weixin_remote_control_enabled:true}});
   const direct=await rpc('weixin.status');const assistant=await rpc('weixin.mode',{expected_revision:direct.revision,mode:'assistant'});
   assert.equal(assistant.mode,'assistant');assert.notEqual(assistant.conversation_id,targetId);
+  const listed=(await api('/api/sessions')).sessions;
+  assert.equal(listed[0].id,assistant.conversation_id);assert.equal(listed[0].pinned,true);
   await delay(350); // Let the aborted fixture long poll finish without consuming the new route's input.
   queue.push({message_type:1,message_state:2,message_id:'1',from_user_id:'owner',to_user_id:'bot',create_time_ms:Date.now(),context_token:'context',item_list:[{type:1,text_item:{text:'请助理继续实验'}}]});
   await until(()=>replies.some(text=>text.includes('助理收到：原实验会话确认 ALPHA-73')),'assistant delegated result').catch(async error=>{error.message+=` status=${JSON.stringify(await rpc('weixin.status'))} paths=${JSON.stringify(paths.slice(-15))} replies=${JSON.stringify(replies)} errors=${JSON.stringify(errors)} seen=${JSON.stringify(seen.map(x=>({last:x.last,toolResults:x.toolResults})))} logs=${logs}`;throw error;});
@@ -128,6 +130,21 @@ test('assistant coordinates the original DSH session with remote authority', {ti
       await input.fill('原有草稿');const voice=pane.locator('mirally-voice-input');await voice.getByRole('button',{name:'语音输入'}).click();
       await voice.getByRole('button',{name:'停止录音'}).click();
       await page.waitForFunction(()=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active textarea[aria-label="聊天输入框"]')?.value.includes('语音识别测试'),null,{timeout:8000}).catch(async error=>{throw Error(`${error.message} voice=${await voice.evaluate(e=>JSON.stringify({html:e.innerHTML,phase:e.phase,generation:e.generation,session:e.sessionKey,capture:e.captureSession,draft:e.draft,handler:typeof e.onDraftChange}))} draft=${await input.inputValue()} paths=${JSON.stringify(paths.slice(-10))} pageErrors=${JSON.stringify(pageErrors)} logs=${logs}`);});
+      assert.equal(await input.inputValue(),'原有草稿 语音识别测试');
+      await page.screenshot({path:join(screenshots,'chat-wide.png')});
+      await page.route('**/api/sessions/*/recap', async route => {
+        if (route.request().method() !== 'POST') return route.continue();
+        await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'ready',recap:{text:'测试摘要',stale:false}})});
+      });
+      const sessionMenu=pane.locator('openclaw-chat-header-session-menu');
+      await sessionMenu.locator('button[aria-haspopup="menu"]').click();
+      await sessionMenu.getByText('会话摘要',{exact:true}).click();
+      const recap=page.locator('dialog.mirally-recap-dialog');
+      await recap.waitFor({state:'visible'});
+      await recap.getByRole('button',{name:'生成摘要'}).click();
+      await recap.getByText('测试摘要',{exact:true}).waitFor();
+      await page.screenshot({path:join(screenshots,'recap.png')});
+      await recap.getByRole('button',{name:'关闭'}).click();
       assert.equal(await input.inputValue(),'原有草稿 语音识别测试');
       await page.setViewportSize({width:640,height:800});await page.emulateMedia({colorScheme:'dark'});
       const voiceStyle=await voice.getByRole('button',{name:'语音输入'}).evaluate(el=>({color:getComputedStyle(el).color,opacity:getComputedStyle(el).opacity,disabled:el.disabled}));

@@ -17,7 +17,7 @@ export function installCalendarTools(host) {
       await host.checkCommandScope(exec.agent,name); exec.signal.throwIfAborted();
       if(host.commandPolicy(exec.agent)!==policy || host.consumedCommandId(exec.agent)!==owner.commandId)
         throw Object.assign(new Error('会话或授权已变化，请重新发起。'),{code:'calendar_scope_revoked'});
-      const scope=policy?.origin==='weixin' ? {installation_id:policy.installation_id,revision:policy.revision,command_id:policy.command_id,
+      const scope=policy?.origin==='weixin' && !policy.schedule_id ? {installation_id:policy.installation_id,revision:policy.revision,command_id:policy.command_id,
         ...(policy.target_conversation_id ? {source_conversation_id:policy.conversation_id,source_command_id:policy.source_command_id} : {})} : undefined;
       const request_id=`${owner.commandId}:${name}:${createHash('sha256').update(JSON.stringify(args)).digest('hex')}`;
       return action(args,{conversation_id:owner.conversation.conversation_id,request_id,scope});
@@ -60,6 +60,14 @@ export function installCalendarTools(host) {
       return host.rpc('calendar.reminder.create',{title:args.title,body:args.body??args.title,due_at:due.iso,expected_time_zone:due.time_zone,
         conversation_id:ctx.conversation_id,request_id:ctx.request_id,...(ctx.scope?{weixin_scope:ctx.scope}:{})});
     });
+  reg('mirally_repeating_reminders','List active repeating reminders.',object({}),async()=>host.rpc('calendar.recurrence.list'));
+  reg('mirally_repeat_reminder','Create a daily or weekly reminder in the confirmed product timezone. weekday uses Monday=0 through Sunday=6; local_time is HH:MM. Ask if the time is unspecified.',
+    {...object({title:text,body:text,frequency:{type:'string',enum:['daily','weekly']},weekday:{type:'integer',minimum:0,maximum:6},local_time:text}),required:['title','frequency','local_time']},async(args,ctx)=>{
+      const settings=await host.rpc('calendar.settings.get');
+      return host.rpc('calendar.recurrence.create',{...args,expected_time_zone:settings.time_zone,conversation_id:ctx.conversation_id,request_id:ctx.request_id,...(ctx.scope?{weixin_scope:ctx.scope}:{})});
+    });
+  reg('mirally_cancel_repeating_reminder','Cancel a repeating reminder by its recurrence ID.',
+    {...object({recurrence_id:text}),required:['recurrence_id']},async(args,ctx)=>host.rpc('calendar.recurrence.cancel',{...args,...(ctx.scope?{weixin_scope:ctx.scope}:{})}));
   reg('mirally_cancel_reminder','Cancel an explicitly identified reminder. Find its identity with mirally_reminders.',
     {...object({commitment_id:text}),required:['commitment_id']},async(args,ctx)=>host.rpc('calendar.reminder.cancel',{
       commitment_id:args.commitment_id,...(ctx.scope?{weixin_scope:ctx.scope}:{})}));

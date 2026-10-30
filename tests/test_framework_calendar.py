@@ -34,6 +34,91 @@ class CalendarTests(unittest.TestCase):
         args.update(extra)
         return self.call('calendar.event.create', **args)['event']
 
+    def test_weekly_reminder_restart_idempotency_and_cancel(self):
+        self.setup_zone()
+        self.now = 1793448000000  # 2026-10-31 21:20 UTC
+        args = dict(title='每周日提醒', frequency='weekly', weekday=6, local_time='08:00', conversation_id=self.conv, request_id='weekly')
+        first = self.call('calendar.recurrence.create', **args)['recurrence']
+        self.assertEqual(first, self.call('calendar.recurrence.create', **args)['recurrence'])
+        self.assertEqual(first['next_due_at_utc_ms'], 1793491200000) # 2026-11-01 00:00 UTC
+        self.now = first['next_due_at_utc_ms']
+        self.call('delivery.tick')
+        second = self.call('calendar.recurrence.list')['recurrences'][0]
+        self.assertEqual(second['next_due_at_utc_ms'], first['next_due_at_utc_ms'] + 7*86400000)
+        self.call('delivery.tick')
+        self.assertEqual(self.call('calendar.recurrence.list')['recurrences'][0], second)
+        self.service.close()
+        self.service = FrameworkService(Path(self.temp.name), self.home, clock=lambda: self.now)
+        self.now += 21*86400000  # resume after missing two reminders
+        self.call('delivery.tick')
+        recovered = self.call('calendar.recurrence.list')['recurrences'][0]
+        self.assertGreater(recovered['next_due_at_utc_ms'], self.now)
+        self.assertEqual(len(self.call('calendar.delivery.list', channel='desktop')['deliveries']), 2)
+        self.call('calendar.recurrence.cancel', recurrence_id=recovered['id'])
+        self.assertEqual(self.call('calendar.recurrence.list')['recurrences'], [])
+        self.now += 14*86400000
+        self.call('delivery.tick')
+        self.assertEqual(len(self.call('calendar.delivery.list', channel='desktop')['deliveries']), 0)
+
+    def test_upgrade_from_ten_creates_recurrence_table(self):
+        self.setup_zone()
+        self.service.db.execute('DROP TABLE calendar_recurrences')
+        self.service.db.execute('PRAGMA user_version=10')
+        self.service.close()
+        self.service = FrameworkService(Path(self.temp.name), self.home, clock=lambda: self.now)
+        item = self.call('calendar.recurrence.create', title='提醒', frequency='weekly', weekday=6, local_time='08:00')['recurrence']
+        self.assertEqual(item['status'], 'active')
+
+    def test_weekly_multiple_times_and_cancel_queued_occurrences(self):
+        self.setup_zone()
+        first = self.call('calendar.recurrence.create', title='早', frequency='weekly', weekday=6, local_time='08:00')['recurrence']
+        second = self.call('calendar.recurrence.create', title='晚', frequency='weekly', weekday=6, local_time='09:00')['recurrence']
+        self.assertEqual(second['next_due_at_utc_ms'] - first['next_due_at_utc_ms'], 3600000)
+        self.now = second['next_due_at_utc_ms']
+        self.call('delivery.tick')
+        deliveries = self.call('calendar.delivery.list', channel='desktop')['deliveries']
+        self.assertEqual(len(deliveries), 2)
+        self.call('calendar.recurrence.cancel', recurrence_id=first['id'])
+        deliveries = self.call('calendar.delivery.list', channel='desktop')['deliveries']
+        self.assertEqual([x['title'] for x in deliveries], ['晚'])
+        # The next occurrence also delivers normally.
+        next_second = self.call('calendar.recurrence.list')['recurrences'][0]
+        self.now = next_second['next_due_at_utc_ms']
+        self.call('delivery.tick')
+        self.assertEqual(len(self.call('calendar.delivery.list', channel='desktop')['deliveries']), 2)
+
+    def test_repeating_reminder_follows_product_timezone_change(self):
+        self.setup_zone()
+        item = self.call('calendar.recurrence.create', title='提醒', frequency='weekly', weekday=6, local_time='08:00')['recurrence']
+        self.call('calendar.settings.update', time_zone='America/New_York')
+        changed = self.call('calendar.recurrence.list')['recurrences'][0]
+        self.assertEqual(changed['time_zone'], 'America/New_York')
+        self.assertNotEqual(changed['current_commitment_id'], item['current_commitment_id'])
+        self.assertEqual(self.service._record('commitments', item['current_commitment_id'])['status'], 'cancelled')
+        from datetime import datetime, timezone
+        from zoneinfo import ZoneInfo
+        local = datetime.fromtimestamp(changed['next_due_at_utc_ms']/1000, timezone.utc).astimezone(ZoneInfo('America/New_York'))
+        self.assertEqual((local.weekday(), local.hour, local.minute), (6, 8, 0))
+        # Returning to a prior zone must not reuse a cancelled commitment.
+        self.call('calendar.settings.update', time_zone='Asia/Shanghai')
+        self.call('calendar.settings.update', time_zone='America/New_York')
+        newest = self.call('calendar.recurrence.list')['recurrences'][0]
+        self.assertEqual(self.service._record('commitments', newest['current_commitment_id'])['status'], 'pending')
+
+    def test_repeating_reminder_dst_and_single_cancel(self):
+        self.call('calendar.settings.update', time_zone='America/New_York')
+        from datetime import datetime, timezone
+        ms = lambda text: int(datetime.fromisoformat(text).timestamp() * 1000)
+        self.now = ms('2026-03-07T12:00:00+00:00')
+        item = self.call('calendar.recurrence.create', title='提醒', frequency='weekly', weekday=6, local_time='02:30')['recurrence']
+        # March 8 does not have 02:30: the next valid Sunday is March 15.
+        self.assertEqual(item['next_due_at_utc_ms'], ms('2026-03-15T06:30:00+00:00'))
+        self.call('calendar.reminder.cancel', commitment_id=item['current_commitment_id'])
+        self.assertEqual(self.call('calendar.recurrence.list')['recurrences'], [])
+        self.now = ms('2026-10-31T12:00:00+00:00')
+        item = self.call('calendar.recurrence.create', title='提醒', frequency='weekly', weekday=6, local_time='01:30')['recurrence']
+        self.assertEqual(item['next_due_at_utc_ms'], ms('2026-11-01T05:30:00+00:00'))
+
     def test_timezone_requires_confirmation_and_resolves_explicitly(self):
         self.assertFalse(self.call('calendar.settings.get')['confirmed'])
         with self.assertRaises(FrameworkError):
@@ -138,8 +223,6 @@ class CalendarTests(unittest.TestCase):
                            conversation_id=self.conv,request_id='remote-reminder',weixin_scope=scope)
         self.assertEqual(result['reminder']['conversation_id'], self.conv)
         self.call('settings.update',patch={'weixin_remote_control_enabled':False})
-        with self.assertRaises(FrameworkError):
-            self.call('calendar.reminder.cancel',commitment_id=result['reminder']['id'],weixin_scope=scope)
         self.now = result['reminder']['due_at']
         self.call('delivery.tick')
         item = self.call('calendar.delivery.list',channel='weixin')['deliveries'][0]

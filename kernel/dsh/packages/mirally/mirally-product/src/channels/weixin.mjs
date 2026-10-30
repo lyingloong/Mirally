@@ -131,6 +131,7 @@ export class WeixinChannel {
         if (this.hasActiveInput(old.installation_id)) throw Object.assign(new Error('微信会话正在处理，请结束后切换模式。'),{code:'conversation_busy',status:409});
         await this.disconnectTransport();
         const {state} = await this.store('mode', {expected_revision:old.revision,mode:params.mode});
+        if (state.assistant_conversation_id) this.product.broadcast('session-metadata', {session_id:state.assistant_conversation_id});
         if (state.enabled) this.connect();
       } else if (['weixin.bind', 'weixin.select', 'weixin.disconnect', 'weixin.reconnect', 'weixin.unbind'].includes(method)) {
         this.cancelLogin();
@@ -394,6 +395,7 @@ export class WeixinChannel {
       if (this.hasActiveInput(current.installation_id)) {await this.reply(event,'当前微信会话正在处理，请结束后切换模式。',{control:true});return;}
       const {state:selected}=await this.store('mode',{expected_revision:current.revision,mode});
       const conversation=await this.product.conversation(selected.conversation_id);
+      if (selected.assistant_conversation_id) this.product.broadcast('session-metadata', {session_id:selected.assistant_conversation_id});
       await this.reply({...event,revision:selected.revision,conversation_id:selected.conversation_id},
         mode==='assistant'?'已进入助理模式。':`已返回会话：${conversation.title}`,{control:true});
     } else if (name === '/approve' || name === '/deny') {

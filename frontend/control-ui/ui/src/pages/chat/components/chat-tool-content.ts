@@ -87,7 +87,7 @@ function renderToolDataBlock(params: { label?: string; text: string }) {
       ${
         label
           ? html`<div class="chat-tool-card__block-header">
-              <span class="chat-tool-card__block-icon">${icons.zap}</span>
+              <span class="chat-tool-card__block-icon" aria-hidden="true">${icons.zap}</span>
               <span class="chat-tool-card__block-label">${label}</span>
             </div>`
           : nothing

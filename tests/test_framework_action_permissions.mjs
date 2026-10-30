@@ -32,14 +32,16 @@ test('session grants are scoped to the conversation generation and independent o
   assert.equal(await product.actionPermission(scope),false);
 });
 
-test('WeChat inherits automatic approval only when explicitly enabled',async()=>{
+test('WeChat uses the same approval setting as desktop',async()=>{
   const {product,settings}=fixture();
   product.commandPolicy=()=>({origin:'weixin'});
   const scope={conversationId:'conversation',sessionId:'native',commandId:'command'};
   settings.action_approval_mode='trusted';
-  assert.equal(await product.actionPermission(scope),false);
+  assert.equal(await product.actionPermission(scope),true);
   settings.weixin_auto_approve_enabled=true;
   assert.equal(await product.actionPermission(scope),true);
   settings.weixin_auto_approve_enabled=false;
+  assert.equal(await product.actionPermission(scope),true);
+  settings.action_approval_mode='ask';
   assert.equal(await product.actionPermission(scope),false);
 });

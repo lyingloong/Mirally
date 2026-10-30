@@ -55,14 +55,18 @@ export class WeixinOutboundMedia {
     if(!/^[a-f0-9]{36}$/.test(artifact_id??''))throw fail('请选择当前会话的成果文件。');
     const channel=this.channel;
     const target=event.target_conversation_id ?? event.conversation_id;
-    const authorize=async()=>{await channel.authorize(event);if(event.target_conversation_id)await channel.product.checkWeixinDelegation(event);};
+    const authorize=async()=>{
+      await channel.authorize(event);
+      if(event.schedule_id) await channel.product.checkWeixinSchedule(event);
+      else if(event.target_conversation_id) await channel.product.checkWeixinDelegation(event);
+    };
     await authorize();
     const {record,data}=await channel.product.materials.read(artifact_id);
     if(record.conversation_id!==target || !plain(record.name)||!Buffer.isBuffer(data)||!data.length||data.length>LIMIT)
       throw fail('成果不属于当前会话或超过微信媒体大小上限。');
     await authorize();
     const descriptor={v:1,artifact_id,conversation_id:target,source_conversation_id:event.conversation_id,
-      ...(event.target_conversation_id?{source_command_id:event.source_command_id}:{}),
+      ...(event.schedule_id?{schedule_id:event.schedule_id}:event.target_conversation_id?{source_command_id:event.source_command_id}:{}),
       installation_id:event.installation_id,revision:event.revision,command_id:event.command_id,
       sha256:hash('sha256',data),name:record.name,bytes:data.length};
     const key=`${PREFIX}${event.command_id}:${artifact_id}`;
@@ -101,8 +105,13 @@ export class WeixinOutboundMedia {
     const authorize=async()=>{
       const state=await channel.authorize({...delivery,conversation_id:descriptor.source_conversation_id});
       if(state.installation_id!==delivery.installation_id||state.revision!==delivery.revision)throw fail('微信绑定已改变。','weixin_scope_revoked');
-      if((await channel.product.rpc('settings.get')).weixin_remote_control_enabled!==true)throw fail('微信远程控制已关闭。','weixin_scope_revoked');
-      if(descriptor.conversation_id!==descriptor.source_conversation_id) {
+      if(descriptor.schedule_id) {
+        if(!plain(descriptor.schedule_id))throw fail('微信定时任务记录无效。','weixin_scope_revoked');
+        try { await channel.product.checkWeixinSchedule({installation_id:delivery.installation_id,revision:delivery.revision,
+          conversation_id:descriptor.source_conversation_id,target_conversation_id:descriptor.conversation_id,
+          command_id:delivery.command_id,schedule_id:descriptor.schedule_id}); }
+        catch { throw fail('微信定时任务授权已失效。','weixin_scope_revoked'); }
+      } else if(descriptor.conversation_id!==descriptor.source_conversation_id) {
         if(!plain(descriptor.source_command_id))throw fail('微信委托记录无效。','weixin_scope_revoked');
         try { await channel.product.checkWeixinDelegation({installation_id:delivery.installation_id,revision:delivery.revision,
           conversation_id:descriptor.source_conversation_id,source_command_id:descriptor.source_command_id,

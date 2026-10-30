@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 CALENDAR_SCHEMA = (
+    """CREATE TABLE IF NOT EXISTS calendar_recurrences (id TEXT PRIMARY KEY,request_id TEXT UNIQUE,request_json TEXT NOT NULL,title TEXT NOT NULL,body TEXT NOT NULL,frequency TEXT NOT NULL,weekday INTEGER,local_time TEXT NOT NULL,time_zone TEXT NOT NULL,conversation_id TEXT,status TEXT NOT NULL,current_commitment_id TEXT NOT NULL,created_at INTEGER NOT NULL)""",
     """CREATE TABLE IF NOT EXISTS calendar_events (id TEXT PRIMARY KEY,request_id TEXT UNIQUE,
         request_json TEXT NOT NULL,title TEXT NOT NULL,notes TEXT NOT NULL,start_at INTEGER NOT NULL,end_at INTEGER,
         all_day INTEGER NOT NULL,time_zone TEXT NOT NULL,conversation_id TEXT,status TEXT NOT NULL,
@@ -54,6 +55,7 @@ class CalendarOwner:
     def routes(self):
         return {'calendar.settings.get': self.settings_get, 'calendar.settings.update': self.settings_update,
                 'calendar.time.resolve': self.time_resolve,
+                'calendar.recurrence.create': self.recurrence_create, 'calendar.recurrence.list': self.recurrence_list, 'calendar.recurrence.cancel': self.recurrence_cancel,
                 'calendar.reminder.create': self.reminder_create, 'calendar.reminder.cancel': self.reminder_cancel,
                 'calendar.event.create': self.event_create, 'calendar.event.list': self.event_list,
                 'calendar.event.get': self.event_get, 'calendar.event.update': self.event_update,
@@ -83,6 +85,15 @@ class CalendarOwner:
         with self.s._transaction():
             current = self.settings_get()
             if time_zone is not None:
+                if current['time_zone'] and current['time_zone'] != time_zone:
+                    for row in self.s.db.execute("SELECT * FROM calendar_recurrences WHERE status='active'").fetchall():
+                        for item in self.s.db.execute('SELECT id FROM commitments WHERE request_id GLOB ?', (row['id'] + ':*',)).fetchall():
+                            self.s.commitment_cancel(item['id'])
+                        due = self._next_recurrence(row['frequency'], row['weekday'], row['local_time'], time_zone, self.s.clock())
+                        item = self.s.commitment_create(title=row['title'], body=row['body'], due_at_utc_ms=due,
+                            conversation_id=row['conversation_id'], request_id=f"{row['id']}:{time_zone}:{due}:{uuid.uuid4().hex}")
+                        self.s.db.execute('UPDATE calendar_recurrences SET time_zone=?,current_commitment_id=? WHERE id=?',
+                            (time_zone, item['id'], row['id']))
                 current['time_zone'] = time_zone
             if channels is not None:
                 current['channels'].update(channels)
@@ -172,6 +183,90 @@ class CalendarOwner:
                 conversation_id=row['conversation_id'], request_id=f"calendar:{row['id']}:{row['version']}:{offset}")
             self.s.db.execute('INSERT INTO calendar_event_reminders VALUES(?,?,?,?)', (row['id'], commitment['id'], row['version'], offset))
 
+    def _next_recurrence(self, frequency, weekday, local_time, time_zone, after):
+        tz = zone(time_zone)
+        hour, minute = (int(part) for part in local_time.split(':'))
+        start = datetime.fromtimestamp(after / 1000, timezone.utc).astimezone(tz).date()
+        # Nonexistent wall times are skipped; an ambiguous wall time fires once,
+        # at its first occurrence. Never duplicate a missed week on recovery.
+        for day in range(370):
+            date = start + timedelta(days=day)
+            if frequency == 'weekly' and date.weekday() != weekday:
+                continue
+            naive = datetime(date.year, date.month, date.day, hour, minute)
+            options = set()
+            for fold in (0, 1):
+                candidate = naive.replace(tzinfo=tz, fold=fold).astimezone(timezone.utc)
+                if candidate.astimezone(tz).replace(tzinfo=None) == naive:
+                    options.add(int(candidate.timestamp() * 1000))
+            if options and min(options) > after:
+                return min(options)
+        raise error('INVALID_PARAMS', '无法计算下次提醒时间。')
+
+    def recurrence_create(self, title, frequency, local_time, weekday=None, body=None, conversation_id=None, request_id=None, weixin_scope=None, expected_time_zone=None):
+        tz = self._timezone()
+        if not isinstance(title, str) or not title.strip() or len(title) > 1024:
+            raise error('INVALID_PARAMS', '提醒标题不能为空。')
+        if body is not None and (not isinstance(body, str) or len(body) > 16000):
+            raise error('INVALID_PARAMS', '提醒内容无效。')
+        if frequency not in ('daily', 'weekly') or (frequency == 'weekly' and (isinstance(weekday, bool) or not isinstance(weekday, int) or not 0 <= weekday <= 6)) or (frequency == 'daily' and weekday is not None):
+            raise error('INVALID_PARAMS', '重复规则无效。')
+        import re
+        if not isinstance(local_time, str) or not re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d', local_time):
+            raise error('INVALID_PARAMS', '提醒时间需为 HH:MM。')
+        if request_id is not None and (not isinstance(request_id, str) or not request_id or len(request_id) > 512):
+            raise error('INVALID_PARAMS', '请求标识无效。')
+        request = encoded([title.strip(), body or title.strip(), frequency, weekday, local_time, tz.key, conversation_id])
+        with self.s._transaction():
+            self._scope(conversation_id, weixin_scope)
+            self._expect_zone(expected_time_zone)
+            if request_id:
+                old = self.s.db.execute('SELECT * FROM calendar_recurrences WHERE request_id=?', (request_id,)).fetchone()
+                if old:
+                    if old['request_json'] != request:
+                        raise error('CONFLICT', '请求标识已用于其他提醒。')
+                    return {'recurrence': self._recurrence_view(old)}
+            identity = 'recurrence_' + uuid.uuid4().hex
+            due = self._next_recurrence(frequency, weekday, local_time, tz.key, self.s.clock())
+            item = self.s.commitment_create(title=title.strip(), body=body or title.strip(), due_at_utc_ms=due,
+                conversation_id=conversation_id, request_id=f'{identity}:{due}')
+            self.s.db.execute('INSERT INTO calendar_recurrences VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                (identity, request_id, request, title.strip(), body or title.strip(), frequency, weekday, local_time, tz.key, conversation_id, 'active', item['id'], self.s.clock()))
+            return {'recurrence': self._recurrence_view(self.s.db.execute('SELECT * FROM calendar_recurrences WHERE id=?', (identity,)).fetchone())}
+
+    def _recurrence_view(self, row):
+        item = dict(row)
+        item.pop('request_json')
+        item.pop('request_id')
+        item['next_due_at_utc_ms'] = self.s._record('commitments', item['current_commitment_id'])['due_at']
+        return item
+
+    def recurrence_list(self):
+        return {'recurrences': [self._recurrence_view(row) for row in self.s.db.execute("SELECT * FROM calendar_recurrences WHERE status='active' ORDER BY created_at DESC")]}
+
+    def _cancel_recurrence_items(self, recurrence_id):
+        for item in self.s.db.execute('SELECT id FROM commitments WHERE request_id GLOB ?', (recurrence_id + ":*",)).fetchall():
+            self.s.commitment_cancel(item['id'])
+        self.s.db.execute("UPDATE calendar_recurrences SET status='cancelled' WHERE id=?", (recurrence_id,))
+
+    def recurrence_cancel(self, recurrence_id, weixin_scope=None):
+        with self.s._transaction():
+            row = self.s.db.execute('SELECT * FROM calendar_recurrences WHERE id=?', (recurrence_id,)).fetchone()
+            if not row:
+                raise error('NOT_FOUND', '周期提醒不存在。')
+            self._scope(row['conversation_id'], weixin_scope)
+            if row['status'] == 'active':
+                self._cancel_recurrence_items(recurrence_id)
+            return {'recurrence': self._recurrence_view(self.s.db.execute('SELECT * FROM calendar_recurrences WHERE id=?', (recurrence_id,)).fetchone())}
+
+    def advance_recurrences(self, now):
+        rows = self.s.db.execute("SELECT r.* FROM calendar_recurrences r JOIN commitments c ON c.id=r.current_commitment_id WHERE r.status='active' AND c.status IN ('fulfilled','queued','delivered')").fetchall()
+        for row in rows:
+            due = self._next_recurrence(row['frequency'], row['weekday'], row['local_time'], row['time_zone'], now)
+            item = self.s.commitment_create(title=row['title'], body=row['body'], due_at_utc_ms=due,
+                conversation_id=row['conversation_id'], request_id=f"{row['id']}:{due}")
+            self.s.db.execute('UPDATE calendar_recurrences SET current_commitment_id=? WHERE id=?', (item['id'], row['id']))
+
     def _scope(self, conversation_id, weixin_scope):
         if weixin_scope is not None:
             self.s.work._check_weixin_work_scope(conversation_id, weixin_scope)
@@ -193,6 +288,9 @@ class CalendarOwner:
         with self.s._transaction():
             record = self.s._record('commitments', commitment_id)
             self._scope(record['conversation_id'], weixin_scope)
+            series = self.s.db.execute("SELECT id FROM calendar_recurrences WHERE current_commitment_id=? AND status='active'", (commitment_id,)).fetchone()
+            if series:
+                self._cancel_recurrence_items(series['id'])
             return {'reminder': self.s.commitment_cancel(commitment_id)}
 
     def event_create(self, title, start_at, end_at=None, all_day=False, time_zone=None,

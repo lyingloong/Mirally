@@ -105,6 +105,20 @@ class ConversationMetadataTests(unittest.TestCase):
         self.assertEqual([item["conversation_id"] for item in archived], ["1"])
         self.assertEqual(len(self.service.call("conversation.list", {"offset": 200})["conversations"]), 5)
 
+    def test_recency_uses_conversation_activity_within_pinned_groups(self):
+        self.create('first'); self.now += 10
+        self.create('second'); self.now += 10
+        self.create('third'); self.now += 10
+        self.service.call('command.admit', {'conversation_id':'first','command_id':'first-msg','text':'hello'})
+        self.now += 10
+        self.patch({'title':'new title'}, identity='second')
+        self.assertEqual([c['conversation_id'] for c in self.service.conversation_list('active')['conversations']], ['first','third','second'])
+        self.now += 10
+        self.patch({'pinned':True}, identity='first')
+        self.now += 10
+        self.patch({'pinned':True}, version=2, identity='second')
+        self.assertEqual([c['conversation_id'] for c in self.service.conversation_list('active')['conversations']], ['first','second','third'])
+
     def test_metadata_rejects_unknown_fields_types_stale_versions_and_keeps_noops_stable(self):
         self.create()
         for patch in ({}, {"permissionMode": "full"}, {"archived": 1}, {"pinned": "yes"}, {"title": " "}, {"title": "x" * 513}):

@@ -23,7 +23,10 @@ const clientPath = join(root, 'frontend/control-ui/ui/src/app/mirally-client.ts'
 // tests do not substitute a copied transport or need a bundled UI installation.
 const readModelsPath = join(root, 'frontend/control-ui/ui/src/app/mirally-read-models.ts');
 const readModelsModule = 'data:text/javascript;base64,' + Buffer.from(stripTypeScriptTypes(readFileSync(readModelsPath, 'utf8'), {mode: 'transform', sourceUrl: readModelsPath})).toString('base64');
-const clientSource = readFileSync(clientPath, 'utf8').replace(/(["'])\.\/mirally-read-models\.(?:ts|js)\1/g, () => JSON.stringify(readModelsModule));
+const desktopPath = join(root, 'frontend/control-ui/ui/src/app/desktop-reminders.ts');
+const desktopModule = 'data:text/javascript;base64,' + Buffer.from(stripTypeScriptTypes(readFileSync(desktopPath, 'utf8'), {mode:'transform',sourceUrl:desktopPath})).toString('base64');
+const clientSource = readFileSync(clientPath, 'utf8').replace(/(["'])\.\/mirally-read-models\.(?:ts|js)\1/g, () => JSON.stringify(readModelsModule))
+  .replace(/(["'])\.\/desktop-reminders\.(?:ts|js)\1/g, () => JSON.stringify(desktopModule));
 const source = stripTypeScriptTypes(clientSource, {mode: 'transform', sourceUrl: clientPath});
 const {MirallyBrowserClient} = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
 const nativeFetch = globalThis.fetch;
@@ -744,7 +747,7 @@ test('tool start and real result have ordered, detailed receipts accepted by the
   const f = fixture(t); await f.start();
   const args = {query: '当前工作'}, result = {content: [{type: 'text', text: '真实来源：会议记录'}]};
   f.push({type: 'tool', session_id: 'one', command_id: 'tool-run', id: 'tool-call', name: 'mirally_context', state: 'running', args});
-  f.push({type: 'tool', session_id: 'one', command_id: 'tool-run', id: 'tool-call', name: 'mirally_context', state: 'completed', result});
+  f.push({type: 'tool', session_id: 'one', command_id: 'tool-run', id: 'tool-call', name: 'mirally_context', state: 'completed', args:{query:'不应覆盖已开始的工具'}, result});
   await until(() => f.events.filter(item => item.event === 'agent').length === 2, 'tool start/result');
   const payloads = f.events.filter(item => item.event === 'agent').map(item => item.payload);
   assert.ok(Number.isSafeInteger(payloads[0].seq) && payloads[0].seq > 0 && payloads[1].seq > payloads[0].seq);
@@ -785,6 +788,21 @@ test('tool start and real result have ordered, detailed receipts accepted by the
   assert.deepEqual(entry.args, args); assert.equal(entry.output, '真实来源：会议记录');
   assert.equal(entry.message.content.some(block => block.type === 'toolresult'), true);
   assert.equal(host.chatToolMessages.length, 1);
+
+  // A permission hook can reject before any start event. Preserve a result's
+  // real input, and never fabricate `{}` when the input is unavailable.
+  f.push({type:'tool',session_id:'one',command_id:'tool-run',id:'blocked',name:'mirally_web_search',state:'failed',
+    args:{query:'校园班车',count:10},result:{content:[{type:'text',text:'Error: denied'}]}});
+  f.push({type:'tool',session_id:'one',command_id:'tool-run',id:'unknown-input',name:'plugin',state:'failed',
+    result:{content:[{type:'text',text:'Error: denied'}]}});
+  await until(() => f.events.filter(item=>item.event==='agent').length===4, 'result-only tools');
+  const results=f.events.filter(item=>item.event==='agent').slice(2).map(item=>item.payload);
+  assert.equal(sandbox.reduceTool(host,results[0]),true);assert.equal(sandbox.reduceTool(host,results[1]),true);
+  const entries=[...host.toolStreamById.values()];
+  const blocked=entries.find(item=>item.toolCallId==='blocked'),unknown=entries.find(item=>item.toolCallId==='unknown-input');
+  assert.deepEqual(blocked.args,{query:'校园班车',count:10});
+  assert.deepEqual(blocked.message.content[0].arguments,{query:'校园班车',count:10});
+  assert.equal(Object.hasOwn(unknown.message.content[0],'arguments'),false);
 });
 
 test('isolated test-mode Host accepts original-client ownership, retries, and exact Stop', {timeout: 60000}, async t => {

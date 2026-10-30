@@ -290,7 +290,7 @@ export class MirallyBrowserClient {
     }
     if (event.type === "tool") this.emit("agent", {runId, sessionKey: key(id), seq: ++this.agentSequence, ts: Date.now(), stream: "tool", data: {
       phase: event.state === "running" ? "start" : "result", name: event.name, toolCallId: event.id, isError: event.state === "failed",
-      ...(event.state === "running" && Object.hasOwn(event, "args") ? {args: event.args} : {}),
+      ...(Object.hasOwn(event, "args") ? {args: event.args} : {}),
       ...(event.state !== "running" && Object.hasOwn(event, "result") ? {result: event.result} : {}),
     }});
     if (["done", "error"].includes(event.type)) {
