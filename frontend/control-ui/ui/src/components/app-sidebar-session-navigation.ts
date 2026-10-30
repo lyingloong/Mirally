@@ -502,12 +502,7 @@ export class AppSidebarSessionNavigationElement extends AppSidebarBase {
     const navigationState = this.getSessionNavigationState();
     const rows = this.selectedAgentSessionRows(navigationState);
     const { visibleRows } = this.zonedVisibleSections(rows);
-    const { entries, sessionRows } = this.reconciledSidebarZone(rows);
-    const pinnedRows = entries.flatMap((entry) => {
-      const row = entry.type === "session" ? sessionRows.get(entry.key) : undefined;
-      return row ? [row] : [];
-    });
-    return this.groupedSessionSource ? visibleRows : [...pinnedRows, ...visibleRows];
+    return visibleRows;
   }
 
   selectedVisibleSessions(): SidebarRecentSession[] {

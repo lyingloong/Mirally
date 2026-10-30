@@ -208,7 +208,6 @@ export class SidebarSessionProjection {
         catalogIds,
       }).filter(
         (section) =>
-          section.id !== "pinned" &&
           // Catalog rows have their own projection; these sections are placeholders.
           !(hideEmptyGroups && !section.id.startsWith("catalog:") && section.rows.length === 0),
       );
@@ -228,7 +227,7 @@ export class SidebarSessionProjection {
       input.grouping !== "none" &&
       sections.some(
         (section) =>
-          section.id !== "ungrouped" && (section.id !== "work" || section.rows.length > 0),
+          section.id !== "ungrouped" && section.id !== "pinned" && (section.id !== "work" || section.rows.length > 0),
       );
     const expandedRows: SidebarRecentSession[] = [];
     const visibleRows: SidebarRecentSession[] = [];
@@ -238,7 +237,7 @@ export class SidebarSessionProjection {
       // checks must not mistake a page-filtered section for an empty one.
       const totalRowCount = section.rows.length;
       const renderHeader =
-        !section.id.startsWith("agent:") && (section.id !== "ungrouped" || ungroupedHasPeerHeader);
+        section.id !== "pinned" && !section.id.startsWith("agent:") && (section.id !== "ungrouped" || ungroupedHasPeerHeader);
       const collapsed =
         (renderHeader || section.id.startsWith("agent:")) &&
         input.collapsedSections.has(section.id);

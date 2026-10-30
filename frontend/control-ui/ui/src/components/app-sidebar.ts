@@ -659,7 +659,7 @@ class AppSidebar extends AppSidebarSessionNavigationElement implements SessionLi
                   ${renderAppSidebarHomeRow(this)}
                   ${sidebarZone.entries
                     .filter(
-                      (entry) => this.sidebarAgentsMode !== "roster" || entry.type !== "session",
+                      (entry) => entry.type !== "session",
                     )
                     .map((entry) =>
                       renderAppSidebarZoneEntry(
