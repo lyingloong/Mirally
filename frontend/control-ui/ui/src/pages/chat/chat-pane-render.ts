@@ -1,5 +1,6 @@
 import type { ProgressCard } from "@openclaw/gateway-protocol";
 import { html, nothing } from "lit";
+import "../mirally/voice-input.ts";
 import { gatewayPresentationScope } from "../../app/gateway-presentation-scope.ts";
 import { withLiveReasoningMessages } from "../../app/mirally-stream-presentation.ts";
 import { hasOperatorAdminAccess, hasOperatorWriteAccess } from "../../app/operator-access.ts";
@@ -549,7 +550,7 @@ export class ChatPane extends ChatPaneLayoutRender {
         basePath: state.basePath,
         modelAuthStatusResult: state.modelAuthStatusResult,
       },
-      composerControls: composerControls?.composerControls ?? nothing,
+      composerControls: html`${composerControls?.composerControls ?? nothing}${(window as Window & {__mirallyLegacyHost?: unknown}).__mirallyLegacyHost && !catalogKey && !suggestionViewer ? html`<mirally-voice-input .sessionKey=${state.sessionKey} .getDraft=${() => state.chatMessage} .onDraftChange=${(value: string) => {state.handleChatDraftChange(value); state.renderLifecycle.invalidate();}} .disabled=${!composerAvailability.canSend || !state.connected}></mirally-voice-input>` : nothing}`,
       permissionPicker: mutationAccess.permission.allowed
         ? composerControls?.permissionPicker
         : undefined,
@@ -603,7 +604,7 @@ export class ChatPane extends ChatPaneLayoutRender {
                   submissionAction,
                 ),
       onUseSystemDefaultMicrophone: state.realtimeTalkUseSystemDefault ?? undefined,
-      onToggleRealtimeTalk: () => {
+      onToggleRealtimeTalk: (window as Window & {__mirallyLegacyHost?: unknown}).__mirallyLegacyHost ? undefined : () => {
         if (!providerPaused) {
           void state.toggleRealtimeTalk();
         }

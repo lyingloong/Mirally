@@ -65,6 +65,20 @@ function fixture(t, conversations = [first, second]) {
   return {product, channel, rows, state, calls, deliveries, send};
 }
 
+test('assistant session switches do not interrupt an active delegation; direct switches retain their behavior', async t => {
+  const f = fixture(t);
+  f.channel.hasActiveInput = () => true;
+  f.state.mode = 'assistant';
+  await f.send('新对话');
+  await f.send('切换 ' + second.title);
+  assert.match(f.deliveries.at(-1).text, /正在处理/);
+  assert.equal(f.calls.some(call => call.method === 'cancel-weixin' || call.method === 'channel.weixin.select'), false);
+  f.state.mode = 'direct';
+  await f.send('切换 ' + second.title);
+  assert.equal(f.state.conversation_id, second.conversation_id);
+  assert.equal(f.calls.some(call => call.method === 'cancel-weixin'), true);
+});
+
 test('Chinese phone session list marks the current conversation and offers numbered routes', async t => {
   const f = fixture(t);
   await f.send('会话');

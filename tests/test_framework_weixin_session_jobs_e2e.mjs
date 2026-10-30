@@ -32,6 +32,9 @@ test('real session experiment is readable and controllable over bound Weixin', {
         if(path.startsWith('/ilink/bot/get_bot_qrcode')) return res.end(JSON.stringify({qrcode:'fixture',qrcode_img_content:'fixture-scan'}));
         if(path.startsWith('/ilink/bot/get_qrcode_status')) return res.end(JSON.stringify({status:'confirmed',bot_token:'fixture-token',ilink_bot_id:'bot',ilink_user_id:'owner'}));
         if(path==='/ilink/bot/sendmessage'){replies.push(JSON.parse(body).msg.item_list[0].text_item.text);return res.end(JSON.stringify({ret:0,message_id:String(replies.length)}));}
+        if(path==='/ilink/bot/getconfig')return res.end(JSON.stringify({ret:0,typing_ticket:'fixture-ticket'}));
+        if(path==='/ilink/bot/sendtyping')return res.end(JSON.stringify({ret:0}));
+        if(path==='/ilink/bot/msg/notifystart'||path==='/ilink/bot/msg/notifystop')return res.end(JSON.stringify({ret:0}));
         if(path==='/ilink/bot/getupdates'){await delay(100);return res.end(JSON.stringify({ret:0,msgs:queue.splice(0),get_updates_buf:'cursor'}));}
         throw Error('unknown iLink endpoint '+path);
       }

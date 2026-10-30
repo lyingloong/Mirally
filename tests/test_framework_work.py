@@ -14,6 +14,7 @@ import uuid
 from unittest.mock import patch
 
 from mirally.framework import FrameworkError, FrameworkService
+from mirally.framework.service import SCHEMA_VERSION
 
 
 class WorkTests(unittest.TestCase):
@@ -332,7 +333,7 @@ class WorkTests(unittest.TestCase):
         db.execute("ALTER TABLE conversations DROP COLUMN title_mode")
         db.execute("PRAGMA user_version=4"); db.commit(); db.close()
         self.service = FrameworkService(self.root, self.root / "product home")
-        self.assertEqual(self.service.call("system.status")["schema_version"], 9)
+        self.assertEqual(self.service.call("system.status")["schema_version"], SCHEMA_VERSION)
         self.assertEqual(self.service.call("conversation.get", {"conversation_id": conversation_id})["title"], "训练实验 A")
         self.assertEqual(self.call("list")["works"], [])
 

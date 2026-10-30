@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from mirally.framework import FrameworkError, FrameworkService
 from mirally.framework.channels import CredentialProtector, WeixinChannels
+from mirally.framework.service import SCHEMA_VERSION
 
 
 class TestProtector:
@@ -126,6 +127,45 @@ class FrameworkChannelsTests(unittest.TestCase):
         self.save()
         self.assertFalse(get())
         self.assertFalse(self.service.call('settings.get')['weixin_auto_approve_enabled'])
+
+    def test_assistant_mode_preserves_direct_route_and_fences_delegations(self):
+        direct = self.bound()
+        target = direct['conversation_id']
+        assistant = self.call('mode', expected_revision=direct['revision'], mode='assistant')['state']
+        source = assistant['conversation_id']
+        self.assertNotEqual(source, target)
+        self.assertEqual(assistant['direct_conversation_id'], target)
+        self.service.call('conversation.bind', {'conversation_id':source, 'session_id':'assistant-native'})
+        self.service.call('command.admit', {'conversation_id':source, 'command_id':'source-command', 'text':'继续实验'})
+        args = dict(installation_id=assistant['installation_id'],revision=assistant['revision'],source_conversation_id=source,
+                    source_command_id='source-command',target_conversation_id=target,target_generation=1,
+                    target_command_id='target-command',content_hash='a'*64)
+        with self.assertRaises(FrameworkError):
+            self.call('delegate', **args)
+        self.service.call('settings.update', {'patch':{'weixin_remote_control_enabled':True}})
+        self.call('delegate', **args)
+        check = {key:value for key,value in args.items() if key not in ('target_generation','content_hash')}
+        self.call('delegation_check', **check)
+        with self.assertRaises(FrameworkError):
+            self.call('delegate', **{**args,'content_hash':'b'*64})
+        self.service.call('settings.update', {'patch':{'weixin_remote_control_enabled':False}})
+        with self.assertRaises(FrameworkError):
+            self.call('delegation_check', **check)
+        restored = self.call('mode', expected_revision=assistant['revision'], mode='direct')['state']
+        self.assertEqual(restored['conversation_id'],target)
+        self.assertEqual(restored['assistant_conversation_id'],source)
+        with self.assertRaises(FrameworkError):
+            self.call('delegation_check', **check)
+
+    def test_schema_nine_adds_delegation_storage_without_replacing_binding(self):
+        state = self.bound()
+        self.service.db.execute('DROP TABLE channel_weixin_delegations')
+        self.service.db.execute('PRAGMA user_version=9')
+        self.restart()
+        self.assertEqual(self.state()['installation_id'], state['installation_id'])
+        self.assertEqual(self.state()['conversation_id'], state['conversation_id'])
+        self.assertEqual(self.service.db.execute('PRAGMA user_version').fetchone()[0], SCHEMA_VERSION)
+        self.assertIsNotNone(self.service.db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='channel_weixin_delegations'").fetchone())
 
     def test_history_evidence_only_joins_real_matching_weixin_event_and_command(self):
         state = self.bound()
@@ -332,7 +372,7 @@ class FrameworkChannelsTests(unittest.TestCase):
         self.service.db.execute("ALTER TABLE conversations DROP COLUMN title_mode")
         self.service.db.execute("PRAGMA user_version=3")
         self.restart()
-        self.assertEqual(self.service.db.execute("PRAGMA user_version").fetchone()[0], 9)
+        self.assertEqual(self.service.db.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
         self.assertTrue(self.service.call("settings.get")["do_not_disturb"])
         self.assertIsNone(self.state()["installation_id"])
         self.service.db.execute("PRAGMA user_version=99")

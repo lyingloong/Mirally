@@ -134,6 +134,33 @@ function inbound(id = 'message-one', text = '实验进展怎么样？', extra = 
     context_token: 'private-context', create_time_ms: now, item_list: [{type: 1, text_item: {text}}], ...extra};
 }
 
+test('Weixin voice is transcribed into the bound conversation once', async t => {
+  const f=fixture(t), message=inbound('voice','', {item_list:[{type:3,voice_item:{text:'实验进展怎么样'}}]});
+  await f.channel.receive(f.state(),message);await f.channel.receive(f.state(),message);
+  const submitted=f.calls.filter(call=>call.kind==='submit');
+  assert.equal(submitted.length,1);assert.equal(submitted[0].event.conversation_id,'conversation-one');
+  assert.equal(submitted[0].event.text,'微信语音转写：实验进展怎么样');
+  assert.ok(f.calls.some(call=>call.method==='channel.weixin.admit' && /^[a-f0-9]{64}$/.test(call.params.content_identity)));
+  f.completions.get('voice').resolve({state:'completed',text:'已收到',ref:{turn_id:'voice'}});
+  await waitFor(()=>f.events.get('voice').state==='completed');
+});
+
+test('Weixin invalid media never dispatches a partial message', async t => {
+  const f=fixture(t), message=inbound('invalid-media','',{item_list:[{type:1,text_item:{text:'执行这个'}},{type:9}]});
+  await f.channel.receive(f.state(),message);
+  assert.equal(f.calls.some(call=>call.kind==='submit'),false);assert.equal(f.events.get('invalid-media').state,'rejected');
+});
+
+test('pending media waiting on its command cannot block later channel replies', async t => {
+  const f=fixture(t);f.channel.connection=new AbortController();
+  f.channel.outboundMedia.readiness=async()=> 'wait';
+  for(let index=0;index<101;index++) await f.channel.store('enqueue',{installation_id:'installation',revision:1,key:`media-artifact:command:${index}`,text:'descriptor',conversation_id:'conversation-one',command_id:`command-${index}`});
+  await f.channel.store('enqueue',{installation_id:'installation',revision:1,key:'reply',text:'后续消息'});
+  await f.channel.pump();
+  assert.equal(f.calls.filter(call=>call.kind==='send').at(-1)?.options.text,'后续消息');
+  assert.equal([...f.deliveries.values()].filter(item=>item.status==='pending').length,101);
+});
+
 test('Weixin text segmentation preserves Unicode, bounds wire payload and identifies clipped replies', () => {
   const text = '😀中'.repeat(4000);
   const parts = weixinTextParts(text);

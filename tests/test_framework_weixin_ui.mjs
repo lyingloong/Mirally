@@ -121,6 +121,21 @@ test('polling does not overwrite an unsaved selection and rejects older revision
   assert.equal(f.page.status.revision, 5); assert.equal(f.page.selection, 'two');
 });
 
+test('assistant mode and optional typing indicator expose real channel settings',async()=>{
+  const f=fixture((method,params)=>{
+    if(method==='weixin.mode')return {...baseStatus,state:'connected',bound:true,enabled:true,revision:4,mode:params.mode,conversation_id:'assistant'};
+    if(method==='settings.update')return {weixin_typing_enabled:params.patch.weixin_typing_enabled};
+    return {conversations:[]};
+  });
+  f.page.acceptStatus({...baseStatus,state:'connected',bound:true,enabled:true,revision:3,mode:'direct',conversation_id:'original'});
+  f.page.typingEnabled=true;
+  const rendered=f.render(f.page);assert.match(rendered,/mirally-weixin-mode/);assert.match(rendered,/显示正在输入/);
+  await f.page.mutate('weixin.mode',{expected_revision:3,mode:'assistant'});
+  assert.equal(f.page.status.mode,'assistant');assert.equal(f.page.status.conversation_id,'assistant');
+  await f.page.setTyping(false);assert.equal(f.page.typingEnabled,false);
+  assert.deepEqual(JSON.parse(JSON.stringify(f.calls.at(-1))),{method:'settings.update',params:{patch:{weixin_typing_enabled:false}}});
+});
+
 test('detach removes listeners/timers and discards late login responses', async () => {
   const pending = deferred(); const f = fixture(() => pending.promise);
   f.page.connectedCallback(); assert.equal(f.listeners.size, 2);

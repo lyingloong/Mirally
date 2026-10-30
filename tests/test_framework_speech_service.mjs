@@ -1,0 +1,50 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {access,mkdtemp,readFile,realpath,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join,dirname,basename} from 'node:path';
+import {createServer} from 'node:http';
+import {fileURLToPath} from 'node:url';
+import {SpeechService} from '../kernel/dsh/packages/mirally/mirally-product/src/speech-service.mjs';
+
+const root=fileURLToPath(new URL('../',import.meta.url));
+test('explicit speech provider stores settings privately and transcribes without a chat model',async t=>{
+  const home=await mkdtemp(join(tmpdir(),'mirally-speech-test-'));let request;
+  const server=createServer(async(req,res)=>{const chunks=[];for await(const chunk of req)chunks.push(chunk);request={url:req.url,authorization:req.headers.authorization,data:Buffer.concat(chunks).toString()};if(req.url.startsWith('/bad')){res.writeHead(400);res.end('fixture-secret private provider diagnostic');return;}res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({text:'你好，实验进展如何？'}));});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const service=new SpeechService({home,root,config:{python:join(root,'.venv/Scripts/python.exe')}});
+  t.after(async()=>{await service.dispose();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));const resolved=await realpath(home);assert.equal(dirname(resolved),await realpath(tmpdir()));assert.ok(basename(resolved).startsWith('mirally-speech-test-'));await rm(resolved,{recursive:true,force:true});});
+  assert.equal((await service.settings()).provider,'none');
+  await assert.rejects(service.transcribe({data:Buffer.from('RIFF'),media_type:'audio/wav'}),/配置语音/);
+  const config=await service.configure({provider:'openai_compatible',base_url:`http://127.0.0.1:${server.address().port}/v1`,model:'fixture-asr',api_key:'fixture-secret'});
+  assert.equal(config.api_key_configured,true);assert.equal(JSON.stringify(config).includes('fixture-secret'),false);
+  await assert.rejects(service.removeTemporary(home),/临时目录/);await access(home);
+  const stored=await readFile(join(home,'speech','settings.json'),'utf8');
+  assert.equal(stored.includes('fixture-secret'),false);
+  assert.match(JSON.parse(stored).api_key_protected,process.platform==='win32'?/^dpapi:/:/^owner-only:/);
+  await assert.rejects(service.configure({base_url:'https://different.example/v1'}),/重新填写 API 密钥/);
+  const result=await service.transcribe({data:Buffer.from('RIFF-fake-audio'),media_type:'audio/wav',name:'voice.wav'});
+  assert.equal(result.text,'你好，实验进展如何？');assert.equal(result.provider,'openai_compatible');
+  assert.equal(request.url,'/v1/audio/transcriptions');assert.equal(request.authorization,'Bearer fixture-secret');assert.match(request.data,/fixture-asr/);
+  await service.configure({provider:'openai_compatible',base_url:`http://127.0.0.1:${server.address().port}/bad`,model:'fixture-asr'});
+  await assert.rejects(service.transcribe({data:Buffer.from('RIFF-test'),media_type:'audio/wav'}),error=>!error.message.includes('fixture-secret')&&!error.message.includes('diagnostic'));
+  await assert.rejects(service.configure({provider:'openai_compatible',base_url:'https://other.example.invalid/v1',model:'fixture-asr'}),/重新填写/);
+  await assert.rejects(service.transcribe({data:Buffer.alloc(8*1024*1024+1),media_type:'audio/wav'}),/8 MiB/);
+  await assert.rejects(service.configure({provider:'faster_whisper',local_model_path:''}),/模型目录/);
+});
+
+test('cancelling a transcribe request stops its subprocess and discards any late result',async t=>{
+  const home=await mkdtemp(join(tmpdir(),'mirally-speech-test-'));let arrived;
+  const received=new Promise(resolve=>arrived=resolve);
+  const server=createServer(async(req,res)=>{for await(const _ of req){} arrived();res.on('close',()=>{});});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const service=new SpeechService({home,root,config:{python:join(root,'.venv/Scripts/python.exe')}});
+  const cleaned=[];const remove=service.removeTemporary.bind(service);service.removeTemporary=async path=>{cleaned.push(path);await remove(path);};
+  t.after(async()=>{await service.dispose();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));const resolved=await realpath(home);assert.equal(dirname(resolved),await realpath(tmpdir()));assert.ok(basename(resolved).startsWith('mirally-speech-test-'));await rm(resolved,{recursive:true,force:true});});
+  await service.configure({provider:'openai_compatible',base_url:`http://127.0.0.1:${server.address().port}/v1`,model:'fixture',api_key:'secret'});
+  const pending=service.transcribe({data:Buffer.from('RIFF-fake'),request_id:'request-123456789',media_type:'audio/wav'});
+  const rejected=assert.rejects(pending,error=>error.code==='speech_cancelled');
+  await received;assert.equal(service.cancel('request-123456789').cancelled,true);await rejected;
+  assert.equal(service.cancel('request-123456789').cancelled,false);
+  assert.equal(cleaned.length,1);await assert.rejects(access(cleaned[0]));
+});

@@ -101,6 +101,10 @@ export class WeixinWorks {
             await this.reply(event, `当前已在工作「${work.title}」的对话中。`);
             return;
           }
+          if (current.mode === 'assistant' && this.channel.hasActiveInput?.(current.installation_id)) {
+            await this.reply(event, '当前微信会话正在处理，请结束后切换工作。');
+            return;
+          }
           await this.product.cancelWeixinCommands(current.installation_id);
           const {state} = await this.channel.store('select', {expected_revision: current.revision, conversation_id: work.conversation_id});
           await this.reply({...event, revision: state.revision, conversation_id: state.conversation_id},

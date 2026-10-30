@@ -15,6 +15,7 @@ import unittest
 from unittest.mock import patch
 
 from mirally.framework import FrameworkError, FrameworkService
+from mirally.framework.service import SCHEMA_VERSION
 
 
 class FrameworkProductTests(unittest.TestCase):
@@ -86,7 +87,7 @@ class FrameworkProductTests(unittest.TestCase):
         self.service.db.execute("PRAGMA user_version=1")
         self.restart()
         self.assertEqual(self.call("preference.list")["preferences"][0]["value"], "original")
-        self.assertEqual(self.service.db.execute("PRAGMA user_version").fetchone()[0], 9)
+        self.assertEqual(self.service.db.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
 
     def test_withdrawn_preferences_are_excluded_from_direct_and_context_reads(self):
         self.call("preference.set", key="topic", value="private")

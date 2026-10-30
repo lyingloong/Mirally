@@ -4,6 +4,7 @@ import tempfile
 import unittest
 
 from mirally.framework import FrameworkError, FrameworkService
+from mirally.framework.service import SCHEMA_VERSION
 
 
 class CalendarTests(unittest.TestCase):
@@ -174,7 +175,7 @@ class CalendarTests(unittest.TestCase):
         self.service.db.execute('PRAGMA user_version=8')
         self.service.close()
         self.service = FrameworkService(Path(self.temp.name),self.home,clock=lambda: self.now)
-        self.assertEqual(self.call('system.status')['schema_version'],9)
+        self.assertEqual(self.call('system.status')['schema_version'],SCHEMA_VERSION)
         self.assertTrue(self.call('settings.get')['do_not_disturb'])
         self.assertEqual(self.call('commitment.list')['commitments'][0]['id'],old['id'])
         self.assertFalse(self.call('calendar.settings.get')['confirmed'])

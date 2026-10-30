@@ -105,6 +105,8 @@ mirally-native-interactions { display: block; }
 .mirally-native-question__custom textarea { width: 100%; box-sizing: border-box; resize: vertical; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px; font: inherit; font-size: var(--control-ui-text-md); line-height: 1.65; }
 .mirally-native-question__error { color: var(--danger, #c84e4e); }
 mirally-chat-options { display: inline-flex; min-width: 0; align-items: center; }
+.agent-chat__input mirally-voice-input .chat-send-btn--voice { color: var(--muted); }
+.agent-chat__input mirally-voice-input .chat-send-btn--voice > svg { color: var(--muted); opacity: 1; stroke-width: 2; }
 .mirally-chat-options__trigger { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 4px 8px; border: 0; border-radius: var(--radius-md, 8px); background: transparent; color: var(--muted); font: inherit; font-size: var(--control-ui-text-sm); cursor: pointer; }
 .mirally-chat-options__trigger:hover { background: var(--bg-hover); color: var(--text); }
 .mirally-chat-options__trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

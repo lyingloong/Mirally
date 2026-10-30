@@ -239,13 +239,19 @@ class WorkOwner:
     def _check_weixin_work_scope(self, conversation_id, weixin_scope):
         if weixin_scope is None:
             return
-        if not isinstance(weixin_scope, dict) or set(weixin_scope) != {"installation_id", "revision", "command_id"}:
+        if not isinstance(weixin_scope, dict) or set(weixin_scope) not in ({"installation_id", "revision", "command_id"}, {"installation_id", "revision", "command_id", "source_conversation_id", "source_command_id"}):
             fail("INVALID_PARAMS", "微信工作授权无效")
         text(weixin_scope["installation_id"], "installation_id", 64)
         text(weixin_scope["command_id"], "command_id", 200)
         state = self.s.channels._current(weixin_scope["revision"], weixin_scope["installation_id"], enabled=True)
         command = self.s._command(conversation_id, weixin_scope["command_id"])
-        if (state["conversation_id"] != conversation_id or not self.s._settings().get("weixin_remote_control_enabled")
+        if 'source_conversation_id' in weixin_scope:
+            self.s.channels.delegation_check(installation_id=weixin_scope['installation_id'], revision=weixin_scope['revision'],
+                source_conversation_id=weixin_scope['source_conversation_id'], source_command_id=weixin_scope['source_command_id'],
+                target_conversation_id=conversation_id, target_command_id=weixin_scope['command_id'])
+        elif state['conversation_id'] != conversation_id:
+            fail("CONFLICT", "微信工作授权已改变，请重新发起")
+        if (not self.s._settings().get("weixin_remote_control_enabled")
                 or command["state"] not in {"admitted", "submitted", "applied"}):
             fail("CONFLICT", "微信工作授权已改变，请重新发起")
 

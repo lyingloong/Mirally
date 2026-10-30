@@ -28,7 +28,7 @@ from .work import WORK_SCHEMA, WorkOwner
 from .calendar import CALENDAR_SCHEMA, CalendarOwner
 
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 CONVERSATION_FORKS_SCHEMA = """CREATE TABLE IF NOT EXISTS conversation_forks (
     conversation_id TEXT PRIMARY KEY REFERENCES conversations(id),
     parent_conversation_id TEXT NOT NULL,parent_generation INTEGER NOT NULL,
@@ -41,7 +41,7 @@ DEFAULT_SETTINGS = {
     "activity_paused": False, "activity_capture": {},
     "memory_semantics": {"max_calls_per_hour": 4, "max_tokens_per_day": 24000, "max_output_tokens": 1500},
     "general_initiative_enabled": False, "memory_enabled": True,
-    "weixin_remote_control_enabled": False, "weixin_auto_approve_enabled": False,
+    "weixin_remote_control_enabled": False, "weixin_auto_approve_enabled": False, "weixin_typing_enabled": True,
     "action_approval_mode": "ask",
     "do_not_disturb": False, "memory_config_path": None, "activity_config_path": None, "extensions": [],
     "model_connections": {}, "model_catalogs": {}, "model_routes": {"chat": "default", "background": "default"},
@@ -91,7 +91,7 @@ class FrameworkService:
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.execute("PRAGMA busy_timeout=10000")
         try:
-            if self.db.execute("PRAGMA user_version").fetchone()[0] not in (0, 1, 2, 3, 4, 5, 6, 7, 8, SCHEMA_VERSION):
+            if self.db.execute("PRAGMA user_version").fetchone()[0] not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, SCHEMA_VERSION):
                 raise FrameworkError("SCHEMA_VERSION", "unsupported product database schema")
             self.db.execute("PRAGMA journal_mode=WAL")
             self.db.execute("PRAGMA synchronous=FULL")
@@ -117,7 +117,7 @@ class FrameworkService:
 
     def _initialize(self) -> None:
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, SCHEMA_VERSION):
+        if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, SCHEMA_VERSION):
             raise FrameworkError("SCHEMA_VERSION", "unsupported product database schema")
         if version == SCHEMA_VERSION:
             # Development builds of schema 9 before notes were added can be
@@ -126,7 +126,7 @@ class FrameworkService:
                 with self._transaction():
                     self.db.execute("ALTER TABLE calendar_events ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
             return
-        if version in (1, 2, 3, 4, 5, 6, 7, 8):
+        if version in (1, 2, 3, 4, 5, 6, 7, 8, 9):
             with self._transaction():
                 if version == 1:
                     self.db.execute(INITIATIVE_RUNS_SCHEMA)
@@ -148,6 +148,10 @@ class FrameworkService:
                         self.db.execute(f'ALTER TABLE {table} ADD COLUMN model_selection_json TEXT')
                 self.db.execute(CONVERSATION_FORKS_SCHEMA)
                 for statement in CALENDAR_SCHEMA:
+                    self.db.execute(statement)
+                if 'notes' not in {row[1] for row in self.db.execute('PRAGMA table_info(calendar_events)')}:
+                    self.db.execute("ALTER TABLE calendar_events ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
+                for statement in CHANNEL_SCHEMA:
                     self.db.execute(statement)
                 self.db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             return

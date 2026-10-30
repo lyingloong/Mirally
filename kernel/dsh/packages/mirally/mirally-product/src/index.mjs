@@ -27,13 +27,15 @@ import {continuationHistory} from './continuation.mjs';
 import {NativeRuntime} from './native-runtime.mjs';
 import {installNativeInteractions, NATIVE_INTERACTION_METHODS} from './native-interactions.mjs';
 import {installCalendarTools} from './calendar-tools.mjs';
+import {installAssistantTools} from './assistant-tools.mjs';
 import {ScheduledActions, installScheduledActionTools} from './scheduled-actions.mjs';
+import {SpeechService} from './speech-service.mjs';
 export {projectMessages} from './history-presentation.mjs';
 
 const REMOTE_INPUT = Symbol('trusted channel input');
 const WEIXIN_READ_TOOLS = new Set(['mirally_context', 'mirally_preferences', 'mirally_reminders',
   'mirally_workspace_roots', 'mirally_list_files', 'mirally_read_file', 'mirally_search_files', 'mirally_works', 'mirally_work_status', 'mirally_current_work',
-  'mirally_calendar_time','mirally_calendar_events']);
+  'mirally_calendar_time','mirally_calendar_events','mirally_find_conversations','mirally_conversation_status','mirally_conversation_history','mirally_list_artifacts']);
 const WEIXIN_SESSION_READ_TOOLS = new Set(['mirally_job_list', 'mirally_job_status', 'job_list', 'job_output']);
 const WEIXIN_ACTION_TOOLS = new Set(['mirally_action', 'mirally_run_command', 'mirally_stop_job',
   'mirally_browser_open', 'mirally_browser_read', 'mirally_browser_click', 'mirally_browser_fill',
@@ -42,14 +44,14 @@ const WEIXIN_ACTION_TOOLS = new Set(['mirally_action', 'mirally_run_command', 'm
   'subagent','subagent_fork','list_agents','send_message','interrupt_agent',
   'todo_write','ask_user_question','exit_plan_mode','web_search','web_fetch','mirally_create_work','mirally_update_work',
   'create_goal','get_goal','update_goal','skill','workflow','list_subagent_models',
-  'mirally_create_event','mirally_update_event','mirally_cancel_event','mirally_remind_at','mirally_cancel_reminder']);
+  'mirally_create_event','mirally_update_event','mirally_cancel_event','mirally_remind_at','mirally_cancel_reminder','mirally_delegate_conversation','mirally_send_weixin_artifact']);
 const NATIVE_MUTATIONS = new Set(['pwsh','bash','write','edit','job_kill']);
 const DELEGATED_PRODUCT_ACTIONS = new Set(['mirally_action','mirally_run_command','mirally_stop_job',
   'mirally_browser_open','mirally_browser_read','mirally_browser_click','mirally_browser_fill',
   'mirally_desktop_foreground','mirally_desktop_windows','mirally_desktop_screenshot','mirally_update_work',
   'run_skill_script','mirally_write_workspace_file','mirally_create_file','mirally_create_work','mirally_create_reminder','mirally_set_preference',
   'mirally_create_event','mirally_update_event','mirally_cancel_event','mirally_remind_at','mirally_cancel_reminder',
-  'mirally_schedule_action','mirally_manage_scheduled_action']);
+  'mirally_schedule_action','mirally_manage_scheduled_action','mirally_send_weixin_artifact']);
 
 export const name = 'mirally-product';
 export const inject = ['agents', 'agentLoop', 'sessions', 'sessionPersistence', 'llm', 'tools', 'systemPrompt'];
@@ -70,6 +72,7 @@ const PUBLIC_METHODS = new Set([
   'calendar.event.get','calendar.event.update','calendar.event.cancel',
   'calendar.reminder.create','calendar.reminder.cancel',
   'calendar.delivery.list','calendar.delivery.get','calendar.delivery.claim','calendar.delivery.ack',
+  'speech.settings','speech.configure','speech.transcribe','speech.cancel',
   'extensions.list', 'extensions.configure', 'extensions.disable', 'extensions.prompt', 'extensions.runScript',
   'skills.list', 'skills.read', 'mcp.resources.list', 'mcp.resources.read', 'mcp.resources.templates',
   'mcp.prompts.list', 'mcp.prompts.get', 'mcp.tools.call', 'mcp.tools.list', 'scripts.run',
@@ -79,7 +82,7 @@ const PUBLIC_METHODS = new Set([
   'action.approvals.list', 'action.approvals.decide', 'action.permissions.get', 'action.permissions.set',
   'memory.status', 'memory.configure',
   'weixin.status', 'weixin.login.start', 'weixin.login.cancel', 'weixin.login.verify',
-  'weixin.bind', 'weixin.select', 'weixin.disconnect', 'weixin.reconnect', 'weixin.unbind',
+  'weixin.bind', 'weixin.select', 'weixin.mode', 'weixin.disconnect', 'weixin.reconnect', 'weixin.unbind',
   'mobile.status', 'mobile.pair.create', 'mobile.devices.revoke', 'mobile.configure',
   ...WORK_METHODS,
 ]);
@@ -197,8 +200,10 @@ export class MirallyProduct extends Service {
     this.nativeInteractions = installNativeInteractions(this);
     this.installNativeObservers();
     this.work = new WorkHost(this);
+    this.speech = new SpeechService(this);
     this.installProductTools();
     installCalendarTools(this);
+    installAssistantTools(this);
     this.scheduledActions = new ScheduledActions(this);
     installScheduledActionTools(this,this.scheduledActions);
     // Only the explicit isolated test mode accepts a loopback protocol fixture.
@@ -273,6 +278,7 @@ export class MirallyProduct extends Service {
     if (policy?.origin !== 'weixin') return;
     if (policy.revoked || !this.weixin) throw failure('微信消息的授权已失效，请重新发起。', 'weixin_scope_revoked', 403);
     await this.weixin.authorize(policy);
+    if (policy.target_conversation_id) await this.checkWeixinDelegation(policy);
     if (!toolName || WEIXIN_READ_TOOLS.has(toolName) || WEIXIN_SESSION_READ_TOOLS.has(toolName)) return;
     if (WEIXIN_ACTION_TOOLS.has(toolName) && (await this.rpc('settings.get')).weixin_remote_control_enabled === true) {
       await this.weixin.authorize(policy);
@@ -286,9 +292,30 @@ export class MirallyProduct extends Service {
 
   async sendWeixin(event) {
     const scope = Object.freeze({origin: 'weixin', installation_id: event.installation_id, revision: event.revision,
-      conversation_id: event.conversation_id, command_id: event.command_id, [REMOTE_INPUT]: true});
+      conversation_id: event.conversation_id, command_id: event.command_id, context_token:event.context_token, [REMOTE_INPUT]: true});
     await this.weixin.authorize(scope);
-    return this.send(event.conversation_id, {text: event.text, commandId: event.command_id}, scope);
+    return this.send(event.conversation_id, {text: event.text, commandId: event.command_id, ...(event.materials?.length ? {materials:event.materials} : {})}, scope);
+  }
+
+  checkWeixinDelegation(scope, delivery = false) {
+    return this.rpc('channel.weixin.delegation_check', {installation_id:scope.installation_id,revision:scope.revision,
+      source_conversation_id:scope.conversation_id,source_command_id:scope.source_command_id,
+      target_conversation_id:scope.target_conversation_id,target_command_id:scope.command_id,delivery});
+  }
+
+  async sendWeixinDelegation(source, conversation, commandId, text) {
+    await this.weixin.authorize(source);
+    if (this.commandPolicies.get(source.command_id)!==source) throw failure('助理会话已变化。', 'weixin_scope_revoked', 403);
+    const digest=createHash('sha256').update(text).digest('hex');
+    await this.rpc('channel.weixin.delegate', {installation_id:source.installation_id,revision:source.revision,
+      source_conversation_id:source.conversation_id,source_command_id:source.command_id,
+      target_conversation_id:conversation.conversation_id,target_generation:conversation.generation,
+      target_command_id:commandId,content_hash:digest});
+    const scope=Object.freeze({origin:'weixin',installation_id:source.installation_id,revision:source.revision,
+      conversation_id:source.conversation_id,source_command_id:source.command_id,target_conversation_id:conversation.conversation_id,
+      command_id:commandId,context_token:source.context_token,[REMOTE_INPUT]:true});
+    await this.checkWeixinDelegation(scope);
+    return this.send(conversation.conversation_id,{commandId,text:`来自微信的委托：\n${text}`},scope);
   }
 
   async sendMobile(input, principal) {
@@ -325,7 +352,11 @@ export class MirallyProduct extends Service {
   }
 
   async authorizeInput(scope) {
-    if (scope.origin === 'weixin') return this.weixin.authorize(scope);
+    if (scope.origin === 'weixin') {
+      await this.weixin.authorize(scope);
+      if (scope.target_conversation_id) await this.checkWeixinDelegation(scope);
+      return;
+    }
     if (scope.origin === 'mobile' && this.mobile?.authorize(scope.principal)) return;
     if (scope.origin === 'schedule' && this.scheduledActions?.ownsDispatch(scope.schedule_id,scope.conversation_id,scope.command_id)) return;
     throw failure('远程输入授权已失效。', 'remote_scope_revoked', 403);
@@ -337,7 +368,7 @@ export class MirallyProduct extends Service {
       const policy = this.commandPolicies.get(commandId);
       if (policy?.origin === 'weixin' && policy.installation_id === installationId) {
         const handle = this.handles.get(native);
-        if (handle?.agent.status === 'running') await this.cancel(policy.conversation_id, commandId);
+        if (handle?.agent.status === 'running') await this.cancel(policy.target_conversation_id ?? policy.conversation_id, commandId);
       }
     }
   }
@@ -677,7 +708,7 @@ export class MirallyProduct extends Service {
       const remoteSettings = scope?.origin === 'weixin' ? await this.rpc('settings.get') : null;
       const calendarSettings = await this.rpc('calendar.settings.get');
       const channelInstruction = scope?.origin === 'weixin'
-        ? `This is the user's WeChat channel in the same conversation. You may inspect managed jobs in this conversation. ${remoteSettings?.weixin_remote_control_enabled === true
+        ? `This is the user's WeChat channel in the same conversation. ${scope.target_conversation_id ? 'This is a delegated turn in the original target conversation; retain its context and the WeChat permission policy.' : 'If assistant coordination tools are available, use them to find, inspect or continue another conversation on explicit request; ask when the target is ambiguous. Otherwise answer in this conversation.'} You may inspect managed jobs in this conversation. ${remoteSettings?.weixin_remote_control_enabled === true
           ? 'Remote commands, isolated browser actions and desktop observation are available through their tools under the configured authorization policy. Call the appropriate tool; report its actual result.'
           : 'Remote commands, browser actions and desktop observation are currently disabled in the channel settings.'} Other tools remain subject to their actual access checks.`
         : scope?.origin === 'mobile' ? 'This mobile channel is restricted to explicitly allowed read-only tools; describe unavailable actions honestly.' : undefined;
@@ -841,6 +872,24 @@ export class MirallyProduct extends Service {
     this.shellJobs = installShellCapabilities(this);
     this.browserCapabilities = installBrowserCapabilities(this);
     installDesktopObservation(this);
+    this.ctx.tools.register({name:'mirally_list_artifacts',description:'List real saved deliverables in this conversation, including artifact IDs. Use only when relevant to the user request.',
+      parameters:{type:'object',properties:{},additionalProperties:false},
+      output:{schema:{type:'object',additionalProperties:true},render:(_args,result)=>[{type:'text',text:JSON.stringify(result)}]},
+      execute:async(_args,exec)=>{exec.signal.throwIfAborted();const conversation=this.nativeConversations.get(exec.agent?.id);
+        if(!conversation)throw failure('Tool requires an owned conversation');
+        await this.checkCommandScope(exec.agent,'mirally_list_artifacts');await this.guard(exec.agent.id);
+        return this.materials.list(conversation.conversation_id);}});
+    this.ctx.tools.register({name:'mirally_send_weixin_artifact',description:'Only when the user explicitly asks to receive a saved deliverable in WeChat, queue one artifact belonging to this conversation. Obtain its artifact_id from mirally_list_artifacts. Queued is not yet delivered.',
+      parameters:{type:'object',properties:{artifact_id:{type:'string'}},required:['artifact_id'],additionalProperties:false},
+      output:{schema:{type:'object',additionalProperties:true},render:(_args,result)=>[{type:'text',text:JSON.stringify(result)}]},
+      execute:async(args,exec)=>{exec.signal.throwIfAborted();const conversation=this.nativeConversations.get(exec.agent?.id),policy=this.commandPolicy(exec.agent);
+        if(!conversation||policy?.origin!=='weixin'||conversation.conversation_id!==(policy.target_conversation_id??policy.conversation_id))
+          throw failure('只能从微信请求发送当前会话成果。','weixin_scope_revoked',403);
+        await this.checkCommandScope(exec.agent,'mirally_send_weixin_artifact');await this.guard(exec.agent.id);
+        await this.checkCommandScope(exec.agent,'mirally_send_weixin_artifact');exec.signal.throwIfAborted();
+        if(this.commandPolicy(exec.agent)!==policy||this.consumedCommandId(exec.agent)!==policy.command_id)throw failure('微信请求已结束。','weixin_scope_revoked',403);
+        const delivery=await this.weixin.outboundMedia.queue(policy,args.artifact_id);void this.weixin.pump().catch(()=>{});
+        return {delivery,note:'已排队，发送结果尚未确认。'};}});
     this.ctx.tools.register({name: 'mirally_create_file', description: 'Save a requested deliverable in the conversation workspace. Only available when the human allowed file output in this command. Return its real artifact receipt.',
       parameters: {type: 'object', properties: {name: {type: 'string'}, content: {type: 'string'}}, required: ['name', 'content'], additionalProperties: false},
       output: {schema: {type: 'object', additionalProperties: true}, render: (_args, result) => [{type: 'text', text: JSON.stringify(result)}]},
@@ -895,7 +944,8 @@ export class MirallyProduct extends Service {
         await this.guard(exec.agent.id);
         await this.checkCommandScope(exec.agent, 'mirally_create_work');
         if (this.commandPolicy(exec.agent) !== policy) throw failure('消息来源已改变，请重新发起。', 'work_scope_revoked', 403);
-        const weixinScope = policy?.origin === 'weixin' ? {installation_id: policy.installation_id, revision: policy.revision, command_id: policy.command_id} : undefined;
+        const weixinScope = policy?.origin === 'weixin' ? {installation_id: policy.installation_id, revision: policy.revision, command_id: policy.command_id,
+          ...(policy.target_conversation_id ? {source_conversation_id:policy.conversation_id,source_command_id:policy.source_command_id} : {})} : undefined;
         const result = await this.rpc('internal.work.ensure_conversation', {...args, conversation_id: conversation.conversation_id,
           ...(weixinScope ? {weixin_scope: weixinScope} : {})});
         this.broadcast('work', {method: 'work.create', work_id: result.work.id, conversation_id: conversation.conversation_id});
@@ -917,7 +967,8 @@ export class MirallyProduct extends Service {
         await this.checkCommandScope(exec.agent, 'mirally_update_work');
         const {work_id, ...patch} = args;
         if (this.commandPolicy(exec.agent) !== policy) throw failure('消息来源已改变，请重新发起。', 'work_scope_revoked', 403);
-        const weixinScope = policy?.origin === 'weixin' ? {installation_id: policy.installation_id, revision: policy.revision, command_id: policy.command_id} : undefined;
+        const weixinScope = policy?.origin === 'weixin' ? {installation_id: policy.installation_id, revision: policy.revision, command_id: policy.command_id,
+          ...(policy.target_conversation_id ? {source_conversation_id:policy.conversation_id,source_command_id:policy.source_command_id} : {})} : undefined;
         const result = await this.rpc('internal.work.update_conversation', {conversation_id: conversation.conversation_id, work_id, patch,
           ...(weixinScope ? {weixin_scope: weixinScope} : {})});
         this.broadcast('work', {method: 'work.update', work_id, conversation_id: conversation.conversation_id});
@@ -1017,6 +1068,16 @@ export class MirallyProduct extends Service {
   async publicRpc(method, params = {}) {
     if (NATIVE_INTERACTION_METHODS.has(method)) return this.nativeInteractions.request(method, params);
     if (!PUBLIC_METHODS.has(method)) throw failure('Method is not exposed by the product API', 'method_not_allowed', 403);
+    if (method === 'speech.settings') return this.speech.settings();
+    if (method === 'speech.configure') return this.speech.configure(params.patch);
+    if (method === 'speech.cancel') return this.speech.cancel(params.request_id);
+    if (method === 'speech.transcribe') {
+      const data=params.data;
+      if(typeof data!=='string' || data.length>11184812 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(data)) throw failure('无效录音。');
+      const bytes=Buffer.from(data,'base64');
+      if(bytes.toString('base64')!==data) throw failure('无效录音。');
+      return this.speech.transcribe({data:bytes,media_type:params.media_type,name:params.name,language:params.language,request_id:params.request_id});
+    }
     if (method === 'action.approvals.list') return this.actionGate.list(params.conversation_id);
     if (method === 'action.approvals.decide') return this.actionGate.decide(params);
     if (method === 'action.permissions.get' || method === 'action.permissions.set') {
@@ -1325,6 +1386,7 @@ export class MirallyProduct extends Service {
     clearInterval(this.scheduleTimer);
     await this.scheduledActions?.dispose();
     this.actionGate?.dispose();
+    await this.speech?.dispose();
     await this.mobile?.stop();
     await this.weixin?.stop();
     this.initiativeController?.abort(new Error('Host stopping'));

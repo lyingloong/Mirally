@@ -5,6 +5,7 @@ import tempfile
 import unittest
 
 from mirally.framework import FrameworkService
+from mirally.framework.service import SCHEMA_VERSION
 
 
 class FrameworkSessionLifecycleTests(unittest.TestCase):
@@ -76,6 +77,6 @@ class FrameworkSessionLifecycleTests(unittest.TestCase):
         self.service.db.execute('PRAGMA user_version=7')
         self.service.close()
         self.service=FrameworkService(self.root,self.root / '个人 数据')
-        self.assertEqual(self.service.call('system.status')['schema_version'],9)
+        self.assertEqual(self.service.call('system.status')['schema_version'],SCHEMA_VERSION)
         self.assertEqual(self.service.conversation_get('chat')['session_id'],'native-original')
         self.assertEqual(self.service.db.execute('SELECT COUNT(*) FROM conversation_forks').fetchone()[0],0)

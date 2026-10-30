@@ -78,7 +78,7 @@ export class ActionGate {
     return Boolean(remote && remote.scope.installation_id === scope.installation_id && remote.scope.revision === scope.revision
       && remote.scope.conversation_id === scope.conversation_id && entry.value.command_id === remote.scope.command_id
       && this.host.consumedCommandId(this.host.handles.get(entry.value.session_id)?.agent) === entry.value.command_id
-      && this.host.conversationForSession(entry.value.session_id)?.conversation_id === scope.conversation_id);
+      && this.host.conversationForSession(entry.value.session_id)?.conversation_id === (remote.scope.target_conversation_id ?? scope.conversation_id));
   }
 
   remoteDelivered(id, scope) {
@@ -90,7 +90,7 @@ export class ActionGate {
     if (!entry || !entry.remote.delivered || !this.remoteDeliveryCurrent(entry.value.id, event)) throw failure('确认已失效或动作详情尚未完整送达。');
     await this.host.weixin.authorize(entry.remote.scope);
     if (!this.remoteDeliveryCurrent(entry.value.id, event) || !entry.remote.delivered) throw failure('动作确认已失效。');
-    return this.decide({approval_id:entry.value.id, conversation_id:event.conversation_id, allow});
+    return this.decide({approval_id:entry.value.id, conversation_id:entry.value.conversation_id, allow});
   }
 
   list(conversationId) {

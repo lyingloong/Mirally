@@ -17,7 +17,8 @@ export function installCalendarTools(host) {
       await host.checkCommandScope(exec.agent,name); exec.signal.throwIfAborted();
       if(host.commandPolicy(exec.agent)!==policy || host.consumedCommandId(exec.agent)!==owner.commandId)
         throw Object.assign(new Error('会话或授权已变化，请重新发起。'),{code:'calendar_scope_revoked'});
-      const scope=policy?.origin==='weixin' ? {installation_id:policy.installation_id,revision:policy.revision,command_id:policy.command_id} : undefined;
+      const scope=policy?.origin==='weixin' ? {installation_id:policy.installation_id,revision:policy.revision,command_id:policy.command_id,
+        ...(policy.target_conversation_id ? {source_conversation_id:policy.conversation_id,source_command_id:policy.source_command_id} : {})} : undefined;
       const request_id=`${owner.commandId}:${name}:${createHash('sha256').update(JSON.stringify(args)).digest('hex')}`;
       return action(args,{conversation_id:owner.conversation.conversation_id,request_id,scope});
     }});

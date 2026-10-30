@@ -25,6 +25,7 @@ export class WeixinCalendar {
         if (['进入日程','/event-use'].includes(selection[1])) {
           if (!item.conversation_id) throw fail('这项日程没有关联会话。');
           if (item.conversation_id===current.conversation_id) {await channel.reply(event,`当前已在「${item.title}」的对话中。`,{control:true});return;}
+          if (current.mode === 'assistant' && channel.hasActiveInput?.(current.installation_id)) {await channel.reply(event,'当前微信会话正在处理，请结束后切换日程。',{control:true});return;}
           await channel.product.cancelWeixinCommands(current.installation_id);
           const {state}=await channel.store('select',{expected_revision:current.revision,conversation_id:item.conversation_id});
           await channel.reply({...event,revision:state.revision,conversation_id:state.conversation_id},`已进入「${item.title}」的对话。`,{control:true});return;

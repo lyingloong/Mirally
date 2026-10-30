@@ -256,6 +256,34 @@ export class WeixinApi {
     return {...result, msgs};
   }
 
+  /** A typing ticket is scoped to the bound user and their message context. */
+  async getTypingTicket({token, to, contextToken, signal} = {}) {
+    textValue(token, '凭据'); textValue(to, '收件人');
+    if (contextToken !== undefined) textValue(contextToken, '消息上下文凭据');
+    const result = await this.#request('/ilink/bot/getconfig', {token, signal, body: {
+      ilink_user_id:to, ...(contextToken ? {context_token:contextToken} : {}), base_info:this.#baseInfo,
+    }});
+    if (result.ret !== 0) throw invalid('输入状态配置');
+    return {typing_ticket:textValue(result.typing_ticket, '输入状态凭据', {max:8192})};
+  }
+
+  /** Best-effort presentation signal; it is never a message delivery receipt. */
+  async sendTyping({token, to, ticket, active, signal} = {}) {
+    textValue(token, '凭据'); textValue(to, '收件人'); textValue(ticket, '输入状态凭据', {max:8192});
+    if (typeof active !== 'boolean') throw invalid('输入状态');
+    return this.#request('/ilink/bot/sendtyping', {token, signal, body: {
+      ilink_user_id:to, typing_ticket:ticket, status:active ? 1 : 2, base_info:this.#baseInfo,
+    }});
+  }
+
+  /** Channel lifecycle signals notify the platform; they do not imply user presence. */
+  async notifyLifecycle({token, active, signal} = {}) {
+    textValue(token, '凭据');
+    if (typeof active !== 'boolean') throw invalid('连接状态');
+    return this.#request(`/ilink/bot/msg/${active ? 'notifystart' : 'notifystop'}`,
+      {token, signal, body:{base_info:this.#baseInfo}});
+  }
+
   /** Send once. unknown delivery must never be automatically retried by the caller. */
   async sendText({token, to, text, contextToken, clientId, signal} = {}) {
     textValue(token, '凭据'); textValue(to, '收件人'); textValue(clientId, '发送标识', {max: 256});

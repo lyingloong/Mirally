@@ -16,6 +16,7 @@ import {modelDraft, deepSeekPreset, adoptDiscoveredModel, isDeepSeekEndpoint, mo
 import "./product.css";
 import "./legacy-history.ts";
 import "./capabilities-settings.ts";
+import "./speech-settings.ts";
 
 type SettingsPageId = "general" | "profile" | "model" | "initiative" | "about";
 type ProductSettings = {
@@ -242,6 +243,7 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
   private generalPage() {
     return html`
       <mirally-capabilities-settings></mirally-capabilities-settings>
+      <mirally-speech-settings></mirally-speech-settings>
       ${renderSettingsSection({title: "日期与时间"}, html`
         ${this.field("时区", html`<form @submit=${(event: SubmitEvent) => {
           event.preventDefault(); const value = this.timeZoneDraft.trim(); if (!value) return;

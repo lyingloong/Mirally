@@ -30,6 +30,7 @@
   "ui/src/pages/chat/components/chat-header-session-menu.ts": "Expose native DSH forks and context compaction beside Mirally organization; retain original menu visuals and capability checks.",
   "ui/src/pages/chat/components/chat-message-bubble.ts": "Display trusted cross-surface input origins on individual user messages without changing the retained conversation layout.",
   "ui/src/pages/chat/chat-view.ts": "Show conversation-bound action approvals, native DSH questions and plan review beside the retained composer.",
+  "ui/src/pages/chat/chat-pane-render.ts": "Connect Mirally speech input to the retained conversation draft and session lifecycle.",
   "ui/src/pages/chat/components/chat-composer-view.ts": "Integrate truthful Mirally mode and effective action policy choices into the retained composer toolbar.",
   "ui/src/pages/chat/components/chat-composer-types.ts": "Pass pane presentation state to Mirally choices and mark setup banners whose recovery action is already in the visible welcome.",
   "ui/src/pages/chat/chat-pane-header.ts": "Expose actual busy and capability state for native context compaction in the retained conversation menu.",

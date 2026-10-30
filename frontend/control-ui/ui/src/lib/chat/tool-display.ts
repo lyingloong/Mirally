@@ -98,6 +98,12 @@ Object.assign(TOOL_MAP, {
   mirally_schedule_action: { icon: "clock", title: "安排定时任务", label: "安排定时任务" },
   mirally_scheduled_actions: { icon: "clock", title: "查看定时任务", label: "查看定时任务" },
   mirally_manage_scheduled_action: { icon: "clock", title: "管理定时任务", label: "管理定时任务" },
+  mirally_find_conversations: { icon: "messageSquare", title: "查找会话", label: "查找会话" },
+  mirally_conversation_status: { icon: "messageSquare", title: "查看会话状态", label: "查看会话状态" },
+  mirally_conversation_history: { icon: "messageSquare", title: "查看会话记录", label: "查看会话记录" },
+  mirally_delegate_conversation: { icon: "messageSquare", title: "继续其他会话", label: "继续其他会话" },
+  mirally_list_artifacts: { icon: "fileText", title: "查看成果", label: "查看成果" },
+  mirally_send_weixin_artifact: { icon: "paperclip", title: "发送成果到微信", label: "发送成果到微信" },
 });
 
 function shortenHomeInString(input: string): string {

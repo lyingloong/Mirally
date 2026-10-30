@@ -17,6 +17,7 @@ type ConnectionState = 'unbound' | 'waiting_scan' | 'scanned' | 'need_verifycode
   | 'login_required' | 'expired' | 'error';
 export type WeixinStatus = {
   state: ConnectionState; enabled: boolean; bound: boolean; installation_id: string; revision: number;
+  mode?: 'assistant' | 'direct'; assistant_conversation_id?: string; direct_conversation_id?: string;
   peer_id?: string; bot_id?: string; conversation_id?: string; conversation_title?: string;
   login?: {id: string; qr_content?: string; expires_at?: number | string; needs_verify_code?: boolean};
   last_error?: unknown; outbox?: {pending: number; unknown: number; failed: number};
@@ -43,6 +44,7 @@ function expiryText(value?: number | string): string {
 export class MirallyChannelsPage extends OpenClawLightDomElement {
   @state() private status: WeixinStatus | null = null;
   @state() private remoteControl: boolean | null = null;
+  @state() private typingEnabled: boolean | null = null;
   @state() private conversations: Conversation[] = [];
   @state() private selection = '';
   @state() private verificationCode = '';
@@ -115,9 +117,10 @@ export class MirallyChannelsPage extends OpenClawLightDomElement {
       const status = await rpcProduct<WeixinStatus>('weixin.status');
       if (!this.isConnected || view !== this.viewEpoch || request !== this.loadEpoch) return;
       this.acceptStatus(status);
-      const settings = await rpcProduct<{weixin_remote_control_enabled?: boolean}>('settings.get');
+      const settings = await rpcProduct<{weixin_remote_control_enabled?: boolean;weixin_typing_enabled?: boolean}>('settings.get');
       if (!this.isConnected || view !== this.viewEpoch || request !== this.loadEpoch) return;
       this.remoteControl = settings.weixin_remote_control_enabled === true;
+      this.typingEnabled = settings.weixin_typing_enabled === true;
       if (includeConversations) {
         const result = await rpcProduct<{conversations: ConversationRecord[]}>('conversation.list', {archived_filter: 'active', limit: 1000});
         if (!this.isConnected || view !== this.viewEpoch || request !== this.loadEpoch) return;
@@ -158,6 +161,16 @@ export class MirallyChannelsPage extends OpenClawLightDomElement {
     } finally {
       if (this.isConnected && view === this.viewEpoch) {this.busy = false; this.schedulePoll();}
     }
+  }
+
+  private async setTyping(enabled: boolean) {
+    if (this.busy || this.loading || !this.isConnected) return;
+    const view=this.viewEpoch; ++this.loadEpoch;this.clearPoll();this.busy=true;this.error='';this.notice='';
+    try {
+      const settings=await rpcProduct<{weixin_typing_enabled?:boolean}>('settings.update',{patch:{weixin_typing_enabled:enabled}});
+      if(this.isConnected && view===this.viewEpoch) {this.typingEnabled=settings.weixin_typing_enabled===true;this.notice='设置已保存。';}
+    } catch {if(this.isConnected && view===this.viewEpoch)this.error='设置未能保存，请刷新后重试。';}
+    finally {if(this.isConnected && view===this.viewEpoch){this.busy=false;this.schedulePoll();}}
   }
 
   private async mutate(method: string, params: ProductData = {}, message = '') {
@@ -232,7 +245,13 @@ export class MirallyChannelsPage extends OpenClawLightDomElement {
     const status = this.status!;
     return html`${renderSettingsSection({title: '微信会话'}, html`
       ${renderSettingsRow({title: '已绑定微信', control: renderSettingsValue(status.peer_id || '本人微信')})}
+      ${renderSettingsRow({title:'使用方式',control:html`<select class="settings-input" aria-label="微信使用方式" data-testid="mirally-weixin-mode"
+        .value=${live(status.mode || 'direct')} ?disabled=${this.busy||this.loading}
+        @change=${(event:Event)=>void this.mutate('weixin.mode',{expected_revision:status.revision,mode:(event.target as HTMLSelectElement).value},'微信使用方式已更新。')}>
+        <option value="direct">直接会话</option><option value="assistant">助理</option></select>`})}
       ${renderSettingsRow({title: '当前会话', control: renderSettingsValue(status.conversation_title || '微信会话')})}
+      ${renderSettingsRow({title:'显示正在输入',control:renderSettingsToggle({checked:this.typingEnabled===true,disabled:this.busy||this.loading||this.typingEnabled===null,
+        ariaLabel:'显示正在输入',onChange:value=>{void this.setTyping(value);return false;}})})}
       ${renderSettingsRow({title: '切换或新建会话', stackedOnNarrow: true, control: html`<div class="mirally-weixin-selection">${this.conversationPicker()}
         <button class="btn btn--sm" data-testid="mirally-weixin-select" ?disabled=${this.busy || this.loading || (!this.selectionDirty && !!status.conversation_id)}
           @click=${() => void this.mutate('weixin.select', this.bindingParams(), '微信会话已切换。')}>切换微信会话</button></div>`})}

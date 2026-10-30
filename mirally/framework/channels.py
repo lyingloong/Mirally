@@ -36,6 +36,10 @@ CHANNEL_SCHEMA = (
         receipt TEXT,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,
         UNIQUE(installation_id,dedupe_key))""",
     "CREATE INDEX IF NOT EXISTS channel_weixin_outbox_pending ON channel_weixin_outbox(installation_id,status,created_at)",
+    """CREATE TABLE IF NOT EXISTS channel_weixin_delegations (
+        installation_id TEXT NOT NULL, revision INTEGER NOT NULL, source_conversation_id TEXT NOT NULL,
+        source_command_id TEXT NOT NULL, target_conversation_id TEXT NOT NULL,
+        target_generation INTEGER NOT NULL, target_command_id TEXT PRIMARY KEY, content_hash TEXT NOT NULL)""",
 )
 
 
@@ -134,7 +138,7 @@ class WeixinChannels:
     def routes(self):
         return {"channel.weixin." + key: getattr(self, key) for key in (
             "get", "save", "bind", "select", "enable", "unbind", "cursor", "admit", "event", "events",
-            "enqueue", "outbox", "claim", "ack")}
+            "enqueue", "outbox", "claim", "ack", "mode", "delegate", "delegation_check")}
 
     @property
     def db(self):
@@ -167,7 +171,20 @@ class WeixinChannels:
         for row in self.db.execute("SELECT status,COUNT(*) AS count FROM channel_weixin_outbox WHERE installation_id=? GROUP BY status", (result["installation_id"],)):
             if row["status"] in result["outbox_counts"]:
                 result["outbox_counts"][row["status"]] = row["count"]
+        row = self.db.execute("SELECT value_json FROM settings WHERE key='weixin_assistant'").fetchone()
+        saved = json.loads(row[0]) if row else {}
+        if saved.get('installation_id') != result['installation_id']:
+            saved = {}
+        result['mode'] = saved.get('mode', 'direct')
+        result['assistant_conversation_id'] = saved.get('assistant_conversation_id')
+        result['direct_conversation_id'] = saved.get('direct_conversation_id') or (result['conversation_id'] if result['mode'] == 'direct' else None)
         return result
+
+    def _save_mode(self, state, mode, assistant_id, direct_id):
+        value = {'installation_id':state['installation_id'], 'mode':mode,
+                 'assistant_conversation_id':assistant_id, 'direct_conversation_id':direct_id}
+        self.db.execute("INSERT INTO settings VALUES('weixin_assistant',?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json",
+                        (json.dumps(value, ensure_ascii=False, separators=(',', ':')),))
 
     def _current(self, revision, installation_id=None, *, enabled=False):
         _integer(revision, "revision")
@@ -238,15 +255,91 @@ class WeixinChannels:
             conversation_id = self._conversation(conversation_id)
             self._cancel_pending()
             self.db.execute("UPDATE channel_weixin SET revision=revision+1,bound=1,enabled=1,conversation_id=? WHERE singleton=1", (conversation_id,))
+            self._save_mode(current, 'direct', current['assistant_conversation_id'], conversation_id)
         return self.get()
 
     def select(self, expected_revision, conversation_id=None):
         with self.service._transaction():
-            self._current(expected_revision, enabled=True)
+            current = self._current(expected_revision, enabled=True)
             conversation_id = self._conversation(conversation_id)
             self._cancel_pending()
             self.db.execute("UPDATE channel_weixin SET revision=revision+1,conversation_id=? WHERE singleton=1", (conversation_id,))
+            self._save_mode(current, 'direct', current['assistant_conversation_id'], conversation_id)
         return self.get()
+
+    def mode(self, expected_revision, mode):
+        if mode not in ('assistant', 'direct'):
+            _fail('INVALID_PARAMS', '请选择助理或会话模式。')
+        with self.service._transaction():
+            current = self._current(expected_revision, enabled=True)
+            if current['mode'] == mode:
+                return self.get()
+            assistant = current['assistant_conversation_id']
+            direct = current['direct_conversation_id']
+            if mode == 'assistant':
+                direct = current['conversation_id']
+                if not assistant:
+                    assistant = 'conversation_weixin_assistant_' + current['installation_id']
+                    self.service.conversation_ensure(conversation_id=assistant, title='微信助理')
+                target = self._conversation(assistant)
+            else:
+                target = self._conversation(direct)
+                direct = target
+            self._cancel_pending()
+            self.db.execute("UPDATE channel_weixin SET revision=revision+1,conversation_id=? WHERE singleton=1", (target,))
+            self._save_mode(current, mode, assistant, direct)
+        return self.get()
+
+    def delegate(self, installation_id, revision, source_conversation_id, source_command_id,
+                 target_conversation_id, target_generation, target_command_id, content_hash):
+        for name, value in (('installation_id', installation_id), ('source_conversation_id', source_conversation_id),
+                            ('source_command_id', source_command_id), ('target_conversation_id', target_conversation_id),
+                            ('target_command_id', target_command_id)):
+            _text(value, name, 200)
+        if not isinstance(content_hash, str) or not re.fullmatch(r'[a-f0-9]{64}', content_hash):
+            _fail('INVALID_PARAMS', '委托内容摘要无效。')
+        _integer(target_generation, 'target_generation', 1)
+        with self.service._transaction():
+            current = self._current(revision, installation_id, enabled=True)
+            source = self.service._command(source_conversation_id, source_command_id)
+            target = self.service._conversation(target_conversation_id)
+            if (current['mode'] != 'assistant' or current['conversation_id'] != source_conversation_id
+                    or not self.service._settings().get('weixin_remote_control_enabled')
+                    or source['state'] not in ('admitted','submitted','applied')
+                    or target['archived'] or target['frozen'] or target['generation'] != target_generation
+                    or target_conversation_id == source_conversation_id):
+                _fail('CONFLICT', '委托目标或微信授权已变化。')
+            values = (installation_id, revision, source_conversation_id, source_command_id,
+                      target_conversation_id, target_generation, target_command_id, content_hash)
+            old = self.db.execute('SELECT * FROM channel_weixin_delegations WHERE target_command_id=?', (target_command_id,)).fetchone()
+            if old and tuple(old) != values:
+                _fail('CONFLICT', '委托编号已用于其他请求。')
+            if not old:
+                self.db.execute('INSERT INTO channel_weixin_delegations VALUES(?,?,?,?,?,?,?,?)', values)
+            return {'delegation': dict(self.db.execute('SELECT * FROM channel_weixin_delegations WHERE target_command_id=?', (target_command_id,)).fetchone())}
+
+    def delegation_check(self, installation_id, revision, source_conversation_id, source_command_id,
+                         target_conversation_id, target_command_id, delivery=False):
+        if not isinstance(delivery, bool):
+            _fail('INVALID_PARAMS', 'delivery must be boolean')
+        with self.service._transaction():
+            current = self._current(revision, installation_id, enabled=True)
+            row = self.db.execute('SELECT * FROM channel_weixin_delegations WHERE target_command_id=?', (target_command_id,)).fetchone()
+            if not row or any(row[k] != value for k, value in (
+                ('installation_id', installation_id), ('revision', revision), ('source_conversation_id', source_conversation_id),
+                ('source_command_id', source_command_id), ('target_conversation_id', target_conversation_id))):
+                _fail('CONFLICT', '委托身份已失效。')
+            source = self.service._command(source_conversation_id, source_command_id)
+            source_conversation = self.service._conversation(source_conversation_id)
+            target = self.service._conversation(target_conversation_id)
+            if (current['mode'] != 'assistant' or current['conversation_id'] != source_conversation_id
+                or not self.service._settings().get('weixin_remote_control_enabled')
+                or source['state'] not in (('admitted','submitted','applied','completed') if delivery else ('admitted','submitted','applied'))
+                or source_conversation['archived'] or source_conversation['frozen'] or source_conversation['generation'] != source['generation']
+                or target['archived'] or target['frozen']
+                or target['generation'] != row['target_generation']):
+                _fail('CONFLICT', '委托来源或目标已变化。')
+            return {'delegation':dict(row)}
 
     def enable(self, expected_revision, enabled):
         if not isinstance(enabled, bool):
@@ -288,7 +381,7 @@ class WeixinChannels:
         result["duplicate"] = duplicate
         return result
 
-    def admit(self, installation_id, revision, event_id, text, context_token=None, created_at=None):
+    def admit(self, installation_id, revision, event_id, text, context_token=None, created_at=None, content_identity=None):
         _text(installation_id, "installation_id", 64)
         _text(event_id, "event_id", 200)
         _text(text, "text", 100000)
@@ -296,7 +389,9 @@ class WeixinChannels:
             _text(context_token, "context_token", 16000)
         if created_at is not None:
             _integer(created_at, "created_at")
-        digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        if content_identity is not None and (not isinstance(content_identity, str) or not re.fullmatch(r'[a-f0-9]{64}', content_identity)):
+            _fail("INVALID_PARAMS", "content_identity must be a SHA256 digest")
+        digest = content_identity or hashlib.sha256(text.encode("utf-8")).hexdigest()
         with self.service._transaction():
             current = self._current(revision, installation_id, enabled=True)
             old = self.db.execute("SELECT * FROM channel_weixin_events WHERE installation_id=? AND event_id=?", (installation_id, event_id)).fetchone()

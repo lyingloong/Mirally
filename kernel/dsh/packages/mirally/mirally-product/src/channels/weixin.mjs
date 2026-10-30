@@ -5,12 +5,16 @@ import {WeixinWorks, WORK_HELP} from './weixin-work.mjs';
 import {WeixinNumberedLists} from './weixin-numbered-list.mjs';
 import {notifyReminders, canDeliverReminder, ackReminder} from './weixin-reminders.mjs';
 import {WeixinCalendar} from './weixin-calendar.mjs';
+import {WeixinInboundMedia, inspectWeixinMedia} from './weixin-media.mjs';
+import {WeixinTyping} from './weixin-typing.mjs';
+import {WeixinOutboundMedia} from './weixin-media-outbound.mjs';
+import {WeixinLifecycle} from './weixin-lifecycle.mjs';
 
 const MAX_AGE = 10 * 60_000;
 const LOGIN_TTL = 5 * 60_000;
-const HELP = 'Mirally 微信菜单\n会话（/sessions）\n切换 1（/use 1）\n新对话 [名称]（/new）\n当前会话（/status）\n查看历史（/history [更早游标]）\n日程 · 今日日程 · 明日日程\n停止回复（/stop）\n菜单（/help）\n\n电脑保持 Mirally 联网运行。\n收到问题后直接回复选项数字或文字。\n' + WORK_HELP;
+const HELP = 'Mirally 微信菜单\n助理（/assistant on）\n会话模式（/assistant off）\n会话（/sessions）\n切换 1（/use 1）\n新对话 [名称]（/new）\n当前会话（/status）\n查看历史（/history [更早游标]）\n日程 · 今日日程 · 明日日程\n停止回复（/stop）\n菜单（/help）\n\n电脑保持 Mirally 联网运行。\n收到问题后直接回复选项数字或文字。\n' + WORK_HELP;
 const TEXT_CONTROLS = new Map([['菜单', '/help'], ['帮助', '/help'], ['会话', '/sessions'], ['会话列表', '/sessions'],
-  ['当前会话', '/status'], ['新对话', '/new'], ['查看历史', '/history'], ['停止回复', '/stop']]);
+  ['当前会话', '/status'], ['新对话', '/new'], ['查看历史', '/history'], ['停止回复', '/stop'], ['助理', '/assistant on'], ['会话模式', '/assistant off']]);
 const controlText = text => {
   const exact = TEXT_CONTROLS.get(text);
   if (exact) return exact;
@@ -64,6 +68,10 @@ export class WeixinChannel {
     this.management = Promise.resolve();
     this.works = new WeixinWorks(this);
     this.calendar = new WeixinCalendar(this);
+    this.media = new WeixinInboundMedia(product, {fixtureOrigin: allowLoopback && this.baseUrl.startsWith('http:') ? this.baseUrl : undefined});
+    this.outboundMedia = new WeixinOutboundMedia(this, {fixtureOrigin: allowLoopback && this.baseUrl.startsWith('http:') ? this.baseUrl : undefined});
+    this.lifecycle = new WeixinLifecycle(this); this.lifecycleCurrent = null;
+    this.typing = new WeixinTyping(this);
   }
 
   async state() { return (await this.product.rpc('channel.weixin.get')).state; }
@@ -92,6 +100,7 @@ export class WeixinChannel {
     return {state: state.credential_error ? 'login_required' : this.phase, enabled: state.enabled, bound: state.bound,
       installation_id: state.installation_id, revision: state.revision,
       peer_id: state.peer_id, bot_id: state.bot_id, conversation_id: state.conversation_id,
+      mode: state.mode, assistant_conversation_id: state.assistant_conversation_id, direct_conversation_id: state.direct_conversation_id,
       conversation_title: conversation?.title, ...(login ? {login} : {}),
       ...(this.error ? {last_error: this.error} : {}), outbox: state.outbox_counts};
   }
@@ -114,6 +123,15 @@ export class WeixinChannel {
           throw Object.assign(new Error('请输入微信显示的有效验证码。'), {code: 'invalid_request', status: 400});
         this.login.verifyCode = params.code;
         this.phase = 'waiting_scan';
+      } else if (method === 'weixin.mode') {
+        const old = await this.state();
+        if (!Number.isSafeInteger(params.expected_revision) || params.expected_revision !== old.revision) throw blocked();
+        if (!['assistant','direct'].includes(params.mode)) throw Object.assign(new Error('请选择助理或会话模式。'),{code:'invalid_request',status:400});
+        if (old.mode === params.mode) return this.status();
+        if (this.hasActiveInput(old.installation_id)) throw Object.assign(new Error('微信会话正在处理，请结束后切换模式。'),{code:'conversation_busy',status:409});
+        await this.disconnectTransport();
+        const {state} = await this.store('mode', {expected_revision:old.revision,mode:params.mode});
+        if (state.enabled) this.connect();
       } else if (['weixin.bind', 'weixin.select', 'weixin.disconnect', 'weixin.reconnect', 'weixin.unbind'].includes(method)) {
         this.cancelLogin();
         const old = await this.state();
@@ -227,6 +245,7 @@ export class WeixinChannel {
   }
 
   async disconnectTransport() {
+    if (this.lifecycleCurrent) {this.lifecycle.notify(this.lifecycleCurrent, false);this.lifecycleCurrent = null;}
     const pending = this.connectionTask;
     this.connection?.abort(); this.sendController?.abort();
     await pending;
@@ -243,6 +262,7 @@ export class WeixinChannel {
         const update = await this.api(state.base_url).updates({token: state.token, cursor: state.cursor || '', signal: controller.signal});
         if (controller.signal.aborted || this.closed) return;
         this.phase = 'connected'; this.error = ''; failures = 0;
+        if (!this.lifecycleCurrent) {this.lifecycleCurrent = state;this.lifecycle.notify(state, true);}
         for (const message of update.msgs) {
           if (controller.signal.aborted) return;
           await this.receive(state, message);
@@ -269,20 +289,29 @@ export class WeixinChannel {
     return state;
   }
 
+  hasActiveInput(installationId) {
+    for (const [native, commandId] of this.product.activeCommands ?? []) {
+      const policy=this.product.commandPolicies?.get(commandId);
+      if (policy?.origin==='weixin' && policy.installation_id===installationId && this.product.handles?.get(native)?.agent?.status==='running') return true;
+    }
+    return false;
+  }
+
   async receive(state, message) {
     if (!message || message.message_type !== 1 || message.group_id || message.from_user_id !== state.peer_id
       || message.to_user_id && message.to_user_id !== state.bot_id || message.message_state === 1) return;
     const id = eventId(message.message_id ?? message.client_id);
     if (!id) return;
     const items = Array.isArray(message.item_list) ? message.item_list : [];
-    const supported = items.length && items.every(item => item?.type === 1 && typeof item.text_item?.text === 'string');
-    const text = supported ? items.map(item => item.text_item.text).join('\n').trim() : '[当前消息包含尚未支持的内容]';
+    let inspected;
+    try { inspected = inspectWeixinMedia(items); } catch { inspected = null; }
+    const text = inspected?.text ?? '[当前消息包含尚未支持的内容]';
     if (!text || text.length > 100000) return;
     const timestamp = Number.isSafeInteger(message.create_time_ms) && message.create_time_ms >= 0 ? message.create_time_ms : undefined;
     let event;
     try {
       ({event} = await this.store('admit', {installation_id: state.installation_id, revision: state.revision,
-        event_id: id, text, context_token: message.context_token, created_at: timestamp}));
+        event_id: id, text, ...(inspected?.hasMedia ? {content_identity:inspected.content_identity} : {}), context_token: message.context_token, created_at: timestamp}));
     } catch (error) {
       // A poison event must not prevent later messages in this batch or keep
       // retrying a conflicting identity forever. Storage outages still retry.
@@ -291,13 +320,13 @@ export class WeixinChannel {
       return;
     }
     if (event.duplicate) return;
-    if (!supported || !message.context_token || timestamp === undefined
+    if (!inspected || !message.context_token || timestamp === undefined
       || message.create_time_ms > this.now() + 60000 || this.now() - message.create_time_ms > MAX_AGE) {
       await this.store('event', {installation_id: event.installation_id, event_id: id, state: 'rejected'});
-      if (message.context_token) await this.reply(event, '当前只支持新收到的文字消息，请重新发送文字。', {control: true});
+      if (message.context_token) await this.reply(event, '这条消息的内容或时间无效，请重新发送。', {control: true});
       return;
     }
-    if (text.startsWith('/') || controlText(text) || this.works.handles(text) || this.calendar.handles(text)) {
+    if (!inspected.hasMedia && (text.startsWith('/') || controlText(text) || this.works.handles(text) || this.calendar.handles(text))) {
       try {
         if (this.calendar.handles(text)) await this.calendar.control(event);
         else if (this.works.handles(text)) await this.works.control(event);
@@ -307,7 +336,7 @@ export class WeixinChannel {
       await this.store('event', {installation_id: event.installation_id, event_id: id, state: 'completed'});
       return;
     }
-    try {
+    if (!inspected.hasMedia) try {
       const answer = await this.product.nativeInteractions?.answerActiveRemote(event, text);
       if (answer) {
         if (answer.complete) await this.reply(event, '回答已提交，Mirally 会在原会话中继续。', {control:true});
@@ -319,22 +348,36 @@ export class WeixinChannel {
       await this.store('event', {installation_id:event.installation_id, event_id:id, state:'rejected'});
       return;
     }
+    const stopTyping = this.typing.begin(event);
+    let submitted = false;
     try {
       await this.authorize(event);
+      let input = event;
+      if (inspected.hasMedia) {
+        await this.reply({...event, command_id:`${event.command_id}:media-receipt`}, '收到，正在处理附件。', {control:true});
+        void this.pump().catch(() => {});
+        const media = await this.media.prepare(event, items, {authorize: scope => this.authorize(scope), signal:this.connection?.signal ?? new AbortController().signal});
+        input = {...event, ...media};
+      }
       await this.store('event', {installation_id: event.installation_id, event_id: id, state: 'submitted'});
-      const accepted = await this.product.sendWeixin(event);
+      submitted = true;
+      const accepted = await this.product.sendWeixin(input);
       if (!accepted.accepted) throw blocked();
       // This is transport feedback, not another model message or a completed
       // result. A failed receipt must never reject or replay an admitted turn.
-      await this.acknowledge(event).catch(() => { this.error = '消息已接入，但接收反馈未能发送。'; });
+      if (!inspected.hasMedia) await this.acknowledge(event).catch(() => { this.error = '消息已接入，但接收反馈未能发送。'; });
       const job = this.finish(event).catch(() => {}).finally(() => {
+        stopTyping();
         this.receipts.delete(`received:${event.command_id}`);
         this.jobs.delete(job);
       });
       this.jobs.add(job);
     } catch (error) {
-      await this.store('event', {installation_id: event.installation_id, event_id: id, state: error.code === 'conversation_busy' ? 'rejected' : 'unknown'});
+      stopTyping();
+      await this.store('event', {installation_id: event.installation_id, event_id: id, state: !submitted || error.code === 'conversation_busy' ? 'rejected' : 'unknown'});
       await this.reply(event, error.code === 'conversation_busy' ? '这个会话正在回复，请稍后再发，或用 /stop 停止。'
+        : inspected.hasMedia && error.code?.startsWith('speech_') ? '语音识别未完成，请在电脑检查语音设置后重新发送。'
+        : inspected.hasMedia && error.code?.startsWith('weixin_media') ? '附件处理失败，请检查文件或重新发送。'
         : '这条消息未能完成接入，请在桌面检查模型连接与会话状态后重新发送。', {control: true});
     }
   }
@@ -344,7 +387,16 @@ export class WeixinChannel {
     const [, name, argument = ''] = /^(\S+)(?:\s+([\s\S]*))?$/.exec(controlText(text) ?? text);
     const value = argument.trim();
     const current = await this.authorize(event);
-    if (name === '/approve' || name === '/deny') {
+    if (name === '/assistant') {
+      const mode = value === '' || value === 'on' ? 'assistant' : value === 'off' ? 'direct' : null;
+      if (!mode) { await this.reply(event,'发送“助理”进入助理模式，或发送“会话模式”返回直接会话。',{control:true}); return; }
+      if (current.mode === mode) {await this.reply(event,mode==='assistant'?'当前是助理模式。':'当前是直接会话模式。',{control:true});return;}
+      if (this.hasActiveInput(current.installation_id)) {await this.reply(event,'当前微信会话正在处理，请结束后切换模式。',{control:true});return;}
+      const {state:selected}=await this.store('mode',{expected_revision:current.revision,mode});
+      const conversation=await this.product.conversation(selected.conversation_id);
+      await this.reply({...event,revision:selected.revision,conversation_id:selected.conversation_id},
+        mode==='assistant'?'已进入助理模式。':`已返回会话：${conversation.title}`,{control:true});
+    } else if (name === '/approve' || name === '/deny') {
       if (!/^(?:\d{9}|[a-f0-9]{16})$/.test(value)) throw blocked();
       await this.product.actionGate.decideRemote(event, value, name === '/approve');
       await this.reply(event, name === '/approve' ? '已确认该动作。' : '已拒绝该动作。', {control: true});
@@ -399,6 +451,7 @@ export class WeixinChannel {
         + '\n仅转发用户和助手正文；图片、思考及原始工具信息不在此页。'
         : '没有更早的可读取文字历史。' + (history.gaps?.length ? '部分历史暂时无法读取。' : ''), {control: true});
     } else if (name === '/new' || name === '/use') {
+      if (current.mode === 'assistant' && this.hasActiveInput(current.installation_id)) { await this.reply(event,'当前微信会话正在处理，请结束后切换会话。',{control:true}); return; }
       let conversationId;
       if (name === '/use') {
         if (!value || Array.from(value).length > 512 || /[\r\n]/.test(value)) {
@@ -494,7 +547,9 @@ export class WeixinChannel {
   async requestActionApproval(value, scope, code) {
     const state = await this.authorize(scope);
     if (!this.product.actionGate.remoteDeliveryCurrent(value.id, scope) || !state.context_token) throw blocked();
-    const text = `动作请求：${value.title}\n\n${value.detail}\n\n请完整阅读所有分段后决定。\n确认：/approve ${code}\n拒绝：/deny ${code}\n该确认仅用于当前动作，过期或会话切换后失效。`;
+    const target = scope.target_conversation_id ? await this.product.conversation(scope.target_conversation_id) : null;
+    if (target) await this.authorize(scope);
+    const text = `${target ? `会话：${target.title}\n` : ''}动作请求：${value.title}\n\n${value.detail}\n\n请完整阅读所有分段后决定。\n确认：/approve ${code}\n拒绝：/deny ${code}\n该确认仅用于当前动作，过期或会话切换后失效。`;
     await this.store('enqueue', {installation_id:scope.installation_id, revision:scope.revision,
       conversation_id:scope.conversation_id, key:`action-approval:${value.id}`, text, context_token:state.context_token});
     void this.pump().catch(() => {});
@@ -505,10 +560,12 @@ export class WeixinChannel {
     if (!this.product.nativeInteractions?.remoteDeliveryCurrent(value.id,scope,index) || !state.context_token) throw blocked();
     const question=value.questions[index];
     if (!question) throw blocked();
+    const target = scope.target_conversation_id ? await this.product.conversation(scope.target_conversation_id) : null;
+    if (target) await this.authorize(scope);
     const detail=`${question.header?question.header+' · ':''}${question.question}`
       +(question.detail?`\n${question.detail}`:'')
       +(question.options?.length?'\n\n'+question.options.map((item,n)=>`${n+1}. ${item.label}${item.description?'：'+item.description:''}`).join('\n'):'');
-    const text=`Mirally 需要你的回答${value.questions.length>1?`（${index+1}/${value.questions.length}）`:''}：\n\n${detail}\n\n${question.multiSelect?'回复选项数字（多选用逗号分隔），或直接填写文字。':'回复选项数字或直接填写文字。'}`;
+    const text=`${target ? `会话：${target.title}\n` : ''}Mirally 需要你的回答${value.questions.length>1?`（${index+1}/${value.questions.length}）`:''}：\n\n${detail}\n\n${question.multiSelect?'回复选项数字（多选用逗号分隔），或直接填写文字。':'回复选项数字或直接填写文字。'}`;
     if (text.length>24_000) {
       await this.store('enqueue',{installation_id:scope.installation_id,revision:scope.revision,conversation_id:scope.conversation_id,
         key:`native-question:${value.id}:${index}:oversize`,text:'Mirally 正在等待一个较长问题或计划的审核。内容无法在微信完整展示，请到电脑中的原会话查看并回答。',context_token:state.context_token});
@@ -608,9 +665,10 @@ export class WeixinChannel {
     if (this.closed || !this.connection || this.connection.signal.aborted || this.phase === 'login_required') return;
     const state = await this.state();
     if (!state.bound || !state.enabled) return;
-    const {deliveries} = await this.store('outbox', {installation_id: state.installation_id, limit: 4});
+    const {deliveries} = await this.store('outbox', {installation_id: state.installation_id, limit: 1000});
     for (const pending of deliveries) {
       if (this.closed || !this.connection || this.connection.signal.aborted) return;
+      if (this.outboundMedia.isMedia(pending) && await this.outboundMedia.readiness(pending) === 'wait') continue;
       const {delivery} = await this.store('claim', {delivery_id: pending.delivery_id});
       if (delivery.status !== 'sending' || !delivery.state) continue;
       let status = 'unknown', receipt, acceptedParts = 0, failedPart;
@@ -620,6 +678,10 @@ export class WeixinChannel {
           status = 'cancelled';
         } else {
           const controller = new AbortController(); this.sendController = controller;
+          if (this.outboundMedia.isMedia(delivery)) {
+            receipt = await this.outboundMedia.dispatch(delivery, AbortSignal.any([controller.signal, this.connection.signal]));
+            status = 'sent';
+          } else {
           const parts = /^(action-approval|native-question):/.test(delivery.key??'') ? splitText(delivery.text) : weixinTextParts(delivery.text);
           for (let index = 0; index < parts.length; index++) {
             failedPart = index;
@@ -632,6 +694,7 @@ export class WeixinChannel {
             acceptedParts++;
           }
           status = 'sent'; receipt = {accepted: true, client_id: delivery.delivery_id, accepted_parts: acceptedParts};
+          }
         }
       } catch (error) {
         status = error.code === 'weixin_scope_revoked' ? 'cancelled' : error.deliveryState === 'rejected' ? 'failed' : 'unknown';
@@ -661,6 +724,7 @@ export class WeixinChannel {
   }
 
   async stop() {
+    this.typing.stop();
     if (this.closed) return;
     this.closed = true;
     clearInterval(this.deliveryTimer);

@@ -80,6 +80,29 @@ test('Weixin fixtures exercise the real fetch wire: QR POST, poll GET, authentic
     item_list: [{type: 1, text_item: {text: send.text}}]}});
 });
 
+test('typing and lifecycle requests use authenticated official protocol and validate ticket', async () => {
+  const requests=[];
+  const api=new WeixinApi({fetch:async(url,options)=>{
+    requests.push({url,options,body:JSON.parse(options.body)});
+    return json(url.endsWith('/getconfig') ? {ret:0,typing_ticket:'fixture-ticket'} : {ret:0});
+  }});
+  const ticket=await api.getTypingTicket({token:send.token,to:send.to,contextToken:send.contextToken});
+  assert.equal(ticket.typing_ticket,'fixture-ticket');
+  await api.sendTyping({token:send.token,to:send.to,ticket:ticket.typing_ticket,active:true});
+  await api.sendTyping({token:send.token,to:send.to,ticket:ticket.typing_ticket,active:false});
+  await api.notifyLifecycle({token:send.token,active:true});
+  await api.notifyLifecycle({token:send.token,active:false});
+  assert.deepEqual(requests.map(item=>new URL(item.url).pathname),[
+    '/ilink/bot/getconfig','/ilink/bot/sendtyping','/ilink/bot/sendtyping',
+    '/ilink/bot/msg/notifystart','/ilink/bot/msg/notifystop']);
+  assert.equal(requests[0].body.context_token,send.contextToken);
+  assert.equal(requests[0].body.ilink_user_id,send.to);
+  assert.equal(requests[1].body.status,1);assert.equal(requests[2].body.status,2);
+  assert.ok(requests.every(item=>item.options.headers.Authorization==='Bearer '+send.token));
+  await assert.rejects(apiReturning({ret:0}).getTypingTicket({token:send.token,to:send.to}),error=>safeError(error));
+  await assert.rejects(api.sendTyping({token:send.token,to:send.to,ticket:'fixture-ticket',active:'true'}),error=>safeError(error));
+});
+
 test('Weixin QR confirmation requires identity, validates IDC and does not issue redirected requests', async () => {
   const confirm = {status: 'confirmed', bot_token: send.token, ilink_bot_id: 'bot', ilink_user_id: send.to,
     baseurl: 'https://ilinkai-idc.weixin.qq.com/'};
