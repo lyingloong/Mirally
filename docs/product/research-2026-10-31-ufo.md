@@ -153,7 +153,7 @@ AIP 是 UFO³ 的设备通信层：持久 WebSocket、类型化消息、能力�
 UFO README 提到 Picture-in-Picture 桌面、跨设备 Galaxy 等。本文核对的是 Python 源码快照：
 
 - Galaxy、AIP、MCP、UIA、OmniParser、Office API 都有对应代码。
-- **没有找到**独立虚拟桌面/独立 Windows session 的 PiP 实现；README 的 PiP 声明不能当作现成能力。
+- **没有找到**独立虚拟桌面/独立 Windows session 的 PiP 实现；`UFO/documents/docs/faq.md` 还明确写“Picture-in-Picture mode is planned for future releases”，与 README/迁移文档中“已支持”的表述矛盾。PiP 不能当作现成能力。
 - 上游的成功率、延迟和“20+ 应用”覆盖是论文/项目声明，不是 Mirally 环境的验收结果。
 
 ## 3. Mirally 现状与差距
