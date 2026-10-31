@@ -12,6 +12,7 @@ Mirally 是面向 Windows 的 personal agent 应用，名称取自 MIRA + ally�
 | 当前系统由哪些模块组成、数据归谁、默认行为是什么 | [系统概览](architecture/overview.md) |
 | 产品长期方向、设计原则和暂不实现的范围 | [产品方向](product/vision.md) |
 | 按时间查看产品决策、取舍与演进 | [产品思考记录](product/product-notes.md) |
+| UFO 桌面能力复盘与可借鉴方案（研究，待评估） | [UFO 框架复盘](product/research-2026-10-31-ufo.md) |
 | 为什么选择同仓 DSH、哪些原生能力已继承 | [DSH 运行时](architecture/native-dsh.md) |
 | 会话、停止、分代、后台作业和提醒 | [会话与作业](architecture/conversations.md) |
 | 微信、语音和手机网页 | [消息渠道](architecture/channels.md) |
