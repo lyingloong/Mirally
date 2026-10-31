@@ -23,6 +23,8 @@ py -3.10 -m venv .venv
 
 ## 开发与验证
 
+并行开发、独立工作目录与 PR 流程见[协作指南](CONTRIBUTING.md)。
+
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 npm --prefix frontend/control-ui run verify:source

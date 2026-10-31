@@ -1,0 +1,76 @@
+name: Mirally PR checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mirally-pr-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-core:
+    name: Windows core and frontend
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install Python dependencies
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install -r requirements-framework.txt
+
+      - name: Build Mirally kernel and frontend
+        run: .\.venv\Scripts\python.exe tools/setup_framework.py
+
+      - name: Verify retained frontend sources
+        working-directory: frontend/control-ui
+        run: npm run verify:source
+
+      # These are offline product-core checks, not the full suite or GUI/API acceptance.
+      - name: Test Python product core
+        run: |
+          $tests = @(
+            'tests.test_framework_product',
+            'tests.test_framework_channels',
+            'tests.test_framework_calendar',
+            'tests.test_framework_weixin_assistant_security',
+            'tests.test_framework_conversation_metadata',
+            'tests.test_framework_recaps'
+          )
+          .\.venv\Scripts\python.exe -m unittest @tests -v
+
+      - name: Test channels, background jobs and frontend logic
+        run: |
+          $tests = @(
+            'tests/test_framework_session_background_status.mjs',
+            'tests/test_framework_session_shell_jobs.mjs',
+            'tests/test_framework_job_notifications.mjs',
+            'tests/test_framework_mobile.mjs',
+            'tests/test_framework_mobile_ui.mjs',
+            'tests/test_framework_weixin_channel.mjs',
+            'tests/test_framework_weixin_assistant_tools.mjs',
+            'tests/test_control_ui_office.cjs'
+          )
+          node --test @tests

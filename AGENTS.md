@@ -4,7 +4,7 @@
 
 - 产品展示名为 Mirally；Python 包和配置目录统一使用 `mirally`，产品环境变量使用 `MIRALLY_` 前缀。模块职责见 `mirally/ARCHITECTURE.md`。
 - 当前处于快速开发和迭代阶段。优先围绕产品目标保持架构与实现清晰，不为旧实现、内部接口、数据结构或开发阶段的数据增加非必要兼容、迁移和回退逻辑；用户已明确现有开发数据不必保留，重构需要时可以清理或重建。先评估已有能力的实际价值，仍有用的功能和体验应迁移或以适合新设计的方式保留，不因不保留旧数据而丢弃有用能力。清理范围以当前任务需要为准，不擅自覆盖服务商凭据等私有配置；Skill、MCP、插件等明确要求的生态兼容仍须遵守。
-- 本分支 `codex/mirally-framework-refactor` 的目标是完整重构为自有 personal agent 产品框架，以 [产品框架方案](docs/personal-agent-framework.md)、[扩展接口与生态兼容](docs/framework-extensions.md) 和 [重构实施计划](docs/framework-refactor-plan.md) 为实施起点。用户已授权将 DSH 源码直接纳入 `kernel/dsh/` 作为可侵入修改的内核；Mirally 拥有产品状态、交互规则及能力边界，当前默认宿主与交付边界见 [框架第一版](docs/framework-v1.md)，长期方案不等同于全部功能已实现。
+- 产品目标是完整重构为自有 personal agent 产品框架，以 [产品框架方案](docs/personal-agent-framework.md)、[扩展接口与生态兼容](docs/framework-extensions.md) 和 [重构实施计划](docs/framework-refactor-plan.md) 为实施起点。用户已授权将 DSH 源码直接纳入 `kernel/dsh/` 作为可侵入修改的内核；Mirally 拥有产品状态、交互规则及能力边界，当前默认宿主与交付边界见 [框架第一版](docs/framework-v1.md)，长期方案不等同于全部功能已实现。
 - 长期产品框架面向覆盖生活与工作的 personal agent，整体考虑活动理解、记忆与个性化、主动联系、陪伴交互和行动等方向，不以单一场景限定架构；以整体体验和结构质量作取舍，允许有依据地调整、延后或舍弃个别目标，不为凑齐功能增加核心复杂度。扩展性是核心设计要求，通过明确接口接入和组合来源、服务、模型、执行与交互等能力；借鉴 DSH 插件思想，接口围绕 Mirally 职责设计。
 - 长期框架应正式兼容 Skill、MCP 和版本化插件接入；保留生态格式与协议，通过明确适配组合。区分 Skill 说明/资源/脚本、MCP 工具/资源/提示模板，以及不同宿主插件的兼容范围，按实际能力与版本验收；设计见 [扩展接口与生态兼容](docs/framework-extensions.md)。
 - 原分支 `feat/mirally-openclaw-desktop` 在 `2eeb778a` 保存并推送了历史基线。迁移验收后只维护 Mirally 自有 UI 与同仓 DSH；旧分支及 `--openclaw` 入口冻结为显式历史/回退参考，不再要求双线开发或功能同步。收尾范围见 [迁移与维护切换](docs/framework-migration-closure.md)。两者不能叠成同一推理链；需要迁移私有数据时须明确来源并停止旧 owner，不能因切换默认入口自动消费旧配置；开发数据是否保留按上述开发阶段约定处理。
@@ -15,6 +15,13 @@
 - `UFO/` 是只读 Git submodule。UFO 产品适配放在 `mirally/runtime/`，Python 测试放在根目录 `tests/`；未经明确授权，不修改内核、gitlink 或 `.gitmodules`。确需内核变更时，说明原因并取得授权，按 fork 流程维护。
 - `kernel/dsh/` 是本仓库直接管理的源码，不是只读 vendor 或 submodule；允许直接调整 Agent loop、Session、Host、模型/工具链和 UI，无需为内核修改再次取得授权。保留 [上游基线与改动说明](kernel/dsh/UPSTREAM.md)、许可证和第三方声明；新增内核行为须同步相关调用方、文档和针对性验证。上游插件优先等策略仅作为参考，不能阻止本分支已授权的侵入式设计；产品领域仍保持清晰职责与可扩展接口。
 - 不编辑 `node_modules/` 或未纳入源码管理的上游发行包。现存 OpenClaw 配置通过官方定向补丁维护，保留已有设置；UFO worker 使用宿主模型路由，产品 UFO YAML 只维护在 `config/mirally/ufo/`。
+
+## 多人和多 Agent 协作
+
+- `main` 是当前集成基线。并行任务从最新 `origin/main` 建立独立分支与工作目录，完成后向 `main` 提 PR；具体操作及交接见 [协作指南](CONTRIBUTING.md)。用户另有指定时遵从其目标分支。
+- 开工前核对任务、分支、工作目录和已有改动；不同任务不要同时修改同一 checkout。明确共享接口或高冲突文件的负责人和协调方式，不覆盖、重置或代提交他人的未确认改动。
+- 每个工作目录独立准备依赖和构建产物，运行产品或集成测试时隔离数据目录、端口和外部账号；不得干扰用户当前使用的宿主、微信绑定或私有配置。需要共享真实账号、桌面或服务时先协调，GUI 验证顺序进行。
+- PR 说明变更目的、接口影响、实际验证和未覆盖范围。合并前检查目标分支、完整 diff、冲突和对应提交的检查结果，并按风险审查行为及安全边界；自动检查不代替真实体验验收。处理冲突后重新运行受影响的验证。
 
 ## 界面与交互约束
 
