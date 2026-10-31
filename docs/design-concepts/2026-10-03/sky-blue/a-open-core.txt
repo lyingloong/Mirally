@@ -1,8 +1,0 @@
-Use case: logo-brand
-Asset type: premium desktop application icon for OpenAssist.
-Image 1 is the edit target: the earlier green Open Core logo.
-Primary request: revise this into a clean SKY-BLUE technology identity. Keep the open embracing circular composition and centered framing, but refine the big seed-shaped inner object into a smaller rounded diamond, around one quarter of the emblem's width. Make the outer open ring more geometric, with a more consistent broad cross section and deliberate chamfered blunt ends. Keep the inner negative space spacious. The result should feel like an intelligent core inside an open system, not a fruit or a plant.
-Color change: remove ALL green. Use luminous azure and sky blue (#159FE8 and #38B8F5) with crisp restrained deeper blue (#1668C8) on the underside. Small pale ice-blue highlights. Background becomes a clean, uniform near-white (#F7F9FC).
-Material: precision-milled satin finish with subtle dimensionality and a broad clean highlight. Smooth broad surfaces, no speckled texture. Fresh, clear, technically precise, premium software identity. Avoid inflated rubber or fleshy organic volume.
-Keep: one emblem only, the generous original framing, straight-on orthographic view, bold silhouette and clean edges, no surrounding badge, opaque background.
-Avoid: avocado, leaf, planet orbit, power button, gear, robot face, generic AI sparkle, circuit traces, chrome, neon halo, cyberpunk backgrounds, tiny details, text, captions, additional icons, watermark. This must read at 24 pixels and work as a single-color mark.

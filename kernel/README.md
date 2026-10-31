@@ -32,4 +32,4 @@ try {
 
 ## 当前实施状态
 
-默认入口已切到 `packages/mirally/` 的产品组合与自有 UI；领域状态由 Python owner 管理，内核保留单一 Session/Agent loop。安装、接入与验收边界见 [框架第一版](../docs/framework-v1.md)，旧 OpenClaw 仅保留显式维护入口。
+默认入口已切到 `packages/mirally/` 的产品组合与自有 UI；领域状态由 Python owner 管理，内核保留单一 Session/Agent loop。安装、接入与验收边界见 [系统概览](../docs/architecture/overview.md) 和 [DSH 运行时](../docs/architecture/native-dsh.md)，旧 OpenClaw 仅保留显式维护入口。

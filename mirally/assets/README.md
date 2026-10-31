@@ -3,20 +3,15 @@
 The selected mark is **相伴 M / Companion M**, based on the user's blue-cyan
 two-person reference. Two circular heads and connected flowing bodies form an M:
 Mirally / MIRA, with the figures expressing companionship and teamwork.
-This replaces the earlier `01-ally-wing-v2` mark, preserved in design history.
+This replaces the earlier `01-ally-wing-v2` mark, preserved in Git history.
 
-- Reference: `output/imagegen/mirally-companion-m/reference.png`.
-- Original generated reference: `docs/design-concepts/mirally/companion-m/generated-reference.png`.
+- Brand and icon notes: `docs/design/brand.md`.
 - Canonical vector master: `mirally.svg` (paths, ellipses and gradients; no embedded bitmap).
 - Transparent runtime export: `mirally.png` (1254 × 1254 RGBA).
 - Window / taskbar icon: `mirally.ico` (16, 20, 24, 32, 40, 48, 64, 96, 128, 256 px).
 - Resized PNGs: `mirally-{size}.png`, including a 512 px export.
 
-The production vector fits the selected generated reference, with mirrored outer
-geometry, equal heads and separately fitted color surfaces at the arm crossing.
-The original generation and prompts remain design history; the application now
-uses exports of the refined vector. See
-`docs/design-concepts/mirally/companion-m/vector-redraw.md` for the fitting method.
+The production vector fits the selected reference. The original generation, prompts and fitting notes are retained in Git history; the application now uses exports of the refined vector.
 
 The production master was opened and checked for the selected silhouette,
 blue-cyan palette, and actual alpha transparency on light and dark backgrounds. PNG sizes and the ICO are

@@ -1,7 +1,0 @@
-Use case: precise-object-edit
-Asset type: Mirally application logo exploration, one mark only
-Input image: edit target, the selected sky-blue Ally Wing A logo.
-Primary request: evolve this exact embracing A-wing mark into an A/M double reading, preserving its elegance and most of its silhouette. The original rising left ribbon and inward lower-right arm are essential. Keep the beautiful open embrace, diagonal upward sweep and asymmetric balance.
-Specific change: give the large top wing a subtle second folded lobe, separated by one graceful shallow inward cut. The rising left stroke, center dip and rising right wing should read as a soft flowing M when studied, while the existing triangular white space and lower inward arm retain A. Make the M more perceptible than an almost invisible crease, but avoid a conventional outlined M. The two folds should feel like companions leaning toward each other, one continuous sculptural ribbon rather than two pasted letters.
-Style and palette: retain the exact sky-blue family, luminous cyan face, restrained deep-blue undersides, smooth satin folded material and clean edge finish from the reference. Keep the same centered scale on a pure white opaque square background.
-Constraints: a single standalone logo. No text, typography, diagrams, extra symbols, disconnected ornaments, badge, hard zigzags, generic mountain M, butterfly, bird illustration or heart. Preserve lightness and the original open lower white counter. Avoid making the mark wide, heavy or symmetric.

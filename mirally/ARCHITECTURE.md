@@ -1,158 +1,60 @@
 # Mirally 运行结构
 
-当前默认入口 `python -m mirally` → `framework_host.py` → 同仓 `kernel/dsh/packages/mirally/mirally-product/start.mjs`。新主链不依赖 OpenClaw；显式 `--openclaw` 保留旧维护路线。
+更新：2026-10-31，Asia/Shanghai。状态：现行。完整架构与验证边界见[系统概览](../docs/architecture/overview.md)。
 
-迁移验收后，旧路线冻结为历史/显式回退，后续只开发新框架。`framework/model_connections.py` 管理独立连接和对话/后台路由；`framework/capabilities.py` 管理文件范围与网页开关，原生基础工具包在唯一 DSH 工具管线执行；`framework/legacy_history.py` 读取独立归档，不生成新会话。历史材料与工具详情从 DSH transcript 投影，不建立第二份聊天存储。范围见[迁移收尾](../docs/framework-migration-closure.md)。
+默认入口：`python -m mirally` → `framework_host.py` → `kernel/dsh/packages/mirally/mirally-product/start.mjs`。产品主链不依赖 OpenClaw；`--openclaw` 只保留为冻结的显式回退入口。
 
-- `framework/`：产品业务 owner 与 SQLite，持久设置、会话代次引用、命令和来源回执、偏好、提醒、主动候选及收件箱；不复制原生 transcript。
-- `framework/context.py`：按需只读组合现有 Activity 与 Memory owner，保留来源版本和缺口。
-- 通用会话使用 DSH 原生作业及 Mirally 的会话后台命令；二者各自持有进程和输出，微信助理按原会话查询或委托，不能由摘要推断实时进度。普通后台命令随宿主退出结束，不承诺跨重启恢复。
-- `framework_workers.py`：有开关和预算的采集、维护和语义任务生命周期；完成请求经同一原生模型桥。
-- `framework/channels.py`：微信安装身份、本人绑定、会话路由、收发去重与回执；Windows 凭据用 DPAPI 保护，不另建聊天事实。Node `mirally-product/src/channels/` 承担独立 iLink 协议与连接生命周期，经现有输入主链及按 command 检查的只读工具范围接入。
-- `frontend/control-ui/`：以固定 2026.9.6 原前端为视觉与组件基础，`pages/mirally/` 维护自有内容与导航，保留皮肤、工作与伙伴；`ui/src/app/mirally-client.ts` 适配本机 HTTP/SSE。`framework_ui/legacy-native-bridge.js` 承接旧原生消息；页面没有独立模型循环。
-- `kernel/dsh/packages/mirally/mirally-product/`：本机鉴权 Host、DSH Session/Agent loop/LLM 适配、取消与恢复。
-- `mirally-product/src/mobile.mjs`：独立回环手机服务、一次性配对、可撤销设备、有限 RPC 与分层呈现偏好。`frontend/control-ui/ui/src/mobile/` 复用原主题和 Markdown；私人 HTTPS 转发另配置，不提供新云 Agent。
-- `kernel/dsh/packages/mirally/mirally-extensions/`：Skill、脚本、MCP 与原生可信插件的版本、授权和生命周期组合。
-- 既有 `core/activity`、`core/memory`、`runtime/activity`、`runtime/memory` 与平台适配继续负责原有领域数据。`runtime/ufo` 与只读 UFO 内核保留为维护参考，新默认框架本阶段不接入。
+## 产品层
 
-接口、数据路径、迁移和实际验收见 [框架第一版](../docs/framework-v1.md)。下面保留旧模块的细节参考，其中 OpenClaw 专用宿主仅由维护入口使用。
+| 模块 | 职责 |
+| --- | --- |
+| `framework_host.py` | 解析 home、Node/Python 工具链和端口；构建检查；启动 Node Host；打开桌面窗口或浏览器 |
+| `framework/service.py` | 产品 SQLite owner：设置、逻辑会话/代次、命令回执、偏好、提醒/日历、投递、主动候选、摘要入口 |
+| `framework/channels.py` | 微信安装身份、本人绑定、会话路由、收发去重与回执；凭据使用 DPAPI |
+| `framework/calendar.py` | 日程、提醒与定时执行的产品事实 |
+| `framework/model_connections.py` | 命名连接、模型目录、对话/后台路由与引用保护 |
+| `framework/capabilities.py` | 文件授权根、工作区写入、网页开关与有界读取 |
+| `framework/context.py` | 按需只读组合 Memory 与 Activity；查询不启动采集 |
+| `framework/materials.py` | 材料接收、文字提取、会话成果与鉴权 |
+| `framework/recaps.py` | 会话摘要与自动标题的产品状态 |
+| `framework/desktop_observation.py` | 窗口列表、截图与桌面观察接口 |
+| `framework/legacy_history.py` | 旧会话独立归档的只读分页 |
+| `framework_workers.py` | Activity/Memory 子进程、语义任务、预算与停止 |
+| `framework_ui/` | 原前端桥接、品牌与伙伴呈现资源 |
+| `framework_shell.py` | WebView2 窗口、原生裁剪、托盘、伙伴与退出 |
 
-# Mirally product layout
+产品库位于 `<home>/framework/product.sqlite3`，schema 11。它保存引用和业务状态，不保存第二份聊天正文。
 
-This describes the current Python/OpenClaw baseline. The refactor target and
-stage gates live in [the framework plan](../docs/framework-refactor-plan.md).
-The editable DSH source in `../kernel/dsh/` now powers the default launcher.
-The following OpenClaw-specific details describe only the explicit maintenance route.
+## 内核层
 
-The product package is split by responsibility:
+`kernel/dsh/packages/mirally/mirally-product/` 是本机鉴权 Host 与 DSH 组合：
 
-- `core/` owns conversation state, intent handoff, and task lifecycle. It does
-  not import Tk or Windows APIs.
-- `core/memory/` owns durable, versioned memories, source tombstones, indexed
-  recall, leased synthesis jobs and persistent usage budgets. Its database is
-  independent of rebuildable Activity projections.
-- `core/activity/` owns the product-neutral observation protocol, privacy
-  decisions, single-writer SQLite store, asset lifecycle, and consumer cursor
-  contract. It does not import UFO or Windows APIs.
-  Its `knowledge/` package projects rebuildable Items, Episodes, search context
-  and memory candidates from the original observations.
-  Projection v2 preserves complete captured source evidence and emits observed actions,
-  objects, changes, references and uncertainty. Each observation is committed
-  atomically; projection failures remain visible in a bounded retry queue.
-  The deterministic `activity.event.v1` view joins observed actions, window
-  states and text within existing Episodes, preserving partial fragments,
-  evidence references and uncertainty without inferring completed user tasks.
-- `runtime/` owns product configuration, speech providers, and the adapter that
-  starts a UFO native `Session`.
-- `runtime/activity/` owns the activity sensor lifecycle, CLI and
-  agent-control lease bridge. Desktop capture defaults on and respects an
-  explicit disabled profile.
-  The organizer consumes the source database read-only; its context source and
-  stdio MCP adapter serve shared OpenClaw activity tools without starting the
-  collector. MCP discovery does not access Activity configuration or SQLite;
-  the query bridge opens lazily on a tool call and closes with its server.
-  Direct native UFO loops do not consume Activity knowledge.
-- `runtime/memory/` owns continuously running memory maintenance, read-only
-  recall, CLI and portable Memory MCP. The additive OpenClaw memory plugin
-  supervises its worker, performs optional semantic completion through the
-  host-managed model route, and recalls relevant committed memories before
-  the default local agent's prompt. It preserves the native memory slot and
-  never starts Activity collection. See [Activity memory](../docs/activity-memory.md).
-- `platform/` owns Windows-only capture isolation, raw input, focus, and taskbar
-  integration.
-- `platform/activity/` owns read-only foreground identity/window titles,
-  bounded browser address-bar extraction in an isolated UIA worker,
-  input metadata aggregation, the isolated Raw Input helper, and bounded UIA structure
-  inspection. WGC/content workers remain isolated platform adapters and do not
-  belong in the core store.
-- `assets/` owns the narrow presentation additions for the native Control UI,
-  including its companion, Activity settings and model settings.
+- `start.mjs` 启动 Host；`composition.mjs` 加载完整 `dsh-base` 并应用 Mirally 覆盖。
+- 原生 Session/Agent loop、模型适配、工具执行、压缩、子代理、计划、提问、todo/goal 和 workflow 由 DSH 提供。
+- `src/` 另有微信协议与生命周期、手机受限服务、日历工具、摘要、作业通知、模型探测和产品呈现。
+- `kernel/dsh/packages/mirally/mirally-extensions/` 管理 Skill、脚本、MCP 与可信插件。
 
-The only product frontend is `control_ui_shell.py`, hosting the official
-OpenClaw Control UI. `openclaw_host.py` manages its native process connection.
-The former Tk UFO workbench and experimental Tk OpenClaw client have been
-removed together with their compatibility imports and launch modes.
-New UFO product code belongs in the responsibility packages above.
+## 领域层
 
-The activity data layer is independent from the OpenClaw session database and
-from UFO task callbacks. `ObservationStore` assigns durable `ingest_seq`
-cursors, publishes asset files only after an atomic commit, and represents
-privacy denials, gaps, stale evidence, and expired assets explicitly.
-When enabled, the current implementation starts the foreground
-poller, an isolated Raw Input metadata helper, and a UIA worker with a deadline. The
-content layer adds explicit window/all-monitor WGC, a process-isolated
-Windows.Media.Ocr worker, UIA Name/Value/Text, committed-text deltas and
-sequence-checked clipboard reads. Capture defaults on and starts after the
-desktop host connects; the settings switch persists an explicit opt-out.
-Closing the desktop ends its capture without changing that preference. Config
-reads and MCP discovery remain passive. WinEvent/WTS lifecycle events are not
-yet wired.
-The enabled sensor treats foreground metadata, input metadata, and UIA
-structure as one baseline contract and records a degraded collector state when
-one platform source is unavailable.
-Persistent `collector_diagnostics` records effective channels, source health,
-safe counters and pause intervals without captured content. Monitor shutdown
-waits for its workers, closes the sensor and drains remaining observations
-through a read-only source before closing derived storage. Failed worker joins
-retain the stores and process lock so shutdown can be retried safely.
-Authorized text and structures are stored without character, node or byte
-cropping. UIA declares its privacy/visibility scope and reports read failures;
-consumer summaries and queries apply their own budgets to derived views.
+- `core/activity/`：产品中立的观察协议、单写入 SQLite、知识投影和查询预算。
+- `core/memory/`：持久记忆、来源墓碑、纠正、召回与预算。
+- `runtime/activity/`：Windows 采集器、CLI、历史浏览器和隔离 worker。
+- `runtime/memory/`：后台维护、语义整理、召回、保留和 CLI。
+- `platform/`：Windows 捕获隔离、Raw Input、焦点和任务栏适配。
+- `runtime/ufo/` 与 `UFO/`：旧桌面执行适配和只读子模块，默认产品不加载。
 
-`runtime/activity/scheduler.py` coalesces foreground, periodic, typing-pause,
-click, scroll and clipboard triggers in a bounded queue. One evidence thread
-owns expensive sources; the foreground poller and Raw Input message pump never
-wait for COM, graphics or clipboard delayed rendering. Pause generations and
-pre/post identity checks discard stale results. Monitor frames use explicit
-monitor IDs and do not claim the foreground application owns the whole image.
-Image SHA-256 gates OCR; quota eviction uses store tombstones. See
-[rich capture](../docs/activity-rich-capture.md) for coverage limits.
+## 前端层
 
-`UFO/` is a Git submodule pointing at the Mirally UFO fork. Product-owned
-configuration is kept under `config/mirally/ufo/`; `runtime.config` configures
-the upstream loader with that directory before UFO modules are imported.
+`frontend/control-ui/` 以固定上游源码为视觉与组件基础；`ui/src/pages/mirally/` 维护自有页面，`ui/src/app/mirally-client.ts` 连接本机 HTTP/SSE。产品页面、导航和来源维护见[前端](../docs/architecture/frontend.md)。
 
-For the complete architecture and source-level call chains, see:
+## 数据流
 
-- [UFO repository architecture](../docs/ufo-architecture.md): sessions, agents,
-  processors, MCP tools, automation, AIP, Galaxy, and supporting subsystems.
-- [Mirally integration](../docs/ufo-integration.md): startup, configuration,
-  callbacks, runtime compatibility, tool routing, and current integration gaps.
-- [Native runtime plan](../docs/native-runtime-plan.md): proposed execution
-  contract, control boundaries, code organization, and native-path acceptance
-  tests. Some planning sections describe earlier milestones.
-- [UFO as an OpenClaw agent](../docs/ufo-openclaw-agent.md): the current Gateway
-  harness, separate worker, selected model, configuration and verification limits.
+1. 桌面或手机入口提交输入 → 产品 owner 校验会话、模型、来源和命令身份。
+2. Host 把输入交给 DSH 原生会话；工具经 DSH 原生执行器或 Mirally 产品执行器运行。
+3. Context 按需只读组合记忆、活动和来源缺口；不复制为第二份聊天历史。
+4. 提醒、摘要和作业通知由产品 owner 持久化，经桌面或微信渠道投递；渠道回执不等于用户已读。
+5. 原始活动与记忆分别由各自 SQLite owner 保存；DSH Session 是唯一模型历史。
 
-The desktop task route is `Mirally main agent -> sessions_spawn(agentId="ufo")
--> OpenClaw Gateway -> mirally-ufo Agent Harness -> runtime/ufo/worker.py ->
-UfoExecutor -> normal Session`. The harness only admits native subagent session
-keys; ordinary UFO conversations are rejected before starting a worker. Its
-internal execution definition is hidden from direct chat choices and remains
-available to host configuration and task history. A desktop subtask skips
-conversation intent classification and starts the executor.
-OpenClaw owns the durable session and model selection; the worker uses a private
-temporary YAML snapshot and the host-prepared model route. Windows ownership
-is serialized across workers by a native named mutex. The existing default
-OpenClaw agent remains unchanged.
+## 历史回退
 
-The worker's Windows stdio control channel uses `platform/stdio_pipe.py` to
-check available pipe bytes before reading. An idle synchronous stdin read can
-block NumPy/native DLL initialization on Windows, so startup verification keeps
-the input pipe open and the control reader alive throughout the real imports.
-Tests cover both `python.exe` and `pythonw.exe`, then deliver cancellation over
-that same channel without calling a model or accessing the desktop.
-
-`runtime/ufo/compat.py` applies scoped in-memory fixes for Galaxy imports,
-Windows MCP discovery, and UIA cache failures. `runtime/ufo/controls.py` adds
-the action admission gate, model/tool budgets, context injection and structured
-events without editing the submodule. `runtime/ufo/observation.py` filters
-Mirally's worker and registered frontend processes from screenshots, windows and controls. All scopes restore
-their patched functions and window state after cleanup.
-
-The adapter exposes actual capability boundaries: pause and supplement are
-available at safe boundaries, cancellation is cooperative, and an in-flight
-third-party call is allowed to settle before resources are restored. The
-Gateway harness additionally terminates its own worker process tree after a
-1.5-second cancellation grace period if cleanup does not finish. Cancellation
-cannot undo an OS action that has already been dispatched.
+旧 OpenClaw 路线已冻结为历史与显式回退，历史基线为提交 `2eeb778a`。它不再维护、不参与默认启动、不自动消费新 home 的配置。两个入口不能同时采集或维护同一来源。迁移和回退流程见[系统概览](../docs/architecture/overview.md#数据迁移与历史回退)。
