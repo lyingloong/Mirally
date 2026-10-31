@@ -1,7 +1,0 @@
-Use case: precise-object-edit
-Asset type: Mirally application logo exploration, one mark only
-Input image: edit target, the already selected sky-blue Ally Wing A logo.
-Primary request: make a very restrained refinement of this exact mark so it can suggest a capital M on a second look while retaining its original subtle A, embracing gesture, and light upward flight. Preserve the original asymmetric silhouette, long rising left ribbon, generous white opening, large sweeping upper wing, and small inward curling lower right arm. Keep at least 85 percent of the original design identity.
-Specific change: introduce a shallow second crest and a quiet inward valley only in the upper ribbon's inner fold. Let the two fold directions hint at M without drawing a literal M. The first impression must remain the same beautiful airy embrace. Keep a clear open counter and the original slender waist. No extra separate pieces.
-Style and palette: preserve the reference's rich sky blue, cyan highlights, deeper blue folded undersides, soft sculptural ribbon material and restrained depth. Crisp finished edges; slightly simpler surface texture. Same scale, centered square composition and pure white opaque background.
-Constraints: one standalone icon, no wordmark, no letters printed over it, no explanatory diagrams, no contact sheet. No bilateral symmetry, blocky monogram, sharp mountain peaks, heart, person, handshake, enclosing badge, robot or generic AI sparkle. Do not replace the original character with a new logo.
