@@ -181,54 +181,54 @@ free_slots     = max(0, concurrency - load)
 
 ## 状态助手
 
-`tools/dev_workflow/agent_workflow.py` 只管理状态和调度计算，不调用 GitHub 或 AgentTeams API。队长用它避免手算并发和漏掉人工闸门。以下命令中的 `python` 代指共享 `.venv` 解释器。
+`tools/dev_workflow/agent_workflow.py` 只管理状态和调度计算，不调用 GitHub 或 AgentTeams API。队长用它避免手算并发和漏掉人工闸门。以下命令在仓库根目录执行，`.\.venv\Scripts\python.exe` 指主 checkout 的共享解释器；worktree 中请使用该 worktree 的 `.venv` 或显式解释器路径。状态助手默认在主 checkout 运行，避免不同 worktree 各自生成一份状态。
 
 初始化：
 
 ```powershell
-C:\Users\lazeloong\Code\Mirally\.venv\Scripts\python.exe tools\agent_workflow.py init
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py init
 ```
 
 常用命令：
 
 ```powershell
 # 用户提供开发点；直接进入 queued
-python tools/dev_workflow/agent_workflow.py add --source user --title "优化微信端文字提示" --risk normal
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py add --source user --title "优化微信端文字提示" --risk normal
 
 # AI 提案（默认 proposed，需用户批准）
-python tools/dev_workflow/agent_workflow.py add --source agent --title "补齐失败重试文案" --risk low
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py add --source agent --title "补齐失败重试文案" --risk low
 
 # 审查当前调度：load / free / 队首 / 下一步 action
-python tools/dev_workflow/agent_workflow.py status
-python tools/dev_workflow/agent_workflow.py next
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py status
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py next
 
 # 用户批准 AI 提案；或满足条件时自动启动
-python tools/dev_workflow/agent_workflow.py promote dev-0002
-python tools/dev_workflow/agent_workflow.py promote dev-0002 --auto
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py promote dev-0002
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py promote dev-0002 --auto
 
 # 有空槽时开始开发；记录分支、worktree、PR 和任务
-python tools/dev_workflow/agent_workflow.py start dev-0001
-python tools/dev_workflow/agent_workflow.py set-status dev-0001 implementing \
-  --branch feat/weixin-text --worktree C:\Users\lazeloong\Code\Mirally-weixin-text \
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py start dev-0001
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py set-status dev-0001 implementing `
+  --branch feat/weixin-text --worktree ..\Mirally-worktrees\dev-0001 `
   --pr 12 --task implementation=t-abc
 
 # 审查结果
-python tools/dev_workflow/agent_workflow.py review-pass dev-0001
-python tools/dev_workflow/agent_workflow.py review-fail dev-0001 --reason "失败文案不可操作"
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py review-pass dev-0001
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py review-fail dev-0001 --reason "失败文案不可操作"
 
 # 用户批准合并（只允许队首）；合并完成后记录
-python tools/dev_workflow/agent_workflow.py merge-approved dev-0001
-python tools/dev_workflow/agent_workflow.py merge-done dev-0001
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py merge-approved dev-0001
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py merge-done dev-0001
 
 # 用户退回合并
-python tools/dev_workflow/agent_workflow.py merge-rejected dev-0001 --reason "语气不合适"
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py merge-rejected dev-0001 --reason "语气不合适"
 
 # 配额阻塞与恢复
-python tools/dev_workflow/agent_workflow.py block dev-0001 --reason quota
-python tools/dev_workflow/agent_workflow.py resume dev-0001
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py block dev-0001 --reason quota
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py resume dev-0001
 
 # 校验状态
-python tools/dev_workflow/agent_workflow.py validate
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py validate
 ```
 
 命令输出均为 JSON（`status` 加 `--json` 也是），便于队长读取。`set-status` 不能直接设置 `blocked`、`awaiting_merge`、`merging`、`done`，必须使用对应专用命令。
@@ -263,7 +263,7 @@ requirements → implementation → verification → review
 
 - 每个开发点使用独立 worktree，建议 `<仓库父目录>\Mirally-worktrees\<id>`；不要在主 checkout 直接改已跟踪文件。
 - 用户点分支前缀 `feat/`，AI 点前缀 `agent/`。
-- 共享 Python 解释器：`C:\Users\lazeloong\Code\Mirally\.venv\Scripts\python.exe`；在 worktree 中运行时使用绝对路径。
+- Python 解释器：主 checkout 使用 `.\.venv\Scripts\python.exe`；每个 worktree 按 [协作指南](../../CONTRIBUTING.md) 准备自己的 `.venv`，否则显式传入所用解释器的路径。
 - 前端改动需要在对应 worktree 安装 Node 依赖；验证命令由需求规格按改动类型给出。
 - 合并后清理本地 worktree 和分支，避免磁盘累积。
 - 不提交凭据、生成物或与开发点无关的改动。

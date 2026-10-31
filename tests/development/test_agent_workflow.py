@@ -205,6 +205,42 @@ class SummaryTests(unittest.TestCase):
         with self.assertRaises(wf.WorkflowError):
             wf.promote_point(self.state, self.config, second["id"], auto=True)
 
+    def test_auto_promote_reserves_in_flight_slot_before_start(self):
+        first = self.add_agent("first")
+        second = self.add_agent("second")
+        wf.promote_point(self.state, self.config, first["id"], auto=True)
+        with self.assertRaises(wf.WorkflowError):
+            wf.promote_point(self.state, self.config, second["id"], auto=True)
+        self.assertEqual(second["status"], "proposed")
+        summary = wf.build_summary(self.state, self.config)
+        self.assertEqual(
+            [point["id"] for point in summary["agent_auto_reserved"]],
+            [first["id"]],
+        )
+
+    def test_start_rechecks_auto_in_flight_cap(self):
+        first = self.add_agent("first")
+        second = self.add_agent("second")
+        wf.promote_point(self.state, self.config, first["id"], auto=True)
+        # Simulate a legacy/incorrect state with a second reserved auto slot.
+        second["status"] = "queued"
+        second["auto_started"] = True
+        second["auto_started_at"] = wf.iso(wf.utcnow())
+        wf.start_point(self.state, self.config, first["id"])
+        with self.assertRaises(wf.WorkflowError):
+            wf.start_point(self.state, self.config, second["id"])
+
+    def test_reject_queued_user_point(self):
+        point = self.add_user("reject me")
+        wf.reject_point(self.state, point["id"], reason="not needed")
+        self.assertEqual(point["status"], "rejected")
+
+    def test_reject_inbox_point(self):
+        point = self.add_user("reject inbox")
+        point["status"] = "inbox"
+        wf.reject_point(self.state, point["id"])
+        self.assertEqual(point["status"], "rejected")
+
     def test_discover_is_suggested_only_when_no_work_is_waiting(self):
         self.add_agent()
         summary = wf.build_summary(self.state, self.config)

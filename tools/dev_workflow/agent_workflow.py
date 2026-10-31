@@ -69,9 +69,9 @@ SOURCES = {"user", "agent"}
 RISKS = {"low", "normal", "high"}
 
 ALLOWED_TRANSITIONS: dict[str, set[str]] = {
-    "inbox": {"queued", "cancelled"},
+    "inbox": {"queued", "rejected", "cancelled"},
     "proposed": {"queued", "rejected", "cancelled"},
-    "queued": {"specifying", "cancelled"},
+    "queued": {"specifying", "rejected", "cancelled"},
     "specifying": {"implementing", "cancelled"},
     "implementing": {"verifying", "reviewing", "cancelled"},
     "verifying": {"reviewing", "repairing", "cancelled"},
@@ -369,6 +369,13 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
     agent_in_flight = [
         point for point in points if point["source"] == "agent" and point["status"] in ACTIVE_STATUSES
     ]
+    agent_auto_reserved = [
+        point
+        for point in points
+        if point["source"] == "agent"
+        and point.get("auto_started")
+        and point["status"] in ACTIVE_STATUSES | {"queued"}
+    ]
     agent_queued = [
         point for point in points if point["source"] == "agent" and point["status"] == "queued"
     ]
@@ -381,7 +388,7 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
     auto_today = _auto_today_count(state)
     quota = config["quota"]
     ai_cap_ok = (
-        len(agent_in_flight) < int(config["max_auto_agent_in_flight"])
+        len(agent_auto_reserved) < int(config["max_auto_agent_in_flight"])
         and auto_today < int(config["max_auto_agent_per_day"])
     )
     paused = bool(quota_blocked)
@@ -437,6 +444,7 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
         "user_pending": [_brief(point) for point in user_pending],
         "start_user": [_brief(point) for point in start_user],
         "agent_in_flight": [_brief(point) for point in agent_in_flight],
+        "agent_auto_reserved": [_brief(point) for point in agent_auto_reserved],
         "agent_queued": [_brief(point) for point in agent_queued],
         "start_agent": [_brief(point) for point in start_agent],
         "agent_proposed": [_brief(point) for point in agent_proposed],
@@ -491,7 +499,7 @@ def promote_point(
             raise WorkflowError("user pending points must be scheduled first")
         if summary["free_slots"] <= 0:
             raise WorkflowError("concurrency is full")
-        if len(summary["agent_in_flight"]) >= int(config["max_auto_agent_in_flight"]):
+        if len(summary["agent_auto_reserved"]) >= int(config["max_auto_agent_in_flight"]):
             raise WorkflowError("AI in-flight cap reached")
         if int(summary["auto_today"]) >= int(config["max_auto_agent_per_day"]):
             raise WorkflowError("daily auto-start cap reached")
@@ -519,6 +527,17 @@ def start_point(state: dict[str, Any], config: dict[str, Any], point_id: str) ->
     if point["source"] == "agent" and summary["user_pending"]:
         if len(summary["user_pending"]) >= summary["free_slots"]:
             raise WorkflowError("user pending points must fill the available slots first")
+    if point["source"] == "agent" and point.get("auto_started"):
+        active_auto_others = [
+            other
+            for other in state["points"]
+            if other["id"] != point["id"]
+            and other["source"] == "agent"
+            and other.get("auto_started")
+            and other["status"] in ACTIVE_STATUSES
+        ]
+        if len(active_auto_others) >= int(config["max_auto_agent_in_flight"]):
+            raise WorkflowError("AI auto-start in-flight cap reached")
     point["status"] = "specifying"
     point["started_at"] = iso(utcnow())
     touch(point)
@@ -736,10 +755,10 @@ def print_status(summary: dict[str, Any]) -> None:
         print("user points waiting:")
         for point in summary["user_pending"]:
             print("  " + format_point(point))
-    if summary["agent_in_flight"] or summary["max_auto_agent_in_flight"]:
+    if summary["agent_auto_reserved"] or summary["max_auto_agent_in_flight"]:
         print(
-            "AI in flight: "
-            f"{len(summary['agent_in_flight'])}/{summary['max_auto_agent_in_flight']}, "
+            "AI auto-start reserved/in flight: "
+            f"{len(summary['agent_auto_reserved'])}/{summary['max_auto_agent_in_flight']}, "
             f"auto-started today: {summary['auto_today']}/{summary['max_auto_agent_per_day']}"
         )
     if summary["agent_proposed"]:
