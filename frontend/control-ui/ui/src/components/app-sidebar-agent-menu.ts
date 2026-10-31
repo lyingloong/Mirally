@@ -27,9 +27,9 @@ const IDENTITY_MENU_LINKS: ReadonlyArray<{
   icon: IconName;
   label: () => string;
 }> = [
-  { href: "https://github.com/lyingloong/openassist", icon: "book", label: () => mirallyNavigationText("Mirally 项目与文档", "Mirally project and documentation") },
+  { href: "https://github.com/lyingloong/Mirally", icon: "book", label: () => mirallyNavigationText("Mirally 项目与文档", "Mirally project and documentation") },
   {
-    href: "https://github.com/lyingloong/openassist/issues",
+    href: "https://github.com/lyingloong/Mirally/issues",
     icon: "messageSquare",
     label: () => t("agentChip.getHelp"),
   },

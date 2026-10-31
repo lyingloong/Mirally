@@ -19,7 +19,7 @@ py -3.10 -m venv .venv
 
 会话支持重命名、固定和归档恢复；历史材料与工具详情来自唯一 DSH 记录。模型连接可按对话/后台分配；网页与文件能力在设置中明确开启或授权。旧会话通过显式迁移独立归档，在关于页只读查看。具体范围见[迁移收尾与维护切换](docs/framework-migration-closure.md)。
 
-后续只维护新 Mirally/DSH 框架。显式 `--openclaw` 回退入口和用户原数据保留，不再双线开发；旧版运行说明可在 [历史基线](https://github.com/lyingloong/openassist/tree/2eeb778a) 查看。迁移前先停止旧 Gateway、采集和记忆维护，不自动导入或删除私有数据。
+后续只维护新 Mirally/DSH 框架。显式 `--openclaw` 回退入口和用户原数据保留，不再双线开发；旧版运行说明可在 [历史基线](https://github.com/lyingloong/Mirally/tree/2eeb778a) 查看。迁移前先停止旧 Gateway、采集和记忆维护，不自动导入或删除私有数据。
 
 ## 开发与验证
 
