@@ -98,8 +98,10 @@ test('phone and default preferences use independent layers, revisions, reset and
 });
 test('revocation and expiry invalidate tokens and principals, including in-flight response delivery',async t=>{
   const f=await fixture(t),p=await f.pair();
-  let principal;f.product.workRequest=async(_m,_p,owner)=>{principal=owner;await f.access.management('mobile.devices.revoke',{device_id:p.device.id});return {secret:'must not deliver'};};
-  const result=await f.rpc(p.token,'work.get',{work_id:'w'});assert.equal(result.status,401);assert.equal(f.access.authorize(principal),false);
+  let principal;const authenticate=f.access.authenticate.bind(f.access);
+  f.access.authenticate=request=>principal=authenticate(request);
+  f.product.history=async()=>{await f.access.management('mobile.devices.revoke',{device_id:p.device.id});return {messages:[{role:'user',seq:1,text:'must not deliver'}],gaps:[],active_command_ids:[]};};
+  const result=await f.rpc(p.token,'conversation.history',{conversation_id:'c'});assert.equal(result.status,401);assert.ok(!JSON.stringify(result.value).includes('must not deliver'));assert.equal(f.access.authorize(principal),false);
   assert.equal((await f.rpc(p.token,'conversation.list')).status,401);
   const next=await f.pair();f.advance(30*86400_000+1);assert.equal((await f.rpc(next.token,'conversation.list')).status,401);
   assert.equal(f.access.authorize({id:next.device.id,revision:1}),false);
@@ -118,9 +120,10 @@ test('mobile metadata uses the original owner and sends retain device identity',
   assert.equal(a.value.result.conversation.conversation_id,b.value.result.conversation.conversation_id);
   const patch=await f.rpc(p.token,'conversation.update',{conversation_id:'c',expected_version:1,patch:{title:'renamed',pinned:true}});assert.equal(patch.value.result.conversation.title,'renamed');
   assert.equal((await f.rpc(p.token,'conversation.update',{conversation_id:'c',expected_version:1,patch:{settings:{}}})).status,400);
+  let owner;f.product.sendMobile=async(params,principal)=>{owner=principal;return {command_id:'mobile-'+params.command_id,device:principal.id};};
   const sent=await f.rpc(p.token,'conversation.send',{conversation_id:'c',text:'hi',command_id:'request'});assert.equal(sent.value.result.device,p.device.id);
-  await f.rpc(p.token,'work.run.approve',{approval_id:'a',expected_digest:'digest'});
-  assert.equal(f.calls.at(-1).principal.id,p.device.id);
+  assert.equal(owner.id,p.device.id);assert.equal(f.access.authorize(owner),true);
+  assert.equal((await f.rpc(p.token,'work.run.approve',{approval_id:'a',expected_digest:'digest'})).status,403);
 });
 test('disabling mobile closes only its listener and persisted tokens survive a clean restart',async t=>{
   const f=await fixture(t),p=await f.pair();await f.access.stop();
@@ -135,12 +138,16 @@ test('a corrupt mobile file degrades mobile only and is preserved verbatim',asyn
 });
 test('disable invalidates in-flight principals permanently while keeping a reauthenticated phone usable',async t=>{
   const f=await fixture(t),p=await f.pair();let principal;
-  f.product.workRequest=async(_method,_params,owner)=>{principal=owner;return {ok:true};};
-  await f.rpc(p.token,'work.get',{work_id:'w'});assert.equal(f.access.authorize(principal),true);
+  const authenticate=f.access.authenticate.bind(f.access);f.access.authenticate=request=>principal=authenticate(request);
+  await f.rpc(p.token,'conversation.list');assert.equal(f.access.authorize(principal),true);
+  let finishHistory;f.product.history=()=>new Promise(resolve=>{finishHistory=resolve;});
+  const inFlight=f.access.dispatch('conversation.history',{conversation_id:'c'},principal);
   const port=f.access.state.port;
   await f.access.management('mobile.configure',{enabled:false});assert.equal(f.access.authorize(principal),false);
   assert.ok(f.calls.some(call=>Object.hasOwn(call,'cancelDevice')));
   await f.access.management('mobile.configure',{enabled:true});assert.equal(f.access.state.port,port);
   assert.equal(f.access.authorize(principal),false);
+  finishHistory({messages:[{role:'assistant',seq:1,text:'stale'}],gaps:[],active_command_ids:[]});
+  await assert.rejects(inFlight,{status:401});
   assert.equal((await f.rpc(p.token,'conversation.list')).status,200);
 });

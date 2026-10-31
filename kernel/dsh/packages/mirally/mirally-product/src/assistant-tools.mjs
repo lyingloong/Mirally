@@ -39,15 +39,15 @@ export function installAssistantTools(host) {
       return {conversations:conversations.filter(row=>row.conversation_id!==ctx.owner.conversation.conversation_id && (!query||row.title.toLocaleLowerCase().includes(query)))
         .slice(0,30).map(row=>host.summary(row)),truncated:conversations.length>=200};
     });
-  register('mirally_conversation_status','Inspect the real state of a selected conversation, linked work, and managed jobs. Use only a conversation_id obtained from mirally_find_conversations. Never infer experiment progress from conversation status alone.',
+  register('mirally_conversation_status','Inspect the real state of a selected conversation and its managed jobs. Use a conversation_id from mirally_find_conversations; do not infer progress from conversation status alone.',
     {...schema({conversation_id:text}),required:['conversation_id']},async(args,ctx)=>{
       const conversation=await target(args.conversation_id,ctx), summary=host.summary(conversation);
-      const work=await host.workRequest('work.by_conversation',{conversation_id:args.conversation_id},ctx.policy);
       const shell=conversation.session_id ? host.shellJobs?.list(conversation.session_id) ?? [] : [];
-      let jobs=[];try {if(conversation.session_id)jobs=host.ctx.get('jobs')?.list(conversation.session_id)??[];}catch{}
+      let jobs=[];try {if(conversation.session_id)jobs=(host.ctx.get('jobs')?.list(conversation.session_id)??[])
+        .filter(job=>job.owner===conversation.session_id);}catch{}
       const current=await target(args.conversation_id,ctx);
       if(current.generation!==conversation.generation) throw fail('目标会话已变化，请重新查询。');
-      return {conversation:summary,works:work.works,jobs:shell,native_jobs:jobs};
+      return {conversation:summary,jobs:shell,native_jobs:jobs};
     });
   register('mirally_conversation_recap','Read a conversation summary. Refresh only when the user explicitly asks to generate or refresh it; summaries are historical and can be stale.',
     {...schema({conversation_id:text,refresh:{type:'boolean'}}),required:['conversation_id']},async(args,ctx)=>{

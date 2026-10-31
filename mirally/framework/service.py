@@ -24,7 +24,6 @@ from urllib.parse import urlsplit
 
 from .context import ContextReader, memory_config
 from .channels import CHANNEL_SCHEMA, WeixinChannels
-from .work import WORK_SCHEMA, WorkOwner
 from .calendar import CALENDAR_SCHEMA, CalendarOwner
 
 
@@ -102,7 +101,6 @@ class FrameworkService:
             from .model_connections import ModelConnections
             self.model_connections = ModelConnections(self)
             self.channels = WeixinChannels(self)
-            self.work = WorkOwner(self)
             self.calendar = CalendarOwner(self)
             from .recaps import Recaps
             self.recaps = Recaps(self)
@@ -139,7 +137,7 @@ class FrameworkService:
                         self.db.execute("ALTER TABLE conversations ADD COLUMN " + column)
                     self.db.execute("UPDATE conversations SET metadata_updated_at=created_at")
                 if version < 5:
-                    for statement in (*CHANNEL_SCHEMA, *WORK_SCHEMA):
+                    for statement in CHANNEL_SCHEMA:
                         self.db.execute(statement)
                 if version < 6:
                     self.db.execute("ALTER TABLE conversations ADD COLUMN title_mode TEXT NOT NULL DEFAULT 'explicit'")
@@ -191,7 +189,7 @@ class FrameworkService:
                 "CREATE TABLE inbox (delivery_id TEXT PRIMARY KEY REFERENCES deliveries(id),state TEXT NOT NULL,updated_at INTEGER NOT NULL)",
                 INITIATIVE_RUNS_SCHEMA,
             )
-            for statement in (*statements, *CHANNEL_SCHEMA, *WORK_SCHEMA, CONVERSATION_FORKS_SCHEMA, *CALENDAR_SCHEMA):
+            for statement in (*statements, *CHANNEL_SCHEMA, CONVERSATION_FORKS_SCHEMA, *CALENDAR_SCHEMA):
                 self.db.execute(statement)
             self.db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
 
@@ -218,7 +216,6 @@ class FrameworkService:
             raise FrameworkError("INVALID_REQUEST", "method must be text and params an object")
         routes = {
             **self.channels.routes(),
-            **self.work.routes(),
             **self.calendar.routes(),
             **self.recaps.routes(),
             "system.status": self.status, "settings.get": self.settings_get,
@@ -249,6 +246,7 @@ class FrameworkService:
             "activity.browse": self.experience.browse,
             "preference.set": self.preference_set, "preference.list": self.preference_list, "memory.correct": self.memory_correct,
             "commitment.create": self.commitment_create, "commitment.cancel": self.commitment_cancel, "commitment.list": self.commitment_list,
+            "internal.job_notification.create": self.job_notification_create,
             "reminder.create": self.reminder_create,
             "initiative.offer": self.initiative_offer, "initiative.list": self.initiative_list, "initiative.dismiss": self.initiative_dismiss,
             "initiative.acquire": self.initiative_acquire, "initiative.complete": self.initiative_complete,
@@ -324,7 +322,7 @@ class FrameworkService:
         if weixin_scope is None:
             return write_file(self,path,content,expected_sha256)
         with self._transaction():
-            self.work._check_weixin_work_scope(conversation_id, weixin_scope)
+            self.channels.check_conversation_scope(conversation_id, weixin_scope)
             return write_file(self,path,content,expected_sha256)
 
     def status(self) -> dict[str, Any]:
@@ -683,12 +681,6 @@ class FrameworkService:
                 fields = ",".join(field + "=?" for field in changed)
                 self.db.execute(f"UPDATE conversations SET {fields},metadata_version=metadata_version+1,metadata_updated_at=? WHERE id=?",
                                 [*changed.values(), now, conversation_id])
-            if "title" in patch:
-                # One work follows the conversation's name. Older conversations
-                # may own several works; their distinct names remain untouched.
-                works = self.db.execute("SELECT id,title,intent,revision FROM works WHERE conversation_id=? LIMIT 2", (conversation_id,)).fetchall()
-                if len(works) == 1 and works[0]["intent"] != "archived" and works[0]["title"] != patch["title"]:
-                    self.work.update(works[0]["id"], works[0]["revision"], {"title": patch["title"]})
         return self._conversation(conversation_id)
 
     def conversation_autotitle(self, conversation_id: str, command_id: str, text: str) -> dict[str, Any]:
@@ -993,7 +985,7 @@ class FrameworkService:
             raise FrameworkError("INVALID_PARAMS", "preference exceeds size limit")
         with self._transaction():
             if weixin_scope is not None:
-                self.work._check_weixin_work_scope(conversation_id, weixin_scope)
+                self.channels.check_conversation_scope(conversation_id, weixin_scope)
             old = self.db.execute("SELECT * FROM preferences WHERE scope=? AND key=?", (scope, key)).fetchone()
             if old and old["value_json"] == encoded:
                 return {"scope": scope, "key": key, "value": value, "revision": old["revision"], "affected": []}
@@ -1170,6 +1162,32 @@ class FrameworkService:
         if "receipt_json" in result:
             result["receipt"] = json.loads(result.pop("receipt_json")) if row["receipt_json"] else None
         return result
+
+    def job_notification_create(self, conversation_id: str, generation: int, title: str, body: str,
+                                request_id: str, due_at_utc_ms: int, sources: Any = None,
+                                installation_id: str | None = None) -> dict[str, Any]:
+        """Atomically fence a completed job notification to its original owner."""
+        with self._transaction():
+            check = self.guard_check(conversation_id=conversation_id, generation=generation, sources=sources)
+            if not check['allow']:
+                raise FrameworkError('CONFLICT', '会话或来源已变化，未发送作业通知。')
+            if installation_id is not None:
+                state = self.channels._state()
+                if not state.get('bound') or not state.get('enabled') or state.get('installation_id') != installation_id:
+                    raise FrameworkError('CONFLICT', '微信绑定已变化，未发送作业通知。')
+            existing = self.db.execute('SELECT id FROM commitments WHERE request_id=?', (request_id,)).fetchone()
+            result = self.commitment_create(title=title, body=body, due_at_utc_ms=due_at_utc_ms,
+                request_id=request_id, conversation_id=conversation_id, sources=sources)
+            # Capture the channel destination within the same transaction as
+            # the binding check. A later rebind cannot adopt this notification.
+            if not existing:
+                self.calendar.queue_deliveries(result['id'])
+                now = self.clock()
+                for channel in ('desktop', 'weixin'):
+                    self.db.execute('INSERT OR IGNORE INTO calendar_deliveries VALUES(?,?,?,?,NULL,NULL,?,?,?)',
+                        ('calendar_delivery_'+uuid.uuid4().hex, result['id'], channel, 'cancelled',
+                         _json({'reason':'channel_disabled'}), now, now))
+            return result
 
     def commitment_create(self, title: str, due_at_utc_ms: int, body: str | None = None, request_id: str | None = None,
                           conversation_id: str | None = None, channel: str = "inbox", expires_at_utc_ms: int | None = None,
@@ -1376,9 +1394,6 @@ class FrameworkService:
         return {"delivery_id": delivery_id, "state": state}
 
     def close(self) -> None:
-        # Run supervisors need the database lock while recording their actual
-        # exit. Join them before taking that lock and closing the connection.
-        self.work.close()
         with self._lock:
             try:
                 self.experience.close()

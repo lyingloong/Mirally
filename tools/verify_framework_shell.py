@@ -348,7 +348,7 @@ def main() -> int:
                     user.GetMenuStringW(menu, index, text, len(text), 0x400)
                     items.append((user.GetMenuItemID(menu, index), text.value))
                 labels = [label for _, label in items]
-                assert all(label in labels for label in ("侧边伙伴", "工作", "重新连接", "活动与记忆设置", "记忆", "在浏览器中打开", "退出 Mirally")), labels
+                assert all(label in labels for label in ("侧边伙伴", "快捷开始", "重新连接", "活动与记忆设置", "记忆", "在浏览器中打开", "退出 Mirally")), labels
                 assert 0xF060 in [identifier for identifier, _ in items] and not any("Gateway" in label for label in labels), labels
                 memory_command = next(identifier for identifier, label in items if label == "记忆")
                 user.SendMessageW(hwnd, 0x112, memory_command, 0)
@@ -360,23 +360,37 @@ def main() -> int:
                     "Real system-menu Activity action did not open the retained settings contribution", timeout=20)
                 js(RESTORE_NATIVE_SESSION)
                 wait_for(lambda: js(NATIVE_SESSION_READY), "Original native chat did not restore after settings")
-                work_command = next(identifier for identifier, label in items if label == "工作")
+                work_command = next(identifier for identifier, label in items if label == "快捷开始")
                 user.SendMessageW(hwnd, 0x112, work_command, 0)
                 wait_for(lambda: js("!!document.querySelector('.mirally-work:not([hidden])')"),
                     "Real system-menu Work action did not open the original preparation page", timeout=20)
                 assert js("document.querySelectorAll('.mirally-work__cards [data-workflow]').length") == 10
                 js(RESTORE_NATIVE_SESSION)
                 wait_for(lambda: js(NATIVE_SESSION_READY), "Native chat did not restore after the work page")
-                js("document.querySelector('openclaw-app').context.navigate('tasks')")
-                wait_for(lambda: js("/\\/tasks\\/?$/.test(location.pathname) && [...document.querySelectorAll('mirally-work-page button')].some(b => b.textContent.trim() === '开始工作')"),
-                    "Native work list did not expose the preparation entry", timeout=20)
-                js("[...document.querySelectorAll('mirally-work-page button')].find(b => b.textContent.trim() === '开始工作').click()")
+                assert not js("[...document.querySelectorAll('openclaw-app-sidebar a')].some(a => a.textContent.trim() === '工作')"), "Sidebar still exposes the removed work list"
+                js("""(()=>{const pane=document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active');
+                    const box=pane.querySelector('textarea[aria-label=聊天输入框]');
+                    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(box,'保留的原有草稿');box.dispatchEvent(new Event('input',{bubbles:true}));
+                    const input=pane.querySelector('input.agent-chat__file-input'),data=new DataTransfer();
+                    data.items.add(new File(['快捷入口材料'],'材料.txt',{type:'text/plain'}));input.files=data.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()""")
+                wait_for(lambda: js("document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active')?.state?.chatAttachments?.length === 1"),
+                    "Native attachment did not enter the conversation", timeout=15)
+                js("document.querySelector('.mirally-companion-entry [data-entry=office]').click()")
                 wait_for(lambda: js("!!document.querySelector('.mirally-work:not([hidden])') && document.querySelectorAll('.mirally-work__cards [data-workflow]').length === 10"),
-                    "Native work list could not open the retained preparation flow", timeout=20)
+                    "Quick start did not open the retained preparation flow", timeout=20)
+                js("document.querySelector('.mirally-work [data-workflow=read]').click()")
+                wait_for(lambda: js("document.querySelector('.mirally-work [data-output=reply]')?.getAttribute('aria-pressed') === 'true'"), "Quick start did not default to a reply")
+                js("""(()=>{const goal=document.querySelector('.mirally-work [data-work=goal]');goal.value='整理材料';goal.dispatchEvent(new Event('input',{bubbles:true}));})()""")
+                wait_for(lambda: js("!document.querySelector('.mirally-work [data-work=start]').disabled"), "Quick start did not accept the material", timeout=15)
+                js("document.querySelector('.mirally-work [data-work=start]').click()")
+                wait_for(lambda: js("document.querySelector('.mirally-work').hidden && document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active')?.state?.chatMessages?.some(m=>m.role==='assistant')"),
+                    "Quick start did not submit to the current conversation", timeout=25)
+                assert js("document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active textarea[aria-label=聊天输入框]').value") == '保留的原有草稿', "Quick start overwrote the chat draft"
+                assert js("document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active').state.chatAttachments.length") == 0, "Accepted material was not consumed"
                 js(RESTORE_NATIVE_SESSION)
                 wait_for(lambda: js(NATIVE_SESSION_READY), "Native chat did not restore after the work list entry")
                 results.append({"case": "native product system menu", "labels": labels, "memory_navigation": True,
-                    "activity_navigation": True, "work_navigation": True, "work_list_preparation": True, "original_settings_routes": True})
+                    "activity_navigation": True, "quick_start_navigation": True, "work_list_removed": True, "draft_and_attachment": True, "original_settings_routes": True})
 
                 children = []
                 @child_callback

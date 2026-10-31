@@ -22,7 +22,7 @@
       request:'请根据我提供的目标窗口截图与说明协助我处理当前工作。截图代表采集时的画面，不是实时控制授权；需要进一步信息或操作时说明。不凭截图声称已经点击或修改窗口。将需要交付的结果保存为可编辑的 Markdown 文档。'},
     {id:'create', kind:'writing', title:'从想法写起', description:'不必先有文件，带着想法来创作', icon:'custom', choices:['先搭结构','写出初稿','设计展示'], placeholder:'想做成什么？有哪些必须包含的观点、限制或灵感？',
       request:'请根据我提供的想法与要求创作内容，先把结构和逻辑做好。创作性建议可以提出，涉及真实数据、经历或来源的部分必须有依据。将结果保存为可编辑的 Markdown 文档。'},
-    {id:'custom', kind:'custom', title:'其他工作', description:'从你想完成的事情开始', icon:'custom', choices:['帮我推进','先一起讨论'], placeholder:'告诉我想做成什么，或者把材料拖进来一起看看。',
+    {id:'custom', kind:'custom', title:'自由开始', description:'从你想完成的事情开始', icon:'custom', choices:['帮我推进','先一起讨论'], placeholder:'告诉我想做成什么，或者把材料拖进来一起看看。',
       request:'请根据我在本次消息中提供的目标与材料完成工作。需要我决定的地方先说明，不编造缺失信息。先推进能够确定的部分。将需要交付的结果保存为可编辑的 Markdown 文档。'}
   ];
   const outputs = [
@@ -31,7 +31,6 @@
     {id:'reply', title:'先在对话中看', description:'直接在对话中呈现结果，本次不要求保存文件'},
     {id:'pages', title:'展示初稿', description:'保存一个可在浏览器打开的 HTML 汇报或演示初稿，提供文件与摘要'}
   ];
-  const handoffRequest = '\n\n回复格式：完成后在回复末尾用以下 Markdown 标题简短总结本轮实际执行结果，不重复文档正文。\n## 交接\n### 已完成\n实际完成的内容和文件。\n### 待确认\n仍需我决定的事项；没有就写“无”。\n### 下一步\n一项可以继续推进的建议。\n对依赖材料的结论，缺少依据时说明或询问，不编造内容。';
   const toolLabels = Object.freeze({
     mirally_context:'整理相关记忆与活动', mirally_preferences:'读取你的偏好',
     mirally_reminders:'查看提醒', mirally_set_preference:'保存你的偏好',
@@ -47,7 +46,7 @@
     browser:'处理网页', web_search:'查找资料', web_fetch:'阅读网页', process:'等待后台操作',
   });
   const toolLabel = name => Object.hasOwn(toolLabels, name) ? toolLabels[name] : '处理工作材料';
-  function compose(id, goal, output = 'document', context = {}) {
+  function compose(id, goal, output = 'reply', context = {}) {
     const workflow = workflows.find(item => item.id === id);
     const format = outputs.find(item => item.id === output);
     if (!workflow || !format) return '';
@@ -56,7 +55,7 @@
     const requirements = String(goal || '').trim();
     const details = [context.source && '本次材料或网页：\n'+context.source.trim(),
       context.audience && '面向对象：'+context.audience.trim(),context.focus && '工作侧重：'+context.focus].filter(Boolean).join('\n\n');
-    return `${task}${details ? '\n\n'+details : ''}${requirements ? '\n\n我的要求：\n'+requirements : ''}\n\n交付方式：${format.description}。${handoffRequest}`;
+    return `${task}${details ? '\n\n'+details : ''}${requirements ? '\n\n我的要求：\n'+requirements : ''}\n\n交付方式：${format.description}。`;
   }
   function plain(value) {
     return String(value || '').replace(/!\[[^\]]*\]\([^)]*\)/g, '')

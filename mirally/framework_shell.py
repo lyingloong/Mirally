@@ -472,7 +472,7 @@ class FrameworkShell(ControlUIShell):
             if self._system_menu is None:
                 menu = WindowSystemMenu(int(form.Handle.ToInt64()), [
                     ("侧边伙伴", self._dock),
-                    ("工作", lambda: self._navigate("work")),
+                    ("快捷开始", lambda: self._navigate("work")),
                     ("重新连接", self._retry),
                     ("活动与记忆设置", self._activity_settings_page),
                     ("记忆", self._memory_page),

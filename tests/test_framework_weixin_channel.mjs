@@ -584,8 +584,17 @@ test('Weixin Chinese menu is deterministic and requires no mobile webpage', asyn
   await f.channel.receive(f.state(), inbound('menu', '菜单'));
   const text = [...f.deliveries.values()].at(-1).text;
   assert.match(text, /电脑保持 Mirally 联网运行/);
-  for (const command of ['/works', '/history', '/sessions']) assert.ok(text.includes(command));
+  for (const command of ['/history', '/sessions']) assert.ok(text.includes(command));
+  assert.doesNotMatch(text, /\/works/);
   assert.equal(f.calls.some(call => call.kind === 'submit'), false);
+});
+
+test('ordinary questions about work reach the selected conversation unchanged', async t => {
+  const f = fixture(t);
+  await f.channel.receive(f.state(), inbound('work-question', '我的工作怎么样了'));
+  const submitted = f.calls.filter(call => call.kind === 'submit');
+  assert.equal(submitted.length, 1);
+  assert.equal(submitted[0].event.text, '我的工作怎么样了');
 });
 
 test('Weixin can switch to a complete short legacy conversation ID without allowing short ambiguous prefixes', async t => {

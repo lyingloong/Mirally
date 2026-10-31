@@ -16,7 +16,6 @@ type NavigationPresentation = readonly [icon: IconName, titleKey: string, subtit
 // Keep the original customizable sidebar and session list, with destinations
 // owned by Mirally. Legacy route ids stay stable for saved links and preferences.
 export const SIDEBAR_NAV_ROUTES = [
-  "tasks",
   "custodian",
   "cron",
   "activity",

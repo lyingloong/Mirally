@@ -23,7 +23,7 @@
   function form(pane = active()) {
     if (!pane) return null;
     const id = key(pane);
-    if (!drafts.has(id)) drafts.set(id, {workflow:'', goal:'', output:'document', source:'', audience:'', focus:''});
+    if (!drafts.has(id)) drafts.set(id, {workflow:'', goal:'', output:'reply', source:'', audience:'', focus:''});
     return drafts.get(id);
   }
   function notice(value) { $('[data-work="notice"]').textContent = value; }
@@ -132,7 +132,7 @@
     $('[data-work="source-error"]').hidden = urlsValid;
     const hasSource = !sources.hidden && !!draft.source.trim();
     $('[data-work="start"]').disabled = sending || pendingReads > 0 || readErrors || !urlsValid || state.chatSending || state.connected === false || !selected || (!draft.goal.trim() && !hasSource && !attachments.length);
-    $('[data-work="start"]').textContent = sending ? '正在交给 Mirally…' : pane.runActivity?.working ? '加入当前工作 ↗' : '开始这项工作 ↗';
+    $('[data-work="start"]').textContent = sending ? '正在发送…' : pane.runActivity?.working ? '发送补充 ↗' : '发送 ↗';
   }
   function removeAttachment(pane,id) {
     if (experience) return experience.removeAttachment(pane, id);
@@ -174,7 +174,6 @@
       // A message override keeps the native chat draft. Attachments must be
       // explicit: the native override deliberately does not inherit them.
       const result = await state.handleSendChat(request,{attachmentsOverride:attachments,mentionsOverride:[],onOutboxAdmitted:accepted,
-        ...(window.__mirallyLegacyHost ? {mirallyWork:{title:(draft.goal.trim() || office.workflows.find(item=>item.id===draft.workflow)?.title || '新工作').slice(0,512),goal:request.slice(0,16000)}} : {}),
         ...(window.__mirallyLegacyHost ? {mirallyAllowFileWrite: draft.output !== 'reply'} : {}),
         ...(experience ? {allow_file_write: draft.output !== 'reply'} : {}),
         ...(pane.runActivity?.working ? {followUpMode:'steer'} : {})});
@@ -188,13 +187,13 @@
   const resize = new ResizeObserver(position);
   function mount() {
     page = document.createElement('section'); page.className = 'mirally-work'; page.hidden = true;
-    page.setAttribute('aria-label','Mirally 工作');
+    page.setAttribute('aria-label','快捷开始');
     page.innerHTML = `
-      <header class="mirally-work__top"><nav aria-label="工作与对话"><button data-work="chat">对话</button><button aria-current="page">工作</button></nav><span data-work="session"></span></header>
+      <header class="mirally-work__top"><nav aria-label="快捷开始"><button data-work="chat">返回对话</button><button aria-current="page">快捷开始</button></nav><span data-work="session"></span></header>
       <div class="mirally-work__scroll"><div class="mirally-work__content">
         <header class="mirally-work__hero"><div><p class="mirally-work__eyebrow">MIRALLY / 与你并肩</p><h1>把手头的事，<br>一起向前推进。</h1><p>带上材料和想法，从一件具体的工作开始。</p></div><div class="mirally-work__emblem"><img alt="" src=${JSON.stringify(__MIRALLY_MARK__)}></div></header>
-        <div class="mirally-work__cards" aria-label="选择一种工作"></div>
-        <p class="mirally-work__choose" data-work="choose">选一个起点，也可以从「其他工作」自由开始。</p>
+        <div class="mirally-work__cards" aria-label="选择一个起点"></div>
+        <p class="mirally-work__choose" data-work="choose">选择一个起点，也可以自由开始。</p>
         <form data-work="setup" hidden>
           <div class="mirally-work__setup-head"><h2 data-work="task-title"></h2><button type="button" data-work="reselect">换个起点 ↑</button></div>
           <div class="mirally-work__grid">

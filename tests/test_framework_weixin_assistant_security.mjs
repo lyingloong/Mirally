@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {ActionGate} from '../kernel/dsh/packages/mirally/mirally-product/src/action-gate.mjs';
 import {installNativeInteractions} from '../kernel/dsh/packages/mirally/mirally-product/src/native-interactions.mjs';
-import {WeixinWorks} from '../kernel/dsh/packages/mirally/mirally-product/src/channels/weixin-work.mjs';
 import {WeixinCalendar} from '../kernel/dsh/packages/mirally/mirally-product/src/channels/weixin-calendar.mjs';
 
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
@@ -46,18 +45,16 @@ test('a delegated target question is delivered to the assistant route and releas
   assert.deepEqual(await pending,{answers:[{id:'confirm',selected:['乙']}]});interactions.stop();
 });
 
-test('work and calendar switching does not cancel a running assistant delegation',async()=>{
+test('calendar switching does not cancel a running assistant delegation',async()=>{
   const state={mode:'assistant',installation_id:'install',revision:7,conversation_id:'assistant'};
   let cancelled=0,selected=0;const replies=[];
   const channel={authorize:async()=>state,hasActiveInput:()=>true,numberedLists:{select:()=> 'id'},
     reply:async(_event,text)=>replies.push(text),store:async()=>{selected++;throw Error('must not select');},
     product:{cancelWeixinCommands:async()=>{cancelled++;},
-      workRequest:async(method)=>method==='work.get'?{work:{id:'id',title:'实验',intent:'watching',conversation_id:'target'}}:{},
       rpc:async(method)=>method==='calendar.settings.get'?{confirmed:true,time_zone:'Asia/Shanghai'}:
         {event:{event_id:'id',title:'会议',status:'active',conversation_id:'target'}}}};
-  const event={...state,text:'进入工作 1'};
-  await new WeixinWorks(channel).control(event);
+  const event={...state,text:'进入日程 1'};
   await new WeixinCalendar(channel).control({...event,text:'进入日程 1'});
-  assert.equal(cancelled,0);assert.equal(selected,0);assert.equal(replies.length,2);
+  assert.equal(cancelled,0);assert.equal(selected,0);assert.equal(replies.length,1);
   assert.ok(replies.every(text=>text.includes('正在处理')));
 });

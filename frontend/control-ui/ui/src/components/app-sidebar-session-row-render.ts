@@ -292,6 +292,7 @@ function renderSidebarSessionIndicators(
         variant="session"
       ></openclaw-viewer-facepile>
       ${team ? originIndicators : nothing}
+      ${session.backgroundJobCount && session.backgroundJobCount > 0 ? html`<span class="session-row-badge" role="img" aria-label="后台作业运行中" title="后台作业运行中">${icons.terminal}</span>` : nothing}
       ${team && (session.workSession || session.acpSession) && !session.workspaceKind && !pullRequest ? html`<span class="session-row-badge" role="img" aria-label=${t("chat.sidebar.coding")} title=${session.subtitle ?? t("chat.sidebar.coding")}>${icons.terminal}</span>` : nothing}
       ${team && session.hasAutomation ? html`<span class="session-row-badge" role="img" aria-label=${t("tabs.cron")} title=${t("tabs.cron")}>${icons.clock}</span>` : nothing}
       ${renderSessionRowBadges({

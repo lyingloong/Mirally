@@ -1,7 +1,6 @@
 /** Product channel: no model loop, transcript or authority is owned here. */
 import {createHash, randomUUID} from 'node:crypto';
 import {WeixinApi, validateWeixinBaseUrl} from './weixin-api.mjs';
-import {WeixinWorks, WORK_HELP} from './weixin-work.mjs';
 import {WeixinNumberedLists} from './weixin-numbered-list.mjs';
 import {notifyReminders, canDeliverReminder, ackReminder} from './weixin-reminders.mjs';
 import {WeixinCalendar} from './weixin-calendar.mjs';
@@ -12,7 +11,7 @@ import {WeixinLifecycle} from './weixin-lifecycle.mjs';
 
 const MAX_AGE = 10 * 60_000;
 const LOGIN_TTL = 5 * 60_000;
-const HELP = 'Mirally 微信菜单\n助理（/assistant on）\n会话模式（/assistant off）\n会话（/sessions）\n切换 1（/use 1）\n新对话 [名称]（/new）\n当前会话（/status）\n查看历史（/history [更早游标]）\n日程 · 今日日程 · 明日日程\n停止回复（/stop）\n菜单（/help）\n\n电脑保持 Mirally 联网运行。\n收到问题后直接回复选项数字或文字。\n' + WORK_HELP;
+const HELP = 'Mirally 微信菜单\n助理（/assistant on）\n会话模式（/assistant off）\n会话（/sessions）\n切换 1（/use 1）\n新对话 [名称]（/new）\n当前会话（/status）\n查看历史（/history [更早游标]）\n日程 · 今日日程 · 明日日程\n停止回复（/stop）\n菜单（/help）\n\n电脑保持 Mirally 联网运行。\n收到问题后直接回复选项数字或文字。';
 const TEXT_CONTROLS = new Map([['菜单', '/help'], ['帮助', '/help'], ['会话', '/sessions'], ['会话列表', '/sessions'],
   ['当前会话', '/status'], ['新对话', '/new'], ['查看历史', '/history'], ['停止回复', '/stop'], ['助理', '/assistant on'], ['会话模式', '/assistant off']]);
 const controlText = text => {
@@ -66,7 +65,6 @@ export class WeixinChannel {
     this.numberedLists = new WeixinNumberedLists(this.now);
     this.closed = false;
     this.management = Promise.resolve();
-    this.works = new WeixinWorks(this);
     this.calendar = new WeixinCalendar(this);
     this.media = new WeixinInboundMedia(product, {fixtureOrigin: allowLoopback && this.baseUrl.startsWith('http:') ? this.baseUrl : undefined});
     this.outboundMedia = new WeixinOutboundMedia(this, {fixtureOrigin: allowLoopback && this.baseUrl.startsWith('http:') ? this.baseUrl : undefined});
@@ -327,10 +325,9 @@ export class WeixinChannel {
       if (message.context_token) await this.reply(event, '这条消息的内容或时间无效，请重新发送。', {control: true});
       return;
     }
-    if (!inspected.hasMedia && (text.startsWith('/') || controlText(text) || this.works.handles(text) || this.calendar.handles(text))) {
+    if (!inspected.hasMedia && (text.startsWith('/') || controlText(text) || this.calendar.handles(text))) {
       try {
         if (this.calendar.handles(text)) await this.calendar.control(event);
-        else if (this.works.handles(text)) await this.works.control(event);
         else await this.control(event, state);
       }
       catch { await this.reply(event, '这项操作未完成，请在桌面检查当前绑定与状态。', {control: true}); }
@@ -411,7 +408,7 @@ export class WeixinChannel {
       } catch(error) { await this.reply(event,error.message || '问题已失效，请在会话中继续。',{control:true}); }
     } else if (name === '/stop') {
       await this.product.cancel(event.conversation_id);
-      await this.reply(event, '已停止当前会话的回复及其受管理的会话后台命令；工作运行需另行停止。已发生的操作不会撤销。', {control: true});
+      await this.reply(event, '已停止当前会话的回复。', {control: true});
     } else if (name === '/help') await this.reply(event, HELP, {control: true});
     else if (name === '/status') {
       const conversation = await this.product.conversation(event.conversation_id);
@@ -586,59 +583,9 @@ export class WeixinChannel {
       installation_id: delivery.installation_id, revision: delivery.revision, conversation_id: delivery.conversation_id});
   }
 
-  async notifyWorks() {
-    if (this.closed || !this.product.workRequest) return;
-    const state = await this.state();
-    if (!state.bound || !state.enabled || !state.context_token || this.phase === 'login_required') return;
-    const {settings} = await this.product.rpc('work.settings.get');
-    if (settings.channels?.weixin !== true) return;
-    const {events} = await this.product.rpc('work.notifications', {limit: 20, channel: 'weixin', installation_id: state.installation_id, revision: state.revision});
-    for (const event of events) {
-      const eventTime = Number(event.created_at);
-      // Notifications have a bounded useful life. They remain queryable in
-      // work history but are never blindly replayed after a long outage.
-      if (!Number.isFinite(eventTime) || this.now() - eventTime > MAX_AGE || eventTime > this.now() + 60000) {
-        await this.product.rpc('work.notifications.ack', {event_id: event.event_id, channel: 'weixin', status: 'suppressed',
-          installation_id: state.installation_id, revision: state.revision});
-        continue;
-      }
-      if (settings.notifications?.[event.kind] === false || event.work?.notifications?.[event.kind] === false) continue;
-      try {
-        await this.authorize({...state, conversation_id: state.conversation_id});
-        const claimed = await this.product.rpc('work.notifications.claim', {event_id: event.event_id, channel: 'weixin',
-          installation_id: state.installation_id, revision: state.revision});
-        const destination = claimed.event?.deliveries?.weixin;
-        if (destination?.status !== 'queued' || destination.installation_id !== state.installation_id || destination.revision !== state.revision) continue;
-        await this.authorize({...state, conversation_id: state.conversation_id});
-        // Repeating this exact immutable enqueue is safe even after a crash
-        // between destination claim and insertion. Outbox terminal rows survive
-        // and cannot become another send; another destination never adopts it.
-        const {delivery} = await this.store('enqueue', {installation_id: state.installation_id, revision: state.revision,
-          key: `work-notification:${event.event_id}`, text: boundedReply(`${event.title}\n${event.text}\n发送“我的工作”查看详情。`),
-          });
-        if (['sent', 'failed', 'unknown', 'cancelled'].includes(delivery.status))
-          await this.product.rpc('work.notifications.ack', {event_id: event.event_id, channel: 'weixin', installation_id: state.installation_id, revision: state.revision,
-            status: delivery.status === 'cancelled' ? 'suppressed' : delivery.status});
-      } catch (error) {
-        if (['CONFLICT', 'weixin_scope_revoked'].includes(error.code)) return;
-        throw error;
-      }
-    }
-  }
-
   async notifyReminders() { return notifyReminders(this); }
 
-  async canDeliverWork(delivery) {
-    if (!delivery.key?.startsWith('work-notification:')) return true;
-    const {settings} = await this.product.rpc('work.settings.get');
-    if (settings.channels?.weixin !== true) return false;
-    const {event} = await this.product.rpc('work.notifications.get', {event_id: delivery.key.slice('work-notification:'.length)});
-    const destination = event?.deliveries?.weixin;
-    return Boolean(event && destination?.status === 'queued' && destination.installation_id === delivery.installation_id
-      && destination.revision === delivery.revision && event.work?.intent === 'watching'
-      && event.eligible_channels?.weixin !== false && !event.work?.observation?.withdrawn && this.now() - Number(event.created_at) <= MAX_AGE
-      && settings.notifications?.[event.kind] !== false && event.work?.notifications?.[event.kind] !== false);
-  }
+  canDeliverWork(delivery) { return !delivery.key?.startsWith('work-notification:'); }
 
   async reconcile(state) {
     const {events} = await this.store('events', {installation_id: state.installation_id, states: ['queued', 'unknown'], limit: 200});
@@ -708,8 +655,6 @@ export class WeixinChannel {
       const acknowledged = await this.store('ack', {delivery_id: delivery.delivery_id, status, ...(receipt ? {receipt} : {})});
       await ackReminder(this,delivery,acknowledged.delivery?.status ?? status);
       this.numberedLists.settle(delivery.key, status === 'sent' && acknowledged.delivery?.status === 'sent');
-      this.works.confirmationDelivered(delivery.key, status === 'sent' && acknowledged.delivery?.status === 'sent'
-        && receipt?.accepted === true && receipt.accepted_parts === weixinTextParts(delivery.text).length);
       if (status === 'sent' && acknowledged.delivery?.status === 'sent' && receipt?.accepted === true
         && receipt.accepted_parts === splitText(delivery.text).length && delivery.key?.startsWith('action-approval:')) this.product.actionGate.remoteDelivered(
         delivery.key.slice('action-approval:'.length), {installation_id:delivery.installation_id, revision:delivery.revision, conversation_id:delivery.conversation_id});
@@ -718,9 +663,6 @@ export class WeixinChannel {
         const match=/^native-question:([^:]+):(\d+)$/.exec(delivery.key);
         if (match) this.product.nativeInteractions?.remoteDelivered(match[1],delivery,Number(match[2]));
       }
-      if (delivery.key?.startsWith('work-notification:')) await this.product.rpc('work.notifications.ack', {
-        event_id: delivery.key.slice('work-notification:'.length), channel: 'weixin',
-        installation_id: delivery.installation_id, revision: delivery.revision, status: status === 'cancelled' ? 'suppressed' : status});
       if (status !== 'sent' && !(status === 'cancelled' && delivery.key?.startsWith('received:'))) return;
     }
   }

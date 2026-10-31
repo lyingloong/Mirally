@@ -80,7 +80,7 @@ export class ShellJobs {
 
 export function installShellCapabilities(host) {
   const jobs = new ShellJobs();
-  const validOrigin = agent => ['desktop', 'weixin'].includes(host.commandPolicy(agent)?.origin);
+  const validOrigin = agent => ['desktop', 'weixin', 'schedule'].includes(host.commandPolicy(agent)?.origin);
   host.ctx.tools.register({name: 'mirally_run_command',
     description: 'Run a PowerShell command on the user’s Windows computer. Mirally enforces the user’s configured permission policy; call the tool rather than asking separately for confirmation. Use a managed background job for long experiments so this conversation can continue and inspect progress. Background mode returns immediately after launch; it does not wait for completion, even for sleep commands. Inspect job status or actual timestamps before claiming completion or elapsed time. This has full user privileges, is not sandboxed, and may access files and network. Use only when the user requests an action; report nonzero exit and timeouts honestly.',
     parameters: {type: 'object', properties: {command: {type: 'string', description: 'Complete PowerShell command to review'}, cwd: {type: 'string', description: 'Absolute working directory; defaults to Mirally workspace'}, background: {type:'boolean', description:'Start a managed background job'}, timeout_seconds: {type: 'integer', description: 'Foreground defaults to 120 seconds, maximum 300; background defaults to 86400 seconds, maximum 604800'}}, required: ['command'], additionalProperties: false},

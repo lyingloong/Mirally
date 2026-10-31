@@ -42,7 +42,6 @@ export function sameQueuedDeliveryVersion(left: ChatQueueItem, right: ChatQueueI
     left.id === right.id &&
     left.asyncQuestionItemId === right.asyncQuestionItemId &&
     left.mirallyAllowFileWrite === right.mirallyAllowFileWrite &&
-    JSON.stringify(left.mirallyWork) === JSON.stringify(right.mirallyWork) &&
     left.text === right.text &&
     left.workContextUnavailable === right.workContextUnavailable &&
     JSON.stringify(left.workContext) === JSON.stringify(right.workContext) &&
@@ -119,18 +118,9 @@ export function normalizeStoredQueueItem(value: unknown): ChatQueueItem | null {
         .filter((item): item is ChatAttachment => item !== null)
     : [];
   const item: ChatQueueItem = { id, text, createdAt };
-  let invalidMirallyWork = false;
+  // A queued request carrying a removed owner cannot be replayed as a different action.
+  const obsoleteWork = entry.mirallyWork !== undefined;
   if (entry.mirallyAllowFileWrite === true) item.mirallyAllowFileWrite = true;
-  if (entry.mirallyWork !== undefined) {
-    const work = entry.mirallyWork;
-    if (isRecord(work) && typeof work.title === 'string' && work.title.trim() && work.title.length <= 512
-      && typeof work.goal === 'string' && work.goal.length <= 16000) {
-      item.mirallyWork = {title: work.title, goal: work.goal};
-    } else {
-      // Do not replay an input after silently losing its declared work owner.
-      invalidMirallyWork = true;
-    }
-  }
   const asyncQuestionItemId = normalizeOptionalString(entry.asyncQuestionItemId);
   if (asyncQuestionItemId && asyncQuestionItemId.length <= 256) {
     item.asyncQuestionItemId = asyncQuestionItemId;
@@ -285,8 +275,8 @@ export function normalizeStoredQueueItem(value: unknown): ChatQueueItem | null {
     item.sendState = item.sendState === "held" ? "held" : "failed";
     item.sendError = t("chat.messages.attachedContext.restoreFailed");
   }
-  if (invalidMirallyWork) {
-    item.sendState = 'failed'; item.sendError = '工作信息无法恢复，请检查后重新提交。';
+  if (obsoleteWork) {
+    item.sendState = 'failed'; item.sendError = '旧请求已失效，请检查草稿后重新发送。';
   }
   return item;
 }

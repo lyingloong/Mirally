@@ -213,6 +213,7 @@ export class MirallyBrowserClient {
       // real thinking blocks (including old history) through its second gate;
       // chatShowThinking remains the user's visibility toggle.
       reasoningLevel: 'on', agentId: "main", kind: "direct", updatedAt: s.updated_at, hasActiveRun: s.status === "running", activeRunIds: [...new Set([...(s.active_command_ids || []), ...this.activeRuns(s.id)])],
+      backgroundJobCount: typeof s.background_job_count === 'number' ? s.background_job_count : undefined,
       modelProvider: modelProvider(s.model_selection?.connection_id ?? defaultConnection), model: s.model_selection?.model_id ?? model.model_id,
       modelOverrideSource: s.model_selection ? 'user' : null}));
   }
@@ -420,7 +421,7 @@ export class MirallyBrowserClient {
         }
         this.rememberRun(id, runId);
         try {
-          const result = await this.http(`/api/sessions/${encodeURIComponent(id)}/messages`, {method: "POST", body: JSON.stringify({commandId: runId, text: p.message || "请查看我提供的材料。", materials, allow_file_write: p.mirallyAllowFileWrite === true, ...(p.mirallyWork ? {work:p.mirallyWork} : {})})});
+          const result = await this.http(`/api/sessions/${encodeURIComponent(id)}/messages`, {method: "POST", body: JSON.stringify({commandId: runId, text: p.message || "请查看我提供的材料。", materials, allow_file_write: p.mirallyAllowFileWrite === true})});
           if (result.replay && ['completed','cancelled','rejected','unknown'].includes(result.command?.state)) {
             this.forgetRun(id, runId);
             const state = result.command.state === 'completed' ? 'final' : result.command.state === 'cancelled' ? 'aborted' : 'error';

@@ -210,6 +210,29 @@ class WeixinChannels:
             _fail("CHANNEL_DISABLED", "WeChat is not connected and confirmed")
         return state
 
+    def check_conversation_scope(self, conversation_id, scope):
+        """Validate a WeChat turn in the caller's transaction before a product write."""
+        if scope is None:
+            return
+        direct = {"installation_id", "revision", "command_id"}
+        delegated = direct | {"source_conversation_id", "source_command_id"}
+        if not isinstance(scope, dict) or set(scope) not in (direct, delegated):
+            _fail("INVALID_PARAMS", "微信会话授权无效")
+        for name, limit in (("installation_id", 64), ("command_id", 200)):
+            _text(scope[name], name, limit)
+            if "\x00" in scope[name]:
+                _fail("INVALID_PARAMS", name + " must be bounded text")
+        state = self._current(scope["revision"], scope["installation_id"], enabled=True)
+        command = self.service._command(conversation_id, scope["command_id"])
+        if 'source_conversation_id' in scope:
+            self.delegation_check(installation_id=scope['installation_id'], revision=scope['revision'],
+                source_conversation_id=scope['source_conversation_id'], source_command_id=scope['source_command_id'],
+                target_conversation_id=conversation_id, target_command_id=scope['command_id'])
+        elif state['conversation_id'] != conversation_id:
+            _fail("CONFLICT", "微信会话授权已改变，请重新发起")
+        if command["state"] not in {"admitted", "submitted", "applied"}:
+            _fail("CONFLICT", "微信会话授权已改变，请重新发起")
+
     def _cancel_pending(self):
         self.db.execute("UPDATE channel_weixin_outbox SET status='cancelled',updated_at=? WHERE status='pending'", (self.service.clock(),))
 

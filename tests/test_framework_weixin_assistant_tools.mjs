@@ -29,9 +29,24 @@ test('assistant reads reject a target that changes while its history or status i
         checkCommandScope:async()=>{},guard:async()=>{},weixin:{authorize:async()=>({mode:'assistant',assistant_conversation_id:'assistant'})},
         consumedCommandId:()=>owner.commandId,conversation:async()=>({...target}),summary:conversation=>conversation,
         history:async()=>{change();return {messages:[{role:'user',text:'private'}]};},
-        workRequest:async()=>{change();return {works:[]};}};
+        shellJobs:{list:()=>{change();return [];}}};
       installAssistantTools(host);
       await assert.rejects(tools.get(toolName).execute({conversation_id:'target'}, {agent:{id:'agent'},signal:new AbortController().signal}),/目标会话已变化|目标会话已归档或不可用/);
     }
   }
+});
+
+test('assistant status reads session-owned jobs without a work record', async()=>{
+  const tools=new Map(),policy={origin:'weixin',installation_id:'installation',command_id:'source',conversation_id:'assistant'};
+  const owner={rootSessionId:'agent',commandId:'source',conversation:{conversation_id:'assistant'}};
+  const host={ctx:{tools:{register:tool=>tools.set(tool.name,tool)},get:name=>name==='jobs'?{list:id=>[
+    {id:'native-job',owner:id},{id:'unowned',owner:null},{id:'other',owner:'another-session'}]}:null},
+    nativeRuntime:{owner:()=>owner},commandPolicy:()=>policy,checkCommandScope:async()=>{},guard:async()=>{},
+    weixin:{authorize:async()=>({mode:'assistant',assistant_conversation_id:'assistant'})},consumedCommandId:()=>owner.commandId,
+    conversation:async()=>({conversation_id:'target',title:'实验',generation:1,session_id:'native'}),summary:value=>value,
+    shellJobs:{list:id=>[{id:'shell-job',sessionId:id}]}};
+  installAssistantTools(host);
+  const result=await tools.get('mirally_conversation_status').execute({conversation_id:'target'}, {agent:{id:'agent'},signal:new AbortController().signal});
+  assert.equal(result.jobs[0].sessionId,'native');assert.deepEqual(result.native_jobs.map(job=>job.id),['native-job']);
+  assert.equal(Object.hasOwn(result,'works'),false);
 });

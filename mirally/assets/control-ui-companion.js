@@ -652,7 +652,7 @@
           <button data-action="stop" hidden>停止本轮工作</button>
         </section>
         <div class="mirally-companion__body">
-          <details class="mirally-companion__resume mirally-companion__office"><summary>工作</summary><p>选择工作、添加材料，再一起推进。</p><button data-action="office">打开工作页面 ↗</button></details>
+          <details class="mirally-companion__resume mirally-companion__office"><summary>快捷开始</summary><p>选择一个起点，添加需要的材料。</p><button data-action="office">打开快捷开始 ↗</button></details>
           <ul class="mirally-companion__activity" data-slot="activity"></ul>
           <section class="mirally-companion__handoff" data-slot="handoff" hidden>
             <p class="mirally-handoff__label">本轮交接</p>
@@ -692,7 +692,7 @@
     entry = document.createElement('nav');
     entry.className = 'mirally-companion-entry';
     entry.setAttribute('aria-label', 'Mirally 模式');
-    entry.innerHTML = '<button data-entry="chat">对话</button><button data-entry="office">工作</button><button data-entry="dock" title="在屏幕侧边与你并肩工作">侧边伙伴 ↗</button>';
+    entry.innerHTML = '<button data-entry="chat">对话</button><button data-entry="office">快捷开始</button><button data-entry="dock" title="在屏幕侧边与你并肩工作">侧边伙伴 ↗</button>';
     entry.querySelector('[data-entry="chat"]').onclick = () => workspace(() => experience ? experience.showChat() : window.__mirallyWork?.close());
     entry.querySelector('[data-entry="dock"]').onclick = dock;
     entry.querySelector('[data-entry="office"]').onclick = openOffice;

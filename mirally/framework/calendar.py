@@ -269,7 +269,7 @@ class CalendarOwner:
 
     def _scope(self, conversation_id, weixin_scope):
         if weixin_scope is not None:
-            self.s.work._check_weixin_work_scope(conversation_id, weixin_scope)
+            self.s.channels.check_conversation_scope(conversation_id, weixin_scope)
 
     def _expect_zone(self, expected_time_zone):
         if expected_time_zone is not None and self.settings_get()['time_zone'] != expected_time_zone:

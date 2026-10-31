@@ -9,9 +9,6 @@ const TTL = 5 * 60_000, DEVICE_TTL = 30 * 86400_000;
 const DEFAULTS = Object.freeze({home:'work',navigation:['work','conversations','inbox','settings'],hidden:[],
   work_sort:'attention',show_completed:true,conversation_sort:'updated'});
 const UI_KEYS = new Set(Object.keys(DEFAULTS));
-const WORK_METHODS = new Set(['work.create','work.list','work.get','work.update','work.observe',
-  'work.run.prepare','work.run.approve','work.run.start','work.run.cancel','work.run.get','work.run.logs','work.run.artifact',
-  'work.settings.get','work.settings.update']);
 const MIME = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8',
   '.svg':'image/svg+xml','.png':'image/png','.ico':'image/x-icon','.woff2':'font/woff2','.woff':'font/woff'};
 const hash = value => createHash('sha256').update(String(value)).digest('hex');
@@ -236,7 +233,6 @@ export class MobileAccess {
   async dispatch(method,params,principal) {
     this.require(principal);
     if(typeof method!=='string' || !isObject(params))throw fault('手机操作格式无效。');
-    if(WORK_METHODS.has(method))return this.product.workRequest(method,params,principal);
     if(method.startsWith('mobile.preferences.'))return this.preferenceRequest(method,params,principal);
     if(method==='mobile.status')return {ready:true,device:this.publicDevice(this.state.devices.find(d=>d.id===principal.id)),connected_at:this.now()};
     if(method==='conversation.list') {
@@ -260,7 +256,6 @@ export class MobileAccess {
           && this.product.handles?.has(conversation.session_id))throw fault('请先停止当前回复，再归档会话。','conversation_busy',409);
         const updated=await this.product.rpc('conversation.patch',{conversation_id:id,expected_version:params.expected_version,patch});
         this.product.broadcast?.('session-metadata',{session_id:id,metadata_version:updated.metadata_version});
-        if(typeof patch.title==='string')this.product.broadcast?.('work',{method:'conversation.rename',conversation_id:id});
         return {conversation:updated};
       });
     }
@@ -279,21 +274,8 @@ export class MobileAccess {
       const id=text(params.conversation_id,'会话');await this.product.conversation(id);this.require(principal);
       return this.product.cancel(id,params.command_id);
     }
-    if(method==='inbox.list') {
-      if(this.product.work?.inbox)return this.product.work.inbox();
-      const [inbox,work]=await Promise.all([this.product.rpc('inbox.list',{}),this.product.rpc('work.notifications',{channel:'inbox',limit:100})]);
-      const items=(work.events??[]).map(event=>({delivery_id:'work:'+event.event_id,kind:'work',state:'unread',title:event.title,
-        body:event.text,updated_at:event.created_at,conversation_id:event.work?.conversation_id,work_id:event.work_id}));
-      return {...inbox,items:[...items,...(inbox.items??[])].sort((a,b)=>Number(b.updated_at)-Number(a.updated_at))};
-    }
-    if(method==='inbox.ack') {
-      if(this.product.work?.ackInbox)return this.product.work.ackInbox(params);
-      if(typeof params.delivery_id==='string' && params.delivery_id.startsWith('work:')) {
-        if(!['read','dismissed'].includes(params.state))throw fault('不支持的工作通知处理。');
-        return this.product.rpc('work.notifications.ack',{event_id:params.delivery_id.slice(5),channel:'inbox',status:params.state==='read'?'sent':'suppressed'});
-      }
-      return this.product.rpc('inbox.ack',{delivery_id:params.delivery_id,state:params.state});
-    }
+    if(method==='inbox.list') return this.product.rpc('inbox.list',{});
+    if(method==='inbox.ack') return this.product.rpc('inbox.ack',{delivery_id:params.delivery_id,state:params.state});
     if(method==='workspace.roots') {
       const result=await this.product.rpc('workspace.roots');
       return {roots:(result.roots??[]).map(({id,root_id,label,name,writable})=>({id:id??root_id,root_id:root_id??id,label:label??name??id,writable:!!writable}))};

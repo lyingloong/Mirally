@@ -641,8 +641,6 @@ export abstract class ChatPaneHeader extends ChatPaneDiscussion {
               .forkFromLastCompleted=${row.hasActiveRun === true}
               .contextCompacting=${this.isHeaderSessionCompacting(row)}
               .mirallySessionKey=${mirallySessionKey}
-              .workPresented=${this.presented && this.active}
-              .workDisabledReason=${this.headerWorkDisabledReason(row)}
               .archiveAllowed=${archiveAllowed}
               .archiveShortcut=${this.active && this.presented && !this.onboarding}
               .deleteAllowed=${deleteAllowed}

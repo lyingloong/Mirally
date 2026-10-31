@@ -127,12 +127,12 @@ test('unknown and absent sections do not fabricate a completion or decision', ()
   assert.equal(office.handoff('## 交接\n### 不认识的栏目\n内容'), null);
   assert.deepEqual(office.handoff('## 交接\n### 待确认\n预算尚未获批'), {completed:'',attention:'预算尚未获批',next:''});
 });
-test('work requests carry the selected task and honest handoff requirements', () => {
+test('quick starts carry the selected task without forcing a handoff or a file', () => {
   assert.equal(office.workflows.length,10);
   for(const item of office.workflows) {
     assert.match(office.compose(item.id,'整理这些材料'), /材料/);
-    assert.match(office.compose(item.id,'整理这些材料'), /## 交接/);
-    assert.match(office.compose(item.id,'整理这些材料'), /实际执行结果/);
+    assert.doesNotMatch(office.compose(item.id,'整理这些材料'), /## 交接/);
+    assert.match(office.compose(item.id,'整理这些材料'), /直接在对话中呈现/);
   }
   assert.equal(office.compose('unknown','目标'), '');
 });

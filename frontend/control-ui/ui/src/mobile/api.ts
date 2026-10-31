@@ -39,11 +39,11 @@ export type MobilePreferences = {
   work_sort: 'attention' | 'updated'; show_completed: boolean; conversation_sort: 'updated' | 'pinned';
 };
 export const DEFAULT_MOBILE_PREFERENCES: MobilePreferences = {
-  home: 'work', navigation: ['work', 'conversations', 'inbox', 'settings'], hidden: [], work_sort: 'attention',
+  home: 'conversations', navigation: ['work', 'conversations', 'inbox', 'settings'], hidden: [], work_sort: 'attention',
   show_completed: true, conversation_sort: 'updated',
 };
 export function mobileNavigation(preferences: MobilePreferences) {
-  const known = ['work', 'conversations', 'inbox', 'settings'];
+  const known = ['conversations', 'inbox', 'settings'];
   const ordered = [...new Set([...preferences.navigation.filter(id => known.includes(id)), ...known])];
   return ordered.filter(id => id === 'settings' || !preferences.hidden.includes(id));
 }

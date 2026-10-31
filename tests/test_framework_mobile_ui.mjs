@@ -52,9 +52,13 @@ test('metadata mutations send captured owner version and support archive/restore
   f.app.patchConversation({archived:true});await settle();const call=f.calls.find(call=>call.method==='conversation.update');
   assert.equal(call.params.expected_version,7);assert.equal(call.params.conversation_id,'c1');assert.equal(call.params.patch.archived,true);
 });
-test('notification controls use the shared work policy revision, never phone display prefs',async()=>{
-  const f=mobile(async()=>({settings:{revision:12}}));f.app.workSettings={settings:{revision:11}};f.app.notificationPatch({channels:{weixin:true}});await settle();
-  const call=f.calls.find(call=>call.method==='work.settings.update');assert.equal(call.params.expected_revision,11);assert.equal(f.calls.some(call=>call.method==='mobile.preferences.set'),false);
+test('old work home and navigation resolve to conversation and omit work controls',async()=>{
+  const f=mobile(async method=>method==='mobile.preferences.get'?{effective:{home:'work',navigation:['work','inbox','conversations','settings'],hidden:[]},revision:3}:{conversations:[]});
+  f.app.token='phone';await f.app.boot();await settle();
+  assert.equal(f.app.view,'conversations');
+  const navigation=Array.from(f.sandbox.mobileNavigation(f.app.preferences));assert.deepEqual(navigation,['inbox','conversations','settings']);
+  assert.doesNotMatch(stringify(f.app.settingsView()),/工作排序|工作通知|显示已结束或归档的工作/);
+  assert.ok(f.calls.every(call=>!call.method.startsWith('work.')));
 });
 test('unknown send retains phone draft and reuses the same command ID on retry',async()=>{
   const f=mobile(async method=>{if(method==='conversation.send')throw new Error('offline');return {};});f.app.currentConversation='c';f.app.draft='继续检查';
@@ -85,143 +89,16 @@ test('message origin labels follow recorded user channel and current surface',()
   const m=mobile();m.app.currentConversation='c';m.app.messages=[{role:'user',text:'桌面正文',input_origin:'desktop'},{role:'user',text:'微信正文',input_origin:'weixin'},{role:'user',text:'未知正文'},{role:'assistant',text:'回应',input_origin:'weixin'}];
   const rendered=stringify(m.app.conversationsView());assert.match(rendered,/消息来自电脑/);assert.match(rendered,/消息来自微信/);assert.equal((rendered.match(/消息来自/g)||[]).length,2);
 });
-test('work order puts actual attention states first and completion filtering is explicit',()=>{
-  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});
-  f.sandbox.works=[{id:'done',status:'completed',intent:'watching',updated_at:99},{id:'ended',status:'ended',intent:'ended',updated_at:100},{id:'run',status:'running',intent:'watching',updated_at:8},{id:'approve',status:'needs_approval',intent:'watching',updated_at:1}];
-  const result=f.run("sortWorks(works,'attention',false)");assert.deepEqual(Array.from(result,item=>item.id),['approve','run','done']);
-});
-test('desktop list distinguishes observed state, latest run, and ongoing work',()=>{
-  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');
-  panel.loaded=true;panel.works=[{id:'w',title:'实验',intent:'watching',status:'completed',updated_at:1,observation:{state:'running',summary:'第二轮'},latest_run:{status:'completed'},conversation_activity:'running'}];
-  const text=stringify(panel.desktopList());assert.match(text,/来源：正在运行/);assert.match(text,/最近运行：运行完成/);assert.match(text,/关联对话正在回复/);assert.match(text,/实验/);
-  panel.filter='history';assert.doesNotMatch(stringify(panel.desktopList()),/第二轮/);
-  panel.filter='current';panel.query='不匹配';assert.doesNotMatch(stringify(panel.desktopList()),/第二轮/);
-});
-test('work lists open their original conversation and keep a separate detail route for legacy records',()=>{
-  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');
-  const opened=[];panel.openConversation=id=>opened.push(id);panel.loaded=true;
-  panel.works=[{id:'work-1',conversation_id:'session-1',title:'GPU 监测',intent:'watching',status:'idle'},
-    {id:'legacy',title:'旧工作',intent:'watching',status:'idle'}];
-  panel.enterWork(panel.works[0]);assert.deepEqual(opened,['session-1']);assert.equal(panel.selected,'');
-  panel.choose('work-1');assert.equal(panel.selected,'work-1','details remain directly accessible');
-  panel.choose('');panel.enterWork(panel.works[1]);assert.equal(panel.selected,'legacy','a legacy work without a route still has details');
-  panel.selected='';panel.desktop=true;let text=stringify(panel.render());
-  assert.doesNotMatch(text,/建立工作记录|建立第一项工作/);assert.match(text,/GPU 监测/);assert.match(text,/详情/);assert.match(text,/待安排/);
-  panel.desktop=false;text=stringify(panel.render());assert.doesNotMatch(text,/建立工作记录/);assert.match(text,/GPU 监测/);assert.match(text,/详情/);
-});
-test('work page opens a linked work and clears its route when returning to the list',()=>{
-  const f=fixture('pages/mirally/work-page.ts',{consume:()=>()=>{},applicationContext:{},pathForRoute:(id,base)=>base+'/tasks',
-    renderSettingsPageHeader:()=>'',rpcProduct:()=>{},sessionNavigationTarget:()=>({options:{}})});
-  let location={pathname:'/app/tasks',search:'?work=work_123'},listener,stopped=false;
-  const router={getState:()=>({location}),subscribe:callback=>{listener=callback;return()=>{stopped=true;};}};
-  const page=f.run('new MirallyWorkPage()');page.context={basePath:'/app',router,replace:(id,options)=>{assert.equal(id,'tasks');location={...location,...options};listener();}};
-  page.updated();assert.equal(page.selectedWork,'work_123');
-  page.workSelected({detail:{work_id:''}});assert.equal(location.search,'');assert.equal(page.selectedWork,'');
-  location={...location,search:'?work=work_456'};listener();assert.equal(page.selectedWork,'work_456');
-  location={...location,search:'?work=bad%2Fid'};listener();assert.equal(page.selectedWork,'');
-  location={...location,search:'?filter=all'};listener();assert.equal(page.initialFilter,'all');
-  page.disconnectedCallback();assert.equal(stopped,true);
-});
-test('work list route can show archived records when a conversation has multiple legacy works',()=>{
-  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');
-  panel.loaded=true;panel.works=[{id:'archived',title:'旧关联工作',intent:'archived',status:'archived'}];
-  assert.doesNotMatch(stringify(panel.desktopList()),/旧关联工作/);
-  panel.initialFilter='all';panel.updated(new Map([['initialFilter','current']]));
-  assert.match(stringify(panel.desktopList()),/旧关联工作/);
-});
-test('source settings retain external monitoring without editing model-owned work content',async()=>{
-  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');
-  panel.selected='w';panel.detail={work:{id:'w',title:'GPU 监测',goal:'原来的任务',revision:4,intent:'watching',source:{kind:'json',root_id:'approved',path:'old.json'}},runs:[]};
-  panel.rpc=async(method,params)=>{f.calls.push({method,params});return {work:panel.detail?.work,runs:[]};};
-  panel.editWork(panel.detail.work);const rendered=stringify(panel.sourceForm());assert.match(rendered,/状态来源/);assert.doesNotMatch(rendered,/工作名称|希望得到什么/);
-  panel.draft.path='new.json';panel.saveSource({preventDefault(){}});await settle();
-  const update=f.calls.find(call=>call.method==='work.update');assert.equal(update.params.expected_revision,4);
-  assert.deepEqual(JSON.parse(JSON.stringify(update.params.patch)),{source:{kind:'json',root_id:'approved',path:'new.json'}});
-  assert.ok(f.calls.every(call=>call.method!=='work.create'));
-});
-test('desktop loads further work pages and refreshes the loaded range',async()=>{
-  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');
-  panel.rpc=async(method,params)=>{f.calls.push({method,params});const start=params.offset;return {works:Array.from({length:start===0?200:1},(_,i)=>({id:'w'+(start+i),intent:'watching'})),has_more:start===0,next_offset:start+200};};
-  await panel.refresh();assert.equal(panel.works.length,200);assert.equal(panel.hasMore,true);
-  await panel.loadMore();assert.equal(panel.works.length,201);assert.equal(panel.hasMore,false);assert.equal(f.calls[1].params.offset,200);
-  await panel.refresh();assert.equal(panel.works.length,201);assert.equal(f.calls.at(-1).params.offset,200);
-});
-test('attention sort uses pending approvals and source failures before activity',()=>{
-  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});
-  f.sandbox.works=[{id:'chat',status:'idle',intent:'watching',conversation_activity:'running',updated_at:100},{id:'source',status:'completed',intent:'watching',observation:{state:'failed'},updated_at:1},{id:'approval',status:'running',intent:'watching',pending_approvals:[{id:'a'}],updated_at:0}];
-  assert.deepEqual(Array.from(f.run("sortWorks(works,'attention',true)"),item=>item.id),['approval','source','chat']);
-  const panel=f.run('new MirallyWorkPanel()');panel.loaded=true;panel.works=f.sandbox.works;panel.filter='attention';let text=stringify(panel.desktopList());assert.match(text,/source|来源：运行失败/);assert.doesNotMatch(text,/关联对话正在回复/);
-  panel.filter='current';text=stringify(panel.desktopList());assert.match(text,/对话正在回复/);
-});
-test('paging skips duplicate identities while advancing by owner cursor',async()=>{
-  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');
-  panel.rpc=async(method,params)=>{f.calls.push({method,params});if(params.offset===0)return{works:[{id:'a'},{id:'b'}],has_more:true,next_offset:2};if(params.offset===2)return{works:[{id:'b'},{id:'c'}],has_more:true,next_offset:4};return{works:[{id:'d'}],has_more:false,next_offset:5};};
-  await panel.refresh();await panel.loadMore();await panel.loadMore();assert.deepEqual(Array.from(panel.works,item=>item.id),['a','b','c','d']);assert.equal(f.calls[2].params.offset,4);
-  await panel.refresh();assert.deepEqual(Array.from(panel.works,item=>item.id),['a','b','c','d']);assert.equal(f.calls.at(-1).params.offset,4);
-  panel.hasMore=true;panel.rpc=async()=>({works:[{id:'d'}],has_more:true,next_offset:4});await panel.loadMore();assert.match(panel.error,/分页未能前进/);
-});
-test('detail shows all owner approvals and loads run history through owner cursor',async()=>{
-  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');panel.selected='w';
-  const approvals=[{id:'a',status:'pending',spec:{script:'first.py'},expires_at:Date.now()+60000},{id:'b',status:'pending',spec:{script:'second.py'},expires_at:Date.now()+60000}];
-  panel.rpc=async(method,params)=>{f.calls.push({method,params});return {work:{id:'w',intent:'watching',pending_approvals:approvals},runs:params.run_offset===0?Array.from({length:20},(_,i)=>({id:'r'+i,status:'completed'})):[{id:'r19',status:'failed'},{id:'r20',status:'completed'}],has_more_runs:params.run_offset===0,next_run_offset:params.run_offset===0?20:22};};
-  await panel.refresh();let text=stringify(panel.workDetail());assert.match(text,/first.py/);assert.match(text,/second.py/);assert.match(text,/加载更多运行记录/);
-  await panel.loadMoreRuns();assert.equal(panel.detail.runs.length,21);assert.equal(panel.detail.runs.at(-1).id,'r20');assert.equal(f.calls.at(-1).params.run_offset,20);
-  await panel.refresh();assert.equal(panel.detail.runs.length,21);assert.equal(panel.detail.runs.at(-1).id,'r20');assert.equal(f.calls.at(-1).params.run_offset,20);
-});
-test('mobile work offers loading more when display filter hides the loaded page',async()=>{
-  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');panel.loaded=true;panel.works=[{id:'archived',intent:'archived',status:'archived'}];panel.showCompleted=false;panel.hasMore=true;panel.nextOffset=200;
-  let text=stringify(panel.render());assert.match(text,/没有符合显示设置/);assert.match(text,/仅应用于已加载/);assert.match(text,/加载更多工作/);
-  panel.rpc=async(method,params)=>{f.calls.push({method,params});return{works:[{id:'active',intent:'watching',status:'idle',title:'继续的工作'}],has_more:false,next_offset:201};};
-  await panel.loadMore();text=stringify(panel.render());assert.match(text,/继续的工作/);assert.equal(f.calls[0].params.offset,200);assert.doesNotMatch(text,/加载更多工作/);
-  const mobileSource=readFileSync(new URL('mobile/app.ts',root),'utf8');assert.match(mobileSource,/显示已结束或归档的工作/);assert.match(mobileSource,/show_completed/);
-});
-test('work search matches visible facts, observation time, and real progress',()=>{
-  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');panel.loaded=true;
-  panel.works=[{id:'a',title:'实验',intent:'watching',status:'completed',updated_at:99,observation:{state:'failed',summary:'训练信息',observed_at:12,progress:{current:4,total:10}},latest_run:{status:'completed'}},{id:'b',title:'对话',intent:'watching',status:'idle',updated_at:20,conversation_activity:'running'},{id:'c',title:'审批',intent:'watching',status:'idle',pending_approvals:[{id:'p'}]}];
-  for(const [query,title] of [['运行失败','实验'],['运行完成','实验'],['对话正在回复','对话'],['待确认','审批']]){panel.query=query;assert.match(stringify(panel.desktopList()),new RegExp(title));}
-  panel.query='实验';let text=stringify(panel.desktopList());assert.match(text,/观测于 12/);assert.match(text,/更新于 99/);assert.match(text,/进度 4 \/ 10/);
-  panel.works[0].observation.progress={current:4};text=stringify(panel.desktopList());assert.doesNotMatch(text,/进度 4/);
-  panel.query='';assert.doesNotMatch(stringify(panel.desktopList()),/待开始/);
-});
-test('work run approval binds digest and stable execution ID then refreshes facts',async()=>{
-  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');
-  panel.selected='w';panel.rpc=async(method,params)=>{f.calls.push({method,params});if(method==='work.run.approve')return{approval_token:'one-time'};return{work:{id:'w'},runs:[]};};
-  panel.approve({id:'approval_1',digest:'immutable-digest'});await settle();
-  const approval=f.calls.find(call=>call.method==='work.run.approve'),start=f.calls.find(call=>call.method==='work.run.start');assert.equal(approval.params.expected_digest,'immutable-digest');assert.equal(start.params.approval_token,'one-time');assert.equal(start.params.request_id,'ui-start:approval_1');assert.ok(f.calls.some(call=>call.method==='work.get'));
-});
-test('unknown execution approval failure never starts or pretends a run succeeded',async()=>{
-  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');panel.selected='w';
-  panel.rpc=async(method,params)=>{f.calls.push({method,params});if(method==='work.run.approve')throw new Error('指纹已失效');return{work:{id:'w'},runs:[]};};
-  panel.approve({id:'a',digest:'old'});await settle();assert.ok(!f.calls.some(call=>call.method==='work.run.start'));assert.match(panel.error,/指纹已失效/);
-});
-test('watching an external source never renders a stop or rerun of that process',()=>{
-  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');panel.detail={work:{id:'w',title:'外部实验',intent:'watching',source:{path:'experiment.json'},status:'observing'},runs:[]};
-  const text=stringify(panel.workDetail());assert.match(text,/核对最新状态/);assert.doesNotMatch(text,/停止这次运行/);assert.doesNotMatch(text,/暂停/);
-});
-test('work preparation retries retain request IDs until reviewed content changes',async()=>{
-  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');panel.selected='w';
-  panel.rpc=async(method,params)=>{f.calls.push({method,params});if(method==='work.run.prepare')throw new Error('回执未知');return{work:{id:'w'},runs:[]};};
-  panel.runDraft={script:'run.py',arguments:'["--check"]',cwd:'.',output_paths:'result.txt',timeout:'300'};panel.prepare({preventDefault(){}});await settle();panel.prepare({preventDefault(){}});await settle();
-  const prepares=f.calls.filter(call=>call.method==='work.run.prepare');assert.equal(prepares[0].params.request_id,prepares[1].params.request_id);
-  panel.runDraft.arguments='["--changed"]';panel.prepare({preventDefault(){}});await settle();assert.notEqual(f.calls.filter(call=>call.method==='work.run.prepare').at(-1).params.request_id,prepares[0].params.request_id);
-});
 test('new conversation retries reuse one creation request after an unknown reply',async()=>{
   const f=mobile(async method=>{if(method==='conversation.create')throw new Error('回执未知');return{};});f.app.createConversation();await settle();f.app.createConversation();await settle();
   const creates=f.calls.filter(call=>call.method==='conversation.create');assert.equal(creates.length,2);assert.equal(creates[0].params.request_id,creates[1].params.request_id);
 });
-test('native outbox restores the exact Work ownership and refuses corrupt ownership',()=>{
+test('native outbox preserves file permission and fails closed on removed work requests',()=>{
   const f=fixture('lib/chat/outbox-store-codec.ts',{isRecord:value=>value&&typeof value==='object'&&!Array.isArray(value),normalizeOptionalString:value=>typeof value==='string'&&value.trim()?value.trim():undefined,
     normalizeQueueMode:()=>undefined,normalizeSenderIdentity:()=>undefined,readHumanMentions:()=>undefined,registerChatMessageMetadataEnglish(){},t:value=>value});
-  f.sandbox.entry={id:'input',text:'处理材料',createdAt:1,mirallyWork:{title:'整理报告',goal:'保留原材料与会话'},mirallyAllowFileWrite:true,sendState:'queued'};
-  const restored=f.run('normalizeStoredQueueItem(entry)');assert.equal(restored.mirallyWork.title,'整理报告');assert.equal(restored.mirallyAllowFileWrite,true);
-  f.sandbox.entry={...f.sandbox.entry,mirallyWork:{title:'',goal:9}};const invalid=f.run('normalizeStoredQueueItem(entry)');assert.equal(invalid.sendState,'failed');assert.match(invalid.sendError,/工作信息无法恢复/);
-});
-test('acknowledged work preparation permits a new same-content user action',async()=>{
-  const f=fixture('pages/mirally/work-panel.ts',{timeLabel:value=>String(value)});const panel=f.run('new MirallyWorkPanel()');
-  panel.rpc=async(method,params)=>{f.calls.push({method,params});if(method==='work.run.prepare')return{approval:{id:'a'+f.calls.length,status:'pending'}};return{work:{id:panel.selected},runs:[]};};
-  panel.runDraft={script:'run.py',arguments:'[]',cwd:'.',output_paths:'result.txt',timeout:'300'};
-  panel.prepare({preventDefault(){}});await settle();panel.prepare({preventDefault(){}});await settle();
-  const prepares=f.calls.filter(call=>call.method==='work.run.prepare');assert.equal(prepares.length,2);assert.notEqual(prepares[0].params.request_id,prepares[1].params.request_id);
+  f.sandbox.entry={id:'input',text:'处理材料',createdAt:1,mirallyAllowFileWrite:true,sendState:'queued'};
+  const restored=f.run('normalizeStoredQueueItem(entry)');assert.equal(restored.mirallyAllowFileWrite,true);assert.equal(restored.text,'处理材料');
+  f.sandbox.entry={...f.sandbox.entry,mirallyWork:{title:'整理报告',goal:'原任务'}};const invalid=f.run('normalizeStoredQueueItem(entry)');assert.equal(invalid.sendState,'failed');assert.match(invalid.sendError,/旧请求已失效/);assert.equal(invalid.text,'处理材料');
 });
 test('archiving the selected conversation preserves detail metadata and supports restore outside the active filter',async()=>{
   let metadata={conversation_id:'selected',title:'正在看的会话',metadata_version:7,archived:false,pinned:false};
@@ -239,7 +116,7 @@ test('archiving the selected conversation preserves detail metadata and supports
   f.app.patchConversation({archived:false});await settle();assert.equal(f.app.currentConversationMeta.archived,false);assert.equal(f.app.currentConversationMeta.metadata_version,9);
   rendered=stringify(f.app.conversationsView());assert.match(rendered,/归档会话/);assert.match(rendered,/mirally-mobile-composer/);
 });
-test('opening a work conversation absent from the loaded list fetches its own metadata',async()=>{
+test('opening a conversation absent from the loaded list fetches its own metadata',async()=>{
   const f=mobile(async(method)=>method==='conversation.list'?{conversations:[],has_more:false}:method==='conversation.get'?{conversation:{conversation_id:'not-in-page',title:'工作主会话',metadata_version:19,archived:false}}:method==='conversation.history'?{messages:[{role:'assistant',text:'原来的工作记录'}]}:{});
   f.app.token='phone';f.app.view='conversations';f.app.currentConversation='not-in-page';await f.app.refresh();
   assert.equal(f.app.currentConversationMeta.title,'工作主会话');assert.equal(f.app.currentConversationMeta.metadata_version,19);assert.equal(f.app.conversations.length,0);
@@ -258,7 +135,7 @@ test('every retained Mirally sidebar destination is enabled by the actual shell 
   const locate=node=>{if(ts.isVariableDeclaration(node)&&node.name.getText(navigation)==='SIDEBAR_NAV_ROUTES')sidebar=node.initializer;ts.forEachChild(node,locate);};locate(navigation);
   assert.ok(sidebar);let literal=sidebar;while(ts.isSatisfiesExpression(literal)||ts.isAsExpression(literal))literal=literal.expression;
   assert.ok(ts.isArrayLiteralExpression(literal));const configured=literal.elements.map(item=>item.text);
-  assert.ok(configured.includes('tasks'),'Work is a real configurable sidebar destination');
+  assert.ok(!configured.includes('tasks'),'Independent work must not appear in the sidebar');
   for(const route of configured)assert.ok(enabled.includes(route),`The shell must not filter out the configured ${route} page`);
 });
 test('desktop phone webpage enrollment is an optional independent extension with no Weixin prerequisite',()=>{

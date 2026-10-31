@@ -6,13 +6,12 @@
 
 - `framework/`：产品业务 owner 与 SQLite，持久设置、会话代次引用、命令和来源回执、偏好、提醒、主动候选及收件箱；不复制原生 transcript。
 - `framework/context.py`：按需只读组合现有 Activity 与 Memory owner，保留来源版本和缺口。
-- `framework/work.py`：会话的工作扩展，以及来源观察、审批、真实运行/日志/成果及通知的 SQLite owner；模型按用户请求结合原对话建立或维护工作项，关联查询和同会话去重由此 owner 负责。Python sidecar 监督受信脚本，Windows Job 管理进程树，执行固定核验字节，退出收尾且冷启动不重放。工作列表是原 Conversation 的工作视图，不拥有第二份 transcript；旧会话关联多项工作保留原样。
+- 通用会话使用 DSH 原生作业及 Mirally 的会话后台命令；二者各自持有进程和输出，微信助理按原会话查询或委托，不能由摘要推断实时进度。普通后台命令随宿主退出结束，不承诺跨重启恢复。
 - `framework_workers.py`：有开关和预算的采集、维护和语义任务生命周期；完成请求经同一原生模型桥。
 - `framework/channels.py`：微信安装身份、本人绑定、会话路由、收发去重与回执；Windows 凭据用 DPAPI 保护，不另建聊天事实。Node `mirally-product/src/channels/` 承担独立 iLink 协议与连接生命周期，经现有输入主链及按 command 检查的只读工具范围接入。
 - `frontend/control-ui/`：以固定 2026.9.6 原前端为视觉与组件基础，`pages/mirally/` 维护自有内容与导航，保留皮肤、工作与伙伴；`ui/src/app/mirally-client.ts` 适配本机 HTTP/SSE。`framework_ui/legacy-native-bridge.js` 承接旧原生消息；页面没有独立模型循环。
 - `kernel/dsh/packages/mirally/mirally-product/`：本机鉴权 Host、DSH Session/Agent loop/LLM 适配、取消与恢复。
-- `mirally-product/src/work-host.mjs` 与 `channels/weixin-work.mjs`：工作控制面、实际入口身份、微信工作命令、通知安装身份与原 outbox 组合；模型不能签发审批。
-- `mirally-product/src/mobile.mjs`：独立回环手机服务、一次性配对、可撤销设备、有限 RPC 与分层呈现偏好。`frontend/control-ui/ui/src/mobile/` 复用原主题、Markdown 和工作组件；私人 HTTPS 转发另配置，不提供新云 Agent。
+- `mirally-product/src/mobile.mjs`：独立回环手机服务、一次性配对、可撤销设备、有限 RPC 与分层呈现偏好。`frontend/control-ui/ui/src/mobile/` 复用原主题和 Markdown；私人 HTTPS 转发另配置，不提供新云 Agent。
 - `kernel/dsh/packages/mirally/mirally-extensions/`：Skill、脚本、MCP 与原生可信插件的版本、授权和生命周期组合。
 - 既有 `core/activity`、`core/memory`、`runtime/activity`、`runtime/memory` 与平台适配继续负责原有领域数据。`runtime/ufo` 与只读 UFO 内核保留为维护参考，新默认框架本阶段不接入。
 

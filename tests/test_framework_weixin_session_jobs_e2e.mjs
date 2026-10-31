@@ -10,11 +10,12 @@ import {tmpdir} from 'node:os';
 import {join, dirname, basename} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
+import {createRequire} from 'node:module';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 async function until(fn,label,timeout=25000) {const end=Date.now()+timeout; while(Date.now()<end){const v=await fn();if(v)return v;await delay(70);}throw Error(`timeout: ${label}`);}
 
-test('real session experiment is readable and controllable over bound Weixin', {timeout:150000}, async t=>{
+for (const nativeJobs of [false,true]) test(`real ${nativeJobs?'DSH':'Mirally'} session job is readable over bound Weixin`, {timeout:150000}, async t=>{
   if(process.platform!=='win32'){t.skip('Windows PowerShell');return;}
   const python=join(root,'.venv/Scripts/python.exe');
   if(!existsSync(python)||!existsSync(join(root,'kernel/dsh/packages/core/agent/lib/index.js'))){t.skip('requires built kernel');return;}
@@ -38,26 +39,33 @@ test('real session experiment is readable and controllable over bound Weixin', {
         if(path==='/ilink/bot/getupdates'){await delay(100);return res.end(JSON.stringify({ret:0,msgs:queue.splice(0),get_updates_buf:'cursor'}));}
         throw Error('unknown iLink endpoint '+path);
       }
-      const input=JSON.parse(body), last=input.messages.at(-1), lastUser=[...input.messages].reverse().find(m=>m.role==='user' && ['桌面启动实验','微信查询进度','微信停止实验','微信启动新命令','微信询问方案'].some(v=>JSON.stringify(m.content).includes(v)));
+      const input=JSON.parse(body), last=input.messages.at(-1), lastUser=[...input.messages].reverse().find(m=>m.role==='user' && ['桌面启动实验','微信查询进度','微信停止实验','微信作业通知','微信结束提醒','微信启动新命令','微信询问方案','隔离检查'].some(v=>JSON.stringify(m.content).includes(v)));
       const prompt=JSON.stringify(lastUser?.content), suffix=input.messages.slice(input.messages.lastIndexOf(lastUser)+1);
       const toolResults=suffix.filter(m=>m.role==='tool');
       requests.push({prompt,last:last?.role,toolResults});
-      const turn=prompt.includes('桌面启动实验')?'start':prompt.includes('微信查询进度')?'progress':prompt.includes('微信停止实验')?'stop':prompt.includes('微信启动新命令')?'remote_start':prompt.includes('微信询问方案')?'question':null;
+      const turn=prompt.includes('桌面启动实验')?'start':prompt.includes('微信查询进度')?'progress':prompt.includes('微信停止实验')?'stop':prompt.includes('微信作业通知')?'notify':prompt.includes('微信结束提醒')?'complete_notice':prompt.includes('微信启动新命令')?'remote_start':prompt.includes('微信询问方案')?'question':prompt.includes('隔离检查')?'isolation':null;
       if(turn==='progress'&&!progressReleased) await progressGate;
       if(turn==='remote_start' && JSON.stringify(input.messages).includes('This message is from WeChat.')) remoteHintSeen=true;
       if(!turn) throw Error('unexpected user prompt '+prompt);
       let tool, args;
       if(!toolResults.length){
-        if(turn==='start'){tool='mirally_run_command';args={command:'Write-Output "EXPERIMENT_PROGRESS_73"; Start-Sleep -Seconds 90',cwd:home,background:true};}
-        if(turn==='progress'){tool='mirally_job_list';args={};}
-        if(turn==='stop'){tool='mirally_stop_job';args={job_id:jobId};}
+        if(turn==='start'){tool=nativeJobs?'pwsh':'mirally_run_command';args=nativeJobs?{description:'启动测试作业',command:'[Console]::Out.WriteLine("EXPERIMENT_PROGRESS_73"); [Console]::Out.Flush(); Start-Sleep -Seconds 90',run_in_background:true}:{command:'Write-Output "EXPERIMENT_PROGRESS_73"; Start-Sleep -Seconds 90',cwd:home,background:true};}
+        if(turn==='progress'){tool=nativeJobs?'job_list':'mirally_job_list';args={};}
+        if(turn==='isolation'){tool='job_list';args={};}
+        if(turn==='stop'){tool=nativeJobs?'job_kill':'mirally_stop_job';args={job_id:jobId};}
+        if(turn==='notify'){tool='mirally_notify_job';args={job_id:jobId,kind:nativeJobs?'native':'shell'};}
+        if(turn==='complete_notice'){tool=nativeJobs?'pwsh':'mirally_run_command';args=nativeJobs?{description:'通知测试',command:'Start-Sleep -Seconds 6; Write-Output "COMPLETE_NOTICE"',run_in_background:true}:{command:'Start-Sleep -Seconds 6; Write-Output "COMPLETE_NOTICE"',cwd:home,background:true};}
         if(turn==='remote_start'){tool='mirally_run_command';args={command:`Set-Content -LiteralPath '${join(home,'remote-marker.txt').replaceAll("'","''")}' -Value yes`,cwd:home};}
         if(turn==='question'){tool='ask_user_question';args={questions:[{id:'mode',question:'请选择远程方案',options:[{label:'方案 A'},{label:'方案 B'}]},{id:'note',question:'请补充备注'}]};}
       }else if(turn==='progress'&&toolResults.length===1){
-        const found=JSON.stringify(toolResults[0]).match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i); if(!found)throw Error('no job id in '+JSON.stringify(toolResults));
-        jobId=found[0];tool='mirally_job_status';args={job_id:jobId};
+        const found=JSON.stringify(toolResults[0]).match(nativeJobs?/pwsh-[0-9a-f]{16}/i:/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i); if(!found)throw Error('no job id in '+JSON.stringify(toolResults));
+        jobId=found[0];tool=nativeJobs?'job_output':'mirally_job_status';args={job_id:jobId};
+      }else if(turn==='complete_notice'&&toolResults.length===1){
+        const found=JSON.stringify(toolResults[0]).match(nativeJobs?/pwsh-[0-9a-f]{16}/i:/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+        if(!found)throw Error('no notification job id in '+JSON.stringify(toolResults));
+        tool='mirally_notify_job';args={job_id:found[0],kind:nativeJobs?'native':'shell'};
       }
-      if(turn==='start'&&toolResults.length){const found=JSON.stringify(toolResults[0]).match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i); if(found)jobId=found[0];}
+      if(turn==='start'&&toolResults.length){const found=JSON.stringify(toolResults[0]).match(nativeJobs?/pwsh-[0-9a-f]{16}/i:/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i); if(found)jobId=found[0];}
       const delta=tool?{tool_calls:[{index:0,id:`call-${turn}-${toolResults.length}`,type:'function',function:{name:tool,arguments:JSON.stringify(args)}}]}:{content:`实验结果：${JSON.stringify(toolResults.at(-1)?.content??'无结果')}`};
       res.writeHead(200,{'content-type':'text/event-stream'});
       for(const frame of [{id:'fixture',choices:[{index:0,delta,finish_reason:null}]},{id:'fixture',choices:[{index:0,delta:{},finish_reason:tool?'tool_calls':'stop'}],usage:{prompt_tokens:10,completion_tokens:10,total_tokens:20}}])res.write(`data: ${JSON.stringify(frame)}\n\n`);
@@ -83,6 +91,17 @@ test('real session experiment is readable and controllable over bound Weixin', {
   const rpc=async(method,params={})=>(await api('/api/rpc',{method,params})).result;
   await rpc('settings.update',{patch:{model:{provider:'deepseek',api_format:'openai-chat',base_url:`http://127.0.0.1:${fixture.address().port}/v1`,api_key:'fixture',model_id:'fixture',reasoning_effort:'off',max_tokens:1024}}});
   const session=await api('/api/sessions',{title:'实验'},201);
+  let page;
+  if (process.env.MIRALLY_BG_GUI==='1') {
+    const require=createRequire(join(root,'integrations/openclaw/package.json'));
+    const browser=await require('playwright-core').chromium.launch({channel:'msedge',headless:true});
+    t.after(()=>browser.close());
+    page=await browser.newPage({viewport:{width:1280,height:900}});
+    await page.goto(`${runtime.url}/chat/main/${encodeURIComponent(session.id)}#token=${runtime.token}`);
+    const sidebar=page.locator('openclaw-app-sidebar');
+    await sidebar.getByText('实验',{exact:true}).waitFor({state:'visible',timeout:15000});
+    assert.equal(await sidebar.getByLabel('后台作业运行中').count(),0);
+  }
   await rpc('weixin.login.start');
   const pending=await until(async()=>{const status=await rpc('weixin.status');return status.state==='awaiting_confirmation'&&status;},'wechat login');
   await rpc('weixin.bind',{expected_revision:pending.revision,conversation_id:session.id});
@@ -90,13 +109,39 @@ test('real session experiment is readable and controllable over bound Weixin', {
   const approval=await until(async()=>(await rpc('action.approvals.list',{conversation_id:session.id})).approvals.find(a=>a.command_id==='desktop-start'),'desktop approval',5000).catch(async e=>{e.message+=` logs=${logs} errors=${modelErrors.map(x=>x.stack)} requests=${JSON.stringify(requests)} command=${JSON.stringify(await rpc('command.list',{conversation_id:session.id,command_id:'desktop-start'}))} history=${JSON.stringify(await api(`/api/sessions/${session.id}/history?events=1`))}`;throw e;});
   await rpc('action.approvals.decide',{approval_id:approval.id,conversation_id:session.id,allow:true});
   await until(()=>jobId,'job started',5000).catch(async e=>{e.message+=` requests=${JSON.stringify(requests)} errors=${modelErrors.map(x=>x.stack)} history=${JSON.stringify((await api(`/api/sessions/${session.id}/history?events=1`)).events.filter(x=>['tool/result','assistant/attempt','turn/end'].includes(x.type)))}`;throw e;});
+  await until(async()=>(await api('/api/sessions')).sessions.find(item=>item.id===session.id)?.background_job_count===1,'background job status');
+  if (page) {
+    const sidebar=page.locator('openclaw-app-sidebar');
+    const row=sidebar.getByText('实验',{exact:true}).locator('xpath=ancestor::a[1]');
+    await row.getByLabel('后台作业运行中').waitFor({state:'visible',timeout:15000});
+    assert.equal(await sidebar.getByLabel('后台作业运行中').count(),1);
+  }
   await until(async()=>(await rpc('command.list',{conversation_id:session.id,command_id:'desktop-start'})).commands.some(x=>x.state==='completed'),'desktop turn complete');
   const send=(id,text)=>queue.push({message_type:1,message_state:2,message_id:String(id),from_user_id:'owner',to_user_id:'bot',create_time_ms:Date.now(),context_token:'fixture-context',item_list:[{type:1,text_item:{text}}]});
   send(1,'微信查询进度');
   await until(()=>replies.includes('收到，正在处理。'),'receipt before model completes');
   assert.equal(replies.some(text=>text.includes('EXPERIMENT_PROGRESS_73')),false);
+  send('stop-reply','/stop');
+  await until(()=>replies.some(text=>text.includes('已停止当前会话的回复')),'stop only the in-flight reply');
   progressReleased=true;releaseProgress();
-  await until(()=>replies.some(text=>text.includes('EXPERIMENT_PROGRESS_73')),'progress reply');
+  const resumedAt=replies.length;send('resume-progress','微信查询进度');
+  await until(()=>replies.slice(resumedAt).some(text=>text.includes('实验结果')),'progress after stopping reply');
+  for(let i=0;nativeJobs && !replies.some(text=>text.includes('EXPERIMENT_PROGRESS_73')) && i<20;i++){
+    const previous=replies.length;await delay(500);send(`native-progress-${i}`,'微信查询进度');
+    await until(()=>replies.slice(previous).some(text=>text.includes('实验结果')),'native progress retry');
+  }
+  assert.ok(replies.some(text=>text.includes('EXPERIMENT_PROGRESS_73')),'actual native output is eventually available');
+  if(nativeJobs){
+    const other=await api('/api/sessions',{title:'独立会话'},201);
+    await api(`/api/sessions/${other.id}/messages`,{commandId:'isolation-check',text:'隔离检查'},202);
+    await until(async()=>(await rpc('command.list',{conversation_id:other.id,command_id:'isolation-check'})).commands.some(x=>x.state==='completed'),'other conversation job list');
+    const isolation=requests.findLast(item=>item.prompt.includes('隔离检查') && item.toolResults.length);
+    assert.ok(isolation);assert.doesNotMatch(JSON.stringify(isolation.toolResults),new RegExp(jobId));
+    assert.deepEqual(modelErrors,[]);
+  }
+  assert.equal(replies.some(text=>text.includes('提醒：后台作业')),false,'no job notice without the user asking for one');
+  const noticeBefore=replies.length;send('notify','微信作业通知，结束时提醒我');
+  await until(()=>replies.slice(noticeBefore).some(text=>text.includes('实验结果')&&text.includes('registered')),'notification registration');
   const previous=replies.length;send(3,'微信停止实验');
   const request=await until(()=>replies.slice(previous).find(text=>text.includes('/approve ')),'remote stop approval');
   const code=request.match(/\/approve ([0-9]{9})/)[1];send(4,`/deny ${code}`);
@@ -104,7 +149,19 @@ test('real session experiment is readable and controllable over bound Weixin', {
   const before=replies.length;send(5,'微信停止实验');
   const approved=await until(()=>replies.slice(before).find(text=>text.includes('/approve ')),'second remote stop approval');
   send(6,`/approve ${approved.match(/\/approve ([0-9]{9})/)[1]}`);
-  await until(()=>replies.slice(before).some(text=>text.includes('cancelled')),'stopped reply');
+  await until(()=>replies.slice(before).some(text=>nativeJobs?text.includes('cancellation'):text.includes('cancelled')),'stopped reply');
+  await until(async()=>(await api('/api/sessions')).sessions.find(item=>item.id===session.id)?.background_job_count===0,'background job stopped');
+  await until(()=>replies.some(text=>text.includes('提醒：后台作业已停止')),'job notice delivered to WeChat');
+  assert.equal(replies.filter(text=>text.includes('提醒：后台作业已停止')).length,1);
+  await rpc('settings.update',{patch:{action_approval_mode:'trusted'}});
+  const completeAt=replies.length;send('complete','微信结束提醒，完成后提醒我');
+  await until(()=>replies.slice(completeAt).some(text=>text.includes('实验结果')&&text.includes('registered')),'completion notification registered');
+  await until(()=>replies.slice(completeAt).some(text=>text.includes('提醒：后台作业完成')),'completed job notice delivered to WeChat');
+  await delay(1500);
+  assert.equal(replies.slice(completeAt).filter(text=>text.includes('提醒：后台作业完成')).length,1);
+  await rpc('settings.update',{patch:{action_approval_mode:'ask'}});
+  if (page) await page.locator('openclaw-app-sidebar').getByLabel('后台作业运行中').waitFor({state:'hidden',timeout:15000});
+  if(nativeJobs){assert.deepEqual(modelErrors,[]);return;}
   const startAt=replies.length;send(7,'微信启动新命令');
   const startReview=await until(()=>replies.slice(startAt).find(text=>text.includes('/approve ')),'remote command approval');
   assert.match(startReview,/remote-marker/);
@@ -189,11 +246,8 @@ test('real session experiment is readable and controllable over bound Weixin', {
   send(207,`切换 ${originalNumber}`);
   await until(async()=>(await rpc('weixin.status')).conversation_id===session.id,'Chinese return to original desktop conversation');
   assert.ok((await api(`/api/sessions/${session.id}/history`)).messages.some(message=>message.text==='桌面启动实验'));
-  // Existing work data remains visible; phone numbers select its exact bound session.
-  await rpc('work.create',{title:'实验监测',goal:'观察实验',conversation_id:target.id,request_id:'legacy-work-fixture'});
-  const worksAt=replies.length;send(208,'我的工作');
-  await until(()=>replies.slice(worksAt).some(text=>text.includes('1. 实验监测')),'numbered work list');
-  send(209,'进入工作 1');
-  await until(async()=>(await rpc('weixin.status')).conversation_id===target.id,'numbered work enters original conversation');
+  const progressAt=replies.length;send(208,'我的工作怎么样了？微信查询进度');
+  await until(()=>replies.slice(progressAt).some(text=>text.includes('实验结果')),'natural work question reaches model');
+  assert.ok((await api(`/api/sessions/${session.id}/history`)).messages.some(message=>message.role==='user' && message.text==='我的工作怎么样了？微信查询进度'));
   assert.deepEqual(modelErrors,[]);
 });

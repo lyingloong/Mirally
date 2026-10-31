@@ -25,6 +25,13 @@ class ConversationMetadataTests(unittest.TestCase):
     def patch(self, patch, version=1, identity="one"):
         return self.service.call("conversation.patch", {"conversation_id": identity, "expected_version": version, "patch": patch})
 
+    def test_conversation_organization_does_not_require_work_tables(self):
+        tables = {row[0] for row in self.service.db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        self.assertNotIn('works', tables)
+        self.assertNotIn('work_runs', tables)
+        self.create()
+        self.assertEqual(self.patch({'title': '新的标题'})['title'], '新的标题')
+
     def test_internal_activity_batch_is_bounded_and_returns_only_current_owner_metadata(self):
         self.create("one")
         self.create("two")
