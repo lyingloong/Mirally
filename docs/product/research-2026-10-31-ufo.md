@@ -172,6 +172,8 @@ UFO README 提到 Picture-in-Picture 桌面、跨设备 Galaxy 等。本文核�
 
 补充：Mirally 已有 `mirally/runtime/ufo/` 这套冻结适配，包含任务预算、停止/暂停/补充、动作准入、重新观察、截图隔离和结果归并；它证明了这些控制语义在真实 UFO 链路上可行，但默认产品不加载，也不应把默认入口重新接回 UFO。新桌面能力应借鉴这些语义，而不是复制 UFO 的 Agent 循环。
 
+Mirally 还有 `mirally/platform/activity/uia_worker.py`：隔离进程读取 UIA 树、密码/离屏子树排除、runtime id、Value/Text Pattern、焦点校验和“不可用就明确诊断”的约定。它可以作为桌面快照的读取基础，但有两点不能直接照搬：活动采集是默认关闭的隐私域，不能把已采集的活动数据当作当前桌面任务证据；它的 `max_nodes` 参数目前只传入、未在 `inspect_tree` 内截断，桌面快照必须自己保证节点上限。
+
 DSH 已有 `computer-use` 注册服务和实验性 Cua Driver provider，但 **Windows provider 尚未实现**（`cua` 的 README 明确说 Windows 是计划中的独立 provider）。因此 UFO 的 UIA 实现正好可以作为 Windows provider/产品工具的设计参考，但不能直接当作 DSH 现成能力。
 
 ## 4. 借鉴矩阵
@@ -303,6 +305,7 @@ mirally_desktop_action
 ### 6.5 依赖与实现位置
 
 - Python helper：`mirally/framework/desktop_control.py`（或 `mirally/platform/windows/desktop_control.py`），JSON stdio，使用现有 `uiautomation` 与 Pillow；不需要引入 UFO。
+- 复用 `mirally/platform/activity/uia_worker.py` 的树遍历、密码/离屏过滤和 pattern 读取，但按当前请求重新采集，并补上节点上限；不要读取活动库里的旧快照。
 - Node 工具：`kernel/dsh/packages/mirally/mirally-product/src/desktop-control.mjs`，注册工具、快照注册表、ActionGate 调用；由 `installProductTools()` 安装。
 - 默认关闭：设置项 `desktop_control_enabled`（读）与 `desktop_control_actions_enabled`（写）分开；动作还需要 ActionGate。
 - 若未来 DSH Windows computer-use provider 落地，可把 provider 内部实现替换/迁移，但产品工具名、审批和验证语义保持稳定。
@@ -391,6 +394,7 @@ UFO：
 Mirally：
 
 - `mirally/framework/desktop_observation.py`
+- `mirally/platform/activity/uia_worker.py`
 - `kernel/dsh/packages/mirally/mirally-product/src/desktop-observation.mjs`
 - `kernel/dsh/packages/mirally/mirally-product/src/action-gate.mjs`
 - `kernel/dsh/packages/mirally/mirally-product/src/browser-capabilities.mjs`
