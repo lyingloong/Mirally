@@ -57,7 +57,8 @@ jobs:
             'tests.test_framework_calendar',
             'tests.test_framework_weixin_assistant_security',
             'tests.test_framework_conversation_metadata',
-            'tests.test_framework_recaps'
+            'tests.test_framework_recaps',
+            'tests.test_agent_workflow'
           )
           .\.venv\Scripts\python.exe -m unittest @tests -v
 
