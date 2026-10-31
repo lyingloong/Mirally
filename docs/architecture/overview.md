@@ -22,7 +22,7 @@ flowchart LR
   Delivery --> Channels
 ```
 
-产品进程由 `python -m mirally` 启动：`mirally/framework_host.py` 解析 home、工具链和端口，构建并启动 `kernel/dsh/packages/mirally/mirally-product/start.mjs`，再打开 WebView2 窗口。浏览器模式只跳过原生窗口，仍连接同一 Host。
+产品进程由 `python -m mirally` 启动：`mirally/framework_host.py` 解析 home、工具链和端口，检查构建并启动 `kernel/dsh/packages/mirally/mirally-product/start.mjs`，再打开 WebView2 窗口。浏览器模式只跳过原生窗口，仍连接同一 Host。
 
 ## 模块与数据归属
 
