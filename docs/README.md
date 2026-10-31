@@ -26,6 +26,7 @@ Mirally 是面向 Windows 的 personal agent 应用，名称取自 MIRA + ally�
 | UI 交互规则和文字层级 | [UI 规范](standards/ui-guidelines.md) / [视觉基线](standards/ui-visual-system.md) |
 | 已实现、部分实现和未实现的能力 | [能力矩阵](reference/capabilities.md) |
 | 测试命令、已验证范围和未覆盖边界 | [验证](reference/validation.md) |
+| 仓库开发工作流、并发与合并闸门 | [AgentTeams 工作流](reference/agent-teams-workflow.md) |
 | 品牌、图标和资源位置 | [品牌](design/brand.md) |
 
 ## 目录结构
