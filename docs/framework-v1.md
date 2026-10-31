@@ -137,7 +137,7 @@ MCP 支持 stdio 与 Streamable HTTP，同一受监督连接提供 tools、resou
 
 ## 数据切换与回退
 
-默认不会扫描或导入现有机器的 OpenClaw 私有配置。旧入口仍为 `run.ps1 --openclaw`，历史分支已推送到 `2eeb778a`，迁移验收后冻结为回退参考，后续只维护新框架，见[维护切换](framework-migration-closure.md)。迁移必须先停止旧 Gateway、采集和 Memory 维护；使用明确导出的独立 JSON 配置，不跟随 include 或解析隐藏环境凭据。
+默认不会扫描或导入现有机器的 OpenClaw 私有配置。旧入口仍为 `run.ps1 --openclaw`，历史基线保留在提交 `2eeb778a`，迁移验收后冻结为回退参考，后续只维护新框架，见[维护切换](framework-migration-closure.md)。迁移必须先停止旧 Gateway、采集和 Memory 维护；使用明确导出的独立 JSON 配置，不跟随 include 或解析隐藏环境凭据。
 
 ```powershell
 .\.venv\Scripts\python.exe -m mirally.framework.migration --home "新的空数据目录" --memory-profile "显式旧 memory.yaml" --activity-profile "显式旧 activity.yaml" --openclaw-config "独立配置导出.json" --legacy-history "旧会话目录"

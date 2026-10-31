@@ -2,11 +2,11 @@
 
 状态：2026-10-22 第一版已接通并切换默认入口，实际实现、安装与边界见 [框架第一版](framework-v1.md)。长期方向继续演进，真实外部模型/桌面效果和全新机器安装不在本轮离线验收中。
 
-本分支 `codex/mirally-framework-refactor` 的目标是完整迁移至 Mirally 自有产品框架。用户已明确要求把 DSH 复制到仓库作为内核并直接修改；以[产品框架方案 v0.9](personal-agent-framework.md)、[扩展接口草案 v0.4](framework-extensions.md)为实施起点。原[调研证据](research/personal-agent-architecture-2026-10-22.md)保留历史上下文，不再要求先靠正式扩展证明所有接缝可用。
+原重构分支 `codex/mirally-framework-refactor` 的目标是完整迁移至 Mirally 自有产品框架；该分支已合入 `main` 并删除。用户已明确要求把 DSH 复制到仓库作为内核并直接修改；以[产品框架方案 v0.9](personal-agent-framework.md)、[扩展接口草案 v0.4](framework-extensions.md)为实施起点。原[调研证据](research/personal-agent-architecture-2026-10-22.md)保留历史上下文，不再要求先靠正式扩展证明所有接缝可用。
 
 ## 1. 已保存的基线
 
-- 维护分支：`feat/mirally-openclaw-desktop`。
+- 当时的维护分支：`feat/mirally-openclaw-desktop`（已删除）。
 - 提交：`2eeb778a54dd3ab0e707ec014adda2d3078e556c`，已 push，切换前通过远端引用核对。
 - 离线验证：Python `unittest discover -s tests -v` 共 877 项，2 项真实桌面测试跳过；Node 共 249 项，全部通过。Python 包含临时配置、隔离进程下的真实 UFO 导入及取消链路；这不等于真实桌面动作或模型效果验收。
 - 保存内容包括包名与配置目录迁移、Activity/Memory 和现有 UI 改进，以及目标架构文档。未将私有配置、凭据、调试数据纳入提交，未修改 UFO gitlink 或内核。

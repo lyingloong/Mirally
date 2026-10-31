@@ -1,6 +1,6 @@
 # Mirally
 
-本分支默认运行自有 personal agent 框架。前端以固定 OpenClaw Control UI `2026.9.6` 源码为来源，沿用原 Mirally 的布局习惯、视觉、主题、动画与伙伴体验；导航、设置和内容页改为 Mirally 自有产品，见[前端内容与导航](docs/mirally-frontend.md)。数据与动作接到 Mirally HTTP/SSE 宿主，同仓 DSH 承载唯一会话与模型主链。OpenClaw Gateway 不参与默认运行；旧后端维护基线保留在 `feat/mirally-openclaw-desktop` 的 `2eeb778a`。
+本分支默认运行自有 personal agent 框架。前端以固定 OpenClaw Control UI `2026.9.6` 源码为来源，沿用原 Mirally 的布局习惯、视觉、主题、动画与伙伴体验；导航、设置和内容页改为 Mirally 自有产品，见[前端内容与导航](docs/mirally-frontend.md)。数据与动作接到 Mirally HTTP/SSE 宿主，同仓 DSH 承载唯一会话与模型主链。OpenClaw Gateway 不参与默认运行；旧后端基线保留在 Git 历史的提交 `2eeb778a`。
 
 ```powershell
 py -3.10 -m venv .venv
@@ -19,7 +19,7 @@ py -3.10 -m venv .venv
 
 会话支持重命名、固定和归档恢复；历史材料与工具详情来自唯一 DSH 记录。模型连接可按对话/后台分配；网页与文件能力在设置中明确开启或授权。旧会话通过显式迁移独立归档，在关于页只读查看。具体范围见[迁移收尾与维护切换](docs/framework-migration-closure.md)。
 
-后续只维护新 Mirally/DSH 框架。旧 OpenClaw 分支、显式 `--openclaw` 回退入口和用户原数据保留，不再双线开发；旧版运行说明可在已推送的 [历史基线](https://github.com/lyingloong/openassist/tree/2eeb778a) 查看。迁移前先停止旧 Gateway、采集和记忆维护，不自动导入或删除私有数据。
+后续只维护新 Mirally/DSH 框架。显式 `--openclaw` 回退入口和用户原数据保留，不再双线开发；旧版运行说明可在 [历史基线](https://github.com/lyingloong/openassist/tree/2eeb778a) 查看。迁移前先停止旧 Gateway、采集和记忆维护，不自动导入或删除私有数据。
 
 ## 开发与验证
 
