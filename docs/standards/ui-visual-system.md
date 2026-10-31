@@ -1,13 +1,13 @@
 # Mirally 排版与视觉基线
 
-2026-10-28。沿用已有的蓝色品牌、明暗主题、布局、伙伴与动效；本轮统一文字的角色和阅读节奏。交互规则见 [UI 规范](ui-guidelines.md)。
+更新：2026-10-28，Asia/Shanghai。状态：现行。沿用已有的蓝色品牌、明暗主题、布局、伙伴与动效；本轮统一文字的角色和阅读节奏。交互规则见 [UI 规范](ui-guidelines.md)。
 
 ## 方法与依据
 
 - [Fluent 2 排版](https://fluent2.microsoft.design/typography)使用有明确角色的字号层级；[布局](https://fluent2.microsoft.design/layout)用间距表达内容关系。采用这套方法，不复制其全部数值或品牌。
 - [Windows Typography](https://learn.microsoft.com/en-us/windows/apps/design/signature-experiences/typography)强调平台字体、Regular/Semibold 及语言回退。Mirally 默认明暗主题使用系统字体，简体中文显式列出 Microsoft YaHei UI/微软雅黑，跨平台保留苹方和 Noto Sans CJK 回退；字体只从本机和已有资源读取，不新增在线字体依赖。其他主题和用户手动选择保留。
 - [Carbon Type Sets](https://www.carbondesignsystem.com/building-blocks/foundations/typography/type-sets)区分操作密集的 14px 和阅读展示的 16px 基准。因此聊天正文与导航、设置标签采用不同角色，而不全局机械放大。
-- [Codex 官方界面示例](https://learn.chatgpt.com/docs/features)和[发布介绍](https://openai.com/index/introducing-the-codex-app/)用于观察内容优先、分组导航和按需展开操作的组织方式；不能从截图猜测其精确字体或像素值。同仓 DSH 的 [字体角色](../kernel/dsh/packages/client/ui-theme/src/theme-settings.ts)、[字体回退](../kernel/dsh/packages/client/ui-theme/src/styles/base.css)及[对话宽度轴](../kernel/dsh/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css)作为源码参照：正文/代码/终端分工，正文与输入区保持共同边距；窄窗优先保护内容。本轮复用 Mirally 现有会话布局，不将这些 DSH UI 源码视为当前界面的实现，也不直接照搬其较小的代码字号。
+- [Codex 官方界面示例](https://learn.chatgpt.com/docs/features)和[发布介绍](https://openai.com/index/introducing-the-codex-app/)用于观察内容优先、分组导航和按需展开操作的组织方式；不能从截图猜测其精确字体或像素值。同仓 DSH 的 [字体角色](../../kernel/dsh/packages/client/ui-theme/src/theme-settings.ts)、[字体回退](../../kernel/dsh/packages/client/ui-theme/src/styles/base.css)及[对话宽度轴](../../kernel/dsh/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css)作为源码参照：正文/代码/终端分工，正文与输入区保持共同边距；窄窗优先保护内容。本轮复用 Mirally 现有会话布局，不将这些 DSH UI 源码视为当前界面的实现，也不直接照搬其较小的代码字号。
 - [WCAG 文字缩放](https://www.w3.org/WAI/WCAG22/Understanding/resize-text.html)和[对比度](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)用于验收：普通文字与背景至少 4.5:1；放大后仍能读取内容、使用操作。不是以某个字号、截图或单一比例宣称整个产品符合 WCAG。
 
 ## 当前文字角色
