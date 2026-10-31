@@ -176,6 +176,16 @@ Mirally 还有 `mirally/platform/activity/uia_worker.py`：隔离进程读取 UI
 
 DSH 已有 `computer-use` 注册服务和实验性 Cua Driver provider，但 **Windows provider 尚未实现**（`cua` 的 README 明确说 Windows 是计划中的独立 provider）。因此 UFO 的 UIA 实现正好可以作为 Windows provider/产品工具的设计参考，但不能直接当作 DSH 现成能力。
 
+### 3.1 为什么不直接接 UFO
+
+- **产品边界**：当前默认框架明确不加载 UFO 执行器、不注册相关模型工具；已有 `mirally/runtime/ufo` 只作参考/冻结适配。把 UFO 接回默认入口会推翻这条边界。
+- **双循环/双历史**：UFO 有自己的 Host/App 循环、Context、Blackboard、Session 和结果判定；与 DSH 的单一 Session/模型主链并存会产生第二份推理与状态，难以保证“一个 transcript”。
+- **依赖与部署**：UFO 需要 pywinauto、pyautogui、comtypes、FAISS、sentence-transformers 等；OmniParser 还要额外视觉服务。默认产品不应为桌面能力背这些依赖。
+- **审批边界**：UFO 的 `CONFIRM` 不能替代 Mirally ActionGate 的会话/命令/来源绑定和微信确认码；两条审批链并存会出现“UI 显示未批准、UFO 已执行”的风险。
+- **质量证据**：UFO 的论文/README 成功率不是 Mirally 应用矩阵的验收结果；PiP 甚至与 FAQ 矛盾。先借机制、做小范围实测，比整体接入可控。
+
+所以本文的建议是“**借接口与执行语义，不借运行时**”。
+
 ## 4. 借鉴矩阵
 
 ### 直接借
@@ -309,6 +319,7 @@ mirally_desktop_action
 - Node 工具：`kernel/dsh/packages/mirally/mirally-product/src/desktop-control.mjs`，注册工具、快照注册表、ActionGate 调用；由 `installProductTools()` 安装。
 - 默认关闭：设置项 `desktop_control_enabled`（读）与 `desktop_control_actions_enabled`（写）分开；动作还需要 ActionGate。
 - 若未来 DSH Windows computer-use provider 落地，可把 provider 内部实现替换/迁移，但产品工具名、审批和验证语义保持稳定。
+- 先做产品工具而不是 DSH computer-use provider：后者目前只有注册服务，Windows provider 未实现；实验性 Cua provider 也不是 Windows 方案，且 provider 工具不自动经过 Mirally ActionGate。产品工具可以直接复用现有会话、审批、附件和来源策略，等接口稳定后再迁移。
 
 ### 6.6 验收
 
