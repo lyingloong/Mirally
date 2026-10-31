@@ -9,6 +9,7 @@ Mirally 是面向 Windows 的 personal agent 应用，名称取自 MIRA + ally�
 | 我想了解 | 文档 |
 | --- | --- |
 | 安装、启动、日常使用 | [项目 README](../README.md) |
+| 按功能快速找到代码入口、状态 owner 和测试 | [Feature map](reference/feature-map.md) |
 | 当前系统由哪些模块组成、数据归谁、默认行为是什么 | [系统概览](architecture/overview.md) |
 | 产品长期方向、设计原则和暂不实现的范围 | [产品方向](product/vision.md) |
 | 按时间查看产品决策、取舍与演进 | [产品思考记录](product/product-notes.md) |
