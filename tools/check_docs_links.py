@@ -5,8 +5,8 @@ Run from the repository root:
     python tools/check_docs_links.py
 
 External URLs, anchors and fenced code blocks are ignored. Upstream kernel and
-frontend source documentation is not scanned; only files this repository
-maintains are checked.
+frontend source documentation is not scanned; `kernel/dsh/UPSTREAM.md` is an
+exception because Mirally maintains it and it links into product documentation.
 """
 
 from __future__ import annotations
@@ -18,6 +18,8 @@ from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[1]
 SKIP_PARTS = {"node_modules", ".venv", ".git", "output", ".artifacts", "UFO", "dsh"}
+# The kernel tree is upstream source, but this one file is maintained by Mirally.
+FORCE_CHECK = {ROOT / "kernel" / "dsh" / "UPSTREAM.md"}
 LINK = re.compile(r"!?\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)")
 FENCE = re.compile(r"```.*?```|~~~.*?~~~", re.DOTALL)
 
@@ -28,6 +30,7 @@ def owned_files() -> list[Path]:
     files += sorted((ROOT / "mirally").rglob("*.md"))
     files += [
         ROOT / "kernel" / "README.md",
+        ROOT / "kernel" / "dsh" / "UPSTREAM.md",
         ROOT / "frontend" / "control-ui" / "README.md",
         ROOT / "frontend" / "control-ui" / "UPSTREAM.md",
         ROOT / "frontend" / "control-ui" / "THIRD_PARTY_NOTICES.md",
@@ -38,7 +41,7 @@ def owned_files() -> list[Path]:
     for path in files:
         if not path.is_file():
             continue
-        if any(part in SKIP_PARTS for part in path.relative_to(ROOT).parts):
+        if any(part in SKIP_PARTS for part in path.relative_to(ROOT).parts) and path not in FORCE_CHECK:
             continue
         result.append(path)
     return sorted(set(result))

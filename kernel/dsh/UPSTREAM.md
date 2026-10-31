@@ -4,9 +4,9 @@
 
 2026-10-31：Mirally 转为通用会话入口，移除产品专用工作 owner、微信工作命令和工作工具；微信助理查询目标会话所属的 DSH/Mirally 后台作业，并可委托原会话继续。停止回复不再主动终止后台作业；显式停止和权限校验沿用各执行器。用户明确要求时可为所属作业登记结束提醒，复用现有投递；通知登记只在宿主运行期间有效。桌面定时回合可使用通用 PowerShell 作业。不引入新的实验执行器或第二条模型链；用户数据无需迁移，旧工作表不再使用。
 
-2026-10-29：新增 Mirally 日历工具与渠道提醒，以及会话定时执行。定时执行复用 DSH schedule 的纯时间规则，以产品 owner 保存动作并经 Mirally 会话准入和既有权限运行，不挂载另一份上游调度 runtime；回复结束与目标成功分开。微信问题改为逐题投递，数字选择仍受绑定与送达校验。见[日历与定时能力](../../docs/calendar-and-scheduling.md)。
+2026-10-29：新增 Mirally 日历工具与渠道提醒，以及会话定时执行。定时执行复用 DSH schedule 的纯时间规则，以产品 owner 保存动作并经 Mirally 会话准入和既有权限运行，不挂载另一份上游调度 runtime；回复结束与目标成功分开。微信问题改为逐题投递，数字选择仍受绑定与送达校验。见[日历与定时能力](../../docs/architecture/scheduling.md)。
 
-2026-10-27：产品宿主增加 `work-host.mjs`、`mobile.mjs` 与微信工作适配，接入 Python 工作/真实脚本监督、独立手机配对与有限 RPC。远程消息沿用唯一 DSH 历史和实际 command 的工具边界，模型不能签发运行审批；工作结果不复制另一份 transcript。手机前端复用原主题与组件，私人 HTTPS 转发另配置。未修改上游许可证、UFO、gitlink 或 `.gitmodules`；实际边界及验证见[手机工作说明](../../docs/mobile-work-guide.md)。
+2026-10-27：产品宿主增加 `work-host.mjs`、`mobile.mjs` 与微信工作适配，接入 Python 工作/真实脚本监督、独立手机配对与有限 RPC。远程消息沿用唯一 DSH 历史和实际 command 的工具边界，模型不能签发运行审批；工作结果不复制另一份 transcript。手机前端复用原主题与组件，私人 HTTPS 转发另配置。未修改上游许可证、UFO、gitlink 或 `.gitmodules`；实际边界及验证见[消息渠道](../../docs/architecture/channels.md)，历史工作入口细节由 Git 历史保留。
 
 同日按用户的无自有云服务器条件，微信成为当前手机主入口，网页保留可选。微信适配补充有界正文历史、真实运行日志和仅切微信渠道的通知开关，沿用身份/路由版本核验与持久 outbox；不要求网页可达，不引入第二套 Agent 或新服务器依赖。
 
@@ -65,9 +65,9 @@
 
 - 2026-10-29：微信普通文字接入后通过独立 `received:` outbox 回执及时反馈，不等模型整轮完成；只允许本进程活跃回合的反馈发送，完成或重启取消遗留处理中提示，投递失败不重跑输入。固定中文会话命令与标题精确匹配复用原 owner/select 及绑定版本保护；产品 owner 内部单次查询合并标题和短编号候选，冲突要求完整编号，不从动态分页推断唯一，不引入模型路由。真实 DSH、Python sidecar、本地模型与 iLink fixture 验证了等待反馈和原会话续聊，不代发真实微信。
 
-- 2026-10-28：默认 Mirally 从手写最小树改为通过 DSH 原生 patch 引擎继承完整 `dsh-base`（全部 96 个声明），再叠加产品设置与数据边界。新增 base、ask-user workspace 依赖和原生交互/子代理归属桥；普通停止保留完整 Session，用户分叉复用原生种子前缀和继承标记。product schema 8 仅保存分叉引用及来源依赖。原生压缩、文件/PowerShell、子代理模型请求与提问/计划 UI 已独立验收；运行范围和关闭理由见根[原生 DSH 运行时](../../docs/framework-native-dsh.md)。
+- 2026-10-28：默认 Mirally 从手写最小树改为通过 DSH 原生 patch 引擎继承完整 `dsh-base`（全部 96 个声明），再叠加产品设置与数据边界。新增 base、ask-user workspace 依赖和原生交互/子代理归属桥；普通停止保留完整 Session，用户分叉复用原生种子前缀和继承标记。product schema 8 仅保存分叉引用及来源依赖。原生压缩、文件/PowerShell、子代理模型请求与提问/计划 UI 已独立验收；运行范围和关闭理由见根[原生 DSH 运行时](../../docs/architecture/native-dsh.md)。
 
-- 2026-10-28：修复产品上下文提供者被原生可选上下文开关屏蔽的问题。停止导致原生会话换代时，产品按来源当前授权投影有界历史文字，并让新代次继承来源依赖；不回放旧工具结果、工具回合的助手文字或附件。微信输入提示按远程控制设置反映实际可用范围。内核组件实际挂载情况和缺口见根目录 [DSH 能力对照](../../docs/dsh-capability-audit.md)。
+- 2026-10-28：修复产品上下文提供者被原生可选上下文开关屏蔽的问题。停止导致原生会话换代时，产品按来源当前授权投影有界历史文字，并让新代次继承来源依赖；不回放旧工具结果、工具回合的助手文字或附件。微信输入提示按远程控制设置反映实际可用范围。内核组件实际挂载情况和缺口见根目录 [能力矩阵](../../docs/reference/capabilities.md)。
 
 - 2026-10-28：Mirally 自有动作审批可按用户设置逐次确认、单会话临时信任或持续信任；微信继承由单独开关控制。未挂载 DSH 沙箱执行器，也未将 DSH 的 `approval: never` 当作自动批准；后续接入原生执行器须明确映射与验收。
 
@@ -77,8 +77,8 @@
 
 2026-10-26 微信第一版：`mirally-product/src/channels/` 在同一产品 Host 增加 iLink 通信与渠道协调，独立实现协议而不加载 OpenClaw SDK/Gateway；固定腾讯参考版本、许可证与协议边界见[渠道说明](packages/mirally/mirally-product/src/channels/README.md)。产品工具执行按实际消费 command 检查微信只读范围，pre-step 则检查尚未追加到 transcript 的准入命令；恢复时保留原生历史，不自动重放微信输入。Python schema 4 管理绑定、DPAPI 凭据、入站与 outbox，前端沿用原设置组件。真实 DSH+回环 iLink、工具边界及 Edge 页面分别验收，另完成当前用户账号一次扫码和文字往返；不推断其他账号或长期推送均可用。
 
-2026-10-26 迁移收尾：Conversation 元数据由 Python owner 持久化，Host 提供带版本校验的 PATCH；历史材料和工具由 `history-presentation.mjs` 从原生所有代次派生，并以真实引用授权附件。`basic-capabilities.mjs` 在原工具管线组合文件授权根、工作区文字写入与可选网页 search/fetch；不新增终端、浏览器或模型主循环。旧档案由产品侧独立只读归档，不伪造原生会话。具体范围及新旧维护切换见根[迁移收尾](../../docs/framework-migration-closure.md)。
+2026-10-26 迁移收尾：Conversation 元数据由 Python owner 持久化，Host 提供带版本校验的 PATCH；历史材料和工具由 `history-presentation.mjs` 从原生所有代次派生，并以真实引用授权附件。`basic-capabilities.mjs` 在原工具管线组合文件授权根、工作区文字写入与可选网页 search/fetch；不新增终端、浏览器或模型主循环。旧档案由产品侧独立只读归档，不伪造原生会话。具体范围及新旧维护切换由 Git 历史与[产品思考记录](../../docs/product/product-notes.md)保留。
 
-2026-10-25 模型与呈现补充：`mirally-product` 明确区分服务默认、关闭与推理档位，将 DeepSeek Chat 方言和 Responses 字段交给现有 PiAI 实现；修复旧 `off: ''` 的非法推理声明，保留协议回放和凭据代次。原生 reasoning 块与工具参数/结果投影给产品 UI，不增设聊天事实来源；辅助模型调用须检查原生终止错误，不能把失败当作空文字成功。实际供应商与离线 wire 验证范围另见根 [DeepSeek 实测](../../docs/deepseek-compatibility.md)。
+2026-10-25 模型与呈现补充：`mirally-product` 明确区分服务默认、关闭与推理档位，将 DeepSeek Chat 方言和 Responses 字段交给现有 PiAI 实现；修复旧 `off: ''` 的非法推理声明，保留协议回放和凭据代次。原生 reasoning 块与工具参数/结果投影给产品 UI，不增设聊天事实来源；辅助模型调用须检查原生终止错误，不能把失败当作空文字成功。实际供应商与离线 wire 验证范围另见根 [模型](../../docs/architecture/models.md)。
 
-固定源码来源与许可证保留。此前第一版的 9 项完整内核源码构建检查、MCP 协议单测与模型/会话及产品领域回环联调属于对应版本的记录；此前简化 UI 的离线 Edge 结果不能证明本轮原页面与交互已恢复。原页面接缝与真实交互须按本轮独立验收记录核对。没有验证全部上游 workspace 的所有测试；早期验收未调用真实外部模型或执行真实桌面动作，2026-10-25 的 DeepSeek 实测范围单独列于上方链接。当前范围与命令见 [框架第一版](../../docs/framework-v1.md)和[重构实施计划](../../docs/framework-refactor-plan.md)。
+固定源码来源与许可证保留。此前第一版的 9 项完整内核源码构建检查、MCP 协议单测与模型/会话及产品领域回环联调属于对应版本的记录；此前简化 UI 的离线 Edge 结果不能证明本轮原页面与交互已恢复。原页面接缝与真实交互须按本轮独立验收记录核对。没有验证全部上游 workspace 的所有测试；早期验收未调用真实外部模型或执行真实桌面动作，2026-10-25 的 DeepSeek 实测范围单独列于上方链接。当前范围与命令见 [系统概览](../../docs/architecture/overview.md)；重构历史由 Git 历史与[产品思考记录](../../docs/product/product-notes.md)保留。
