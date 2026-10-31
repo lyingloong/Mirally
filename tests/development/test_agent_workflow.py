@@ -9,10 +9,10 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from tools import agent_workflow as wf  # noqa: E402
+from tools.dev_workflow import agent_workflow as wf  # noqa: E402
 
 
 def make_config(**overrides):

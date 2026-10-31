@@ -181,7 +181,7 @@ free_slots     = max(0, concurrency - load)
 
 ## 状态助手
 
-`tools/agent_workflow.py` 只管理状态和调度计算，不调用 GitHub 或 AgentTeams API。队长用它避免手算并发和漏掉人工闸门。以下命令中的 `python` 代指共享 `.venv` 解释器。
+`tools/dev_workflow/agent_workflow.py` 只管理状态和调度计算，不调用 GitHub 或 AgentTeams API。队长用它避免手算并发和漏掉人工闸门。以下命令中的 `python` 代指共享 `.venv` 解释器。
 
 初始化：
 
@@ -193,42 +193,42 @@ C:\Users\lazeloong\Code\Mirally\.venv\Scripts\python.exe tools\agent_workflow.py
 
 ```powershell
 # 用户提供开发点；直接进入 queued
-python tools/agent_workflow.py add --source user --title "优化微信端文字提示" --risk normal
+python tools/dev_workflow/agent_workflow.py add --source user --title "优化微信端文字提示" --risk normal
 
 # AI 提案（默认 proposed，需用户批准）
-python tools/agent_workflow.py add --source agent --title "补齐失败重试文案" --risk low
+python tools/dev_workflow/agent_workflow.py add --source agent --title "补齐失败重试文案" --risk low
 
 # 审查当前调度：load / free / 队首 / 下一步 action
-python tools/agent_workflow.py status
-python tools/agent_workflow.py next
+python tools/dev_workflow/agent_workflow.py status
+python tools/dev_workflow/agent_workflow.py next
 
 # 用户批准 AI 提案；或满足条件时自动启动
-python tools/agent_workflow.py promote dev-0002
-python tools/agent_workflow.py promote dev-0002 --auto
+python tools/dev_workflow/agent_workflow.py promote dev-0002
+python tools/dev_workflow/agent_workflow.py promote dev-0002 --auto
 
 # 有空槽时开始开发；记录分支、worktree、PR 和任务
-python tools/agent_workflow.py start dev-0001
-python tools/agent_workflow.py set-status dev-0001 implementing \
+python tools/dev_workflow/agent_workflow.py start dev-0001
+python tools/dev_workflow/agent_workflow.py set-status dev-0001 implementing \
   --branch feat/weixin-text --worktree C:\Users\lazeloong\Code\Mirally-weixin-text \
   --pr 12 --task implementation=t-abc
 
 # 审查结果
-python tools/agent_workflow.py review-pass dev-0001
-python tools/agent_workflow.py review-fail dev-0001 --reason "失败文案不可操作"
+python tools/dev_workflow/agent_workflow.py review-pass dev-0001
+python tools/dev_workflow/agent_workflow.py review-fail dev-0001 --reason "失败文案不可操作"
 
 # 用户批准合并（只允许队首）；合并完成后记录
-python tools/agent_workflow.py merge-approved dev-0001
-python tools/agent_workflow.py merge-done dev-0001
+python tools/dev_workflow/agent_workflow.py merge-approved dev-0001
+python tools/dev_workflow/agent_workflow.py merge-done dev-0001
 
 # 用户退回合并
-python tools/agent_workflow.py merge-rejected dev-0001 --reason "语气不合适"
+python tools/dev_workflow/agent_workflow.py merge-rejected dev-0001 --reason "语气不合适"
 
 # 配额阻塞与恢复
-python tools/agent_workflow.py block dev-0001 --reason quota
-python tools/agent_workflow.py resume dev-0001
+python tools/dev_workflow/agent_workflow.py block dev-0001 --reason quota
+python tools/dev_workflow/agent_workflow.py resume dev-0001
 
 # 校验状态
-python tools/agent_workflow.py validate
+python tools/dev_workflow/agent_workflow.py validate
 ```
 
 命令输出均为 JSON（`status` 加 `--json` 也是），便于队长读取。`set-status` 不能直接设置 `blocked`、`awaiting_merge`、`merging`、`done`，必须使用对应专用命令。

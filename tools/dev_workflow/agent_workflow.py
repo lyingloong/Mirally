@@ -7,7 +7,7 @@ not call GitHub or the AgentTeams API.
 
 State and local config live under ``output/agent-workflow/`` by default (the
 directory is gitignored). The tracked process definition is
-``docs/reference/agent-teams-workflow.md``.
+``docs/development/agent-teams-workflow.md``.
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_STATE_PATH = REPO_ROOT / "output" / "agent-workflow" / "state.json"
 DEFAULT_CONFIG_PATH = REPO_ROOT / "output" / "agent-workflow" / "config.json"
 

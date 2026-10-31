@@ -57,8 +57,7 @@ jobs:
             'tests.test_framework_calendar',
             'tests.test_framework_weixin_assistant_security',
             'tests.test_framework_conversation_metadata',
-            'tests.test_framework_recaps',
-            'tests.test_agent_workflow'
+            'tests.test_framework_recaps'
           )
           .\.venv\Scripts\python.exe -m unittest @tests -v
 
@@ -75,3 +74,23 @@ jobs:
             'tests/test_control_ui_office.cjs'
           )
           node --test @tests
+
+  # Development-only tooling; intentionally has no product dependencies or venv.
+  workflow-tooling:
+    name: Development workflow tooling
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Test workflow state manager
+        run: python -m unittest tests.development.test_agent_workflow -v
