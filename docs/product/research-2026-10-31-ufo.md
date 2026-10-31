@@ -9,7 +9,7 @@
 UFO 值得借的不是“再做一个 Agent 框架”，而是三样东西：
 
 1. **桌面能力底座**：UIA 控件树、稳定的控件快照、带编号的标注截图、目标校验、GUI/API 混合执行、应用级 API 工具。
-2. **执行纪律**：先观察再动作、动作后重新观察验证、目标 ID 过期即拒绝、敏感动作确认、停止后不再准入、失败不盲目重放。
+2. **执行纪律**：先观察再动作、动作后用新观察核对（而不是把“已发送”当成功）、目标 ID 过期即拒绝、敏感动作确认、停止后不再准入、失败不盲目重放。
 3. **应用知识与工具组织**：按应用组织工具命名空间、按需加载帮助文档/示例、优先 API 再 GUI。
 
 Mirally 不应该借的是：
@@ -195,7 +195,7 @@ DSH 已有 `computer-use` 注册服务和实验性 Cua Driver provider，但 **W
 | UIA 控件树 + 紧凑 `{id,name,type}` 列表 | 桌面快照工具 | 降低模型猜测，控制 token |
 | 带编号标注截图（SoM） | 快照工具返回附件 | 视觉定位更稳，保留无标注图对照 |
 | 目标 ID 只在当前快照有效 | 快照注册表 + 动作校验 | 防止旧坐标/旧控件误操作 |
-| 动作后重新观察/验证 | 动作结果 `dispatched/verified` | 不把“已发送”当成功 |
+| 动作后用新观察核对的纪律 | 动作结果 `dispatched/verified` | 不把“已发送”当成功 |
 | 数据收集 vs 动作工具划分 | 工具元数据与审批策略 | 读操作与副作用分开 |
 | 按应用组织工具命名空间 | MCP/扩展配置 | 避免工具目录膨胀 |
 | Office/PDF API 工具 | 可选 MCP/插件包 | 结构化任务比 GUI 稳 |
@@ -315,7 +315,7 @@ mirally_desktop_action
 ### 6.5 依赖与实现位置
 
 - Python helper：`mirally/framework/desktop_control.py`（或 `mirally/platform/windows/desktop_control.py`），JSON stdio，使用现有 `uiautomation` 与 Pillow；不需要引入 UFO。
-- 复用 `mirally/platform/activity/uia_worker.py` 的树遍历、密码/离屏过滤和 pattern 读取，但按当前请求重新采集，并补上节点上限；不要读取活动库里的旧快照。
+- 复用/抽取 `mirally/platform/activity/uia_worker.py` 的树遍历、密码/离屏过滤和 pattern 读取，但按当前请求重新采集，并补上节点上限；不要读取活动库里的旧快照。
 - Node 工具：`kernel/dsh/packages/mirally/mirally-product/src/desktop-control.mjs`，注册工具、快照注册表、ActionGate 调用；由 `installProductTools()` 安装。
 - 默认关闭：设置项 `desktop_control_enabled`（读）与 `desktop_control_actions_enabled`（写）分开；动作还需要 ActionGate。
 - 若未来 DSH Windows computer-use provider 落地，可把 provider 内部实现替换/迁移，但产品工具名、审批和验证语义保持稳定。
