@@ -6,7 +6,7 @@ import json
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -321,17 +321,17 @@ class QuotaTests(unittest.TestCase):
 
     def test_resume_restores_previous_status_and_primary_route(self):
         wf.block_point(self.state, self.config, self.point["id"], reason="quota")
-        wf.resume_point(self.state, self.point["id"])
+        wf.resume_point(self.state, self.config, self.point["id"])
         self.assertEqual(self.point["status"], "specifying")
         self.assertIsNone(self.point["fallback"])
 
     def test_backoff_grows_and_retry_limit_is_reported(self):
         wf.block_point(self.state, self.config, self.point["id"], reason="quota")
-        wf.resume_point(self.state, self.point["id"])
+        wf.resume_point(self.state, self.config, self.point["id"])
         _, second = wf.block_point(self.state, self.config, self.point["id"], reason="quota")
         self.assertEqual(second["wait_minutes"], 60)
         self.assertFalse(second["retry_exhausted"])
-        wf.resume_point(self.state, self.point["id"])
+        wf.resume_point(self.state, self.config, self.point["id"])
         _, third = wf.block_point(self.state, self.config, self.point["id"], reason="quota")
         self.assertEqual(third["wait_minutes"], 120)
         self.assertTrue(third["retry_exhausted"])
@@ -341,6 +341,138 @@ class QuotaTests(unittest.TestCase):
         self.assertEqual(result["wait_minutes"], 10)
         self.assertIsNone(result["fallback"])
         self.assertFalse(wf.build_summary(self.state, self.config)["paused"])
+
+
+class AdmissionTests(unittest.TestCase):
+    def test_resume_keeps_blocked_when_the_slot_was_taken(self):
+        config = make_config(concurrency=1)
+        state = wf.empty_state()
+        first = wf.new_point(state, source="user", title="first")
+        second = wf.new_point(state, source="user", title="second")
+        wf.start_point(state, config, first["id"])
+        wf.block_point(state, config, first["id"], reason="external")
+        wf.start_point(state, config, second["id"])
+        with self.assertRaises(wf.WorkflowError):
+            wf.resume_point(state, config, first["id"])
+        self.assertEqual(first["status"], "blocked")
+        self.assertEqual(second["status"], "specifying")
+        wf.block_point(state, config, second["id"], reason="external")
+        wf.resume_point(state, config, first["id"])
+        self.assertEqual(first["status"], "specifying")
+
+    def test_resume_rechecks_ai_in_flight_cap(self):
+        config = make_config()
+        state = wf.empty_state()
+        first = wf.new_point(state, source="agent", title="first", risk="low")
+        second = wf.new_point(state, source="agent", title="second", risk="low")
+        wf.promote_point(state, config, first["id"], auto=True)
+        wf.start_point(state, config, first["id"])
+        wf.block_point(state, config, first["id"], reason="external")
+        wf.promote_point(state, config, second["id"], auto=True)
+        wf.start_point(state, config, second["id"])
+        with self.assertRaises(wf.WorkflowError):
+            wf.resume_point(state, config, first["id"])
+        self.assertEqual(first["status"], "blocked")
+        self.assertEqual(second["status"], "specifying")
+
+    def test_resume_agent_specifying_respects_user_priority(self):
+        config = make_config(concurrency=1)
+        state = wf.empty_state()
+        agent = wf.new_point(state, source="agent", title="agent", risk="low")
+        wf.promote_point(state, config, agent["id"], auto=True)
+        wf.start_point(state, config, agent["id"])
+        wf.block_point(state, config, agent["id"], reason="external")
+        wf.new_point(state, source="user", title="user")
+        with self.assertRaises(wf.WorkflowError):
+            wf.resume_point(state, config, agent["id"])
+        self.assertEqual(agent["status"], "blocked")
+
+    def test_set_status_cannot_bypass_start_admission(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state_path = Path(directory) / "state.json"
+            config_path = Path(directory) / "config.json"
+            output = io.StringIO()
+            stderr = io.StringIO()
+            with redirect_stdout(output), redirect_stderr(stderr):
+                self.assertEqual(wf.main(["--state", str(state_path), "--config", str(config_path), "init"]), 0)
+                wf.write_json(config_path, make_config(concurrency=1))
+                for title in ("first", "second"):
+                    self.assertEqual(
+                        wf.main(
+                            [
+                                "--state",
+                                str(state_path),
+                                "--config",
+                                str(config_path),
+                                "add",
+                                "--source",
+                                "user",
+                                "--title",
+                                title,
+                            ]
+                        ),
+                        0,
+                    )
+                self.assertEqual(wf.main(["--state", str(state_path), "--config", str(config_path), "start", "dev-0001"]), 0)
+                self.assertEqual(
+                    wf.main(
+                        [
+                            "--state",
+                            str(state_path),
+                            "--config",
+                            str(config_path),
+                            "set-status",
+                            "dev-0002",
+                            "specifying",
+                        ]
+                    ),
+                    2,
+                )
+            state = wf.load_state(state_path)
+            self.assertEqual(wf.point_by_id(state, "dev-0002")["status"], "queued")
+
+    def test_set_status_cannot_bypass_promote(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state_path = Path(directory) / "state.json"
+            config_path = Path(directory) / "config.json"
+            output = io.StringIO()
+            stderr = io.StringIO()
+            with redirect_stdout(output), redirect_stderr(stderr):
+                self.assertEqual(wf.main(["--state", str(state_path), "--config", str(config_path), "init"]), 0)
+                self.assertEqual(
+                    wf.main(
+                        [
+                            "--state",
+                            str(state_path),
+                            "--config",
+                            str(config_path),
+                            "add",
+                            "--source",
+                            "agent",
+                            "--title",
+                            "agent",
+                            "--risk",
+                            "low",
+                        ]
+                    ),
+                    0,
+                )
+                self.assertEqual(
+                    wf.main(
+                        [
+                            "--state",
+                            str(state_path),
+                            "--config",
+                            str(config_path),
+                            "set-status",
+                            "dev-0001",
+                            "queued",
+                        ]
+                    ),
+                    2,
+                )
+            state = wf.load_state(state_path)
+            self.assertEqual(wf.point_by_id(state, "dev-0001")["status"], "proposed")
 
 
 class ValidationTests(unittest.TestCase):

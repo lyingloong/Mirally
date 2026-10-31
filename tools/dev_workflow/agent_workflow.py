@@ -325,6 +325,17 @@ def _quota_blocked(state: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def _active_auto_others(state: dict[str, Any], point: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        other
+        for other in state["points"]
+        if other["id"] != point["id"]
+        and other["source"] == "agent"
+        and other.get("auto_started")
+        and other["status"] in ACTIVE_STATUSES
+    ]
+
+
 def _auto_today_count(state: dict[str, Any]) -> int:
     today = utcnow().date().isoformat()
     return sum(
@@ -528,15 +539,7 @@ def start_point(state: dict[str, Any], config: dict[str, Any], point_id: str) ->
         if len(summary["user_pending"]) >= summary["free_slots"]:
             raise WorkflowError("user pending points must fill the available slots first")
     if point["source"] == "agent" and point.get("auto_started"):
-        active_auto_others = [
-            other
-            for other in state["points"]
-            if other["id"] != point["id"]
-            and other["source"] == "agent"
-            and other.get("auto_started")
-            and other["status"] in ACTIVE_STATUSES
-        ]
-        if len(active_auto_others) >= int(config["max_auto_agent_in_flight"]):
+        if len(_active_auto_others(state, point)) >= int(config["max_auto_agent_in_flight"]):
             raise WorkflowError("AI auto-start in-flight cap reached")
     point["status"] = "specifying"
     point["started_at"] = iso(utcnow())
@@ -650,13 +653,30 @@ def block_point(
     return point, result
 
 
-def resume_point(state: dict[str, Any], point_id: str) -> dict[str, Any]:
+def resume_point(state: dict[str, Any], config: dict[str, Any], point_id: str) -> dict[str, Any]:
     point = point_by_id(state, point_id)
     if point["status"] != "blocked":
         raise WorkflowError(f"{point_id} is not blocked")
     previous = point.get("blocked_from_status")
     if previous not in STATUSES or previous == "blocked":
         raise WorkflowError(f"{point_id} has no valid previous status")
+    if previous in ACTIVE_STATUSES:
+        if any(
+            other["id"] != point["id"]
+            and other["status"] == "blocked"
+            and other.get("blocked_reason") == "quota"
+            for other in state["points"]
+        ):
+            raise WorkflowError("cannot resume: another quota block still pauses the workflow")
+        summary = build_summary(state, config)
+        if summary["free_slots"] <= 0:
+            raise WorkflowError("cannot resume: concurrency is full; point kept blocked")
+        if previous == "specifying" and point["source"] == "agent" and summary["user_pending"]:
+            if len(summary["user_pending"]) >= summary["free_slots"]:
+                raise WorkflowError("cannot resume: user pending points need the available slots")
+        if point["source"] == "agent" and point.get("auto_started"):
+            if len(_active_auto_others(state, point)) >= int(config["max_auto_agent_in_flight"]):
+                raise WorkflowError("cannot resume: AI auto-start in-flight cap reached")
     point["status"] = previous
     point["blocked_until"] = None
     point["blocked_from_status"] = None
@@ -934,13 +954,21 @@ def command_start(args: argparse.Namespace) -> int:
 def command_set_status(args: argparse.Namespace) -> int:
     state_path = Path(args.state)
     state = load_state(state_path)
+    config = load_config(Path(args.config))
     point = point_by_id(state, args.id)
     if args.status in {"blocked", "awaiting_merge", "merging", "done"} and not args.force:
         raise WorkflowError(
             f"{args.status} requires a dedicated command "
             "(block / review-pass / merge-approved / merge-done)"
         )
-    transition(state, point, args.status, force=args.force, note=args.note)
+    started = False
+    if not args.force and args.status == "specifying" and point["status"] == "queued":
+        point = start_point(state, config, args.id)
+        started = True
+    elif not args.force and args.status == "queued" and point["status"] == "proposed":
+        raise WorkflowError("proposed -> queued requires promote (user approval or --auto)")
+    else:
+        transition(state, point, args.status, force=args.force, note=args.note)
     for field in META_FIELDS:
         value = getattr(args, field, None)
         if value is not None:
@@ -955,6 +983,8 @@ def command_set_status(args: argparse.Namespace) -> int:
         tasks[key] = value
     if tasks:
         point["task_ids"] = tasks
+    if started:
+        append_note(point, args.note)
     touch(point)
     save_state(state_path, state)
     print_json(point)
@@ -1035,7 +1065,8 @@ def command_block(args: argparse.Namespace) -> int:
 def command_resume(args: argparse.Namespace) -> int:
     state_path = Path(args.state)
     state = load_state(state_path)
-    point = resume_point(state, args.id)
+    config = load_config(Path(args.config))
+    point = resume_point(state, config, args.id)
     save_state(state_path, state)
     print_json(point)
     return 0

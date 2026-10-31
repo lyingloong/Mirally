@@ -32,11 +32,13 @@ AI 发现 ──┘          │
 
 | 成员 | 数量 | 职责 |
 | --- | --- | --- |
-| 需求师 | 1 | 盘点、拆分、写规格；维护 AI 候选点 |
-| 工程师 | 3 | 每人在独立 worktree 实现一个开发点，提 PR，按审查意见修复 |
-| 审查师 | 1 | 独立验证、代码审查、通过后等待用户批准再合并 |
+| 需求师 | 1 | 盘点、拆分、写规格；维护 AI 候选点；拆分前读经验库 |
+| 工程师 | 3 | 每人在独立 worktree 实现一个开发点，提 PR，按审查意见修复；实现前读经验库 |
+| 审查师 | 1 | 独立验证、代码审查、维护经验库、通过后等待用户批准再合并 |
 
 一个 AgentTeams 成员不能同时持有两个未完成任务，所以并发数 3 需要 3 个工程师。审查默认串行；如果持续排队，可增加第二名审查师。队长不占开发并发。
+
+需求师拆分、工程师实现/修复、审查师审查前都应阅读 [审查经验库](review-experience.md) 中与任务相关的条目。
 
 ## 状态机
 
@@ -115,6 +117,16 @@ free_slots     = max(0, concurrency - load)
 - 用户批准后，队长才创建 integration 任务；审查师执行普通 merge（`gh pr merge --merge`，不用 squash/rebase），确认 `origin/main` 包含合并提交。
 - 用户退回：进入 `repairing`；如果决定不做，标记 `rejected` 并关闭 PR。
 - 合并冲突：integration 先把 `origin/main` 合入分支并解决冲突；如果冲突解决改变了语义，重新验证/审查后再请用户批准。
+
+## 审查经验库
+
+审查师维护 [审查经验库](review-experience.md)，把可复用的判断沉淀为准则，而不是每次从头提醒。
+
+- **职责**：工程师实现/修复前读相关条目；需求师拆分时检查相关约束；审查师核对条目并负责新增、合并、退休；队长在任务描述中带上库路径，并定期安排整理任务。
+- **候选 → 采纳**：审查中发现可复用问题时，先记为 `candidate`，带来源 PR、触发场景、准则、反例。候选写入 `output/agent-workflow/experience-candidates.md`（gitignored）或 PR review comment；不要直接改实现 PR。
+- **整理节奏**：每约 3 个已合并开发点，或出现重复模式时，审查师去重、合并、标注 `active`/`retired`，通过独立的 docs PR 更新经验库；用户批准后生效。
+- **质量标准**：有证据、可复用、可检查；不记录一次性任务细节、个人偏好或无法执行的空话。库应短小；不能改变下一个实现/审查决定的条目应合并、退休或删除。
+- **关系**：经验库是辅助，不替代当前 PR 的行为、安全和体验审查。
 
 ## 配额与 30 分钟退避
 
@@ -231,7 +243,7 @@ free_slots     = max(0, concurrency - load)
 .\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py validate
 ```
 
-命令输出均为 JSON（`status` 加 `--json` 也是），便于队长读取。`set-status` 不能直接设置 `blocked`、`awaiting_merge`、`merging`、`done`，必须使用对应专用命令。
+命令输出均为 JSON（`status` 加 `--json` 也是），便于队长读取。`set-status` 不能直接设置 `blocked`、`awaiting_merge`、`merging`、`done`，必须使用对应专用命令；也不能从 `queued` 直接进入 `specifying`（必须用 `start`，`--force` 只用于明确恢复），不能从 `proposed` 直接进入 `queued`（必须用 `promote`）。
 
 ## 队长的循环
 
@@ -259,6 +271,8 @@ requirements → implementation → verification → review
                                   integration
 ```
 
+每个任务描述应带 `docs/development/review-experience.md`；审查任务结束前记录候选经验（没有则说明“无新增”）。
+
 ## Worktree 与验证
 
 - 每个开发点使用独立 worktree，建议 `<仓库父目录>\Mirally-worktrees\<id>`；不要在主 checkout 直接改已跟踪文件。
@@ -271,6 +285,7 @@ requirements → implementation → verification → review
 ## 恢复与限制
 
 - 状态文件丢失时，可从 open PR、分支、AgentTeams 任务输出重建；先核对再继续，不重复开 PR。
+- `resume` 恢复活动状态前会复核并发、配额暂停、用户优先和 AI 在飞上限；槽位不足时保持 `blocked`，不强行恢复。
 - 配额 fallback 只在退避重启期间使用；正常调度和新建团队默认 ustc。
 - 审查师是单点瓶颈；并发提高或审查排队时增加第二名审查师。
 - 自动启动的 AI 点仍可能低价值；用每日上限、标签、合并闸门和用户随时叫停控制。
