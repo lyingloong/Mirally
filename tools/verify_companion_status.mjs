@@ -1,13 +1,12 @@
+import {loadPlaywright} from './testing/dependencies.cjs';
 /** Exercise task/progress projection with isolated native-shaped state. */
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
-import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const require=createRequire(path.join(root,'integrations/openclaw/package.json'));
-const {chromium}=require('playwright-core');
+const {chromium} = loadPlaywright();
 const script=await fs.readFile(path.join(root,'mirally/assets/control-ui-companion.js'),'utf8');
 const office=await fs.readFile(path.join(root,'mirally/assets/control-ui-office.js'),'utf8');
 const css=await fs.readFile(path.join(root,'mirally/assets/control-ui-companion.css'),'utf8');

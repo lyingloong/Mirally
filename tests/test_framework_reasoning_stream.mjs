@@ -15,8 +15,10 @@ import {setTimeout as delay} from 'node:timers/promises';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const moduleUrl = source => 'data:text/javascript;base64,' + Buffer.from(stripTypeScriptTypes(source, {mode: 'transform'})).toString('base64');
 const reads = moduleUrl(readFileSync(join(root, 'frontend/control-ui/ui/src/app/mirally-read-models.ts'), 'utf8'));
+const reminders = moduleUrl(readFileSync(join(root, 'frontend/control-ui/ui/src/app/desktop-reminders.ts'), 'utf8'));
 const {MirallyBrowserClient} = await import(moduleUrl(readFileSync(join(root, 'frontend/control-ui/ui/src/app/mirally-client.ts'), 'utf8')
-  .replace(/(["'])\.\/mirally-read-models\.(?:ts|js)\1/g, () => JSON.stringify(reads))));
+  .replace(/(["'])\.\/mirally-read-models\.(?:ts|js)\1/g, () => JSON.stringify(reads))
+  .replace(/(["'])\.\/desktop-reminders\.(?:ts|js)\1/g, () => JSON.stringify(reminders))));
 
 async function until(check, label, timeout = 15000) {
   const deadline = Date.now() + timeout;

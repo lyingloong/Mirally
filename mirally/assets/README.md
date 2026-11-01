@@ -28,8 +28,9 @@ a fresh checkout. Use `--out` for an alternate export directory and `--browser`
 for another Chromium executable. The UI, floating panel, startup and taskbar
 share these assets.
 
-The Control UI host resolves these assets relative to its Python module;
-`mirally.control_ui_brand` supplies the presentation assets and
-`mirally.control_ui_shell` loads the window icon. Do not refer to the output
+The Mirally desktop resolves these assets relative to its Python module;
+`mirally.desktop_surface` supplies startup and native surface resources,
+`mirally.framework_shell` loads the window icon, and the product Host serves the
+retained presentation assets. Do not refer to the output
 directory from application code: the runtime may start with a different working
 directory, and the output directory is for design provenance.

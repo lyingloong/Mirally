@@ -1,15 +1,14 @@
+import {loadPlaywright} from './testing/dependencies.cjs';
 /** Headless UI and real product host, using only an isolated temporary home. */
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {readFile, mkdtemp, rm, unlink, realpath, mkdir} from 'node:fs/promises';
-import {createRequire} from 'node:module';
 import {resolve, dirname, join, basename} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {tmpdir} from 'node:os';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const home=await mkdtemp(join(tmpdir(),'mirally-permission-ui-'));
-const require=createRequire(join(root,'integrations/openclaw/package.json'));
-const {chromium}=require(process.env.MIRALLY_PLAYWRIGHT??'playwright-core');
+const {chromium} = loadPlaywright();
 const delay=ms=>new Promise(done=>setTimeout(done,ms));
 let child,runtime,browser,log='';
 async function start(){

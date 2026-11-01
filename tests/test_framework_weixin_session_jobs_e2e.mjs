@@ -1,3 +1,4 @@
+import {loadPlaywright} from '../tools/testing/dependencies.cjs';
 /** Real DSH, product sidecar and Weixin wire, isolated local model and iLink fixtures. */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,7 +11,6 @@ import {tmpdir} from 'node:os';
 import {join, dirname, basename} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
-import {createRequire} from 'node:module';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 async function until(fn,label,timeout=25000) {const end=Date.now()+timeout; while(Date.now()<end){const v=await fn();if(v)return v;await delay(70);}throw Error(`timeout: ${label}`);}
@@ -93,8 +93,7 @@ for (const nativeJobs of [false,true]) test(`real ${nativeJobs?'DSH':'Mirally'} 
   const session=await api('/api/sessions',{title:'实验'},201);
   let page;
   if (process.env.MIRALLY_BG_GUI==='1') {
-    const require=createRequire(join(root,'integrations/openclaw/package.json'));
-    const browser=await require('playwright-core').chromium.launch({channel:'msedge',headless:true});
+    const browser=await loadPlaywright().chromium.launch({channel:'msedge',headless:true});
     t.after(()=>browser.close());
     page=await browser.newPage({viewport:{width:1280,height:900}});
     await page.goto(`${runtime.url}/chat/main/${encodeURIComponent(session.id)}#token=${runtime.token}`);

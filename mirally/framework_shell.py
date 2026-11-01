@@ -1,8 +1,4 @@
-"""Mirally's original desktop experience over the owned framework Host.
-
-Window geometry, clipping and explicit screen-intake gestures stay shared with
-the established shell. No OpenClaw Host is created or contacted by this entry.
-"""
+"""Mirally's native desktop experience over the owned framework Host."""
 
 from __future__ import annotations
 
@@ -16,15 +12,15 @@ import urllib.request
 import webbrowser
 from urllib.parse import parse_qsl, urlsplit
 
-from mirally.control_ui_shell import ASSETS, ControlUIShell, startup_html
+from mirally.desktop_surface import ASSETS, DesktopSurface, startup_html
 
 
-class FrameworkShell(ControlUIShell):
+class FrameworkShell(DesktopSurface):
     """Keep Mirally's native window and use the new product transport beneath it."""
 
     def __init__(self, host) -> None:
-        # The base initializer only prepares native presentation state. Its
-        # OpenClaw connection/brand/Activity methods are never used here.
+        # Native presentation owns geometry and explicit intake gestures;
+        # this shell owns the product connection and lifecycle.
         super().__init__(host.root)
         self.host = host
         self._quitting = threading.Event()
@@ -110,7 +106,7 @@ class FrameworkShell(ControlUIShell):
             parts = urlsplit(self.host.runtime["url"])
             if parts.scheme != "http" or parts.hostname != "127.0.0.1":
                 raise RuntimeError("本机工作空间返回了无效地址。")
-            self._gateway_origin = (parts.scheme, parts.netloc)
+            self._product_origin = (parts.scheme, parts.netloc)
             if (not self._wait_for_presentation(self.window.events.loaded)
                     or not self._wait_for_presentation(self._startup_visible)):
                 return
@@ -183,10 +179,10 @@ class FrameworkShell(ControlUIShell):
             raise ValueError("只能打开当前 Mirally 的本机只读活动历史。")
 
         def current() -> bool:
-            if self.closed.is_set() or self.window is None or self._gateway_origin is None:
+            if self.closed.is_set() or self.window is None or self._product_origin is None:
                 return False
             page = urlsplit(self.window.get_current_url() or "")
-            return (page.scheme, page.netloc) == self._gateway_origin
+            return (page.scheme, page.netloc) == self._product_origin
 
         if not current():
             raise ValueError("请在当前 Mirally 工作空间中重新打开活动历史。")
@@ -335,7 +331,7 @@ class FrameworkShell(ControlUIShell):
 
     def _refresh_capture_preference(self) -> None:
         if self._workspace is not None and self.window is not None and not self.closed.is_set():
-            from mirally.control_ui_shell import _capture_affinity
+            from mirally.desktop_surface import _capture_affinity
             _capture_affinity(self.window.native, self._companion_capture_excluded())
 
     def _closing(self) -> bool:
@@ -526,7 +522,7 @@ class FrameworkShell(ControlUIShell):
         if self.closed.is_set():
             return
         parts = urlsplit(source)
-        local = (parts.scheme, parts.netloc) == self._gateway_origin
+        local = (parts.scheme, parts.netloc) == self._product_origin
         if isinstance(value, dict) and local:
             kind = value.get("type")
             if kind == "mirally-companion":

@@ -1,6 +1,6 @@
 # 桌面与伙伴
 
-更新：2026-10-31，Asia/Shanghai。状态：现行。相关实现：`mirally/framework_shell.py`、`mirally/framework_host.py`、`mirally/assets/control-ui-*`。
+更新：2026-11-01，Asia/Shanghai。状态：现行。相关实现：`mirally/desktop_surface.py`、`mirally/framework_shell.py`、`mirally/framework_host.py`、`mirally/assets/control-ui-*`。
 
 桌面入口复用原 Mirally 的开屏、主题、窗口呈现和伙伴体验，同时由自有 Host 提供产品页面。浏览器模式只保留页面形态，不提供原生裁剪、置顶、伙伴窗口或本机截图。
 

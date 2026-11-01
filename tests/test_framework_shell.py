@@ -1,4 +1,4 @@
-"""Framework desktop presentation without a Gateway, GUI or model service."""
+"""Framework desktop presentation without a GUI or model service."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, patch
 
-from mirally.control_ui_shell import ControlUIShell, startup_html
+from mirally.desktop_surface import DesktopSurface, startup_html
 from mirally.framework_shell import FrameworkShell
 from mirally.framework_host import discover_node
 
@@ -36,24 +36,18 @@ class FrameworkShellTests(unittest.TestCase):
     def frame(value, source="http://127.0.0.1:37281/"):
         return SimpleNamespace(Source=source, get_WebMessageAsJson=lambda: json.dumps(value))
 
-    def test_constructor_reuses_presentation_without_creating_legacy_host(self):
-        with patch("mirally.control_ui_shell.OpenClawHost") as legacy:
-            shell = FrameworkShell(self.host)
-        legacy.assert_not_called()
+    def test_constructor_reuses_owned_native_presentation(self):
+        shell = FrameworkShell(self.host)
         self.assertIs(shell.host, self.host)
-        self.assertIsInstance(shell, ControlUIShell)
+        self.assertIsInstance(shell, DesktopSurface)
         for name in ("_companion_action", "_initial_companion_shape", "_companion_background", "_capture_target", "_context_menu_requested"):
-            self.assertIs(getattr(FrameworkShell, name), getattr(ControlUIShell, name))
+            self.assertIs(getattr(FrameworkShell, name), getattr(DesktopSurface, name))
 
-    def test_ready_host_enters_without_decorative_delay_or_legacy_skin(self):
-        with patch("mirally.control_ui_shell.OpenClawHost") as legacy, \
-             patch.object(self.shell, "_install_brand") as legacy_skin:
-            self.shell._connect()
+    def test_ready_host_enters_without_decorative_delay(self):
+        self.shell._connect()
         self.host.start.assert_called_once_with()
         self.shell.window.load_url.assert_called_once_with(self.host.url)
-        self.assertEqual(self.shell._gateway_origin, ("http", "127.0.0.1:37281"))
-        legacy.assert_not_called()
-        legacy_skin.assert_not_called()
+        self.assertEqual(self.shell._product_origin, ("http", "127.0.0.1:37281"))
 
     def test_shared_opening_keeps_formal_mark_particles_and_reduced_motion(self):
         html = startup_html()
@@ -86,7 +80,7 @@ class FrameworkShellTests(unittest.TestCase):
         self.assertEqual(self.shell.window.native.Opacity, 0)
 
     def test_native_geometry_rejects_other_origins(self):
-        self.shell._gateway_origin = ("http", "127.0.0.1:37281")
+        self.shell._product_origin = ("http", "127.0.0.1:37281")
         with patch.object(self.shell, "_companion_action") as action:
             for origin in ("https://untrusted.invalid/", "http://127.0.0.1:37282/"):
                 self.shell._web_message(None, self.frame({"type": "mirally-companion", "action": "dock"}, origin))
@@ -96,7 +90,7 @@ class FrameworkShellTests(unittest.TestCase):
             action.assert_called_once_with(value)
 
     def test_retired_ufo_focus_messages_do_not_register_or_update_worker_state(self):
-        self.shell._gateway_origin = ("http", "127.0.0.1:37281")
+        self.shell._product_origin = ("http", "127.0.0.1:37281")
         registration = MagicMock()
         self.shell._frontend_registration = registration
         for editing in (True, False, "yes"):
@@ -115,12 +109,12 @@ class FrameworkShellTests(unittest.TestCase):
             self.shell._native_style()
         registration.assert_not_called()
         menu.return_value.install.assert_called_once_with()
-        self.assertIsNone(self.shell._frontend_registration)
+        self.assertFalse(hasattr(self.shell, "_frontend_registration"))
         self.assertFalse((self.host.root / ".artifacts/frontends").exists())
         self.assertEqual(self.shell.window.native.Opacity, 0)
 
     def test_remote_webview_protocol_is_ignored(self):
-        self.shell._gateway_origin = ("http", "127.0.0.1:37281")
+        self.shell._product_origin = ("http", "127.0.0.1:37281")
         self.shell._web_message(None, self.frame([1, 2, 3], "https://untrusted.invalid/"))
         self.shell.window.native.browser.on_script_notify.assert_not_called()
         message = self.frame([1, 2, 3])
@@ -185,9 +179,9 @@ class FrameworkShellTests(unittest.TestCase):
     def test_capture_preference_event_reads_saved_value_for_open_companion_only(self):
         self.host.home.mkdir(parents=True)
         preference = self.host.home / "ui-preferences.json"
-        self.shell._gateway_origin = ("http", "127.0.0.1:37281")
+        self.shell._product_origin = ("http", "127.0.0.1:37281")
         event = {"type": "mirally-framework", "action": "refresh-capture-preference", "value": True}
-        with patch("mirally.control_ui_shell._capture_affinity") as affinity:
+        with patch("mirally.desktop_surface._capture_affinity") as affinity:
             self.shell._web_message(None, self.frame(event))
             affinity.assert_not_called()
             self.shell._workspace = object()
@@ -217,10 +211,10 @@ class FrameworkShellTests(unittest.TestCase):
         self.host.home.mkdir(parents=True)
         (self.host.home / "ui-preferences.json").write_text(json.dumps({"mirally.companion.hideFromCapture": False}), encoding="utf-8")
         with patch.dict("sys.modules", modules), \
-             patch("mirally.control_ui_shell._frame_style", return_value=0x16cf0000), \
-             patch("mirally.control_ui_shell._frame_composition"), \
+             patch("mirally.desktop_surface._frame_style", return_value=0x16cf0000), \
+             patch("mirally.desktop_surface._frame_composition"), \
              patch.object(self.shell, "_initial_companion_shape"), \
-             patch("mirally.control_ui_shell._capture_affinity") as affinity:
+             patch("mirally.desktop_surface._capture_affinity") as affinity:
             self.shell._companion_action({"action": "dock", "viewport": [1280, 860]})
         affinity.assert_called_once_with(form, False)
 
@@ -310,10 +304,10 @@ class FrameworkShellTests(unittest.TestCase):
                     elif style & 0x20000000:
                         form._state = states.Minimized
                 with patch.dict("sys.modules", modules), \
-                     patch("mirally.control_ui_shell._frame_style", side_effect=frame_style), \
-                     patch("mirally.control_ui_shell._frame_composition"), \
-                     patch("mirally.control_ui_shell._client_glass"), \
-                     patch("mirally.control_ui_shell._capture_affinity") as affinity:
+                     patch("mirally.desktop_surface._frame_style", side_effect=frame_style), \
+                     patch("mirally.desktop_surface._frame_composition"), \
+                     patch("mirally.desktop_surface._client_glass"), \
+                     patch("mirally.desktop_surface._capture_affinity") as affinity:
                     self.shell._companion_action({"action": "workspace"})
                 affinity.assert_called_once_with(form, False)
                 self.assertEqual(form.WindowState, state)
@@ -695,7 +689,7 @@ const input = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def browser_origin(self):
-        self.shell._gateway_origin = ("http", "127.0.0.1:37281")
+        self.shell._product_origin = ("http", "127.0.0.1:37281")
         self.shell.window.get_current_url.return_value = self.host.runtime["url"] + "/"
 
     def test_browser_bridge_opens_only_current_owner_url_and_monitor_mode(self):

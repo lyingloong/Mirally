@@ -1,12 +1,11 @@
+import {loadPlaywright} from '../tools/testing/dependencies.cjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
-import {createRequire} from 'node:module';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {installBrowserCapabilities} from '../kernel/dsh/packages/mirally/mirally-product/src/browser-capabilities.mjs';
 
-const require=createRequire(new URL('../kernel/dsh/packages/mirally/mirally-product/package.json',import.meta.url));
-const {chromium}=require('playwright-core');
+const {chromium} = loadPlaywright();
 
 test('isolated browser observes and interacts with a local page after individual approvals',async()=>{
   const server=createServer((_req,res)=>res.end('<title>Fixture</title><input id="name"><button onclick="document.querySelector(\'#result\').textContent=document.querySelector(\'#name\').value">Go</button><p id="result"></p>'));

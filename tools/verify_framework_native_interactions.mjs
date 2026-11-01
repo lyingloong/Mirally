@@ -1,17 +1,16 @@
+import {loadPlaywright} from './testing/dependencies.cjs';
 /** Real native DSH questions and plan review in the retained UI, local model only. */
 import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import {readFile,mkdtemp,rm,realpath} from 'node:fs/promises';
-import {createRequire} from 'node:module';
 import {join,dirname,basename} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {tmpdir} from 'node:os';
 import {setTimeout as delay} from 'node:timers/promises';
 const root=fileURLToPath(new URL('../',import.meta.url));
-const require=createRequire(new URL('../kernel/dsh/packages/mirally/mirally-product/package.json',import.meta.url));
-const {chromium}=require('playwright-core');
+const {chromium} = loadPlaywright();
 const home=await mkdtemp(join(tmpdir(),'mirally-native-ui-'));
 let child,browser,runtime,logs='',turn=0;
 const requests=[];

@@ -68,7 +68,7 @@ const PUBLIC_METHODS = new Set([
   'extensions.list', 'extensions.configure', 'extensions.disable', 'extensions.prompt', 'extensions.runScript',
   'skills.list', 'skills.read', 'mcp.resources.list', 'mcp.resources.read', 'mcp.resources.templates',
   'mcp.prompts.list', 'mcp.prompts.get', 'mcp.tools.call', 'mcp.tools.list', 'scripts.run',
-  'memory.search', 'memory.read', 'migration.status', 'legacy.history', 'legacy.history.read', 'legacy.archive',
+  'memory.search', 'memory.read',
   'capabilities.get', 'capabilities.configure', 'workspace.roots', 'workspace.list', 'workspace.read', 'workspace.search',
   'activity.status', 'activity.configure', 'activity.start', 'activity.pause', 'activity.resume', 'activity.stop', 'activity.browse',
   'action.approvals.list', 'action.approvals.decide', 'action.permissions.get', 'action.permissions.set',
@@ -1326,7 +1326,7 @@ export class MirallyProduct extends Service {
       response.writeHead(200, {'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store'}); response.end(await originalPresentation(this.root, presentationOrigin)); return;
     }
     if (pathname === '/mirally-native-bridge.js') {
-      response.writeHead(200, {'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store'}); response.end(await readFile(join(this.root, 'mirally/framework_ui/legacy-native-bridge.js'))); return;
+      response.writeHead(200, {'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store'}); response.end(await readFile(join(this.root, 'mirally/framework_ui/native-bridge.js'))); return;
     }
     if (pathname.startsWith('/experience/')) {
       const name = pathname.slice('/experience/'.length);

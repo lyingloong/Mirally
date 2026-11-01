@@ -1,3 +1,4 @@
+import {loadPlaywright} from '../tools/testing/dependencies.cjs';
 /** Real normal Host/DSH loop and local model fixture; no external model or user files. */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,7 +10,6 @@ import {mkdtemp, readFile, realpath, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join, dirname, basename} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {createRequire} from 'node:module';
 import {setTimeout as delay} from 'node:timers/promises';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -82,8 +82,7 @@ test('real host binds command approval to the session, rejects or cancels safely
   assert.deepEqual(errors,[]); assert.ok(calls[0].includes('mirally_run_command'));
 
   // Real built product UI, using the same isolated Host; headless Edge never controls the desktop.
-  const require=createRequire(join(root,'integrations/openclaw/package.json'));
-  const {chromium}=require('playwright-core');
+  const {chromium} = loadPlaywright();
   const browser=await chromium.launch({channel:'msedge',headless:true});
   t.after(()=>browser.close());
   const page=await browser.newPage({viewport:{width:1280,height:900}}), pageErrors=[];

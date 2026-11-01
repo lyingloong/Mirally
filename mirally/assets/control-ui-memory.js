@@ -105,8 +105,8 @@
       $('[data-memory-action="more"]').addEventListener('click',()=>search(true));
       $('[data-memory-action="observed"]').addEventListener('click',()=>{field('source').value='observed';search();});
       $('[data-memory-action="detail-more"]').addEventListener('click',()=>currentRead && read(currentRead.id,currentRead.next));
-      const link=panel.querySelector('[data-memory-settings]');link.href=root.__mirallyLegacyHost?`${context?.basePath || ''}/activity`:`${context?.basePath || ''}/settings/appearance?mirally=activity`;
-      link.addEventListener('click',event=>{if(event.button!==0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)return;if(context?.navigate){event.preventDefault();if(root.__mirallyLegacyHost)context.navigate('activity',{search:''});else context.navigate('appearance',{search:'?mirally=activity'});}});
+      const link=panel.querySelector('[data-memory-settings]');link.href=root.__mirallyHost?`${context?.basePath || ''}/activity`:`${context?.basePath || ''}/settings/appearance?mirally=activity`;
+      link.addEventListener('click',event=>{if(event.button!==0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)return;if(context?.navigate){event.preventDefault();if(root.__mirallyHost)context.navigate('activity',{search:''});else context.navigate('appearance',{search:'?mirally=activity'});}});
     }
     function sync(){
       frame=null;const next=appContext(),nextClient=gateway(next),nextBridge=root.__mirallyActivity?.memoryBrowser;

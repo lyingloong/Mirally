@@ -24,7 +24,7 @@
 
 - `frontend/control-ui/ui/src/` 复用原 Lit 壳、对话和外观组件；`pages/mirally/` 维护自有内容页和产品 API。
 - `ui/src/app/mirally-client.ts` 向原客户端工厂提供 Mirally HTTP/SSE 传输，把已实现操作映射到本机鉴权接口；不建立第二条会话或模型循环。
-- `mirally/framework_ui/legacy-native-bridge.js` 适配活动、记忆、成果等原产品消息；`mirally-product/src/presentation.mjs` 同源提供品牌与伙伴资源。
+- `mirally/framework_ui/native-bridge.js` 将活动、记忆、成果等产品消息接入当前 owner；`mirally-product/src/presentation.mjs` 同源提供品牌与伙伴资源。
 - 原 Context 与组件继续管理页面草稿和状态；DSH Session 保留唯一聊天事实。刷新、切换会话或重试时保留应保留的草稿、材料和焦点。
 - 提醒与手动记忆的未确认表单在 `sessionStorage` 保存草稿和请求编号；刷新后重试沿用同一编号，不自动提交。成功后清空，不把它当作产品事实副本。
 - 模型连接、偏好、提醒、记忆、扩展和渠道页面以产品 owner 回执为准；加载失败不展示成“没有数据”，密钥不回显。

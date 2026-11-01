@@ -1,4 +1,4 @@
-# Optional Windows UFO agent, alongside the existing OpenClaw desktop host.
+# Optional dependencies for the retained Windows UFO reference adapters.
 # Install into the same root .venv. The submodule remains read-only.
 -r UFO/requirements.txt
--r requirements-openclaw.txt
+-r requirements-framework.txt

@@ -2,7 +2,7 @@
 
 更新：2026-10-31，Asia/Shanghai。状态：现行。完整架构与验证边界见[系统概览](../docs/architecture/overview.md)。
 
-默认入口：`python -m mirally` → `framework_host.py` → `kernel/dsh/packages/mirally/mirally-product/start.mjs`。产品主链不依赖 OpenClaw；`--openclaw` 只保留为冻结的显式回退入口。
+默认入口：`python -m mirally` → `framework_host.py` → `kernel/dsh/packages/mirally/mirally-product/start.mjs`。旧 OpenClaw 运行与兼容入口已移除。
 
 ## 产品层
 
@@ -18,10 +18,10 @@
 | `framework/materials.py` | 材料接收、文字提取、会话成果与鉴权 |
 | `framework/recaps.py` | 会话摘要与自动标题的产品状态 |
 | `framework/desktop_observation.py` | 窗口列表、截图与桌面观察接口 |
-| `framework/legacy_history.py` | 旧会话独立归档的只读分页 |
 | `framework_workers.py` | Activity/Memory 子进程、语义任务、预算与停止 |
-| `framework_ui/` | 原前端桥接、品牌与伙伴呈现资源 |
+| `framework_ui/` | 产品消息桥接、品牌与伙伴呈现资源 |
 | `framework_shell.py` | WebView2 窗口、原生裁剪、托盘、伙伴与退出 |
+| `desktop_surface.py` | 与宿主无关的原生窗口、伙伴、菜单、裁剪和用户主动截图行为 |
 
 产品库位于 `<home>/framework/product.sqlite3`，schema 11。它保存引用和业务状态，不保存第二份聊天正文。
 
@@ -55,6 +55,6 @@
 4. 提醒、摘要和作业通知由产品 owner 持久化，经桌面或微信渠道投递；渠道回执不等于用户已读。
 5. 原始活动与记忆分别由各自 SQLite owner 保存；DSH Session 是唯一模型历史。
 
-## 历史回退
+## 已退役实现
 
-旧 OpenClaw 路线已冻结为历史与显式回退，历史基线为提交 `2eeb778a`。它不再维护、不参与默认启动、不自动消费新 home 的配置。两个入口不能同时采集或维护同一来源。迁移和回退流程见[系统概览](../docs/architecture/overview.md#数据迁移与历史回退)。
+旧 OpenClaw 路线仅通过 Git 提交 `2eeb778a` 追溯；当前代码不再提供旧宿主、配置迁移或旧档案兼容服务。本机用户数据与凭据不因源码退役自动清理。

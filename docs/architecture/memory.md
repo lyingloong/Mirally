@@ -60,9 +60,10 @@ Activity Observation Store
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_memory*.py" -v
-.\.venv\Scripts\python.exe tools\verify_memory_recall.py
-.\.venv\Scripts\python.exe tools\verify_memory_agent.py
-node tools/verify_memory_browser.mjs
+.\.venv\Scripts\python.exe -m unittest tests.test_framework_memory_replay tests.test_framework_activity_experience -v
+node --test tests/test_control_ui_memory.cjs
+# 对显式 --test-mode --home 的隔离宿主
+node tools/verify_framework_product_pages.mjs <隔离home/runtime.json>
 ```
 
 真实模型的整理质量、长期成本和纠正效果不在离线测试范围内。

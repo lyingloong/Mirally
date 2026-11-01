@@ -14,7 +14,6 @@ import {errorMessage, openProductPage, requestProduct, rpcProduct, type ProductD
 import {modelDraft, deepSeekPreset, adoptDiscoveredModel, isDeepSeekEndpoint, modelCapabilityText,
   type ModelSettings, type ModelDraft, type DiscoveredModel} from "./model-settings.ts";
 import "./product.css";
-import "./legacy-history.ts";
 import "./capabilities-settings.ts";
 import "./speech-settings.ts";
 
@@ -507,7 +506,6 @@ export class MirallySettingsPage extends OpenClawLightDomElement {
 
   private aboutPage() {
     return html`
-      <mirally-legacy-history></mirally-legacy-history>
       ${renderSettingsSection({title: "Mirally", description: "在生活与工作中持续理解、记住和陪伴你，提供有分寸的主动协作。"}, html`
         ${renderSettingsRow({title: "产品框架", control: renderSettingsValue("Mirally")})}
         ${renderSettingsRow({title: "会话内核", control: renderSettingsValue(this.status?.transcript_owner === "dsh" ? "DSH（同仓维护）" : "尚未确认")})}

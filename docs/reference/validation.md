@@ -1,6 +1,6 @@
 # 验证与未覆盖边界
 
-更新：2026-10-31，Asia/Shanghai。状态：现行。本文只保留稳定的验证范围、复现命令和未覆盖边界；各阶段具体测试数量、临时 home 和截图记录属于当次环境，可在 Git 历史中追溯。
+更新：2026-11-01，Asia/Shanghai。状态：现行。本文只保留稳定的验证范围、复现命令和未覆盖边界；各阶段具体测试数量、临时 home 和截图记录属于当次环境，可在 Git 历史中追溯。
 
 ## 原则
 
@@ -10,6 +10,20 @@
 - 模型生成、桌面动作和外部投递分别验收；“收到”“已排队”“接口接受”“用户已读”和“任务完成”不能互相替代。
 
 ## 离线验证
+
+DOM 与浏览器验收使用独立的[测试工具依赖](../../tools/testing/README.md)，每个新 worktree 在仓库根目录准备一次：
+
+```powershell
+npm --prefix tools/testing ci --ignore-scripts --no-audit --no-fund
+node --test tests/test_test_dependencies.cjs
+```
+
+完整 Python 套件包含保留的 UFO 参考适配测试，需额外准备只读子模块和可选依赖；这不会在默认产品中启用 UFO：
+
+```powershell
+git submodule update --init UFO
+.\.venv\Scripts\python.exe -m pip install -r requirements-ufo.txt
+```
 
 ```powershell
 # 产品 Python 测试
@@ -28,7 +42,7 @@ npm --prefix frontend/control-ui run verify:source
 npm --prefix frontend/control-ui run build
 ```
 
-`tools/verify_framework.py` 不访问外部 API；它验证会话、工具、停止、重启、Skill、脚本产物、MCP 协议、原生插件、微信回环和主动入箱等链路。浏览器验收另需 Playwright Core 与本机 Edge，可通过 `MIRALLY_PLAYWRIGHT` 指定模块。
+`tools/verify_framework.py` 不访问外部 API；它验证会话、工具、停止、重启、Skill、脚本产物、MCP 协议、原生插件、微信回环和主动入箱等链路。浏览器验收使用本机 Edge，独立 `playwright-core` 包不下载浏览器；可通过 `MIRALLY_PLAYWRIGHT` 显式选择模块或路径。相对路径基于仓库根目录，与执行时工作目录无关。
 
 ```powershell
 # 对显式 --test-mode --home 的隔离宿主，GUI 顺序运行
