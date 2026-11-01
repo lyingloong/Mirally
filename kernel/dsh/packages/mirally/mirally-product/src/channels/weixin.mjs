@@ -107,9 +107,10 @@ const CLIP_SUFFIX = '…' + WEIXIN_TEXT.truncated;
 function boundedReply(value) {
   const raw = String(value ?? '').trim();
   if (!raw) return '';
-  // reply() bounds before enqueueing and delivery bounds again; mark the clip
-  // point once so the wire text is not clipped and marked a second time.
-  if (raw.endsWith(CLIP_SUFFIX)) return raw;
+  // reply() bounds before enqueueing and delivery bounds again; the length
+  // check comes first so a caller-provided clip marker (model or quoted text
+  // can contain the same suffix) cannot bypass the 14000-character limit, and
+  // only an actually bounded reply gets the marker.
   const chars = Array.from(raw);
   return chars.length > 14000 ? chars.slice(0, 14000).join('') + CLIP_SUFFIX : chars.join('');
 }
@@ -123,7 +124,7 @@ function splitText(text) {
 }
 
 /** Media failures may echo only this repository's own channel wording. */
-const MEDIA_FAILURE_PREFIXES = ['weixin_media', 'speech_'];
+const MEDIA_FAILURE_PREFIXES = ['weixin_media', 'weixin_voice_', 'speech_'];
 export function mediaFailureText(error) {
   const code = error?.code;
   if (typeof code === 'string' && MEDIA_FAILURE_PREFIXES.some(prefix => code.startsWith(prefix))) {
@@ -133,6 +134,17 @@ export function mediaFailureText(error) {
   }
   return WEIXIN_TEXT.mediaFailedFallback;
 }
+
+/**
+ * product.send raises these before (or exactly at) command admission: the
+ * message never entered the conversation, so "已送出" would point the user at a
+ * result that does not exist. Unlisted errors stay conservatively unknown —
+ * the at-most-once rule still forbids replaying them automatically.
+ */
+const PRE_ADMIT_ERROR_CODES = new Set(['confirmation_required', 'conversation_archived', 'conversation_busy',
+  'invalid_request', 'message_too_large', 'model_not_configured', 'remote_scope_revoked', 'unsupported_image_input',
+  'weixin_scope_revoked']);
+const isPreAdmitRejection = error => PRE_ADMIT_ERROR_CODES.has(error?.code);
 
 export class WeixinChannel {
   constructor(product, {baseUrl, allowLoopback = false, apiFactory, now = Date.now} = {}) {
@@ -146,7 +158,11 @@ export class WeixinChannel {
     this.error = '';
     this.jobs = new Set();
     this.receipts = new Set();
-    this.recentStops = new Map();
+    // Commands a /stop actually cancelled, keyed by command/turn id.
+    this.cancelledStops = new Map();
+    // A /stop whose cancel result is still in flight, so a racing finish can
+    // wait for the exact cancelled ids instead of guessing from the conversation.
+    this.stoppingStops = new Map();
     this.numberedLists = new WeixinNumberedLists(this.now);
     this.closed = false;
     this.management = Promise.resolve();
@@ -389,12 +405,28 @@ export class WeixinChannel {
     } catch { return true; }
   }
 
-  /** Consume the short window opened by /stop so one stop yields one notice. */
-  recentStop(conversationId) {
-    const until = this.recentStops.get(conversationId);
-    if (!until) return false;
-    this.recentStops.delete(conversationId);
-    return until > this.now();
+  /** Remember exactly which commands /stop cancelled so each yields one notice. */
+  rememberStoppedCommands(commandIds) {
+    if (!Array.isArray(commandIds)) return;
+    for (const commandId of commandIds)
+      if (typeof commandId === 'string' && commandId) this.cancelledStops.set(commandId, true);
+    // Bound memory across a long session; entries are per stop, never a window.
+    while (this.cancelledStops.size > 100) this.cancelledStops.delete(this.cancelledStops.keys().next().value);
+  }
+
+  /**
+   * A cancelled finish suppresses its second notice only when /stop cancelled
+   * this exact command/turn. A finish that races with the stop waits for the
+   * cancel result instead of matching the whole conversation (which could
+   * swallow a newer turn's stop) or a five-second window (which repeated a
+   * late one).
+   */
+  async stoppedByUser(event) {
+    if (this.cancelledStops.delete(event.command_id)) return true;
+    const pending = this.stoppingStops.get(event.conversation_id);
+    if (!pending) return false;
+    await pending.promise;
+    return this.cancelledStops.delete(event.command_id);
   }
 
   async receive(state, message) {
@@ -449,6 +481,7 @@ export class WeixinChannel {
     }
     const stopTyping = this.typing.begin(event);
     let submitted = false;
+    let mediaPrepared = false;
     try {
       await this.authorize(event);
       let input = event;
@@ -456,6 +489,7 @@ export class WeixinChannel {
         await this.reply({...event, command_id:`${event.command_id}:media-receipt`}, this.text.mediaReceived(items.length), {control:true});
         void this.pump().catch(() => {});
         const media = await this.media.prepare(event, items, {authorize: scope => this.authorize(scope), signal:this.connection?.signal ?? new AbortController().signal});
+        mediaPrepared = true;
         input = {...event, ...media};
       }
       await this.store('event', {installation_id: event.installation_id, event_id: id, state: 'submitted'});
@@ -473,8 +507,11 @@ export class WeixinChannel {
       this.jobs.add(job);
     } catch (error) {
       stopTyping();
-      await this.store('event', {installation_id: event.installation_id, event_id: id, state: !submitted || error.code === 'conversation_busy' ? 'rejected' : 'unknown'});
-      await this.reply(event, this.failureText(error, {hasMedia: inspected.hasMedia, submitted}), {control: true});
+      // A definite pre-admit rejection is not an unknown submission: saying the
+      // message was sent would send the user to a run that never existed.
+      const rejected = !submitted || isPreAdmitRejection(error);
+      await this.store('event', {installation_id: event.installation_id, event_id: id, state: rejected ? 'rejected' : 'unknown'});
+      await this.reply(event, this.failureText(error, {hasMedia: inspected.hasMedia, mediaPrepared, submitted: submitted && !rejected}), {control: true});
     }
   }
 
@@ -483,10 +520,11 @@ export class WeixinChannel {
    * (only with this repository's own wording) or a message that never reached
    * the conversation are not the same as a submitted turn with an unknown result.
    */
-  failureText(error, {hasMedia, submitted}) {
+  failureText(error, {hasMedia, mediaPrepared, submitted}) {
     if (error.code === 'conversation_busy') return this.text.busySend;
-    if (hasMedia && MEDIA_FAILURE_PREFIXES.some(prefix => typeof error.code === 'string' && error.code.startsWith(prefix)))
-      return mediaFailureText(error);
+    // Media that never finished preparing is an attachment problem even when
+    // this channel does not know the code; never blame the model connection.
+    if (hasMedia && !mediaPrepared) return mediaFailureText(error);
     return submitted ? this.text.unconfirmed : this.text.notSubmitted;
   }
 
@@ -525,10 +563,20 @@ export class WeixinChannel {
         await this.reply(event, this.text.notRunning, {control: true});
         return;
       }
-      // The cancelled turn must not report a second "stopped" notice.
-      this.recentStops.set(event.conversation_id, this.now() + 5000);
-      try { await this.product.cancel(event.conversation_id); }
-      catch (error) { this.recentStops.delete(event.conversation_id); throw error; }
+      // The cancelled turn must not report a second "stopped" notice. Record the
+      // exact command ids this stop cancels; a finish that settles while cancel
+      // is still in flight waits for that result instead of consuming a
+      // conversation-wide marker.
+      let release;
+      const pending = {promise: new Promise(resolve => { release = resolve; })};
+      this.stoppingStops.set(event.conversation_id, pending);
+      try {
+        const stopped = await this.product.cancel(event.conversation_id);
+        this.rememberStoppedCommands(stopped?.cancelled_command_ids);
+      } finally {
+        if (this.stoppingStops.get(event.conversation_id) === pending) this.stoppingStops.delete(event.conversation_id);
+        release();
+      }
       await this.reply(event, this.text.stopped, {control: true});
     } else if (name === '/help') await this.reply(event, HELP, {control: true});
     else if (name === '/status') {
@@ -624,7 +672,7 @@ export class WeixinChannel {
     if (result.state === 'completed' && result.text) {
       await this.reply(event, result.text);
       await this.store('event', {installation_id: event.installation_id, event_id: event.event_id, state: 'completed', result_ref: result.ref});
-    } else if (result.state === 'cancelled' && this.recentStop(event.conversation_id)) {
+    } else if (result.state === 'cancelled' && await this.stoppedByUser(event)) {
       // /stop already reported the stop; a second notice would repeat one state twice.
       await this.store('event', {installation_id: event.installation_id, event_id: event.event_id, state: 'unknown'});
     } else {

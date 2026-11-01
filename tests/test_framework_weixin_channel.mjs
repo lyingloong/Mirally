@@ -18,7 +18,7 @@ const untilAbort = signal => new Promise((resolve, reject) => {
   if (signal.aborted) done(); else signal.addEventListener('abort', done, {once: true});
 });
 
-function fixture(t, {unbound = false, qrResults = [], sendText, updates, mode} = {}) {
+function fixture(t, {unbound = false, qrResults = [], sendText, updates, mode, clock = () => now} = {}) {
   let state = {installation_id: unbound ? null : 'installation', revision: 1, bound: !unbound, enabled: !unbound,
     peer_id: unbound ? null : 'owner', bot_id: unbound ? null : 'bot', token: unbound ? null : 'private-bot-token',
     base_url: 'https://ilinkai.weixin.qq.com', conversation_id: unbound ? null : 'conversation-one', cursor: '', context_token: null,
@@ -104,7 +104,12 @@ function fixture(t, {unbound = false, qrResults = [], sendText, updates, mode} =
     weixinResult: async () => null,
     canDeliverWeixin: async () => true,
     cancel: async id => {
-      calls.push({kind: 'cancel', id}); for (const completion of completions.values()) completion.resolve({state: 'cancelled'});
+      calls.push({kind: 'cancel', id});
+      // Mirror the product: interaction.stop returns the commands it cancelled.
+      const cancelled = [...events.values()].filter(event => !['completed', 'cancelled', 'rejected'].includes(event.state))
+        .map(event => event.command_id);
+      for (const completion of completions.values()) completion.resolve({state: 'cancelled'});
+      return {cancelled_command_ids: cancelled};
     },
     cancelWeixinCommands: async id => {
       calls.push({kind: 'cancel-channel', id}); for (const completion of completions.values()) completion.resolve({state: 'cancelled'});
@@ -125,7 +130,7 @@ function fixture(t, {unbound = false, qrResults = [], sendText, updates, mode} =
       return sendText ? sendText(options, calls) : {ret: 0, message_id: String(calls.length)};
     },
   });
-  const channel = new WeixinChannel(product, {apiFactory, now: () => now});
+  const channel = new WeixinChannel(product, {apiFactory, now: clock});
   t.after(async () => {await channel.stop();});
   return {channel, product, calls, events, deliveries, completions, state: snapshots};
 }
@@ -176,6 +181,11 @@ test('Weixin text segmentation preserves Unicode, bounds wire payload and identi
   assert.match(clipped.at(-1), /微信只显示前 14000 字/);
   assert.ok(clipped.at(-1).startsWith(WEIXIN_TEXT.partPrefix(5, 5) + '…'), 'the clip point is marked');
   assert.ok(clipped.at(-1).includes('…（微信只显示前 14000 字'));
+  // A long text that already ends with the marker must still obey the limit:
+  // the suffix alone is not proof that this reply was clipped.
+  const marked = weixinTextParts('x'.repeat(50000) + '…' + WEIXIN_TEXT.truncated)
+    .map(part => part.replace(/^（\d+\/\d+） /, '')).join('');
+  assert.equal(marked, 'x'.repeat(14000) + '…' + WEIXIN_TEXT.truncated);
   assert.deepEqual(weixinTextParts('   '), []);
 });
 
@@ -526,6 +536,49 @@ test('Weixin stopping an in-flight turn sends one notice and records the turn as
   assert.equal(f.events.get('stopped-turn').state, 'unknown');
 });
 
+test('Weixin stopping a desktop turn does not swallow the next weixin turn stop notice', async t => {
+  const f = fixture(t);
+  f.product.summary = () => ({status: 'running'});
+  // /stop cancelled the desktop turn, not the weixin turn submitted afterwards.
+  f.product.cancel = async id => { f.calls.push({kind: 'cancel', id}); return {cancelled_command_ids: ['desktop-command']}; };
+  await f.channel.start();
+  await f.channel.receive(f.state(), inbound('stop-desktop', '/stop'));
+  assert.ok(f.calls.some(call => call.kind === 'cancel'));
+  await f.channel.receive(f.state(), inbound('new-weixin-turn'));
+  await waitFor(() => f.calls.some(call => call.kind === 'submit' && call.event.event_id === 'new-weixin-turn'));
+  f.completions.get('new-weixin-turn').resolve({state: 'cancelled'});
+  await Promise.all([...f.channel.jobs]);
+  await f.channel.pump(); await f.channel.pump();
+  const texts = f.calls.filter(call => call.kind === 'send').map(call => call.options.text);
+  assert.equal(texts.filter(text => text === WEIXIN_TEXT.stopped).length, 1);
+  assert.equal(texts.filter(text => text === WEIXIN_TEXT.replyStopped).length, 1,
+    'the newer turn reports its own cancellation');
+});
+
+test('Weixin a cancelled turn reports once even when its finish settles late', async t => {
+  let clock = now;
+  const f = fixture(t, {clock: () => clock});
+  f.product.summary = () => ({status: 'running'});
+  f.product.cancel = async id => {
+    f.calls.push({kind: 'cancel', id});
+    const commandId = f.events.get('late-finish').command_id;
+    clock += 5 * 60_000; // a late finish, far outside any short post-stop window
+    f.completions.get('late-finish').resolve({state: 'cancelled'}); // races the stop result
+    await new Promise(resolve => setTimeout(resolve, 10));
+    return {cancelled_command_ids: [commandId]};
+  };
+  await f.channel.start();
+  await f.channel.receive(f.state(), inbound('late-finish'));
+  await waitFor(() => f.calls.some(call => call.kind === 'submit'));
+  await f.channel.receive(f.state(), inbound('stop-late', '/stop'));
+  await Promise.all([...f.channel.jobs]);
+  await f.channel.pump(); await f.channel.pump();
+  const texts = f.calls.filter(call => call.kind === 'send').map(call => call.options.text);
+  assert.equal(texts.filter(text => text === WEIXIN_TEXT.stopped).length, 1);
+  assert.equal(texts.includes(WEIXIN_TEXT.replyStopped), false, 'the stop is not repeated');
+  assert.equal(f.events.get('late-finish').state, 'unknown');
+});
+
 test('Weixin receipt distinguishes the assistant session from a direct conversation', async t => {
   const f = fixture(t, {mode: 'assistant'});
   await f.channel.start();
@@ -559,9 +612,38 @@ test('Weixin rejected media echoes the channel reason and marks the event reject
   assert.equal(texts.includes(WEIXIN_TEXT.mediaFailedFallback), false);
 });
 
+test('Weixin media failures keep voice reasons and fall back to the attachment notice', async t => {
+  for (const [id, code, message] of [
+    ['voice-unsupported', 'weixin_voice_unsupported', '暂不支持此微信语音编码，请改用文字或其他语音格式。'],
+    ['voice-decode', 'weixin_voice_decode', '微信语音解码失败，请改用文字或重新发送。'],
+  ]) {
+    const f = fixture(t);
+    f.channel.media.prepare = async () => { throw Object.assign(Error(message), {code}); };
+    await f.channel.receive(f.state(), inbound(id, '', {item_list: [{type: 4, file_item: {file_name: '语音.silk', media: {encrypt_query_param: 'v'}}}]}));
+    assert.equal(f.events.get(id).state, 'rejected');
+    const texts = [...f.deliveries.values()].map(delivery => delivery.text);
+    assert.ok(texts.includes(message), `${code} keeps the channel reason`);
+    assert.equal(texts.includes(WEIXIN_TEXT.notSubmitted), false);
+    assert.equal(texts.includes(WEIXIN_TEXT.unconfirmed), false);
+  }
+  // An unrecognized media failure stays an attachment problem, never a model one.
+  const f = fixture(t);
+  f.channel.media.prepare = async () => { throw Object.assign(Error('unexpected provider failure'), {code: 'voice_provider_error'}); };
+  await f.channel.receive(f.state(), inbound('media-unknown', '', {item_list: [{type: 4, file_item: {file_name: '语音.silk', media: {encrypt_query_param: 'u'}}}]}));
+  assert.equal(f.events.get('media-unknown').state, 'rejected');
+  const texts = [...f.deliveries.values()].map(delivery => delivery.text);
+  assert.ok(texts.includes(WEIXIN_TEXT.mediaFailedFallback));
+  assert.equal(texts.includes(WEIXIN_TEXT.notSubmitted), false);
+  assert.equal(texts.includes(WEIXIN_TEXT.unconfirmed), false);
+});
+
 test('mediaFailureText echoes only this repository channel wording and otherwise falls back', () => {
   assert.equal(mediaFailureText({code: 'weixin_media_invalid', message: '微信媒体超过 8 MiB 上限。'}), '微信媒体超过 8 MiB 上限。');
   assert.equal(mediaFailureText({code: 'speech_unavailable', message: '尚未设置语音识别，请在电脑设置中配置。'}), '尚未设置语音识别，请在电脑设置中配置。');
+  assert.equal(mediaFailureText({code: 'weixin_voice_unsupported', message: '暂不支持此微信语音编码，请改用文字或其他语音格式。'}),
+    '暂不支持此微信语音编码，请改用文字或其他语音格式。');
+  assert.equal(mediaFailureText({code: 'weixin_voice_decode', message: '微信语音解码失败，请改用文字或重新发送。'}),
+    '微信语音解码失败，请改用文字或重新发送。');
   assert.equal(mediaFailureText({code: 'weixin_media_download', message: 'x'.repeat(81)}), WEIXIN_TEXT.mediaFailedFallback);
   assert.equal(mediaFailureText({code: 'weixin_media_invalid', message: '第一行\n第二行'}), WEIXIN_TEXT.mediaFailedFallback);
   assert.equal(mediaFailureText({code: 'network', message: 'unauthorized token at https://example.test'}), WEIXIN_TEXT.mediaFailedFallback);
@@ -584,6 +666,23 @@ test('Weixin failure notice distinguishes "never reached the conversation" from 
   assert.equal(f.events.get('not-submitted').state, 'rejected');
   assert.equal([...f.deliveries.values()][0].text, WEIXIN_TEXT.notSubmitted);
   assert.equal(f.calls.some(call => call.kind === 'submit'), false);
+});
+
+test('Weixin pre-admit model errors are never described as sent and are not replayed', async t => {
+  const f = fixture(t);
+  // The real models.requireOptions code and message: product.send rejects this
+  // before command.admit, so no turn was ever submitted.
+  f.product.sendWeixin = async () => {
+    f.calls.push({kind: 'submit'});
+    throw Object.assign(Error('请先为该用途在设置中配置模型、服务地址和凭据'), {code: 'model_not_configured'});
+  };
+  await f.channel.receive(f.state(), inbound('model-missing'));
+  assert.equal(f.events.get('model-missing').state, 'rejected');
+  const texts = [...f.deliveries.values()].map(delivery => delivery.text);
+  assert.ok(texts.includes(WEIXIN_TEXT.notSubmitted));
+  assert.equal(texts.includes(WEIXIN_TEXT.unconfirmed), false, 'a pre-admit rejection is not an unknown result');
+  await f.channel.start();
+  assert.equal(f.calls.filter(call => call.kind === 'submit').length, 1, 'restart does not replay the input');
 });
 
 test('Weixin credential expiry stops transport and does not retry rejected sends', async t => {
