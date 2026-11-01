@@ -20,29 +20,37 @@
 
 种子状态：`seed`（仅记录）、`selected`（已被某个需求引用）、`planned`（已排期）、`active`（实现/设计进行中）、`done`、`rejected`。
 
+### 2.1 引用性质与可追溯
+
+- **逐字**：用「」完整引号，不改字、不插省略号。
+- **摘录**：跨消息/跨段截取，标「摘录：」；省略号只表示省略，不得当作完整原话。
+- **整理**：需求师/队长整理，标「整理：」，不得称原话。
+- **定位**：本文件中的用户表述来自本会话（2026-11-02）；原始对话不公开，无法核验的文本不能标为完整原话。历史需求定位到 dev ID/PR；文档种子给相对链接。
+- 新增条目时把引用性质写清楚；不要把“整理后”与“原文”混在同一列而不标记。
+
 ## 3. 种子池
 
 ### 3.1 用户种子（2026-11-02）
 
 | 种子 ID | 种子 | 来源 | 原始表述/依据 | 状态 | 关联需求 |
 | --- | --- | --- | --- | --- | --- |
-| `SEED-README-OPT` | 优化 README | `user-seed` | “优化readme” | seed | — |
-| `SEED-REPO-STRUCTURE` | 维护仓库结构 | `user-seed` | “维护仓库结构” | seed | — |
-| `SEED-DEPS` | 优化依赖 | `user-seed` | “优化依赖” | seed | — |
-| `SEED-DEAD-CODE` | 清理旧无用代码 | `user-seed` | “清理旧无用代码” | seed | — |
-| `SEED-STATIC-UI` | 优化静态界面（如有） | `user-seed` | “优化静态界面（如果有的话）” | seed | — |
-| `SEED-RESEARCH-IDEAS` | 调研新想法（产品各方面） | `user-seed` | “调研新想法（本产品的各个方面吧）” | seed | — |
+| `SEED-README-OPT` | 优化 README | `user-seed` | 逐字：「优化readme」 | seed | — |
+| `SEED-REPO-STRUCTURE` | 维护仓库结构 | `user-seed` | 逐字：「维护仓库结构」 | seed | — |
+| `SEED-DEPS` | 优化依赖 | `user-seed` | 逐字：「优化依赖」 | seed | — |
+| `SEED-DEAD-CODE` | 清理旧无用代码 | `user-seed` | 逐字：「清理旧无用代码」 | seed | — |
+| `SEED-STATIC-UI` | 优化静态界面（如有） | `user-seed` | 逐字：「优化静态界面（如果有的话）」 | seed | — |
+| `SEED-RESEARCH-IDEAS` | 调研新想法（产品各方面） | `user-seed` | 逐字：「调研新想法（本产品的各个方面吧）」 | seed | — |
 
 ### 3.2 用户需求形成的种子
 
 | 种子 ID | 种子 | 来源 | 原始表述/依据 | 状态 | 关联需求 |
 | --- | --- | --- | --- | --- | --- |
-| `SEED-MEMORY` | 调研并建设 Mirally 自有记忆系统 | `user-request` | “调研记忆机制，考虑我们怎么做自己的记忆系统；实现我们自己的记忆系统” | selected | `REQ-MEMORY-RESEARCH`、`REQ-MEMORY-IMPL`、`REQ-MEMORY-ACTIVITY` |
-| `SEED-ACTIVITY` | 活动记录完善度与记忆/日历融合 | `user-request` | “活动记录啥的目前功能完善吗；记忆系统怎么和活动记录、日历之类的有机融合，是否可扩展” | selected | `REQ-ACTIVITY-AUDIT`、`REQ-MEMORY-ACTIVITY` |
-| `SEED-MODEL-PROVIDER` | 适配其他模型服务商接口 | `user-request` | “能否适配上其他模型服务商的接口？” | selected | `REQ-MODEL-PROVIDER` |
-| `SEED-UFO-CLEANUP` | 移除 UFO 子模块与专用测试依赖 | `user-request` | “UFO的测试啥的可以去掉了…submodule也可以去掉了” | active | `REQ-UFO-CLEANUP` |
-| `SEED-TEST-NOISE` | 优化本地验证噪声/临时目录 | `user-request` | “本地验证噪声…可以对应提需求尝试优化” | selected | `REQ-UFO-CLEANUP`（部分） |
-| `SEED-WORKFLOW-CONTROL` | 仓库内维护 AgentTeams 控制核心 | `user-request` | “控制核心也属于我们的workflow，所以也要放到仓库…要和产品隔离开” | active | `REQ-WORKFLOW-CONTROL` |
+| `SEED-MEMORY` | 调研并建设 Mirally 自有记忆系统 | `user-request` | 整理：“调研记忆机制，考虑我们怎么做自己的记忆系统；实现我们自己的记忆系统” | selected | `REQ-MEMORY-RESEARCH`、`REQ-MEMORY-IMPL`、`REQ-MEMORY-ACTIVITY` |
+| `SEED-ACTIVITY` | 活动记录完善度与记忆/日历融合 | `user-request` | 整理：“活动记录啥的目前功能完善吗；记忆系统怎么和活动记录、日历之类的有机融合，是否可扩展” | selected | `REQ-ACTIVITY-AUDIT`、`REQ-MEMORY-ACTIVITY` |
+| `SEED-MODEL-PROVIDER` | 适配其他模型服务商接口 | `user-request` | 逐字：“能否适配上其他模型服务商的接口？” | selected | `REQ-MODEL-PROVIDER` |
+| `SEED-UFO-CLEANUP` | 移除 UFO 子模块与专用测试依赖 | `user-request` | 摘录：“UFO的测试啥的可以去掉了…submodule也可以去掉了”（跨消息摘录，非全文） | active | `REQ-UFO-CLEANUP` |
+| `SEED-TEST-NOISE` | 优化本地验证噪声/临时目录 | `user-request` | 摘录：“本地验证噪声…可以对应提需求尝试优化”（摘录，非全文） | selected | `REQ-UFO-CLEANUP`（部分） |
+| `SEED-WORKFLOW-CONTROL` | 仓库内维护 AgentTeams 控制核心 | `user-request` | 摘录：“控制核心也属于我们的workflow，所以也要放到仓库…要和产品隔离开”（摘录，非全文） | active | `REQ-WORKFLOW-CONTROL` |
 
 ### 3.3 既有/历史种子
 
@@ -83,7 +91,10 @@
 
 ## 6. 维护
 
-- 用户新增需求/种子时，队长或需求师追加原文和整理后的语句。
+- **单一维护者**：队长或指定的需求师负责最终写入；其他需求师/工程师在任务/PR 中提交种子和建议，合并后由维护者统一追加，避免并行分支各改一份。
+- **未合并协调**：未合并分支里的新种子先在 PR/任务说明中标出，维护者按 ID 去重；重复条目合并到原条目，不新建平行需求。
+- **状态同步时机**：`state.json` 是执行状态权威；本文件只在需求登记、进入待合并池、合并/关闭时更新，不要求每次状态变化都同步，避免频繁冲突。
+- 用户新增需求/种子时，维护者追加原文/摘录/整理标记和定位。
 - 具体需求状态变化时更新“关联需求/状态”，不删除历史。
 - `done/rejected` 保留，供后续复盘和学习。
 - 本文件只记录开发需求与方向，不记录凭据、私有数据或日常任务流水账。
