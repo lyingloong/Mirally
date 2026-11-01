@@ -179,7 +179,8 @@ free_slots     = max(0, concurrency - load)
 默认路径（`output/` 已被 gitignore）：
 
 - `output/agent-workflow/state.json`：backlog 和状态；
-- `output/agent-workflow/config.json`：本机配置。
+- `output/agent-workflow/config.json`：本机配置；
+- `.agent-teams/<team-id>/`：DSH 团队运行状态（`team.json`、`inbox/`、`archive/`），只存在于本机工作目录，已被 gitignore；不要提交，也不要从其他 checkout 复制。
 
 默认配置关键项：
 
