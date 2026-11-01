@@ -231,6 +231,7 @@ def touch(point: dict[str, Any]) -> None:
 
 def transition(
     state: dict[str, Any],
+    config: dict[str, Any],
     point: dict[str, Any],
     status: str,
     *,
@@ -246,6 +247,13 @@ def transition(
         raise WorkflowError(
             f"transition {point['id']} from {current} to {status} is not allowed; use --force for recovery"
         )
+    if not force:
+        if current == "queued" and status == "specifying":
+            raise WorkflowError("queued -> specifying must use start_point")
+        if current == "proposed" and status == "queued":
+            raise WorkflowError("proposed -> queued must use promote_point")
+        if not _admit_transition(state, config, point, status, note):
+            return
     point["status"] = status
     if status == "awaiting_merge":
         point["merge_ready_at"] = iso(utcnow())
@@ -347,6 +355,41 @@ def _projected_load(
     return active + max(0, waiting - exempt)
 
 
+def _park_for_capacity(point: dict[str, Any], target: str, note: str | None) -> None:
+    append_note(point, note)
+    point["blocked_from_status"] = target
+    point["blocked_reason"] = "capacity"
+    point["blocked_until"] = None
+    point["status"] = "blocked"
+    append_note(point, f"capacity full; deferred {target} until a slot frees")
+    touch(point)
+
+
+def _admit_transition(
+    state: dict[str, Any],
+    config: dict[str, Any],
+    point: dict[str, Any],
+    target: str,
+    note: str | None,
+) -> bool:
+    if target not in ACTIVE_STATUSES and target != "awaiting_merge":
+        return True
+    before = build_summary(state, config)["load"]
+    probe = copy.deepcopy(state)
+    probe_point = point_by_id(probe, point["id"])
+    probe_point["status"] = target
+    after = build_summary(probe, config)["load"]
+    if after > int(config["concurrency"]) and after > before:
+        _park_for_capacity(point, target, note)
+        return False
+    if target in ACTIVE_STATUSES and point["status"] not in ACTIVE_STATUSES:
+        if point["source"] == "agent" and point.get("auto_started"):
+            if len(_active_auto_others(state, point)) >= int(config["max_auto_agent_in_flight"]):
+                _park_for_capacity(point, target, note)
+                return False
+    return True
+
+
 def _auto_today_count(state: dict[str, Any]) -> int:
     today = utcnow().date().isoformat()
     return sum(
@@ -407,6 +450,11 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
     agent_candidates = [point for point in agent_proposed if point["risk"] == "low"]
 
     quota_blocked = _quota_blocked(state)
+    capacity_blocked = [
+        point
+        for point in points
+        if point["status"] == "blocked" and point.get("blocked_reason") == "capacity"
+    ]
     auto_today = _auto_today_count(state)
     quota = config["quota"]
     ai_cap_ok = (
@@ -457,6 +505,8 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
         action = "promote_agent"
     elif should_discover_agent:
         action = "discover_agent"
+    elif capacity_blocked and free > 0:
+        action = "resume_capacity"
 
     return {
         "concurrency": concurrency,
@@ -488,6 +538,7 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
         "merge_head": _brief(merge_waiting[0]) if merge_waiting else None,
         "merging": [_brief(point) for point in merging],
         "quota_blocked": [_brief(point) for point in quota_blocked],
+        "capacity_blocked": [_brief(point) for point in capacity_blocked],
         "quota": {
             "enabled": bool(quota.get("enabled")),
             "retry_after_minutes": quota.get("retry_after_minutes"),
@@ -558,37 +609,55 @@ def start_point(state: dict[str, Any], config: dict[str, Any], point_id: str) ->
     return point
 
 
-def review_pass(state: dict[str, Any], point_id: str) -> dict[str, Any]:
+def review_pass(state: dict[str, Any], config: dict[str, Any], point_id: str) -> dict[str, Any]:
     point = point_by_id(state, point_id)
-    transition(state, point, "awaiting_merge", note="review passed; waiting for user merge approval")
+    transition(
+        state,
+        config,
+        point,
+        "awaiting_merge",
+        note="review passed; waiting for user merge approval",
+    )
     return point
 
 
-def review_fail(state: dict[str, Any], point_id: str, reason: str | None = None) -> dict[str, Any]:
+def review_fail(
+    state: dict[str, Any],
+    config: dict[str, Any],
+    point_id: str,
+    reason: str | None = None,
+) -> dict[str, Any]:
     point = point_by_id(state, point_id)
-    transition(state, point, "repairing", note=reason or "review requested changes; returned to engineer")
+    transition(
+        state,
+        config,
+        point,
+        "repairing",
+        note=reason or "review requested changes; returned to engineer",
+    )
     return point
 
 
-def merge_approve(state: dict[str, Any], point_id: str) -> dict[str, Any]:
+def merge_approve(state: dict[str, Any], config: dict[str, Any], point_id: str) -> dict[str, Any]:
     point = point_by_id(state, point_id)
     if point["status"] != "awaiting_merge":
         raise WorkflowError(f"{point_id} is not awaiting_merge")
     queue = _merge_queue(state)
     if queue and queue[0]["id"] != point_id:
         raise WorkflowError(f"{point_id} is not the merge queue head (head is {queue[0]['id']})")
-    transition(state, point, "merging", note="user approved merge")
+    transition(state, config, point, "merging", note="user approved merge")
     return point
 
 
-def merge_done(state: dict[str, Any], point_id: str) -> dict[str, Any]:
+def merge_done(state: dict[str, Any], config: dict[str, Any], point_id: str) -> dict[str, Any]:
     point = point_by_id(state, point_id)
-    transition(state, point, "done", note="merged to main")
+    transition(state, config, point, "done", note="merged to main")
     return point
 
 
 def merge_reject(
     state: dict[str, Any],
+    config: dict[str, Any],
     point_id: str,
     *,
     reason: str | None = None,
@@ -598,17 +667,28 @@ def merge_reject(
     if point["status"] != "awaiting_merge":
         raise WorkflowError(f"{point_id} is not awaiting_merge")
     if close:
-        transition(state, point, "rejected", note=reason or "user closed this point")
+        transition(state, config, point, "rejected", note=reason or "user closed this point")
     else:
-        transition(state, point, "repairing", note=reason or "user rejected merge; changes required")
+        transition(
+            state,
+            config,
+            point,
+            "repairing",
+            note=reason or "user rejected merge; changes required",
+        )
     return point
 
 
-def reject_point(state: dict[str, Any], point_id: str, reason: str | None = None) -> dict[str, Any]:
+def reject_point(
+    state: dict[str, Any],
+    config: dict[str, Any],
+    point_id: str,
+    reason: str | None = None,
+) -> dict[str, Any]:
     point = point_by_id(state, point_id)
     if point["status"] not in {"proposed", "queued", "inbox"}:
         raise WorkflowError(f"{point_id} cannot be rejected from its current status")
-    transition(state, point, "rejected", note=reason or "user rejected this point")
+    transition(state, config, point, "rejected", note=reason or "user rejected this point")
     return point
 
 
@@ -732,7 +812,7 @@ def validate_state(state: dict[str, Any], config: dict[str, Any]) -> list[str]:
         if point.get("status") == "blocked":
             if not point.get("blocked_from_status"):
                 issues.append(f"{label} blocked point is missing blocked_from_status")
-            if not point.get("blocked_until"):
+            if point.get("blocked_reason") != "capacity" and not point.get("blocked_until"):
                 issues.append(f"{label} blocked point is missing blocked_until")
         if point.get("status") == "awaiting_merge" and not point.get("merge_ready_at"):
             issues.append(f"{label} awaiting_merge point is missing merge_ready_at")
@@ -798,6 +878,10 @@ def print_status(summary: dict[str, Any]) -> None:
     if summary["quota_blocked"]:
         print("quota blocked:")
         for point in summary["quota_blocked"]:
+            print("  " + format_point(point))
+    if summary["capacity_blocked"]:
+        print("capacity deferred (resume when a slot frees):")
+        for point in summary["capacity_blocked"]:
             print("  " + format_point(point))
 
 
@@ -978,7 +1062,7 @@ def command_set_status(args: argparse.Namespace) -> int:
     elif not args.force and args.status == "queued" and point["status"] == "proposed":
         raise WorkflowError("proposed -> queued requires promote (user approval or --auto)")
     else:
-        transition(state, point, args.status, force=args.force, note=args.note)
+        transition(state, config, point, args.status, force=args.force, note=args.note)
     for field in META_FIELDS:
         value = getattr(args, field, None)
         if value is not None:
@@ -1004,7 +1088,8 @@ def command_set_status(args: argparse.Namespace) -> int:
 def command_review_pass(args: argparse.Namespace) -> int:
     state_path = Path(args.state)
     state = load_state(state_path)
-    point = review_pass(state, args.id)
+    config = load_config(Path(args.config))
+    point = review_pass(state, config, args.id)
     save_state(state_path, state)
     print_json(point)
     return 0
@@ -1013,7 +1098,8 @@ def command_review_pass(args: argparse.Namespace) -> int:
 def command_review_fail(args: argparse.Namespace) -> int:
     state_path = Path(args.state)
     state = load_state(state_path)
-    point = review_fail(state, args.id, args.reason)
+    config = load_config(Path(args.config))
+    point = review_fail(state, config, args.id, args.reason)
     save_state(state_path, state)
     print_json(point)
     return 0
@@ -1022,7 +1108,8 @@ def command_review_fail(args: argparse.Namespace) -> int:
 def command_merge_approved(args: argparse.Namespace) -> int:
     state_path = Path(args.state)
     state = load_state(state_path)
-    point = merge_approve(state, args.id)
+    config = load_config(Path(args.config))
+    point = merge_approve(state, config, args.id)
     save_state(state_path, state)
     print_json(point)
     return 0
@@ -1031,7 +1118,8 @@ def command_merge_approved(args: argparse.Namespace) -> int:
 def command_merge_done(args: argparse.Namespace) -> int:
     state_path = Path(args.state)
     state = load_state(state_path)
-    point = merge_done(state, args.id)
+    config = load_config(Path(args.config))
+    point = merge_done(state, config, args.id)
     save_state(state_path, state)
     print_json(point)
     return 0
@@ -1040,7 +1128,8 @@ def command_merge_done(args: argparse.Namespace) -> int:
 def command_merge_rejected(args: argparse.Namespace) -> int:
     state_path = Path(args.state)
     state = load_state(state_path)
-    point = merge_reject(state, args.id, reason=args.reason, close=args.close)
+    config = load_config(Path(args.config))
+    point = merge_reject(state, config, args.id, reason=args.reason, close=args.close)
     save_state(state_path, state)
     print_json(point)
     return 0
@@ -1049,7 +1138,8 @@ def command_merge_rejected(args: argparse.Namespace) -> int:
 def command_reject_point(args: argparse.Namespace) -> int:
     state_path = Path(args.state)
     state = load_state(state_path)
-    point = reject_point(state, args.id, args.reason)
+    config = load_config(Path(args.config))
+    point = reject_point(state, config, args.id, args.reason)
     save_state(state_path, state)
     print_json(point)
     return 0

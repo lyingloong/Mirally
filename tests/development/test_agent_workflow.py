@@ -27,9 +27,9 @@ def make_config(**overrides):
 
 def advance_to_reviewing(state, config, point_id):
     wf.start_point(state, config, point_id)
-    wf.transition(state, wf.point_by_id(state, point_id), "implementing")
-    wf.transition(state, wf.point_by_id(state, point_id), "verifying")
-    wf.transition(state, wf.point_by_id(state, point_id), "reviewing")
+    wf.transition(state, config, wf.point_by_id(state, point_id), "implementing")
+    wf.transition(state, config, wf.point_by_id(state, point_id), "verifying")
+    wf.transition(state, config, wf.point_by_id(state, point_id), "reviewing")
 
 
 class ConfigTests(unittest.TestCase):
@@ -119,7 +119,7 @@ class StateTests(unittest.TestCase):
         self.add_user("user one")
         self.add_user("user two")
         agent = self.add_agent()
-        wf.transition(self.state, agent, "queued")
+        wf.promote_point(self.state, self.config, agent["id"], auto=False)
         with self.assertRaises(wf.WorkflowError):
             wf.start_point(self.state, self.config, agent["id"])
 
@@ -127,9 +127,9 @@ class StateTests(unittest.TestCase):
         point = self.add_user()
         wf.start_point(self.state, self.config, point["id"])
         with self.assertRaises(wf.WorkflowError):
-            wf.transition(self.state, point, "done")
+            wf.transition(self.state, self.config, point, "done")
         with self.assertRaises(wf.WorkflowError):
-            wf.transition(self.state, point, "blocked")  # blocked uses the block command
+            wf.transition(self.state, self.config, point, "blocked")  # blocked uses the block command
 
 
 class SummaryTests(unittest.TestCase):
@@ -162,7 +162,7 @@ class SummaryTests(unittest.TestCase):
     def test_one_merge_ready_point_is_exempt_from_concurrency(self):
         point = self.add_user()
         advance_to_reviewing(self.state, self.config, point["id"])
-        wf.review_pass(self.state, point["id"])
+        wf.review_pass(self.state, self.config, point["id"])
         summary = wf.build_summary(self.state, self.config)
         self.assertEqual(summary["load"], 0)
         self.assertEqual(summary["free_slots"], 3)
@@ -176,7 +176,7 @@ class SummaryTests(unittest.TestCase):
         second = self.add_user("second")
         for point in (first, second):
             advance_to_reviewing(self.state, self.config, point["id"])
-            wf.review_pass(self.state, point["id"])
+            wf.review_pass(self.state, self.config, point["id"])
         summary = wf.build_summary(self.state, self.config)
         self.assertEqual(summary["load"], 1)
         self.assertEqual(summary["free_slots"], 2)
@@ -189,7 +189,7 @@ class SummaryTests(unittest.TestCase):
             wf.start_point(self.state, self.config, point["id"])
         merged = self.add_user("merged")
         advance_to_reviewing(self.state, self.config, merged["id"])
-        wf.review_pass(self.state, merged["id"])
+        wf.review_pass(self.state, self.config, merged["id"])
         summary = wf.build_summary(self.state, self.config)
         self.assertEqual(summary["load"], 2)
         self.assertEqual(summary["free_slots"], 1)
@@ -232,13 +232,13 @@ class SummaryTests(unittest.TestCase):
 
     def test_reject_queued_user_point(self):
         point = self.add_user("reject me")
-        wf.reject_point(self.state, point["id"], reason="not needed")
+        wf.reject_point(self.state, self.config, point["id"], reason="not needed")
         self.assertEqual(point["status"], "rejected")
 
     def test_reject_inbox_point(self):
         point = self.add_user("reject inbox")
         point["status"] = "inbox"
-        wf.reject_point(self.state, point["id"])
+        wf.reject_point(self.state, self.config, point["id"])
         self.assertEqual(point["status"], "rejected")
 
     def test_discover_is_suggested_only_when_no_work_is_waiting(self):
@@ -262,7 +262,7 @@ class MergeGateTests(unittest.TestCase):
     def prepare(self, title):
         point = wf.new_point(self.state, source="user", title=title)
         advance_to_reviewing(self.state, self.config, point["id"])
-        wf.review_pass(self.state, point["id"])
+        wf.review_pass(self.state, self.config, point["id"])
         return point
 
     def test_review_pass_does_not_merge(self):
@@ -275,29 +275,29 @@ class MergeGateTests(unittest.TestCase):
         first = self.prepare("first")
         second = self.prepare("second")
         with self.assertRaises(wf.WorkflowError):
-            wf.merge_approve(self.state, second["id"])
-        wf.merge_approve(self.state, first["id"])
+            wf.merge_approve(self.state, self.config, second["id"])
+        wf.merge_approve(self.state, self.config, first["id"])
         self.assertEqual(first["status"], "merging")
-        wf.merge_done(self.state, first["id"])
+        wf.merge_done(self.state, self.config, first["id"])
         self.assertEqual(first["status"], "done")
         self.assertIsNotNone(first["merged_at"])
-        wf.merge_approve(self.state, second["id"])
+        wf.merge_approve(self.state, self.config, second["id"])
         self.assertEqual(second["status"], "merging")
 
     def test_merge_reject_returns_to_repair_or_close(self):
         point = self.prepare("one")
-        wf.merge_reject(self.state, point["id"], reason="需要调整文案")
+        wf.merge_reject(self.state, self.config, point["id"], reason="需要调整文案")
         self.assertEqual(point["status"], "repairing")
         self.assertIn("需要调整文案", point["notes"])
 
         other = self.prepare("two")
-        wf.merge_reject(self.state, other["id"], reason="不做了", close=True)
+        wf.merge_reject(self.state, self.config, other["id"], reason="不做了", close=True)
         self.assertEqual(other["status"], "rejected")
 
     def test_invalid_next_step_is_rejected(self):
         point = self.prepare("one")
         with self.assertRaises(wf.WorkflowError):
-            wf.merge_done(self.state, point["id"])
+            wf.merge_done(self.state, self.config, point["id"])
 
 
 class QuotaTests(unittest.TestCase):
@@ -422,6 +422,102 @@ class AdmissionTests(unittest.TestCase):
         wf.resume_point(state, config, second["id"])
         self.assertEqual(second["status"], "awaiting_merge")
         self.assertEqual(wf.build_summary(state, config)["load"], 1)
+
+    def test_merge_reject_parks_when_capacity_full(self):
+        config = make_config(concurrency=1)
+        state = wf.empty_state()
+        first = wf.new_point(state, source="user", title="first")
+        second = wf.new_point(state, source="user", title="second")
+        first["status"] = "awaiting_merge"
+        first["merge_ready_at"] = wf.iso(wf.utcnow())
+        wf.start_point(state, config, second["id"])
+        wf.merge_reject(state, config, first["id"], reason="rework")
+        self.assertEqual(first["status"], "blocked")
+        self.assertEqual(first["blocked_reason"], "capacity")
+        self.assertEqual(first["blocked_from_status"], "repairing")
+        self.assertEqual(second["status"], "specifying")
+        self.assertEqual(wf.build_summary(state, config)["load"], 1)
+        self.assertEqual(wf.validate_state(state, config), [])
+        wf.block_point(state, config, second["id"], reason="external")
+        wf.resume_point(state, config, first["id"])
+        self.assertEqual(first["status"], "repairing")
+
+    def test_merging_to_repairing_parks_when_capacity_full(self):
+        config = make_config(concurrency=1)
+        state = wf.empty_state()
+        first = wf.new_point(state, source="user", title="first")
+        second = wf.new_point(state, source="user", title="second")
+        first["status"] = "awaiting_merge"
+        first["merge_ready_at"] = wf.iso(wf.utcnow())
+        wf.start_point(state, config, second["id"])
+        wf.merge_approve(state, config, first["id"])
+        self.assertEqual(first["status"], "merging")
+        wf.transition(state, config, first, "repairing")
+        self.assertEqual(first["status"], "blocked")
+        self.assertEqual(first["blocked_reason"], "capacity")
+        self.assertEqual(second["status"], "specifying")
+
+    def test_set_status_repairing_parks_when_capacity_full(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state_path = Path(directory) / "state.json"
+            config_path = Path(directory) / "config.json"
+            state = wf.empty_state()
+            first = wf.new_point(state, source="user", title="first")
+            second = wf.new_point(state, source="user", title="second")
+            first["status"] = "awaiting_merge"
+            first["merge_ready_at"] = wf.iso(wf.utcnow())
+            wf.start_point(state, make_config(concurrency=1), second["id"])
+            wf.save_state(state_path, state)
+            wf.write_json(config_path, make_config(concurrency=1))
+            output = io.StringIO()
+            with redirect_stdout(output), redirect_stderr(io.StringIO()):
+                self.assertEqual(
+                    wf.main(
+                        [
+                            "--state",
+                            str(state_path),
+                            "--config",
+                            str(config_path),
+                            "set-status",
+                            "dev-0001",
+                            "repairing",
+                        ]
+                    ),
+                    0,
+                )
+            state = wf.load_state(state_path)
+            self.assertEqual(wf.point_by_id(state, "dev-0001")["status"], "blocked")
+            self.assertEqual(wf.point_by_id(state, "dev-0001")["blocked_reason"], "capacity")
+
+    def test_review_fail_under_full_load_remains_active(self):
+        config = make_config(concurrency=2)
+        state = wf.empty_state()
+        first = wf.new_point(state, source="user", title="first")
+        second = wf.new_point(state, source="user", title="second")
+        wf.start_point(state, config, first["id"])
+        wf.start_point(state, config, second["id"])
+        for status in ("implementing", "verifying", "reviewing"):
+            wf.transition(state, config, first, status)
+        self.assertEqual(wf.build_summary(state, config)["load"], 2)
+        wf.review_fail(state, config, first["id"], reason="rework")
+        self.assertEqual(first["status"], "repairing")
+        self.assertEqual(wf.build_summary(state, config)["load"], 2)
+
+    def test_merge_reject_parks_on_ai_in_flight_cap(self):
+        config = make_config()
+        state = wf.empty_state()
+        first = wf.new_point(state, source="agent", title="first", risk="low")
+        second = wf.new_point(state, source="agent", title="second", risk="low")
+        wf.promote_point(state, config, first["id"], auto=True)
+        wf.start_point(state, config, first["id"])
+        for status in ("implementing", "verifying", "reviewing"):
+            wf.transition(state, config, first, status)
+        wf.review_pass(state, config, first["id"])
+        wf.promote_point(state, config, second["id"], auto=True)
+        wf.start_point(state, config, second["id"])
+        wf.merge_reject(state, config, first["id"], reason="rework")
+        self.assertEqual(first["status"], "blocked")
+        self.assertEqual(first["blocked_reason"], "capacity")
 
     def test_set_status_cannot_bypass_start_admission(self):
         with tempfile.TemporaryDirectory() as directory:

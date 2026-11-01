@@ -116,6 +116,7 @@ free_slots     = max(0, concurrency - load)
 
 - 用户批准后，队长才创建 integration 任务；审查师执行普通 merge（`gh pr merge --merge`，不用 squash/rebase），确认 `origin/main` 包含合并提交。
 - 用户退回：进入 `repairing`；如果决定不做，标记 `rejected` 并关闭 PR。
+- 退回或返工若会增加调度负载（例如唯一待合并队首退回 `repairing`，而其他槽位已满），不强行增加负载：点登记为 `blocked` / `blocked_reason=capacity`，槽位释放后再 `resume`，返工意图不会丢失。
 - 合并冲突：integration 先把 `origin/main` 合入分支并解决冲突；如果冲突解决改变了语义，重新验证/审查后再请用户批准。
 
 ## 审查经验库
@@ -246,7 +247,7 @@ free_slots     = max(0, concurrency - load)
 .\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py validate
 ```
 
-命令输出均为 JSON（`status` 加 `--json` 也是），便于队长读取。`set-status` 不能直接设置 `blocked`、`awaiting_merge`、`merging`、`done`，必须使用对应专用命令；也不能从 `queued` 直接进入 `specifying`（必须用 `start`，`--force` 只用于明确恢复），不能从 `proposed` 直接进入 `queued`（必须用 `promote`）。
+命令输出均为 JSON（`status` 加 `--json` 也是），便于队长读取。`set-status` 不能直接设置 `blocked`、`awaiting_merge`、`merging`、`done`，必须使用对应专用命令；也不能从 `queued` 直接进入 `specifying`（必须用 `start`，`--force` 只用于明确恢复），不能从 `proposed` 直接进入 `queued`（必须用 `promote`）。如果正常转换会增加负载但没有空槽，会登记 `blocked` / `blocked_reason=capacity`，不会强行超载或丢失返工意图；槽位释放后 `resume`。
 
 ## 队长的循环
 
@@ -289,6 +290,7 @@ requirements → implementation → verification → review
 
 - 状态文件丢失时，可从 open PR、分支、AgentTeams 任务输出重建；先核对再继续，不重复开 PR。
 - `resume` 按恢复后的投影 load 计算容量（含 active 和 awaiting_merge 的队首免占语义），并复核用户优先和 AI 在飞上限；超出并发或限额时保持 `blocked`，不强行恢复。配额暂停只拦新开发，不拦已有阻塞任务恢复。
+- 容量不足的返工点以 `blocked` / `blocked_reason=capacity` 等待，不占并发，也不触发配额暂停；槽位释放后 `resume`。
 - 配额 fallback 只在退避重启期间使用；正常调度和新建团队默认 ustc。
 - 审查师是单点瓶颈；并发提高或审查排队时增加第二名审查师。
 - 自动启动的 AI 点仍可能低价值；用每日上限、标签、合并闸门和用户随时叫停控制。
