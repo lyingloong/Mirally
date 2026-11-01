@@ -9,6 +9,9 @@
 /output/
 /tools/bin/
 
+# AgentTeams runtime state (local coordination, not a repo artifact)
+**/.agent-teams/
+
 # Local credentials and environment overrides
 **/.env
 **/.env.local
