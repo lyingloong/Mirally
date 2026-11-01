@@ -11,15 +11,20 @@ the small operations the captain performs after every report:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 from typing import Any
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from tools.dev_workflow import agent_workflow as wf
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_STATE_PATH = REPO_ROOT / "output" / "agent-workflow" / "state.json"
 DEFAULT_CONFIG_PATH = REPO_ROOT / "output" / "agent-workflow" / "config.json"
+RESTRICTED_STATUSES = {"blocked", "awaiting_merge", "merging", "done"}
 
 
 def pending_rows(state: dict[str, Any], config: dict[str, Any]) -> list[dict[str, Any]]:
@@ -74,6 +79,11 @@ def record_point(
 ) -> dict[str, Any]:
     """Record one report, optionally transitioning through the normal gates."""
     point = wf.point_by_id(state, point_id)
+    if status in RESTRICTED_STATUSES and not force:
+        raise wf.WorkflowError(
+            f"{status} requires a dedicated command "
+            "(block / review-pass / merge-approved / merge-done)"
+        )
     if status is not None and status != point["status"]:
         wf.transition(state, config, point, status, force=force, note=note)
     elif note:
@@ -100,21 +110,43 @@ def record_point(
     return point
 
 
+def _write(stream: Any, text: str) -> None:
+    """Write without assuming UTF-8: escape only what the stream cannot encode."""
+    encoding = getattr(stream, "encoding", None) or "ascii"
+    try:
+        data = text.encode(encoding, "backslashreplace")
+    except LookupError:
+        encoding = "ascii"
+        data = text.encode(encoding, "backslashreplace")
+    buffer = getattr(stream, "buffer", None)
+    if buffer is not None:
+        buffer.write(data)
+        buffer.flush()
+    else:
+        stream.write(data.decode(encoding, "replace"))
+        stream.flush()
+
+
+def print_json_safe(value: Any) -> None:
+    _write(sys.stdout, json.dumps(value, ensure_ascii=True, indent=2) + "\n")
+
+
 def print_pending(rows: list[dict[str, Any]], *, as_json: bool = False) -> None:
     if as_json:
-        wf.print_json(rows)
+        print_json_safe(rows)
         return
     if not rows:
-        print("pending merge pool: empty")
+        _write(sys.stdout, "pending merge pool: empty\n")
         return
-    print(f"pending merge pool: {len(rows)}")
+    lines = [f"pending merge pool: {len(rows)}"]
     for row in rows:
         pr = f"PR #{row['pr']}" if row.get("pr") else "PR ?"
         head = (row.get("head_sha") or "")[:8]
-        print(
+        lines.append(
             f"  {row['id']} [{row['source']}/{row['risk']}] {row['title']} "
             f"{pr} head={head or '?'} exempt={row['exempt']}"
         )
+    _write(sys.stdout, "\n".join(lines) + "\n")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -155,7 +187,7 @@ def command_spec_path(args: argparse.Namespace) -> int:
     state = wf.load_state(state_path)
     point = set_spec_path(state, args.id, args.path)
     wf.save_state(state_path, state)
-    wf.print_json(point)
+    print_json_safe(point)
     return 0
 
 
@@ -177,7 +209,7 @@ def command_record(args: argparse.Namespace) -> int:
         force=args.force,
     )
     wf.save_state(state_path, state)
-    wf.print_json(point)
+    print_json_safe(point)
     return 0
 
 
@@ -194,7 +226,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return COMMANDS[args.command](args)
     except wf.WorkflowError as error:
-        print(f"error: {error}", file=sys.stderr)
+        _write(sys.stderr, f"error: {error}\n")
         return 2
 
 

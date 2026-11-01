@@ -108,3 +108,6 @@ jobs:
 
       - name: Test workflow state manager
         run: python -m unittest tests.development.test_agent_workflow -v
+
+      - name: Test workflow captain operations
+        run: python -m unittest tests.development.test_workflow_ops -v
