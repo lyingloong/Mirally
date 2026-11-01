@@ -1,6 +1,15 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {WeixinNumberedLists} from '../kernel/dsh/packages/mirally/mirally-product/src/channels/weixin-numbered-list.mjs';
+import {WeixinNumberedLists, LIST_TEXT} from '../kernel/dsh/packages/mirally/mirally-product/src/channels/weixin-numbered-list.mjs';
+
+test('expired list shortcuts use the same "编号" wording as the delivered lists', () => {
+  const lists = new WeixinNumberedLists(() => 1000);
+  const scope = {installation_id: 'paired', revision: 1, conversation_id: 'first', command_id: 'list-a'};
+  for (const [kind, expected] of [['sessions', LIST_TEXT.sessions], ['works', LIST_TEXT.works],
+    ['calendar', LIST_TEXT.calendar], ['other', LIST_TEXT.other]])
+    assert.throws(() => lists.select(kind, scope, '1'), {message: expected});
+  assert.equal(LIST_TEXT.sessions, '会话编号已失效。发送“会话”重新查看。');
+});
 
 test('number shortcuts require confirmed list delivery and preserve the displayed identities', () => {
   let time = 1000;

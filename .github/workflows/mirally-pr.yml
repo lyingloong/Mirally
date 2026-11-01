@@ -106,8 +106,11 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Test workflow state manager
-        run: python -m unittest tests.development.test_agent_workflow -v
+      - name: Test workflow state manager and repository hygiene
+        run: python -m unittest tests.development.test_agent_workflow tests.development.test_repo_hygiene -v
+
+      - name: Test workflow captain operations
+        run: python -m unittest tests.development.test_workflow_ops -v
 
       - name: Check sources for conflict markers and Python syntax
         run: |

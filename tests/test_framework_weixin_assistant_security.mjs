@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {ActionGate} from '../kernel/dsh/packages/mirally/mirally-product/src/action-gate.mjs';
 import {installNativeInteractions} from '../kernel/dsh/packages/mirally/mirally-product/src/native-interactions.mjs';
 import {WeixinCalendar} from '../kernel/dsh/packages/mirally/mirally-product/src/channels/weixin-calendar.mjs';
+import {WEIXIN_TEXT} from '../kernel/dsh/packages/mirally/mirally-product/src/channels/weixin.mjs';
 
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 const policy={origin:'weixin',installation_id:'install',revision:7,conversation_id:'assistant',
@@ -48,7 +49,7 @@ test('a delegated target question is delivered to the assistant route and releas
 test('calendar switching does not cancel a running assistant delegation',async()=>{
   const state={mode:'assistant',installation_id:'install',revision:7,conversation_id:'assistant'};
   let cancelled=0,selected=0;const replies=[];
-  const channel={authorize:async()=>state,hasActiveInput:()=>true,numberedLists:{select:()=> 'id'},
+  const channel={authorize:async()=>state,hasActiveInput:()=>true,numberedLists:{select:()=> 'id'},text:WEIXIN_TEXT,
     reply:async(_event,text)=>replies.push(text),store:async()=>{selected++;throw Error('must not select');},
     product:{cancelWeixinCommands:async()=>{cancelled++;},
       rpc:async(method)=>method==='calendar.settings.get'?{confirmed:true,time_zone:'Asia/Shanghai'}:
@@ -56,5 +57,5 @@ test('calendar switching does not cancel a running assistant delegation',async()
   const event={...state,text:'进入日程 1'};
   await new WeixinCalendar(channel).control({...event,text:'进入日程 1'});
   assert.equal(cancelled,0);assert.equal(selected,0);assert.equal(replies.length,1);
-  assert.ok(replies.every(text=>text.includes('正在处理')));
+  assert.ok(replies.every(text=>text===WEIXIN_TEXT.busySwitch));
 });

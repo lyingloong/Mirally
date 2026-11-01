@@ -1,7 +1,7 @@
 /** Product channel: no model loop, transcript or authority is owned here. */
 import {createHash, randomUUID} from 'node:crypto';
 import {WeixinApi, validateWeixinBaseUrl} from './weixin-api.mjs';
-import {WeixinNumberedLists} from './weixin-numbered-list.mjs';
+import {WeixinNumberedLists, LIST_TEXT} from './weixin-numbered-list.mjs';
 import {notifyReminders, canDeliverReminder, ackReminder} from './weixin-reminders.mjs';
 import {WeixinCalendar} from './weixin-calendar.mjs';
 import {WeixinInboundMedia, inspectWeixinMedia} from './weixin-media.mjs';
@@ -11,7 +11,74 @@ import {WeixinLifecycle} from './weixin-lifecycle.mjs';
 
 const MAX_AGE = 10 * 60_000;
 const LOGIN_TTL = 5 * 60_000;
-const HELP = 'Mirally 微信菜单\n助理（/assistant on）\n会话模式（/assistant off）\n会话（/sessions）\n切换 1（/use 1）\n新对话 [名称]（/new）\n当前会话（/status）\n查看历史（/history [更早游标]）\n日程 · 今日日程 · 明日日程\n停止回复（/stop）\n菜单（/help）\n\n电脑保持 Mirally 联网运行。\n收到问题后直接回复选项数字或文字。';
+/**
+ * Every prompt delivered to WeChat lives here: one entry answers "what happened"
+ * and "what can I do next" for exactly one trigger. Tests import these constants
+ * instead of repeating literals.
+ */
+export const WEIXIN_TEXT = {
+  menu: 'Mirally 微信菜单\n直接说想做的事也可以。\n\n切换\n助理（/assistant on） · 会话模式（/assistant off）\n会话（/sessions） · 切换 1（/use 1） · 新对话 [名称]（/new）\n\n查看\n当前会话（/status） · 查看历史（/history）\n日程 · 今日日程 · 明日日程\n\n控制\n停止回复（/stop） · 菜单（/help）\n\n电脑保持 Mirally 联网运行。',
+  received: '已收到，正在处理。',
+  receivedAssistant: '已收到，助理正在处理。',
+  mediaReceived: count => `收到，正在处理附件（${count} 项）。`,
+  busySend: '当前会话还在回复上一条消息。等结束后再发，或发送“停止回复”。',
+  busySwitch: '当前会话还在回复上一条消息。请等结束，或发送“停止回复”后再切换。',
+  stopped: '已停止当前会话的回复。',
+  notRunning: '当前会话没有在回复。',
+  replyStopped: '这轮回复已停止。',
+  replyUnknown: '这轮回复未能确认完成，请到桌面查看；不会自动重新执行。',
+  notSubmitted: '这条消息没有送进会话。请在电脑检查模型连接后重新发送。',
+  unconfirmed: '消息已送出，但结果还没有确认。请在电脑查看这个会话；不要重复发送。',
+  mediaFailedFallback: '附件没有处理成功。请换一个文件或重新发送。',
+  truncated: '\n\n…（微信只显示前 14000 字，完整回复请在电脑查看同一会话。）',
+  partPrefix: (index, total) => `（${index}/${total}） `,
+  invalidContent: '这条消息的内容或时间无效，请重新发送。',
+  controlFailed: '这项操作未完成，请在桌面检查当前绑定与状态。',
+  answerSubmitted: '回答已提交，Mirally 会在原会话中继续。',
+  answerRecorded: remaining => `已记录。还需回答第 ${remaining} 题。`,
+  questionExpired: '问题已失效，请在会话中继续。',
+  assistantUsage: '发送“助理”进入助理模式，或发送“会话模式”返回直接会话。',
+  assistantCurrent: '当前是助理模式。',
+  directCurrent: '当前是直接会话模式。',
+  modeAssistant: title => `已进入助理模式。发送“会话模式”可返回会话：${title}。`,
+  modeAssistantFallback: '已进入助理模式。发送“会话模式”可返回之前的会话。',
+  modeDirect: title => `已返回会话：${title}`,
+  approved: '已确认该动作。',
+  denied: '已拒绝该动作。',
+  statusLine: (title, mode, running) => `当前会话：${title}（${mode === 'assistant' ? '助理' : '直接会话'}）\n${running ? '正在回复' : '可以发送文字'}\n\n会话 · 查看历史 · 菜单`,
+  sessionsUsage: '发送“会话”查看第一页，或发送“会话 2”查看下一页。',
+  sessionListTitle: page => `最近会话 · 第 ${page} 页`,
+  currentMark: ' · 当前',
+  sessionListHint: '\n\n发送“切换 1”进入对应会话；也可使用完整标题或编号。',
+  sessionPagePrevious: page => `上一页：会话 ${page - 1}`,
+  sessionPageNext: page => `下一页：会话 ${page + 1}`,
+  sessionPageEmpty: page => `这一页没有会话。上一页：会话 ${page - 1}`,
+  sessionsEmpty: '暂无会话。发送“新对话”开始。',
+  historyUsage: '用法：/history 查看最近正文；更早记录使用上一页给出的 /history 数字游标。',
+  historyTitle: '当前会话的文字历史：\n\n',
+  historyEmptyItem: '（此条没有可展示的文字）',
+  historyClip: '…（本条过长，只显示前 1600 字）',
+  historyOlder: seq => `\n更早记录：/history ${seq}`,
+  historyStart: '\n已到当前可读取历史的开头。',
+  historyGaps: '\n部分历史暂时无法读取，以上并非完整记录。',
+  historyActive: '\n当前仍在回复，最新内容可能尚未完整。',
+  historyFooter: '\n这里只显示用户和助手的文字。',
+  historyEmpty: '没有更早的可读取文字历史。',
+  historyGapsShort: '部分历史暂时无法读取。',
+  switchUsage: '发送“切换 完整标题或编号”；“会话”查看列表。',
+  switchMatches: '有多个匹配的会话，请选择：\n\n',
+  switchMatchesHint: '\n\n发送“切换 1”进入。',
+  switchMissing: '未找到这项会话。发送“会话”查看列表，或使用完整标题。',
+  switchedCurrent: title => `当前已在：${title}`,
+  newNameInvalid: '对话名称请使用 512 字以内的单行文字。',
+  switched: title => `已切换到：${title}`,
+  reconcileUnknown: '上次连接中断，有一条消息未能确认完成；请查看桌面或重新发起，不会自动重跑。',
+  approval: ({targetTitle, title, detail, code}) => `${targetTitle ? `会话：${targetTitle}\n` : ''}动作请求：${title}\n\n${detail}\n\n请完整阅读所有分段后决定。\n确认：/approve ${code}\n拒绝：/deny ${code}\n该确认仅用于当前动作，过期或会话切换后失效。`,
+  question: ({targetTitle, index, total, detail, multiSelect}) => `${targetTitle ? `会话：${targetTitle}\n` : ''}Mirally 需要你的回答${total > 1 ? `（${index + 1}/${total}）` : ''}：\n\n${detail}\n\n${multiSelect ? '回复选项数字（多选用逗号分隔），或直接填写文字。' : '回复选项数字或直接填写文字。'}`,
+  questionOversize: 'Mirally 正在等待一个较长问题或计划的审核。内容无法在微信完整展示，请到电脑中的原会话查看并回答。',
+  expiredIndex: LIST_TEXT,
+};
+const HELP = WEIXIN_TEXT.menu;
 const TEXT_CONTROLS = new Map([['菜单', '/help'], ['帮助', '/help'], ['会话', '/sessions'], ['会话列表', '/sessions'],
   ['当前会话', '/status'], ['新对话', '/new'], ['查看历史', '/history'], ['停止回复', '/stop'], ['助理', '/assistant on'], ['会话模式', '/assistant off']]);
 const controlText = text => {
@@ -36,11 +103,16 @@ const eventId = value => typeof value === 'string' && value.trim() && value.leng
   : Number.isSafeInteger(value) && value >= 0 ? String(value) : null;
 
 /** Bounded Unicode segments. Never include model reasoning or raw tool events. */
+const CLIP_SUFFIX = '…' + WEIXIN_TEXT.truncated;
 function boundedReply(value) {
-  const chars = Array.from(String(value ?? '').trim());
-  if (!chars.length) return '';
-  const clipped = chars.length > 14000;
-  return chars.slice(0, 14000).join('') + (clipped ? '\n（回复较长，请在桌面查看完整内容。）' : '');
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  // reply() bounds before enqueueing and delivery bounds again; the length
+  // check comes first so a caller-provided clip marker (model or quoted text
+  // can contain the same suffix) cannot bypass the 14000-character limit, and
+  // only an actually bounded reply gets the marker.
+  const chars = Array.from(raw);
+  return chars.length > 14000 ? chars.slice(0, 14000).join('') + CLIP_SUFFIX : chars.join('');
 }
 export function weixinTextParts(value) {
   return splitText(boundedReply(value));
@@ -48,8 +120,31 @@ export function weixinTextParts(value) {
 function splitText(text) {
   const all = Array.from(text), parts = [];
   for (let start = 0; start < all.length; start += 3500) parts.push(all.slice(start, start + 3500).join(''));
-  return parts.length > 1 ? parts.map((part, index) => `[${index + 1}/${parts.length}] ${part}`) : parts;
+  return parts.length > 1 ? parts.map((part, index) => WEIXIN_TEXT.partPrefix(index + 1, parts.length) + part) : parts;
 }
+
+/** Media failures may echo only this repository's own channel wording. */
+const MEDIA_FAILURE_PREFIXES = ['weixin_media', 'weixin_voice_', 'speech_'];
+export function mediaFailureText(error) {
+  const code = error?.code;
+  if (typeof code === 'string' && MEDIA_FAILURE_PREFIXES.some(prefix => code.startsWith(prefix))) {
+    const message = typeof error.message === 'string' ? error.message : '';
+    const chars = Array.from(message);
+    if (chars.length >= 1 && chars.length <= 80 && !/[\r\n]/.test(message)) return message;
+  }
+  return WEIXIN_TEXT.mediaFailedFallback;
+}
+
+/**
+ * product.send raises these before (or exactly at) command admission: the
+ * message never entered the conversation, so "已送出" would point the user at a
+ * result that does not exist. Unlisted errors stay conservatively unknown —
+ * the at-most-once rule still forbids replaying them automatically.
+ */
+const PRE_ADMIT_ERROR_CODES = new Set(['confirmation_required', 'conversation_archived', 'conversation_busy',
+  'invalid_request', 'message_too_large', 'model_not_configured', 'remote_scope_revoked', 'unsupported_image_input',
+  'weixin_scope_revoked']);
+const isPreAdmitRejection = error => PRE_ADMIT_ERROR_CODES.has(error?.code);
 
 export class WeixinChannel {
   constructor(product, {baseUrl, allowLoopback = false, apiFactory, now = Date.now} = {}) {
@@ -58,10 +153,16 @@ export class WeixinChannel {
     this.baseUrl = validateWeixinBaseUrl(baseUrl ?? 'https://ilinkai.weixin.qq.com', {allowLoopback});
     this.apiFactory = apiFactory ?? (origin => new WeixinApi({baseUrl: origin, allowLoopback, botAgent: 'Mirally/0.1.0'}));
     this.now = now;
+    this.text = WEIXIN_TEXT;
     this.phase = 'unbound';
     this.error = '';
     this.jobs = new Set();
     this.receipts = new Set();
+    // Commands a /stop actually cancelled, keyed by command/turn id.
+    this.cancelledStops = new Map();
+    // A /stop whose cancel result is still in flight, so a racing finish can
+    // wait for the exact cancelled ids instead of guessing from the conversation.
+    this.stoppingStops = new Map();
     this.numberedLists = new WeixinNumberedLists(this.now);
     this.closed = false;
     this.management = Promise.resolve();
@@ -296,6 +397,38 @@ export class WeixinChannel {
     return false;
   }
 
+  /** An unreadable status still allows stopping; only a confirmed idle turn is refused. */
+  async isRunning(conversationId) {
+    try {
+      const conversation = await this.product.conversation(conversationId);
+      return this.product.summary(conversation).status === 'running';
+    } catch { return true; }
+  }
+
+  /** Remember exactly which commands /stop cancelled so each yields one notice. */
+  rememberStoppedCommands(commandIds) {
+    if (!Array.isArray(commandIds)) return;
+    for (const commandId of commandIds)
+      if (typeof commandId === 'string' && commandId) this.cancelledStops.set(commandId, true);
+    // Bound memory across a long session; entries are per stop, never a window.
+    while (this.cancelledStops.size > 100) this.cancelledStops.delete(this.cancelledStops.keys().next().value);
+  }
+
+  /**
+   * A cancelled finish suppresses its second notice only when /stop cancelled
+   * this exact command/turn. A finish that races with the stop waits for the
+   * cancel result instead of matching the whole conversation (which could
+   * swallow a newer turn's stop) or a five-second window (which repeated a
+   * late one).
+   */
+  async stoppedByUser(event) {
+    if (this.cancelledStops.delete(event.command_id)) return true;
+    const pending = this.stoppingStops.get(event.conversation_id);
+    if (!pending) return false;
+    await pending.promise;
+    return this.cancelledStops.delete(event.command_id);
+  }
+
   async receive(state, message) {
     if (!message || message.message_type !== 1 || message.group_id || message.from_user_id !== state.peer_id
       || message.to_user_id && message.to_user_id !== state.bot_id || message.message_state === 1) return;
@@ -322,7 +455,7 @@ export class WeixinChannel {
     if (!inspected || !message.context_token || timestamp === undefined
       || message.create_time_ms > this.now() + 60000 || this.now() - message.create_time_ms > MAX_AGE) {
       await this.store('event', {installation_id: event.installation_id, event_id: id, state: 'rejected'});
-      if (message.context_token) await this.reply(event, '这条消息的内容或时间无效，请重新发送。', {control: true});
+      if (message.context_token) await this.reply(event, this.text.invalidContent, {control: true});
       return;
     }
     if (!inspected.hasMedia && (text.startsWith('/') || controlText(text) || this.calendar.handles(text))) {
@@ -330,31 +463,33 @@ export class WeixinChannel {
         if (this.calendar.handles(text)) await this.calendar.control(event);
         else await this.control(event, state);
       }
-      catch { await this.reply(event, '这项操作未完成，请在桌面检查当前绑定与状态。', {control: true}); }
+      catch { await this.reply(event, this.text.controlFailed, {control: true}); }
       await this.store('event', {installation_id: event.installation_id, event_id: id, state: 'completed'});
       return;
     }
     if (!inspected.hasMedia) try {
       const answer = await this.product.nativeInteractions?.answerActiveRemote(event, text);
       if (answer) {
-        if (answer.complete) await this.reply(event, '回答已提交，Mirally 会在原会话中继续。', {control:true});
+        if (answer.complete) await this.reply(event, this.text.answerSubmitted, {control:true});
         await this.store('event', {installation_id:event.installation_id, event_id:id, state:'completed'});
         return;
       }
     } catch (error) {
-      await this.reply(event, error.message || '问题已失效，请在会话中继续。', {control:true});
+      await this.reply(event, error.message || this.text.questionExpired, {control:true});
       await this.store('event', {installation_id:event.installation_id, event_id:id, state:'rejected'});
       return;
     }
     const stopTyping = this.typing.begin(event);
     let submitted = false;
+    let mediaPrepared = false;
     try {
       await this.authorize(event);
       let input = event;
       if (inspected.hasMedia) {
-        await this.reply({...event, command_id:`${event.command_id}:media-receipt`}, '收到，正在处理附件。', {control:true});
+        await this.reply({...event, command_id:`${event.command_id}:media-receipt`}, this.text.mediaReceived(items.length), {control:true});
         void this.pump().catch(() => {});
         const media = await this.media.prepare(event, items, {authorize: scope => this.authorize(scope), signal:this.connection?.signal ?? new AbortController().signal});
+        mediaPrepared = true;
         input = {...event, ...media};
       }
       await this.store('event', {installation_id: event.installation_id, event_id: id, state: 'submitted'});
@@ -372,12 +507,25 @@ export class WeixinChannel {
       this.jobs.add(job);
     } catch (error) {
       stopTyping();
-      await this.store('event', {installation_id: event.installation_id, event_id: id, state: !submitted || error.code === 'conversation_busy' ? 'rejected' : 'unknown'});
-      await this.reply(event, error.code === 'conversation_busy' ? '这个会话正在回复，请稍后再发，或用 /stop 停止。'
-        : inspected.hasMedia && error.code?.startsWith('speech_') ? '语音识别未完成，请在电脑检查语音设置后重新发送。'
-        : inspected.hasMedia && error.code?.startsWith('weixin_media') ? '附件处理失败，请检查文件或重新发送。'
-        : '这条消息未能完成接入，请在桌面检查模型连接与会话状态后重新发送。', {control: true});
+      // A definite pre-admit rejection is not an unknown submission: saying the
+      // message was sent would send the user to a run that never existed.
+      const rejected = !submitted || isPreAdmitRejection(error);
+      await this.store('event', {installation_id: event.installation_id, event_id: id, state: rejected ? 'rejected' : 'unknown'});
+      await this.reply(event, this.failureText(error, {hasMedia: inspected.hasMedia, mediaPrepared, submitted: submitted && !rejected}), {control: true});
     }
+  }
+
+  /**
+   * One failure, one actionable sentence: a busy turn, a rejected attachment
+   * (only with this repository's own wording) or a message that never reached
+   * the conversation are not the same as a submitted turn with an unknown result.
+   */
+  failureText(error, {hasMedia, mediaPrepared, submitted}) {
+    if (error.code === 'conversation_busy') return this.text.busySend;
+    // Media that never finished preparing is an attachment problem even when
+    // this channel does not know the code; never blame the model connection.
+    if (hasMedia && !mediaPrepared) return mediaFailureText(error);
+    return submitted ? this.text.unconfirmed : this.text.notSubmitted;
   }
 
   async control(event, state) {
@@ -387,35 +535,57 @@ export class WeixinChannel {
     const current = await this.authorize(event);
     if (name === '/assistant') {
       const mode = value === '' || value === 'on' ? 'assistant' : value === 'off' ? 'direct' : null;
-      if (!mode) { await this.reply(event,'发送“助理”进入助理模式，或发送“会话模式”返回直接会话。',{control:true}); return; }
-      if (current.mode === mode) {await this.reply(event,mode==='assistant'?'当前是助理模式。':'当前是直接会话模式。',{control:true});return;}
-      if (this.hasActiveInput(current.installation_id)) {await this.reply(event,'当前微信会话正在处理，请结束后切换模式。',{control:true});return;}
+      if (!mode) { await this.reply(event, this.text.assistantUsage, {control:true}); return; }
+      if (current.mode === mode) {await this.reply(event, mode === 'assistant' ? this.text.assistantCurrent : this.text.directCurrent, {control:true});return;}
+      if (this.hasActiveInput(current.installation_id)) {await this.reply(event, this.text.busySwitch, {control:true});return;}
       const {state:selected}=await this.store('mode',{expected_revision:current.revision,mode});
-      const conversation=await this.product.conversation(selected.conversation_id);
       if (selected.assistant_conversation_id) this.product.broadcast('session-metadata', {session_id:selected.assistant_conversation_id});
+      // Switching modes keeps the other conversation; name it so the user can go back.
+      const direct = mode === 'assistant' && selected.direct_conversation_id
+        ? await this.product.conversation(selected.direct_conversation_id).catch(() => null) : null;
+      const conversation = mode === 'direct' ? await this.product.conversation(selected.conversation_id) : null;
       await this.reply({...event,revision:selected.revision,conversation_id:selected.conversation_id},
-        mode==='assistant'?'已进入助理模式。':`已返回会话：${conversation.title}`,{control:true});
+        mode==='assistant' ? (direct?.title ? this.text.modeAssistant(direct.title) : this.text.modeAssistantFallback)
+          : this.text.modeDirect(conversation.title), {control:true});
     } else if (name === '/approve' || name === '/deny') {
       if (!/^(?:\d{9}|[a-f0-9]{16})$/.test(value)) throw blocked();
       await this.product.actionGate.decideRemote(event, value, name === '/approve');
-      await this.reply(event, name === '/approve' ? '已确认该动作。' : '已拒绝该动作。', {control: true});
+      await this.reply(event, name === '/approve' ? this.text.approved : this.text.denied, {control: true});
     } else if (name === '/answer') {
       const match=/^([a-f0-9]{16})\s+([\s\S]+)$/.exec(value);
       if (!match || !this.product.nativeInteractions) throw blocked();
       try {
         const result=await this.product.nativeInteractions.answerRemote(event,match[1],match[2]);
-        await this.reply(event,result.complete?'回答已提交，Mirally 会在原会话中继续。':`已记录。还需回答第 ${result.remaining.join('、')} 题。`,{control:true});
-      } catch(error) { await this.reply(event,error.message || '问题已失效，请在会话中继续。',{control:true}); }
+        await this.reply(event,result.complete?this.text.answerSubmitted:this.text.answerRecorded(result.remaining.join('、')),{control:true});
+      } catch(error) { await this.reply(event,error.message || this.text.questionExpired,{control:true}); }
     } else if (name === '/stop') {
-      await this.product.cancel(event.conversation_id);
-      await this.reply(event, '已停止当前会话的回复。', {control: true});
+      if (!await this.isRunning(event.conversation_id)) {
+        await this.reply(event, this.text.notRunning, {control: true});
+        return;
+      }
+      // The cancelled turn must not report a second "stopped" notice. Record the
+      // exact command ids this stop cancels; a finish that settles while cancel
+      // is still in flight waits for that result instead of consuming a
+      // conversation-wide marker.
+      let release;
+      const pending = {promise: new Promise(resolve => { release = resolve; })};
+      this.stoppingStops.set(event.conversation_id, pending);
+      try {
+        const stopped = await this.product.cancel(event.conversation_id);
+        this.rememberStoppedCommands(stopped?.cancelled_command_ids);
+      } finally {
+        if (this.stoppingStops.get(event.conversation_id) === pending) this.stoppingStops.delete(event.conversation_id);
+        release();
+      }
+      await this.reply(event, this.text.stopped, {control: true});
     } else if (name === '/help') await this.reply(event, HELP, {control: true});
     else if (name === '/status') {
       const conversation = await this.product.conversation(event.conversation_id);
-      await this.reply(event, `当前会话：${conversation.title}\n${this.product.summary(conversation).status === 'running' ? '正在回复' : '可以发送文字'}\n\n会话 · 查看历史 · 菜单`, {control: true});
+      await this.reply(event, this.text.statusLine(conversation.title, current.mode,
+        this.product.summary(conversation).status === 'running'), {control: true});
     } else if (name === '/sessions') {
       if (value && !/^[1-9]\d{0,3}$/.test(value)) {
-        await this.reply(event, '发送“会话”查看第一页，或发送“会话 2”查看下一页。', {control: true});
+        await this.reply(event, this.text.sessionsUsage, {control: true});
         return;
       }
       const page = value ? Number(value) : 1;
@@ -423,14 +593,15 @@ export class WeixinChannel {
       const rows = candidates.slice(0, 20);
       await this.authorize(event);
       this.numberedLists.stage('sessions', event, rows.map(item => item.conversation_id));
-      const navigation = [page > 1 ? `上一页：会话 ${page - 1}` : '', candidates.length > 20 ? `下一页：会话 ${page + 1}` : ''].filter(Boolean).join(' · ');
-      await this.reply(event, rows.length ? `最近会话 · 第 ${page} 页\n\n` + rows.map((item, index) =>
-        `${conversationLine(item, index)}${item.conversation_id === event.conversation_id ? ' · 当前' : ''}`).join('\n')
-        + '\n\n发送“切换 1”进入对应会话；也可使用完整标题或编号。' + (navigation ? `\n${navigation}` : '')
-        : page > 1 ? `这一页没有会话。上一页：会话 ${page - 1}` : '暂无会话。发送“新对话”开始。', {control: true});
+      const navigation = [page > 1 ? this.text.sessionPagePrevious(page) : '',
+        candidates.length > 20 ? this.text.sessionPageNext(page) : ''].filter(Boolean).join(' · ');
+      await this.reply(event, rows.length ? this.text.sessionListTitle(page) + '\n\n' + rows.map((item, index) =>
+        `${conversationLine(item, index)}${item.conversation_id === event.conversation_id ? this.text.currentMark : ''}`).join('\n')
+        + this.text.sessionListHint + (navigation ? `\n${navigation}` : '')
+        : page > 1 ? this.text.sessionPageEmpty(page) : this.text.sessionsEmpty, {control: true});
     } else if (name === '/history') {
       if (value && (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)))) {
-        await this.reply(event, '用法：/history 查看最近正文；更早记录使用上一页给出的 /history 数字游标。', {control: true});
+        await this.reply(event, this.text.historyUsage, {control: true});
         return;
       }
       const before = value ? Number(value) : undefined;
@@ -441,20 +612,20 @@ export class WeixinChannel {
       const selected = messages.slice(-6);
       const lines = selected.map(message => {
         const chars = Array.from(String(message.text ?? ''));
-        return `${message.role === 'user' ? '你' : 'Mirally'}：${chars.slice(0, 1600).join('') || '（此条没有可展示的文字）'}${chars.length > 1600 ? '\n（本条正文已截取）' : ''}`;
+        return `${message.role === 'user' ? '你' : 'Mirally'}：${chars.slice(0, 1600).join('') || this.text.historyEmptyItem}${chars.length > 1600 ? this.text.historyClip : ''}`;
       });
-      const older = messages.length > selected.length ? `\n更早记录：/history ${selected[0].seq}` : '\n已到当前可读取历史的开头。';
-      await this.reply(event, selected.length ? '当前会话的文字历史：\n\n' + lines.join('\n\n') + older
-        + (history.gaps?.length ? '\n部分历史暂时无法读取，以上并非完整记录。' : '')
-        + (history.active_command_ids?.length ? '\n当前仍在回复，最新内容可能尚未完整。' : '')
-        + '\n仅转发用户和助手正文；图片、思考及原始工具信息不在此页。'
-        : '没有更早的可读取文字历史。' + (history.gaps?.length ? '部分历史暂时无法读取。' : ''), {control: true});
+      const older = messages.length > selected.length ? this.text.historyOlder(selected[0].seq) : this.text.historyStart;
+      await this.reply(event, selected.length ? this.text.historyTitle + lines.join('\n\n') + older
+        + (history.gaps?.length ? this.text.historyGaps : '')
+        + (history.active_command_ids?.length ? this.text.historyActive : '')
+        + this.text.historyFooter
+        : this.text.historyEmpty + (history.gaps?.length ? this.text.historyGapsShort : ''), {control: true});
     } else if (name === '/new' || name === '/use') {
-      if (current.mode === 'assistant' && this.hasActiveInput(current.installation_id)) { await this.reply(event,'当前微信会话正在处理，请结束后切换会话。',{control:true}); return; }
+      if (current.mode === 'assistant' && this.hasActiveInput(current.installation_id)) { await this.reply(event, this.text.busySwitch, {control:true}); return; }
       let conversationId;
       if (name === '/use') {
         if (!value || Array.from(value).length > 512 || /[\r\n]/.test(value)) {
-          await this.reply(event, '发送“切换 完整标题或编号”；“会话”查看列表。', {control: true});
+          await this.reply(event, this.text.switchUsage, {control: true});
           return;
         }
         await this.authorize(event);
@@ -465,19 +636,19 @@ export class WeixinChannel {
         await this.authorize(event);
         if (matches.length !== 1) {
           if (matches.length) this.numberedLists.stage('sessions',event,matches.slice(0,8).map(item=>item.conversation_id));
-          await this.reply(event, matches.length ? '有多个匹配的会话，请选择：\n\n'
-            + matches.slice(0, 8).map((item,index) => conversationLine(item,index)).join('\n') + '\n\n发送“切换 1”进入。'
-            : '未找到这项会话。发送“会话”查看列表，或使用完整标题。', {control: true});
+          await this.reply(event, matches.length ? this.text.switchMatches
+            + matches.slice(0, 8).map((item,index) => conversationLine(item,index)).join('\n') + this.text.switchMatchesHint
+            : this.text.switchMissing, {control: true});
           return;
         }
         conversationId = matches[0].conversation_id;
         if (conversationId === current.conversation_id) {
-          await this.reply(event, `当前已在：${matches[0].title}`, {control: true});
+          await this.reply(event, this.text.switchedCurrent(matches[0].title), {control: true});
           return;
         }
       } else if (value) {
         if (Array.from(value).length > 512 || /[\r\n]/.test(value)) {
-          await this.reply(event, '对话名称请使用 512 字以内的单行文字。', {control: true});
+          await this.reply(event, this.text.newNameInvalid, {control: true});
           return;
         }
         await this.authorize(event);
@@ -490,7 +661,7 @@ export class WeixinChannel {
       await this.product.cancelWeixinCommands(current.installation_id);
       const {state: selected} = await this.store('select', {expected_revision: current.revision, ...(conversationId ? {conversation_id: conversationId} : {})});
       const conversation = await this.product.conversation(selected.conversation_id);
-      await this.reply({...event, revision: selected.revision, conversation_id: selected.conversation_id}, `已切换到：${conversation.title}`, {control: true});
+      await this.reply({...event, revision: selected.revision, conversation_id: selected.conversation_id}, this.text.switched(conversation.title), {control: true});
     } else await this.reply(event, HELP, {control: true});
   }
 
@@ -501,21 +672,24 @@ export class WeixinChannel {
     if (result.state === 'completed' && result.text) {
       await this.reply(event, result.text);
       await this.store('event', {installation_id: event.installation_id, event_id: event.event_id, state: 'completed', result_ref: result.ref});
+    } else if (result.state === 'cancelled' && await this.stoppedByUser(event)) {
+      // /stop already reported the stop; a second notice would repeat one state twice.
+      await this.store('event', {installation_id: event.installation_id, event_id: event.event_id, state: 'unknown'});
     } else {
-      await this.reply(event, result.state === 'cancelled' ? '这轮回复已停止。' : '这轮回复未能确认完成，请到桌面查看；不会自动重新执行。', {control: true});
+      await this.reply(event, result.state === 'cancelled' ? this.text.replyStopped : this.text.replyUnknown, {control: true});
       await this.store('event', {installation_id: event.installation_id, event_id: event.event_id, state: 'unknown'});
     }
   }
 
   async acknowledge(event) {
-    await this.authorize(event);
+    const scope = await this.authorize(event);
     const key = `received:${event.command_id}`;
     this.receipts.add(key);
     try {
       await this.store('enqueue', {
         installation_id: event.installation_id, revision: event.revision,
         key, conversation_id: event.conversation_id,
-        text: '收到，正在处理。', context_token: event.context_token,
+        text: scope.mode === 'assistant' ? this.text.receivedAssistant : this.text.received, context_token: event.context_token,
       });
     } catch (error) { this.receipts.delete(key); throw error; }
     // The network may be slow. Completion and further input must not wait for
@@ -548,7 +722,7 @@ export class WeixinChannel {
     if (!this.product.actionGate.remoteDeliveryCurrent(value.id, scope) || !state.context_token) throw blocked();
     const target = scope.target_conversation_id ? await this.product.conversation(scope.target_conversation_id) : null;
     if (target) await this.authorize(scope);
-    const text = `${target ? `会话：${target.title}\n` : ''}动作请求：${value.title}\n\n${value.detail}\n\n请完整阅读所有分段后决定。\n确认：/approve ${code}\n拒绝：/deny ${code}\n该确认仅用于当前动作，过期或会话切换后失效。`;
+    const text = this.text.approval({targetTitle: target?.title, title: value.title, detail: value.detail, code});
     await this.store('enqueue', {installation_id:scope.installation_id, revision:scope.revision,
       conversation_id:scope.conversation_id, key:`action-approval:${value.id}`, text, context_token:state.context_token});
     void this.pump().catch(() => {});
@@ -564,10 +738,10 @@ export class WeixinChannel {
     const detail=`${question.header?question.header+' · ':''}${question.question}`
       +(question.detail?`\n${question.detail}`:'')
       +(question.options?.length?'\n\n'+question.options.map((item,n)=>`${n+1}. ${item.label}${item.description?'：'+item.description:''}`).join('\n'):'');
-    const text=`${target ? `会话：${target.title}\n` : ''}Mirally 需要你的回答${value.questions.length>1?`（${index+1}/${value.questions.length}）`:''}：\n\n${detail}\n\n${question.multiSelect?'回复选项数字（多选用逗号分隔），或直接填写文字。':'回复选项数字或直接填写文字。'}`;
+    const text=this.text.question({targetTitle: target?.title, index, total: value.questions.length, detail, multiSelect: question.multiSelect});
     if (text.length>24_000) {
       await this.store('enqueue',{installation_id:scope.installation_id,revision:scope.revision,conversation_id:scope.conversation_id,
-        key:`native-question:${value.id}:${index}:oversize`,text:'Mirally 正在等待一个较长问题或计划的审核。内容无法在微信完整展示，请到电脑中的原会话查看并回答。',context_token:state.context_token});
+        key:`native-question:${value.id}:${index}:oversize`,text:this.text.questionOversize,context_token:state.context_token});
     } else await this.store('enqueue',{installation_id:scope.installation_id,revision:scope.revision,conversation_id:scope.conversation_id,
       key:`native-question:${value.id}:${index}`,text,context_token:state.context_token});
     void this.pump().catch(()=>{});
@@ -595,7 +769,7 @@ export class WeixinChannel {
       try {
         const result = await this.product.weixinResult(event).catch(() => null);
         if (result?.state === 'completed' && result.text) await this.reply(event, result.text);
-        else await this.reply(event, '上次连接中断，有一条消息未能确认完成；请查看桌面或重新发起，不会自动重跑。', {control: true});
+        else await this.reply(event, this.text.reconcileUnknown, {control: true});
       } catch (error) {
         // An immutable receipt may already contain the original failure notice.
         // Keep it; changing its body or replaying the input is not recovery.
