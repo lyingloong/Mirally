@@ -3,6 +3,8 @@ from __future__ import annotations
 import copy
 import io
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -13,6 +15,21 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from tools.dev_workflow import agent_workflow as wf  # noqa: E402
+
+AGENT_WORKFLOW = ROOT / "tools" / "dev_workflow" / "agent_workflow.py"
+CJK_TITLE = "优化微信端文字提示"
+
+
+def ascii_console_env():
+    """Pin stdout/stderr to strict ASCII so the dev-0002 crash is reproducible."""
+    env = {**os.environ, "PYTHONIOENCODING": "ascii"}
+    env.pop("PYTHONUTF8", None)
+    return env
+
+
+def strict_ascii_stream():
+    """A stdout stand-in that rejects non-ASCII like a cp1252/ASCII console does."""
+    return io.TextIOWrapper(io.BytesIO(), encoding="ascii", errors="strict")
 
 
 def make_config(**overrides):
@@ -688,6 +705,106 @@ class ValidationTests(unittest.TestCase):
             self.assertEqual(state["points"][0]["title"], "CLI work")
             config = json.loads(config_path.read_text(encoding="utf-8"))
             self.assertEqual(config["concurrency"], 3)
+
+
+class CLIEncodingTests(unittest.TestCase):
+    """A non-UTF-8 console must never turn a successful state write into a failure.
+
+    Regression coverage for dev-0002: ``add`` with a CJK title used to raise
+    ``UnicodeEncodeError`` after ``save_state`` had succeeded, exiting 1 with a
+    half-written JSON document and inviting the captain to retry and register a
+    duplicate point.
+    """
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.state_path = Path(directory.name) / "state.json"
+        self.config_path = Path(directory.name) / "config.json"
+
+    def cli_args(self, *arguments):
+        return ["--state", str(self.state_path), "--config", str(self.config_path), *arguments]
+
+    def run_cli(self, *arguments, env=None):
+        return subprocess.run(
+            [sys.executable, str(AGENT_WORKFLOW), *self.cli_args(*arguments)],
+            cwd=str(ROOT),
+            capture_output=True,
+            env=env,
+        )
+
+    def init_state(self):
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(wf.main(self.cli_args("init")), 0)
+
+    def add_cjk_point(self):
+        with redirect_stdout(io.StringIO()):
+            code = wf.main(self.cli_args("add", "--source", "user", "--title", CJK_TITLE, "--risk", "normal"))
+        self.assertEqual(code, 0)
+        return wf.load_state(self.state_path)["points"][0]
+
+    def test_add_cjk_title_on_ascii_console_exits_zero_with_complete_json(self):
+        env = ascii_console_env()
+        self.assertEqual(self.run_cli("init", env=env).returncode, 0)
+
+        result = self.run_cli("add", "--source", "user", "--title", CJK_TITLE, "--risk", "normal", env=env)
+
+        self.assertEqual(result.returncode, 0, result.stderr.decode("ascii", "replace"))
+        self.assertNotIn(b"UnicodeEncodeError", result.stderr)
+        self.assertIn(b"PYTHONIOENCODING=utf-8", result.stderr)  # degrade is explained, not silent
+        self.assertEqual(result.stdout.decode("ascii").strip()[-1], "}")  # no half-written document
+        point = json.loads(result.stdout)
+        self.assertEqual(point["title"], CJK_TITLE)
+        # The exit code and stdout now agree with state: no retry, no duplicate point.
+        state = wf.load_state(self.state_path)
+        self.assertEqual([(item["id"], item["title"]) for item in state["points"]], [(point["id"], CJK_TITLE)])
+
+    def test_print_json_falls_back_to_ascii_escapes(self):
+        self.init_state()
+        stream = strict_ascii_stream()
+        with redirect_stdout(stream), redirect_stderr(io.StringIO()):
+            self.assertEqual(
+                wf.main(self.cli_args("add", "--source", "user", "--title", CJK_TITLE, "--risk", "normal")), 0
+            )
+            stream.flush()
+            output = stream.buffer.getvalue().decode("ascii")
+        point = json.loads(output)
+        self.assertEqual(point["title"], CJK_TITLE)
+        self.assertIn("\\u4f18", output)  # escaped fallback, not raw CJK bytes
+        self.assertEqual(len(wf.load_state(self.state_path)["points"]), 1)
+
+    def test_status_and_list_render_on_ascii_console(self):
+        self.init_state()
+        self.add_cjk_point()
+        stream = strict_ascii_stream()
+        with redirect_stdout(stream), redirect_stderr(io.StringIO()):
+            self.assertEqual(wf.main(self.cli_args("status")), 0)
+            self.assertEqual(wf.main(self.cli_args("list")), 0)
+            stream.flush()
+            output = stream.buffer.getvalue().decode("ascii")
+        self.assertIn("dev-0001", output)
+        self.assertIn("queued", output)
+        self.assertIn("\\u4f18", output)
+
+    def test_exit_codes_survive_ascii_console(self):
+        env = ascii_console_env()
+        self.assertEqual(self.run_cli("init", env=env).returncode, 0)
+
+        # ASCII titles keep working exactly as before (control group).
+        control = self.run_cli("add", "--source", "user", "--title", "ascii title", env=env)
+        self.assertEqual(control.returncode, 0)
+        self.assertEqual(json.loads(control.stdout)["title"], "ascii title")
+
+        state = wf.load_state(self.state_path)
+        state["points"].append(copy.deepcopy(state["points"][0]))
+        wf.save_state(self.state_path, state)
+        invalid = self.run_cli("validate", env=env)
+        self.assertEqual(invalid.returncode, 1)  # findings still exit 1, not an encoding crash
+        self.assertIn(b"ERROR", invalid.stdout)
+
+        transition = self.run_cli("set-status", "dev-0001", "queued", env=env)
+        self.assertEqual(transition.returncode, 2)  # WorkflowError still exits 2
+        self.assertIn(b"error:", transition.stderr)
 
 
 if __name__ == "__main__":
