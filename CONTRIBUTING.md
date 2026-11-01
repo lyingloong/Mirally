@@ -2,6 +2,8 @@
 
 Mirally 使用 `main` 作为集成分支。多人或多个 Agent 可以并行开发：每项任务从最新 `main` 创建独立分支和工作目录，完成后向 `main` 提交 PR，由集成者审查、验证并合并。用户指定其他目标分支时，以该任务要求为准。
 
+AgentTeams 常驻开发工作流（需求/实现/审查、并发和合并闸门）见 [AgentTeams 工作流](docs/development/agent-teams-workflow.md)。审查师维护 [审查经验库](docs/development/review-experience.md)，记录可复用准则和反复出现的问题。
+
 ## 开始任务
 
 按用户任务从 [Feature map](docs/reference/feature-map.md) 定位功能入口、状态 owner 和代表测试，再阅读对应专题与代码；能力范围见[能力矩阵](docs/reference/capabilities.md)。主要入口或归属发生变化时，在同一 PR 更新地图。

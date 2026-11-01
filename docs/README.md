@@ -29,6 +29,13 @@ Mirally 是面向 Windows 的 personal agent 应用，名称取自 MIRA + ally�
 | 测试命令、已验证范围和未覆盖边界 | [验证](reference/validation.md) |
 | 品牌、图标和资源位置 | [品牌](design/brand.md) |
 
+## 开发与协作
+
+| 我想了解 | 文档 |
+| --- | --- |
+| 仓库开发工作流、并发与合并闸门 | [AgentTeams 工作流](development/agent-teams-workflow.md) |
+| 审查经验、代码准则和反复出现的问题 | [审查经验库](development/review-experience.md) |
+
 ## 目录结构
 
 ```text
@@ -37,6 +44,7 @@ docs/
 ├─ architecture/  当前运行结构、数据归属和各专题
 ├─ standards/     UI 交互与视觉规范
 ├─ reference/     能力矩阵与验证边界
+├─ development/   仓库开发与 Agent 协作流程
 └─ design/        当前品牌与资源说明
 ```
 
