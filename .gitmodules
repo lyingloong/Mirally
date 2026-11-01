@@ -1,4 +1,0 @@
-[submodule "UFO"]
-	path = UFO
-	url = git@github.com:lyingloong/UFO.git
-	branch = main

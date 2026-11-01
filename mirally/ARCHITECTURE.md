@@ -41,7 +41,7 @@
 - `runtime/activity/`：Windows 采集器、CLI、历史浏览器和隔离 worker。
 - `runtime/memory/`：后台维护、语义整理、召回、保留和 CLI。
 - `platform/`：Windows 捕获隔离、Raw Input、焦点和任务栏适配。
-- `runtime/ufo/` 与 `UFO/`：旧桌面执行适配和只读子模块，默认产品不加载。
+- `runtime/ufo/`：旧桌面执行适配，默认产品不加载；`UFO/` 子模块源码已移除，设计参考见 [UFO 复盘](../docs/product/research-2026-10-31-ufo.md)。
 
 ## 前端层
 

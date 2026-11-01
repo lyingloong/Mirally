@@ -18,13 +18,6 @@ npm --prefix tools/testing ci --ignore-scripts --no-audit --no-fund
 node --test tests/test_test_dependencies.cjs
 ```
 
-完整 Python 套件包含保留的 UFO 参考适配测试，需额外准备只读子模块和可选依赖；这不会在默认产品中启用 UFO：
-
-```powershell
-git submodule update --init UFO
-.\.venv\Scripts\python.exe -m pip install -r requirements-ufo.txt
-```
-
 ```powershell
 # 产品 Python 测试
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
