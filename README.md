@@ -49,7 +49,7 @@ npm --prefix frontend/control-ui run build
 
 ## 来源与许可
 
-OpenClaw 后端已退役，旧实现通过 Git 提交 [`2eeb778a`](https://github.com/lyingloong/Mirally/tree/2eeb778a) 追溯，历史与迁移说明见[系统概览](docs/architecture/overview.md#数据迁移与历史回退)。
+OpenClaw 后端已退役，旧实现通过 Git 提交 [`2eeb778a`](https://github.com/lyingloong/Mirally/tree/2eeb778a) 追溯，历史与迁移说明见[系统概览](docs/architecture/overview.md#已退役实现)。
 
 前端以固定 OpenClaw Control UI `2026.9.6` 源码为来源，沿用原 Mirally 的布局、视觉、主题、动画与伙伴体验；DSH、前端固定来源及第三方组件的许可证、来源说明与第三方声明继续保留。
 
