@@ -387,6 +387,42 @@ class AdmissionTests(unittest.TestCase):
             wf.resume_point(state, config, agent["id"])
         self.assertEqual(agent["status"], "blocked")
 
+    def test_two_quota_blocked_tasks_can_resume_independently(self):
+        config = make_config(concurrency=2)
+        state = wf.empty_state()
+        first = wf.new_point(state, source="user", title="first")
+        second = wf.new_point(state, source="user", title="second")
+        wf.start_point(state, config, first["id"])
+        wf.start_point(state, config, second["id"])
+        wf.block_point(state, config, first["id"], reason="quota")
+        wf.block_point(state, config, second["id"], reason="quota")
+        wf.resume_point(state, config, first["id"])
+        self.assertEqual(first["status"], "specifying")
+        wf.resume_point(state, config, second["id"])
+        self.assertEqual(second["status"], "specifying")
+        self.assertFalse(wf.build_summary(state, config)["paused"])
+
+    def test_resume_awaiting_merge_recomputes_queue_load(self):
+        config = make_config(concurrency=1)
+        state = wf.empty_state()
+        first = wf.new_point(state, source="user", title="first")
+        second = wf.new_point(state, source="user", title="second")
+        for point in (first, second):
+            point["status"] = "awaiting_merge"
+            point["merge_ready_at"] = wf.iso(wf.utcnow())
+        self.assertEqual(wf.build_summary(state, config)["load"], 1)
+        wf.block_point(state, config, second["id"], reason="external")
+        third = wf.new_point(state, source="user", title="third")
+        wf.start_point(state, config, third["id"])
+        with self.assertRaises(wf.WorkflowError):
+            wf.resume_point(state, config, second["id"])
+        self.assertEqual(second["status"], "blocked")
+        self.assertEqual(wf.build_summary(state, config)["load"], 1)
+        wf.block_point(state, config, third["id"], reason="external")
+        wf.resume_point(state, config, second["id"])
+        self.assertEqual(second["status"], "awaiting_merge")
+        self.assertEqual(wf.build_summary(state, config)["load"], 1)
+
     def test_set_status_cannot_bypass_start_admission(self):
         with tempfile.TemporaryDirectory() as directory:
             state_path = Path(directory) / "state.json"

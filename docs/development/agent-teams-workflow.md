@@ -160,6 +160,8 @@ free_slots     = max(0, concurrency - load)
 6. fallback 任务完成后执行 `resume` 清除 fallback 标记，恢复 ustc 主路由。
 7. 超过重试次数仍失败：暂停工作流并请用户决定，不无限重试。
 
+配额暂停只阻止启动新开发，不阻止恢复已有的 quota 阻塞任务；多个任务同时阻塞时，退避到期后可逐个 `resume`，避免互相等待。`resume` 会按恢复后的负载重新计算容量。
+
 `schedule_create` 是会话级提醒；DSH 关闭后不会在后台唤醒。状态文件保留阻塞信息，重新打开后按需恢复。
 
 ## 团队生命周期
@@ -286,7 +288,7 @@ requirements → implementation → verification → review
 ## 恢复与限制
 
 - 状态文件丢失时，可从 open PR、分支、AgentTeams 任务输出重建；先核对再继续，不重复开 PR。
-- `resume` 恢复活动状态前会复核并发、配额暂停、用户优先和 AI 在飞上限；槽位不足时保持 `blocked`，不强行恢复。
+- `resume` 按恢复后的投影 load 计算容量（含 active 和 awaiting_merge 的队首免占语义），并复核用户优先和 AI 在飞上限；超出并发或限额时保持 `blocked`，不强行恢复。配额暂停只拦新开发，不拦已有阻塞任务恢复。
 - 配额 fallback 只在退避重启期间使用；正常调度和新建团队默认 ustc。
 - 审查师是单点瓶颈；并发提高或审查排队时增加第二名审查师。
 - 自动启动的 AI 点仍可能低价值；用每日上限、标签、合并闸门和用户随时叫停控制。

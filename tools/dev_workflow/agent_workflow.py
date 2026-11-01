@@ -336,6 +336,17 @@ def _active_auto_others(state: dict[str, Any], point: dict[str, Any]) -> list[di
     ]
 
 
+def _projected_load(
+    summary: dict[str, Any],
+    config: dict[str, Any],
+    previous: str,
+) -> int:
+    active = len(summary["active"]) + (1 if previous in ACTIVE_STATUSES else 0)
+    waiting = len(summary["merge_queue"]) + (1 if previous == "awaiting_merge" else 0)
+    exempt = min(int(config.get("merge_queue_exempt", 1)), waiting)
+    return active + max(0, waiting - exempt)
+
+
 def _auto_today_count(state: dict[str, Any]) -> int:
     today = utcnow().date().isoformat()
     return sum(
@@ -660,21 +671,20 @@ def resume_point(state: dict[str, Any], config: dict[str, Any], point_id: str) -
     previous = point.get("blocked_from_status")
     if previous not in STATUSES or previous == "blocked":
         raise WorkflowError(f"{point_id} has no valid previous status")
-    if previous in ACTIVE_STATUSES:
-        if any(
-            other["id"] != point["id"]
-            and other["status"] == "blocked"
-            and other.get("blocked_reason") == "quota"
-            for other in state["points"]
-        ):
-            raise WorkflowError("cannot resume: another quota block still pauses the workflow")
+    if previous in ACTIVE_STATUSES or previous == "awaiting_merge":
         summary = build_summary(state, config)
-        if summary["free_slots"] <= 0:
-            raise WorkflowError("cannot resume: concurrency is full; point kept blocked")
+        projected = _projected_load(summary, config, previous)
+        if projected > int(config["concurrency"]):
+            raise WorkflowError("cannot resume: projected load would exceed concurrency; point kept blocked")
+        free_after = int(config["concurrency"]) - projected
         if previous == "specifying" and point["source"] == "agent" and summary["user_pending"]:
-            if len(summary["user_pending"]) >= summary["free_slots"]:
+            if len(summary["user_pending"]) >= free_after:
                 raise WorkflowError("cannot resume: user pending points need the available slots")
-        if point["source"] == "agent" and point.get("auto_started"):
+        if (
+            previous in ACTIVE_STATUSES
+            and point["source"] == "agent"
+            and point.get("auto_started")
+        ):
             if len(_active_auto_others(state, point)) >= int(config["max_auto_agent_in_flight"]):
                 raise WorkflowError("cannot resume: AI auto-start in-flight cap reached")
     point["status"] = previous
