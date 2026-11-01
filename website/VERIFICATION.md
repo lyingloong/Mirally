@@ -1,6 +1,46 @@
 # 展示站验收记录
 
-日期：2026-10-15。验证对象为独立展示站，不是 Mirally 产品能力验收。
+最近复跑：2026-11-02（只读静态审计，见下）。历史手工验收日期：2026-10-15。
+
+## 可复跑校验（2026-11-02）
+
+只读、离线、标准库；`showcase/exports/*.html` 存在时另需 `node`。命令在仓库根目录执行：
+
+```powershell
+# 静态审计（默认模式；发现问题时退出码 1）
+python tools/check_showcase.py
+
+# 严格模式：额外要求 alt="" 装饰图带 aria-hidden 或 role="presentation"
+python tools/check_showcase.py --strict
+
+# 夹具单测（临时目录，不联网）
+python -m unittest tests.development.test_check_showcase -v
+```
+
+当前结果（2026-11-02，本仓库检出）：
+
+- 默认模式：`OK: showcase static audit passed (18 files, 11 images, h1=1, reduced_motion=5, exports=0).`（退出码 0）。
+- 覆盖范围：`showcase/index.html` 的 `lang`、`<title>`、viewport；全站单个 `<h1>`；`showcase/index.html` 与 `showcase/src/**` 无 `http(s)://` 外链（`public/CREDITS.md`、`public/LICENSES.txt`、`public/fonts/OFL.txt` 的 4 条许可证链接按显式白名单排除）；11 个 `<img>` 逐个具备 `alt`；`prefers-reduced-motion` 共 5 处（3 个 CSS 媒体查询 + 2 处 `matchMedia`）。
+- 严格模式：`--strict` 退出码 1，报 6 处 `alt=""` 装饰图缺 `aria-hidden`/`role="presentation"`：`src/App.jsx:38`、`src/BusinessVisual.jsx:7`、`src/CapabilityVisual.jsx:10`、`src/CapabilityVisual.jsx:15`、`src/DayExperience.jsx:126`、`src/HeroExperience.jsx:34`。默认模式按 HTML 规范把 `alt=""` 视为装饰图并把它记为提示；严格模式按本规格附加要求报错。修改这些标记属于 `showcase/src/**` 视觉/标记变更，本点不改，作为待产品决定的审计结论。
+- 导出产物：仓库当前不含 `showcase/exports/`（被 gitignore），本轮跳过；导出后重跑本工具会校验无外链、无 `./images/` 残留路径、内联脚本可 `node --check`。
+- 未做：`npm --prefix showcase ci && npm run build && npm run export:html`（需联网安装依赖，按需执行）；`file://` 自动 GUI 验收（沿用下方历史声明）。
+
+## 品牌/视觉对照（只列差异）
+
+对照[排版与视觉基线](../docs/standards/ui-visual-system.md)与[品牌与图标](../docs/design/brand.md)，展示站与产品基线**不一致**的项：
+
+| 项 | 展示站现状 | 产品基线 | 影响 / 去向 |
+| --- | --- | --- | --- |
+| 字体族 | `DM Sans` + 系统回退，字体自托管于 `public/fonts/` | 默认系统字体，简体中文显式 YaHei UI/微软雅黑/苹方/Noto 回退，不新增在线字体依赖（基线「方法与依据」） | 展示站自带拉丁字体；是否强绑定基线属待用户决策（规格 §6.3） |
+| 字号角色 | 首屏与章节使用大字号展示标题 | 产品文字角色 12–22px（基线「当前文字角色」） | 展示页密度 vs 产品密度，需产品决定 |
+| 主题色 | `theme-color #f6f8f7`（浅中性底） | 品牌为蓝青渐变 + 银白/深灰/少量蓝色强调，未定义 `theme-color` token（品牌「正式图标」） | 展示站未使用品牌蓝青作主题色；是否同步需配色决定 |
+| 圆角/间距 | 页面自有圆角（5–140px）与间距 | 间距沿用 4/8/12/16/24/32/40px 档位（基线「组合规则」） | 仅记录差异；改样式超出本点范围 |
+
+> 以上只列差异，不改样式；展示站是否与产品视觉 token 强绑定是待用户决策项（规格 §6.3）。
+
+## 历史记录（2026-10-15 及更早，原文保留，不再维护）
+
+以下各节为当时的手工验收记录，验证对象为独立展示站，不是 Mirally 产品能力验收；结论以「可复跑校验」与 Git 历史为准。
 
 ## 首页产品场景与商业图解
 
