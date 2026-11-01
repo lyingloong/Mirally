@@ -1,12 +1,11 @@
+import {loadPlaywright} from './testing/dependencies.cjs';
 /** Real Mirally content acceptance; requires a disposable --test-mode Host. */
 import assert from 'node:assert/strict';
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
-import {createRequire} from 'node:module';
 import {resolve,dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-const require=createRequire(join(root,'integrations/openclaw/package.json'));
-const {chromium}=require(process.env.MIRALLY_PLAYWRIGHT??'playwright-core');
+const {chromium} = loadPlaywright();
 const runtime=JSON.parse(await readFile(process.argv[2],'utf8'));assert.equal(runtime.mode,'test');
 const output=resolve(process.argv[3]??join(root,'.artifacts/mirally-product-pages'));await mkdir(output,{recursive:true});
 const skills=join(output,'skills','ui-acceptance');await mkdir(skills,{recursive:true});
@@ -17,7 +16,7 @@ const errors=[];page.on('pageerror',error=>errors.push(error.message));
 const test=id=>page.getByTestId(id);
 async function ready(){await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected');}
 async function go(path){await page.goto(runtime.url+path);await ready();}
-async function rpc(method,params={}){return page.evaluate(({method,params})=>window.__mirallyLegacyHost.rpc(method,params),{method,params});}
+async function rpc(method,params={}){return page.evaluate(({method,params})=>window.__mirallyHost.rpc(method,params),{method,params});}
 async function settled(id){await test(id).waitFor();await page.waitForFunction(id=>document.querySelector(`[data-testid="${id}"]`)?.getAttribute('aria-busy')==='false',id);}
 const seenReminderRequests=[],seenMemoryRequests=[],seenMethods=[];
 const runTag=crypto.randomUUID().slice(0,8),reminderTitle='响应丢失后仍只有一条提醒 '+runTag,memoryContent='Mirally 页面验收：用户明确确认的记忆 '+runTag;
@@ -67,7 +66,7 @@ try{
   await page.getByText('提醒已取消。',{exact:true}).waitFor();
   assert.equal((await rpc('commitment.list')).commitments.find(item=>item.id===reminders[0].id).status,'cancelled');
   await page.unroute('**/api/rpc');
-  const session=await page.evaluate(()=>window.__mirallyLegacyHost.client.request('sessions.create',{idempotencyKey:crypto.randomUUID(),displayName:'消息接续验收'}));
+  const session=await page.evaluate(()=>window.__mirallyHost.client.request('sessions.create',{idempotencyKey:crypto.randomUUID(),displayName:'消息接续验收'}));
   const id=session.key.replace(/^agent:main:/,'');
   await rpc('commitment.create',{title:'本机消息验收 '+runTag,due_at_utc_ms:Date.now()-1000,channel:'inbox',conversation_id:id,request_id:crypto.randomUUID()});
   await go('/inbox');await test('mirally-inbox-item').filter({hasText:'本机消息验收 '+runTag}).waitFor();

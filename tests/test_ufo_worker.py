@@ -13,7 +13,6 @@ from unittest.mock import Mock, patch
 from mirally.core.execution import ExecutionCancelled, Reobserve
 from mirally.platform.frontend_registry import FrontendRegistration, registered_frontends
 from mirally.runtime.ufo.worker import WorkerChannel, WorkerServices, prepare_worker_config, worker_mode
-from tools.configure_ufo_agent import agent_patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -178,76 +177,11 @@ class WorkerProtocolTests(unittest.TestCase):
             finally:
                 registration.close()
 
-    def test_agent_patch_preserves_default_and_existing_plugin_paths(self):
-        config = {"agents": {"defaults": {"model": "original/model"}},
-                  "plugins": {"load": {"paths": ["existing"]}, "allow": ["existing"]}}
-        patch = agent_patch(config, ROOT, "example/vision")
-        self.assertNotIn("defaults", patch["agents"])
-        self.assertEqual(patch["plugins"]["load"]["paths"][0], "existing")
-        self.assertEqual(patch["plugins"]["load"]["paths"][1:], [
-            str((ROOT / "integrations/openclaw/ufo").resolve()),
-        ])
-        self.assertNotIn("mirally-activity", patch["plugins"]["entries"])
-        self.assertEqual(patch["plugins"]["allow"], ["existing", "mirally-ufo"])
-        self.assertEqual(patch["agents"]["entries"]["ufo"]["models"]["example/vision"]["agentRuntime"]["id"], "mirally-ufo")
-        self.assertEqual(patch["agents"]["entries"]["ufo"]["name"], "桌面执行（内部子任务）")
-        self.assertEqual(config["agents"]["defaults"]["model"], "original/model")
 
-    def test_agent_id_collision_is_not_overwritten(self):
-        with self.assertRaises(ValueError):
-            agent_patch({"agents": {"entries": {"ufo": {"name": "Authored agent"}}}}, ROOT, "example/model")
 
-    def test_desktop_delegation_preserves_self_policy_without_global_grant(self):
-        config = {"agents": {"entries": {"main": {"name": "Mirally"},
-                                                   "research": {"name": "Research"}}}}
-        before = json.dumps(config)
-        result = agent_patch(config, ROOT, "example/vision")
-        self.assertEqual(result["agents"]["entries"]["main"],
-                         {"subagents": {"allowAgents": ["main", "ufo"]}})
-        self.assertNotIn("research", result["agents"]["entries"])
-        self.assertNotIn("defaults", result["agents"])
-        self.assertEqual(json.dumps(config), before)
 
-    def test_desktop_delegation_preserves_inheritance_override_and_explicit_denial(self):
-        cases = [
-            ({"allowAgents": ["research"]}, None, ["research", "ufo"]),
-            ({"allowAgents": ["research"]}, {"allowAgents": []}, ["ufo"]),
-            ({"allowAgents": ["*"]}, {"allowAgents": ["review"]}, ["review", "ufo"]),
-            ({"allowAgents": []}, None, ["ufo"]),
-        ]
-        for defaults, authored, expected in cases:
-            with self.subTest(defaults=defaults, authored=authored):
-                main = {"name": "Mirally", "subagents": {"maxSpawnDepth": 2}}
-                if authored is not None:
-                    main["subagents"].update(authored)
-                config = {"agents": {"defaults": {"subagents": defaults},
-                                     "entries": {"main": main}}}
-                before = json.dumps(config)
-                result = agent_patch(config, ROOT, "example/vision")
-                self.assertEqual(result["agents"]["entries"]["main"],
-                                 {"subagents": {"allowAgents": expected}})
-                self.assertEqual(json.dumps(config), before)
 
-    def test_existing_effective_wildcard_or_target_needs_no_authorization_patch(self):
-        for allowed in [["*"], ["research", "ufo"], [" * "]]:
-            for local in (True, False):
-                config = {"agents": {"entries": {"main": {}}, "defaults": {}}}
-                target = config["agents"]["entries"]["main"] if local else config["agents"]["defaults"]
-                target["subagents"] = {"allowAgents": allowed}
-                result = agent_patch(config, ROOT, "example/vision")
-                self.assertNotIn("main", result["agents"]["entries"])
 
-    def test_custom_requester_and_executor_use_targeted_patch(self):
-        config = {"agents": {"list": [{"id": "assistant", "subagents": {"allowAgents": []}},
-                                       {"id": "research"}]}}
-        result = agent_patch(config, ROOT, "example/vision", "desktop", "assistant")
-        self.assertEqual(set(result["agents"]["entries"]), {"assistant", "desktop"})
-        self.assertEqual(result["agents"]["entries"]["assistant"],
-                         {"subagents": {"allowAgents": ["desktop"]}})
-        self.assertNotIn("list", result["agents"])
-        for agent_id, requester in [("desktop", "missing"), ("assistant", "assistant")]:
-            with self.assertRaises(ValueError):
-                agent_patch(config, ROOT, "example/vision", agent_id, requester)
 
 
 @unittest.skipUnless(sys.platform == "win32", "Windows native mutex")

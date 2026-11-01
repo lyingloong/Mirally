@@ -2,7 +2,6 @@
 (() => {
   if (window.top !== window || location.origin !== __MIRALLY_ORIGIN__ || !window.chrome?.webview) return;
   const office = window.__mirallyOffice, intake = window.__mirallyIntake;
-  const experience = window.__mirallyExperience;
   const drafts = new Map(); // Unsaved form values only, scoped to each native conversation.
   let page, shown = false, scope, observed, sending = false;
   const active = () => intake.active();
@@ -33,7 +32,6 @@
     if (page) { page.hidden = true; sync(); }
   }
   async function open() {
-    if (experience) await experience.showChat();
     shown = true;
     document.documentElement.dataset.mirallyView = 'work';
     sync();
@@ -42,7 +40,7 @@
   }
   function position() {
     if (!shown || page.hidden) return;
-    const rect = (experience?.main?.() ?? document.querySelector('#control-ui-main'))?.getBoundingClientRect();
+    const rect = document.querySelector('#control-ui-main')?.getBoundingClientRect();
     if (!rect?.width || !rect.height) return;
     page.style.left = `${rect.left}px`; page.style.top = `${rect.top}px`;
     page.style.width = `${rect.width}px`; page.style.height = `${rect.height}px`;
@@ -51,8 +49,8 @@
     if (!page) return;
     const pane = active(), state = pane?.state;
     // A transient pane replacement must not remove the mode navigation.
-    const main = experience?.main?.() ?? document.querySelector('#control-ui-main');
-    const chatRoute = experience ? experience.chatRoute() : main?.classList.contains('content--chat') === true || !!main?.querySelector('openclaw-new-session-page');
+    const main = document.querySelector('#control-ui-main');
+    const chatRoute = main?.classList.contains('content--chat') === true || !!main?.querySelector('openclaw-new-session-page');
     if (main) main.inert = shown && chatRoute && !!pane && document.documentElement.dataset.mirallyMode !== 'companion';
     const entry = document.querySelector('.mirally-companion-entry');
     if (entry) {
@@ -101,7 +99,7 @@
     $('[data-work="session"]').textContent = pane.paneTitle || '当前会话';
     const attachments = state.chatAttachments || [];
     const projected = materials(pane);
-    const thumbs = experience?.attachmentPreviews?.() ?? [...pane.querySelectorAll('.chat-attachments-preview .chat-attachment-thumb')].map(node=>node.querySelector('img')?.src || '');
+    const thumbs = [...pane.querySelectorAll('.chat-attachments-preview .chat-attachment-thumb')].map(node=>node.querySelector('img')?.src || '');
     const pendingReads = pane.chatState?.attachmentReads?.pendingReads || 0;
     const readErrors = projected.some(item => item.state === 'error');
     const node = $('[data-work="materials"]');
@@ -135,7 +133,6 @@
     $('[data-work="start"]').textContent = sending ? '正在发送…' : pane.runActivity?.working ? '发送补充 ↗' : '发送 ↗';
   }
   function removeAttachment(pane,id) {
-    if (experience) return experience.removeAttachment(pane, id);
     // Native preview and projection have the same order, including duplicate names.
     // Wait for matching counts rather than risk removing another file mid-render.
     const items = materials(pane), index = items.findIndex(item => item.attachment.id === id);
@@ -165,8 +162,7 @@
       if (!current()) return;
       // Capture native handlers before removals update the attachment projection.
       const items = materials(pane), buttons = [...pane.querySelectorAll('.chat-attachments-preview .chat-attachment-remove')];
-      if (experience) items.filter(item => attachments.some(file => file.id === item.attachment.id)).forEach(item => experience.removeAttachment(pane, item.attachment.id));
-      else if (buttons.length === items.length) items.forEach((item,index)=>{ if (attachments.some(file=>file.id===item.attachment.id)) buttons[index].click(); });
+      if (buttons.length === items.length) items.forEach((item,index)=>{ if (attachments.some(file=>file.id===item.attachment.id)) buttons[index].click(); });
       if (JSON.stringify(draft) === specification) drafts.delete(session);
       close(); // Native outbox admission is the acknowledgement, not model completion.
     };
@@ -174,8 +170,7 @@
       // A message override keeps the native chat draft. Attachments must be
       // explicit: the native override deliberately does not inherit them.
       const result = await state.handleSendChat(request,{attachmentsOverride:attachments,mentionsOverride:[],onOutboxAdmitted:accepted,
-        ...(window.__mirallyLegacyHost ? {mirallyAllowFileWrite: draft.output !== 'reply'} : {}),
-        ...(experience ? {allow_file_write: draft.output !== 'reply'} : {}),
+        ...(window.__mirallyHost ? {mirallyAllowFileWrite: draft.output !== 'reply'} : {}),
         ...(pane.runActivity?.working ? {followUpMode:'steer'} : {})});
       if (!admitted && result === true) accepted();
       if (!admitted && current()) notice('尚未提交，请到对话中查看原因；要求和材料已保留。');
@@ -203,7 +198,7 @@
               <button type="button" class="mirally-work__drop" data-work="attach">${icon('upload')}<strong>把文件拖到这里</strong><span>或点击选择文件</span></button>
               <p data-work="material-count"></p><div data-work="materials" class="mirally-work__materials"></div>
               <p data-work="media-note" class="mirally-work__note" hidden>可以带来会议记录、录音或视频。无法解析的材料会说明，不把未读取内容当成已听到。</p>
-              <p class="mirally-work__note">${experience ? '请添加实际文件或直接粘贴正文；网页链接需要已配置相应读取能力。' : '也可以在要求中提供本机文件路径、网页链接或直接粘贴内容。'}</p>
+              <p class="mirally-work__note">也可以在要求中提供本机文件路径、网页链接或直接粘贴内容。</p>
             </section>
             <section class="mirally-work__requirements"><h3>02 <span>告诉我你想做成什么</span></h3><div data-work="choices" class="mirally-work__choices"></div>
               <label data-work="audience-row" class="mirally-work__audience" hidden>给谁看？<input data-work="audience" aria-label="受众" placeholder="如：老师、团队、客户"></label>

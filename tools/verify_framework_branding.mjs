@@ -1,12 +1,11 @@
+import {loadPlaywright} from './testing/dependencies.cjs';
 /** Fresh-home Mirally identity and desktop preference acceptance on a real Host. */
 import assert from 'node:assert/strict';
 import {readFile,mkdir} from 'node:fs/promises';
-import {createRequire} from 'node:module';
 import {resolve,dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-const require=createRequire(join(root,'integrations/openclaw/package.json'));
-const {chromium}=require(process.env.MIRALLY_PLAYWRIGHT??'playwright-core');
+const {chromium} = loadPlaywright();
 const runtime=JSON.parse(await readFile(process.argv[2],'utf8'));assert.equal(runtime.mode,'test');
 const output=resolve(process.argv[3]??join(root,'.artifacts/branding-close'));await mkdir(output,{recursive:true});
 const browser=await chromium.launch({channel:'msedge',headless:true});
@@ -14,7 +13,7 @@ const errors=[];
 const oldBrand=/OpenClaw|Clawd(?:bot)?|龙虾|lobster/i;
 async function ready(page){await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected');}
 async function go(page,path){await page.goto(runtime.url+path);await ready(page);}
-async function rpc(page,method,params={}){return page.evaluate(({method,params})=>window.__mirallyLegacyHost.rpc(method,params),{method,params});}
+async function rpc(page,method,params={}){return page.evaluate(({method,params})=>window.__mirallyHost.rpc(method,params),{method,params});}
 async function noOldBrand(page){
   assert.ok(!oldBrand.test(await page.locator('body').innerText()),'visible product text is Mirally');
   const links=await page.locator('a[href]').evaluateAll(nodes=>nodes.filter(node=>node.getClientRects().length).map(node=>node.href));

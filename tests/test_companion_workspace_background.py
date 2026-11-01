@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, patch
 
-from mirally.control_ui_shell import ControlUIShell, _opaque_page_background
+from mirally.desktop_surface import DesktopSurface, _opaque_page_background
 
 
 class PageColor:
@@ -18,7 +18,7 @@ class PageColor:
 
 class WorkspaceBackgroundTests(unittest.TestCase):
     def setUp(self):
-        self.shell = ControlUIShell(Path(__file__).resolve().parents[1])
+        self.shell = DesktopSurface(Path(__file__).resolve().parents[1])
         self.saved = (255, 247, 249, 252)
         self.events = []
         test = self
@@ -66,10 +66,10 @@ class WorkspaceBackgroundTests(unittest.TestCase):
 
     def apply(self, message):
         with patch.dict("sys.modules", self.modules), \
-             patch("mirally.control_ui_shell._frame_style", side_effect=lambda *_: self.record("frame") or 0x16cf0000), \
-             patch("mirally.control_ui_shell._frame_composition", side_effect=lambda *_: self.record("composition") or 2), \
-             patch("mirally.control_ui_shell._client_glass", side_effect=self.set_glass), \
-             patch("mirally.control_ui_shell._capture_affinity"), \
+             patch("mirally.desktop_surface._frame_style", side_effect=lambda *_: self.record("frame") or 0x16cf0000), \
+             patch("mirally.desktop_surface._frame_composition", side_effect=lambda *_: self.record("composition") or 2), \
+             patch("mirally.desktop_surface._client_glass", side_effect=self.set_glass), \
+             patch("mirally.desktop_surface._capture_affinity"), \
              patch.object(self.shell, "_initial_companion_shape"):
             self.shell._companion_action(message)
 

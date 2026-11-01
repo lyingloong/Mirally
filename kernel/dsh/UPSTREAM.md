@@ -2,6 +2,8 @@
 
 本目录是用户授权直接修改的内核源码，随 Mirally 在同一个 Git 仓库维护。上游项目是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)。
 
+2026-11-01：按弃用代码不保留兼容的开发原则，删除旧 OpenClaw 运行/插件集成、配置导入与档案浏览。原生桌面行为抽入 Mirally `desktop_surface.py`，当前呈现消息通过 `native-bridge.js` 接入产品 owner；旧注入配置脚本和未使用的简化 UI 退役。测试依赖迁至 `tools/testing`，不再通过旧运行包解析。DSH Session、当前产品事实、前端来源及许可证继续维护；本机私有数据不被清理。
+
 2026-10-31：Mirally 转为通用会话入口，移除产品专用工作 owner、微信工作命令和工作工具；微信助理查询目标会话所属的 DSH/Mirally 后台作业，并可委托原会话继续。停止回复不再主动终止后台作业；显式停止和权限校验沿用各执行器。用户明确要求时可为所属作业登记结束提醒，复用现有投递；通知登记只在宿主运行期间有效。桌面定时回合可使用通用 PowerShell 作业。不引入新的实验执行器或第二条模型链；用户数据无需迁移，旧工作表不再使用。
 
 2026-10-29：新增 Mirally 日历工具与渠道提醒，以及会话定时执行。定时执行复用 DSH schedule 的纯时间规则，以产品 owner 保存动作并经 Mirally 会话准入和既有权限运行，不挂载另一份上游调度 runtime；回复结束与目标成功分开。微信问题改为逐题投递，数字选择仍受绑定与送达校验。见[日历与定时能力](../../docs/architecture/scheduling.md)。
@@ -44,7 +46,7 @@
 - `tsdown.config.ts` 按 `dsh.sourceOnly` 跳过源码 MJS workspace 的 TypeScript `lib/types` 输出假设。`pnpm-lock.yaml` 记录新增 workspace 接缝。
 - `pnpm-workspace.yaml` 禁止 lefthook 依赖自身的构建/安装钩子，补足工作区自有 postinstall 保护，防止嵌入安装修改外层 Git hooks；准备脚本同时设置 `LEFTHOOK=0`。
 - `mirally-product` 通过原生 attachments 服务接入显式材料和多模态消息，新增有产品授权约束的成果文件工具及本机预览/下载接口。
-- 默认前端改为直接保留固定 OpenClaw Control UI `2026.9.6` 的原页面源码与原 Mirally 皮肤，源码位于仓库根 `frontend/control-ui/`，许可证、精确提交及逐文件来源另记于该目录的 [UPSTREAM.md](../../frontend/control-ui/UPSTREAM.md)。原 Lit 页面客户端工厂注入 Mirally HTTP/SSE 适配，产品活动、记忆与成果消息经 `legacy-native-bridge.js` 进入现有 owner；`mirally-product/src/presentation.mjs` 提供原品牌、工作与伙伴资源。原 Gateway、WebSocket owner 与 service worker 不加入默认运行链，DSH 仍是唯一 Agent loop/Session/模型链。
+- 默认前端改为直接保留固定 OpenClaw Control UI `2026.9.6` 的原页面源码与原 Mirally 皮肤，源码位于仓库根 `frontend/control-ui/`，许可证、精确提交及逐文件来源另记于该目录的 [UPSTREAM.md](../../frontend/control-ui/UPSTREAM.md)。原 Lit 页面客户端工厂注入 Mirally HTTP/SSE 适配，产品活动、记忆与成果消息经 `native-bridge.js` 进入现有 owner；`mirally-product/src/presentation.mjs` 提供原品牌、工作与伙伴资源。原 Gateway、WebSocket owner 与 service worker 不加入默认运行链，DSH 仍是唯一 Agent loop/Session/模型链。
 - 保留旧页面不移植 OpenClaw 后端专有能力；未实现的旧操作不广告为可用，并明确报告尚未支持。前端使用独立 npm 锁文件与 Node 24+ 构建，准备入口为仓库根 `tools/setup_framework.py`，不以 ignored 的 OpenClaw checkout 或发行包作为运行依赖。
 
 - 2026-10-24：按用户范围暂不接入 UFO，移除新默认 Host 的执行器、专用任务 RPC/模型别名与输入桥，保留自有窗口/截图和原维护适配。

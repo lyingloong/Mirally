@@ -1,7 +1,7 @@
 """Stable value objects for the activity knowledge layer.
 
 The knowledge layer stores projections of immutable observations.  These
-objects deliberately contain no Windows, UFO or OpenClaw types so they can be
+objects deliberately contain no platform or host-specific types so they can be
 used by any future activity source and by agent adapters.
 """
 

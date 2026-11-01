@@ -3,11 +3,10 @@
   if (window.top !== window || location.origin !== __MIRALLY_ORIGIN__ || !window.chrome?.webview) return;
   const MARK = __MIRALLY_MARK__;
   const PETS = __MIRALLY_PETS__;
-  const experience = window.__mirallyExperience;
   const PET_KEY = 'mirally.companion.pet';
   const FORM_KEY = 'mirally.companion.form';
   let petType = 'otter';
-  try { const saved = experience ? experience.getPreference(PET_KEY) : window.__mirallyLegacyHost?.getUiPreference(PET_KEY) ?? localStorage.getItem(PET_KEY); if (Object.hasOwn(PETS, saved)) petType = saved; } catch {}
+  try { const saved = window.__mirallyHost?.getUiPreference(PET_KEY) ?? localStorage.getItem(PET_KEY); if (Object.hasOwn(PETS, saved)) petType = saved; } catch {}
   const office = window.__mirallyOffice;
   const trackReply = office.createReplyTracker();
   let app, pane, surface, entry, connectedContext, mode = 'workspace', frame, returnAfterAttention, presentationScope, hydratedHistoryScope, preparing;
@@ -15,11 +14,11 @@
   let surfaceMode = 'rail';
   let pinned = false, shapeSignature = '', presentationAnimations = [];
   let tip, tipAnchor, tipTimer, tipLeaveTimer;
-  try { const saved=experience ? experience.getPreference(FORM_KEY) : window.__mirallyLegacyHost?.getUiPreference(FORM_KEY) ?? localStorage.getItem(FORM_KEY); if (['rail','badge','pet'].includes(saved)) surfaceMode=saved; } catch {}
+  try { const saved=window.__mirallyHost?.getUiPreference(FORM_KEY) ?? localStorage.getItem(FORM_KEY); if (['rail','badge','pet'].includes(saved)) surfaceMode=saved; } catch {}
   const savePreference = (key, value) => {
     try {
-      const pending = experience?.setPreference ? experience.setPreference(key, value) : window.__mirallyLegacyHost?.setUiPreference ? window.__mirallyLegacyHost.setUiPreference(key, value) : localStorage.setItem(key, value);
-      pending?.catch?.(error => experience?.requestContextUnavailable?.(error.message));
+      const pending = window.__mirallyHost?.setUiPreference ? window.__mirallyHost.setUiPreference(key, value) : localStorage.setItem(key, value);
+      pending?.catch?.(() => {});
     } catch { /* Presentation remains usable if this source cannot save preferences. */ }
   };
   const disposers = [];
@@ -75,12 +74,11 @@
     const clean = String(value || '').replace(/^[#*>\s]+/gm, '').replace(/\*\*|__|`/g, '').trim();
     return clean.length > limit ? clean.slice(0, limit) + '…' : clean;
   };
-  const active = () => experience ? experience.active() : [...document.querySelectorAll('openclaw-chat-pane.chat-pane-cache__pane--active')]
+  const active = () => [...document.querySelectorAll('openclaw-chat-pane.chat-pane-cache__pane--active')]
     .find(candidate => candidate.presented !== false && candidate.state?.handleSendChat);
-  const rows = state => experience?.sessions?.() ?? state.sessionsResult?.sessions ?? app?.context?.sessions?.state?.result?.sessions ?? [];
+  const rows = state => state.sessionsResult?.sessions ?? app?.context?.sessions?.state?.result?.sessions ?? [];
   const attachmentsLabel = state => state.chatAttachments?.length ? `${state.chatAttachments.length} 份材料已带上` : 'Mirally · 随时在这里';
   async function ensureReady() {
-    if (experience) return experience.ensureReady();
     if (active()) return active();
     if (preparing) return preparing;
     const page = document.querySelector('openclaw-new-session-page');
@@ -275,7 +273,6 @@
     requestAnimationFrame(() => callback?.());
   }
   async function nativeFiles(target = pane) {
-    if (experience) return experience.openFiles();
     const key = target?.state?.sessionKey;
     const current = () => active() === target && target.state.sessionKey === key;
     if (!current()) return;
@@ -292,7 +289,6 @@
   function nativeAttention() {
     returnAfterAttention = pane?.state?.sessionKey;
     workspace(() => {
-      if (experience) return experience.openAttention();
       if (pane?.state?.chatSessionApprovalQueue?.length) {
         document.querySelector('openclaw-app-shell')?.openApprovals?.();
       } else {
@@ -300,9 +296,8 @@
       }
     });
   }
-  function nativeInput() { return experience?.nativeInput?.() ?? pane?.querySelector('.agent-chat__file-input'); }
+  function nativeInput() { return pane?.querySelector('.agent-chat__file-input'); }
   function files(list) {
-    if (list && experience) { experience.attachFiles(list).then(() => { expand(true); schedule(); }).catch(error => text('[data-slot="receipt"]', error.message)); return; }
     const input = nativeInput();
     if (!input) { text('[data-slot="receipt"]', '请在工作台中添加文件'); return; }
     if (!list) return input.click();
@@ -342,8 +337,7 @@
       button.textContent = row.displayName || row.label || row.key;
       button.setAttribute('aria-current', String(row.key === state.sessionKey));
       button.onclick = () => {
-        if (experience) experience.selectSession(row.key);
-        else pane?.onPaneSessionChange?.(pane.paneId, row.key);
+        pane?.onPaneSessionChange?.(pane.paneId, row.key);
         text('[data-slot="receipt"]', '');
         schedule();
       };
@@ -354,7 +348,7 @@
     const sidebar = document.querySelector('openclaw-app-sidebar');
     const resolver = sidebar?.resolveSessionAttention;
     const loaded = app?.context?.sessions?.state?.result?.sessions ?? [];
-    const others = experience?.background?.(state) ?? loaded.filter(row => row.key !== state.sessionKey && !row.archived).map(row => ({row,
+    const others = loaded.filter(row => row.key !== state.sessionKey && !row.archived).map(row => ({row,
       attention:resolver?.call(sidebar, row)?.kind,
       working:row.hasActiveRun === true || row.hasActiveSubagentRun === true}));
     const pending = others.filter(item => ['question','approval','agent','error'].includes(item.attention));
@@ -372,7 +366,7 @@
       node.replaceChildren(...items.map(({row,working,attention}) => {
         const button = document.createElement('button');
         button.textContent = `${row.displayName || row.label || '未命名会话'} · ${['question','approval','agent','error'].includes(attention) ? '需要查看' : working ? '工作中' : ''}`;
-        button.onclick = () => workspace(() => experience ? experience.selectSession(row.key) : sidebar?.selectSession?.(row.key, sidebar.sessionNavigationAgentId?.(row)));
+        button.onclick = () => workspace(() => sidebar?.selectSession?.(row.key, sidebar.sessionNavigationAgentId?.(row)));
         return button;
       }));
     }
@@ -380,7 +374,6 @@
   }
   function deliverables(state) {
     const node = $('[data-slot="deliverables"]');
-    if (experience) return experience.renderDeliverables(node);
     const target = pane, key = state.sessionKey, client = target.runActivity?.client;
     const workspaceState = state.sessionWorkspaceState;
     const epoch = workspaceState?.connectionEpoch, agent = workspaceState?.agentId;
@@ -422,23 +415,22 @@
   }
   function sync() {
     frame = null;
-    app = experience ? null : document.querySelector('openclaw-app');
+    app = document.querySelector('openclaw-app');
     pane = active();
     // Lit can replace its footer during route/session updates. Remount before
     // checking the pane, which is briefly absent during those same updates.
     const footer = document.querySelector('.sidebar-shell__footer');
-    const destination = experience?.entryDestination?.() || footer || document.body;
+    const destination = footer || document.body;
     if (entry.parentElement !== destination) destination.prepend(entry);
     entry.hidden = false;
     const newPage = document.querySelector('openclaw-new-session-page');
-    const ready = !!experience || !!pane?.state?.handleChatDraftChange || !!(newPage?.submission && newPage.gateway?.connected);
+    const ready = !!pane?.state?.handleChatDraftChange || !!(newPage?.submission && newPage.gateway?.connected);
     for (const button of entry.querySelectorAll('[data-entry="dock"],[data-entry="office"]')) button.disabled = !!preparing || !ready;
     window.__mirallyWork?.sync();
-    const context = experience ?? app?.context ?? pane?.context;
+    const context = app?.context ?? pane?.context;
     if (context !== connectedContext) {
       disposers.splice(0).forEach(dispose => dispose());
       connectedContext = context;
-      if (experience) disposers.push(experience.subscribe(schedule));
       for (const service of [context?.gateway, context?.sessions, context?.overlays]) {
         if (service?.subscribe) disposers.push(service.subscribe(schedule));
       }
@@ -573,7 +565,7 @@
     if (input.value !== (state.chatMessage || '')) input.value = state.chatMessage || '';
     const attachments = state.chatAttachments ?? [];
     const materials = $('[data-slot="attachments"]');
-    const thumbs = experience?.attachmentPreviews?.() ?? [...pane.querySelectorAll('.chat-attachments-preview .chat-attachment-thumb')].map(node=>node.querySelector('img')?.src || '');
+    const thumbs = [...pane.querySelectorAll('.chat-attachments-preview .chat-attachment-thumb')].map(node=>node.querySelector('img')?.src || '');
     const materialKey = JSON.stringify(attachments.map((file,index)=>[file.id,file.fileName,file.name,thumbs[index]]));
     if (materials.dataset.signature !== materialKey) {
       materials.dataset.signature = materialKey;
@@ -693,7 +685,7 @@
     entry.className = 'mirally-companion-entry';
     entry.setAttribute('aria-label', 'Mirally 模式');
     entry.innerHTML = '<button data-entry="chat">对话</button><button data-entry="office">快捷开始</button><button data-entry="dock" title="在屏幕侧边与你并肩工作">侧边伙伴 ↗</button>';
-    entry.querySelector('[data-entry="chat"]').onclick = () => workspace(() => experience ? experience.showChat() : window.__mirallyWork?.close());
+    entry.querySelector('[data-entry="chat"]').onclick = () => workspace(() => window.__mirallyWork?.close());
     entry.querySelector('[data-entry="dock"]').onclick = dock;
     entry.querySelector('[data-entry="office"]').onclick = openOffice;
     document.body.append(entry);
@@ -851,7 +843,7 @@
       if (action === 'quick') { setView('quick'); $('[data-slot="draft"]').focus(); }
       if (action === 'reply-compose') { dismissReply(); setView('quick'); $('[data-slot="draft"]').focus(); }
       if (action === 'detail') setView('detail');
-      if (action === 'workspace' || action === 'reply') workspace(() => experience ? experience.showChat() : window.__mirallyWork?.close());
+      if (action === 'workspace' || action === 'reply') workspace(() => window.__mirallyWork?.close());
       if (action === 'pin') {setPinned(!pinned);if(!pinned&&!surface.matches(':hover'))leave();}
       if (action === 'menu') {if(surface.dataset.view==='menu')compact();else openMenu();}
       if (action === 'minimize') {compact({restoreFocus:false});post('minimize');}

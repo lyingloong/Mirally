@@ -1,3 +1,4 @@
+import {loadPlaywright} from './testing/dependencies.cjs';
 /**
  * Offline checks against Mirally's actual companion JS, CSS and artwork.
  * The native message bridge and owning chat pane are fixture boundaries;
@@ -11,13 +12,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
-import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.resolve(process.argv[2] ?? path.join(root, '.artifacts/companion-interaction'));
-const require = createRequire(path.join(root, 'integrations/openclaw/package.json'));
-const {chromium} = require(process.env.MIRALLY_PLAYWRIGHT ?? 'playwright-core');
+const {chromium} = loadPlaywright();
 const [source, css, office, otter, fox, logo] = await Promise.all([
   'control-ui-companion.js', 'control-ui-companion.css', 'control-ui-office.js',
   'mirally-pet-otter.svg', 'mirally-pet.svg', 'mirally-128.png',
@@ -356,6 +355,10 @@ try {
   assert.equal(await rail(page).getAttribute('aria-describedby'),null);
 
   await page.evaluate(()=>{window.__mirallyCompanion.setForm('rail');window.__mirallyCompanion.setView('quick');});
+  // This programmatic form switch has no user dwell; finish finite entry motion
+  // before placing the pointer on the control whose tooltip is under test.
+  await page.waitForFunction(()=>!document.querySelector('.mirally-companion').getAnimations({subtree:true})
+    .some(animation=>animation.playState==='running'&&animation.effect.getComputedTiming().endTime!==Infinity));
   await action(page,'pin').hover();await tooltip.waitFor({state:'visible'});await checkTip(3);
   await outside(page);await page.waitForTimeout(70);await action(page,'pin').hover();await page.waitForTimeout(230);
   assert.equal(await tooltip.isVisible(),true,'returning to the same control cancels tooltip dismissal');

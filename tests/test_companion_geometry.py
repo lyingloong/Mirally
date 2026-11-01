@@ -7,12 +7,12 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, patch
 
-from mirally.control_ui_shell import ControlUIShell
+from mirally.desktop_surface import DesktopSurface
 
 
 class CompanionGeometryTests(unittest.TestCase):
     def setUp(self):
-        self.shell = ControlUIShell(Path(__file__).resolve().parents[1])
+        self.shell = DesktopSurface(Path(__file__).resolve().parents[1])
         self.shell._workspace = object()
         self.form = SimpleNamespace(
             Bounds=SimpleNamespace(X=100, Y=200), Region=None,

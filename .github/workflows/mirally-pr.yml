@@ -36,6 +36,9 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Install independent test tools
+        run: npm --prefix tools/testing ci --ignore-scripts --no-audit --no-fund
+
       - name: Install Python dependencies
         run: |
           python -m venv .venv
@@ -52,6 +55,10 @@ jobs:
       - name: Test Python product core
         run: |
           $tests = @(
+            'tests.test_framework_entry',
+            'tests.test_desktop_surface',
+            'tests.test_framework_lifecycle',
+            'tests.test_framework_activity_views',
             'tests.test_framework_product',
             'tests.test_framework_channels',
             'tests.test_framework_calendar',
@@ -64,6 +71,13 @@ jobs:
       - name: Test channels, background jobs and frontend logic
         run: |
           $tests = @(
+            'tests/test_test_dependencies.cjs',
+            'tests/test_framework_native_bridge.mjs',
+            'tests/test_framework_ui_races.mjs',
+            'tests/test_framework_without_ufo.mjs',
+            'tests/test_control_ui_activity.cjs',
+            'tests/test_control_ui_files.cjs',
+            'tests/test_control_ui_memory.cjs',
             'tests/test_framework_session_background_status.mjs',
             'tests/test_framework_session_shell_jobs.mjs',
             'tests/test_framework_job_notifications.mjs',

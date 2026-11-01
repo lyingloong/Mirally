@@ -253,8 +253,6 @@ class FrameworkService:
             "delivery.tick": self.delivery_tick, "delivery.list": self.delivery_list,
             "delivery.claim": self.delivery_claim, "delivery.ack": self.delivery_ack,
             "inbox.list": self.inbox_list, "inbox.ack": self.inbox_ack,
-            "migration.status": self.migration_status, "legacy.history": self.legacy_history,
-            "legacy.history.read": self.legacy_history_read, "legacy.archive": self.legacy_archive,
             "capabilities.get": self.capabilities_get, "capabilities.configure": self.capabilities_configure,
             "workspace.roots": self.workspace_roots, "workspace.list": self.workspace_list,
             "workspace.read": self.workspace_read, "workspace.search": self.workspace_search,
@@ -273,25 +271,6 @@ class FrameworkService:
                 raise FrameworkError("INVALID_PARAMS", str(error)[:1000]) from error
             except sqlite3.IntegrityError as error:
                 raise FrameworkError("CONFLICT", "product identity or binding conflict") from error
-
-    def migration_status(self) -> dict[str, Any]:
-        path = self.home / "framework" / "migration-manifest.json"
-        if not path.is_file():
-            return {"migrated": False}
-        return {"migrated": True, "manifest": json.loads(path.read_text(encoding="utf-8"))}
-
-    def legacy_history(self) -> dict[str, Any]:
-        from .legacy_history import entries
-        return {"sessions": entries(self.home),
-                "readonly": True, "transcript_conversion": False}
-
-    def legacy_history_read(self, record_id: str, cursor: int = 0, limit: int = 50) -> dict[str, Any]:
-        from .legacy_history import read
-        return read(self.home, record_id, cursor, limit)
-
-    def legacy_archive(self) -> dict[str, Any]:
-        from .legacy_history import archive
-        return archive(self.home)
 
     def capabilities_get(self):
         from .capabilities import get

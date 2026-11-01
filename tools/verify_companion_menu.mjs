@@ -1,13 +1,12 @@
+import {loadPlaywright} from './testing/dependencies.cjs';
 /** Offline real-DOM checks for companion menus; no Gateway or model requests. */
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
-import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const require=createRequire(path.join(root,'integrations/openclaw/package.json'));
-const {chromium}=require('playwright-core');
+const {chromium} = loadPlaywright();
 let origin;
 const source=await fs.readFile(path.join(root,'mirally/assets/control-ui-companion.js'),'utf8');
 const css=await fs.readFile(path.join(root,'mirally/assets/control-ui-companion.css'),'utf8');

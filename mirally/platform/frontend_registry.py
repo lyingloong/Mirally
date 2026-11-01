@@ -51,8 +51,8 @@ def registered_frontends(root: Path) -> tuple[dict, ...]:
                 children = []
             for child in children:
                 try:
-                    # The host also launches a detached Gateway. Its workers
-                    # and apps they open are task targets, not frontend UI.
+                    # Product-host workers and apps they open are task targets;
+                    # only WebView2 children belong to the frontend UI.
                     if child.name().casefold() == "msedgewebview2.exe":
                         owners[child.pid] = child.create_time()
                 except psutil.Error:

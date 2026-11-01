@@ -12,7 +12,7 @@ from typing import Any
 import yaml
 
 from mirally.runtime.activity.config import load_activity_config
-from mirally.runtime.activity.settings import _capture_scope, _scope_note, validate_memory_search_filters
+from .activity_views import capture_scope, scope_note, validate_memory_search_filters
 
 
 CAPTURE_FIELDS = {
@@ -103,7 +103,7 @@ class ActivityExperience:
         controller = product._controller_status()
         workers = controller.get("status") if isinstance(controller.get("status"), dict) else controller
         return {"enabled": settings["activity_enabled"], "paused": settings.get("activity_paused", False),
-                "fingerprint": fingerprint, "scope": _capture_scope(config), "scope_note": _scope_note(config),
+                "fingerprint": fingerprint, "scope": capture_scope(config), "scope_note": scope_note(config),
                 "capture": self.capture_values(config), "workers": workers,
                 "snapshot": snapshot, "snapshot_is_live_status": False,
                 "profiles": {"activity": str(product.home / "config/activity.yaml"), "database": str(config.database_path),

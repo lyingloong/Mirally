@@ -1,12 +1,11 @@
+import {loadPlaywright} from './testing/dependencies.cjs';
 /** Real retained UI history acceptance; use a configured isolated normal Host. */
 import assert from 'node:assert/strict';
 import {readFile, mkdir} from 'node:fs/promises';
-import {createRequire} from 'node:module';
 import {resolve, dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const require = createRequire(join(root, 'integrations/openclaw/package.json'));
-const {chromium} = require(process.env.MIRALLY_PLAYWRIGHT ?? 'playwright-core');
+const {chromium} = loadPlaywright();
 const runtime = JSON.parse(await readFile(process.argv[2], 'utf8'));
 assert.equal(runtime.mode, 'normal', 'Real native tool history requires a configured isolated normal Host');
 assert.ok(process.argv.includes('--live'), 'Provider calls require explicit --live and an isolated profile');
@@ -40,7 +39,7 @@ async function verify(target) {
   assert.equal(await pane.locator('.chat-tool-msg-collapse--manual').count(),1,'One native tool invocation renders once');
   const model = await target.evaluate(async active => {
     const state = document.querySelector(active).state;
-    const history=await window.__mirallyLegacyHost.client.request('chat.history',{sessionKey:state.sessionKey});
+    const history=await window.__mirallyHost.client.request('chat.history',{sessionKey:state.sessionKey});
     return {users: history.messages.filter(row => row.role === 'user').map(row => row.id),
       tools: history.messages.filter(row => row.role === 'toolResult').map(row => ({id: row.id, content: row.content})),
       materials: history.messages.filter(row => row.role === 'user').flatMap(row => row.content).filter(block => ['image', 'attachment'].includes(block.type))};

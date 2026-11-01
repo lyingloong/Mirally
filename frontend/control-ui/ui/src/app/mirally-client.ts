@@ -70,7 +70,7 @@ export class MirallyBrowserClient {
       getUiPreference: (name: string) => this.preferences[name],
       setUiPreference: (name: string, value: string) => { this.preferences[name] = value; void this.http('/api/ui-preferences', {method:'POST', body:JSON.stringify({key:name,value})}); },
       client: this};
-    Object.assign(window, {__mirallyLegacyHost: host});
+    Object.assign(window, {__mirallyHost: host});
     window.dispatchEvent(new CustomEvent("mirally-host-ready"));
   }
   get needsWakeReconnect() { return !this.connected; }
@@ -432,7 +432,7 @@ export class MirallyBrowserClient {
         } catch (error) { this.forgetRun(id, runId); throw error; }
       }
       case "sessions.files.list": case "sessions.files.get": case "artifacts.list": case "artifacts.get": case "artifacts.download": {
-        const bridge = (window as any).__mirallyLegacyNativeBridge;
+        const bridge = (window as any).__mirallyNativeBridge;
         if (!bridge) throw new Error("成果入口尚未准备完成"); return bridge.requestNative(method, p);
       }
       case "models.authStatus": {

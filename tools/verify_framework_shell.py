@@ -1,4 +1,4 @@
-"""Verify the retained Control UI desktop with an isolated test-mode Host.
+"""Verify Mirally's native desktop with an isolated test-mode Host.
 
 Run this Windows/WebView2 check separately from other GUI checks. Only the
 current process's HWND and Chromium child receive native messages; delayed
@@ -26,13 +26,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 FRONTEND_DIST = ROOT / "frontend/control-ui/dist"
 
-# These inspect the real retained application. The legacy compatibility
-# navigation helper intentionally does not recreate the discarded UI's state.
+# Inspect the actual product application and its native transport bridge.
 FRONTEND_READY = """(() => {
     const app = document.querySelector('openclaw-app');
     const gateway = app?.context?.gateway?.snapshot;
     return !!app && gateway?.phase === 'connected' && gateway.client?.connected === true &&
-      !!window.__mirallyLegacyHost && !!window.__mirallyLegacyNativeBridge &&
+      !!window.__mirallyHost && !!window.__mirallyNativeBridge &&
       !!window.__mirallyCompanion && !!window.__mirallyWork && !!window.__mirallyContext;
 })()"""
 
@@ -94,7 +93,6 @@ def main() -> int:
     parser.add_argument("--page-quit", action="store_true", help="quit through the real About Mirally page")
     parser.add_argument("--reuse-host", action="store_true", help="connect the shell to an already running isolated Host")
     parser.add_argument("--workspace-paint-probe", action="store_true", help="record actual workspace transition colors and native clip ordering")
-    parser.add_argument("--workspace-paint-baseline-ref", help="compare the native shell from an explicit local Git revision without editing the working tree")
     arguments = parser.parse_args()
     if sys.platform != "win32":
         raise SystemExit("This verification requires Windows and WebView2.")
@@ -169,7 +167,7 @@ def main() -> int:
                 from System.Drawing import Point, Rectangle
                 from System.Reflection import BindingFlags
                 from System.Windows.Forms import FormWindowState, MenuStrip, MouseButtons, MouseEventArgs, Screen
-                from mirally.control_ui_shell import _frame_style
+                from mirally.desktop_surface import _frame_style
                 form = shell.window.native
                 def js(source):
                     return shell.window.evaluate_js(source)
@@ -236,13 +234,13 @@ def main() -> int:
                 hwnd = initial["hwnd"]
                 assert initial["title"] == "" and initial["show_icon"] and initial["has_icon"] and initial["strips"] == 0, initial
                 assert initial["opacity"] == 1 and not initial["region"], initial
-                assert shell._frontend_registration is None, "Default framework must not register a UFO input bridge"
+                assert not hasattr(shell, "_frontend_registration"), "Default framework must not register a UFO input bridge"
                 saved.update(process=previous_owner.process if previous_owner is not None else host.process)
                 if arguments.reuse_host:
                     assert host.process is None and not host.owned, "Shell did not reuse the existing isolated owner"
                 results.append({"case": "real Host and opening first paint", "mode": "test", "startup": startup, "timeline_seconds": timeline,
                     "same_native_window": True, "formal_icon": True, "blank_caption": True, "no_menu_strip": True,
-                    "frontend_source": "frontend/control-ui", "native_app_mounted": True})
+                    "frontend_source": "frontend/control-ui", "native_app_mounted": True, "native_window": initial})
 
                 js(CREATE_NATIVE_SESSION)
                 wait_for(lambda: js(NATIVE_SESSION_READY),
@@ -258,7 +256,7 @@ def main() -> int:
                     "model_request_started": False, "native_chat_pane": True})
 
                 if arguments.workspace_paint_probe:
-                    from mirally.control_ui_shell import ControlUIShell
+                    from mirally.desktop_surface import DesktopSurface
                     phase_reports = []
                     pixel_reports = []
                     versions = {}
@@ -290,12 +288,7 @@ def main() -> int:
                         pixel_reports.append({"expected": patch_color, "observed_own_hwnd_dc": own_pixel()})
                     js("document.querySelector('#mirally-paint-calibration').remove()")
                     calibrated = all(item["expected"] == item["observed_own_hwnd_dc"] for item in pixel_reports)
-                    implementations = [("current", ControlUIShell._companion_action)]
-                    if arguments.workspace_paint_baseline_ref:
-                        source = subprocess.check_output(["git", "show", arguments.workspace_paint_baseline_ref + ":mirally/control_ui_shell.py"], cwd=ROOT, text=True, encoding="utf-8")
-                        namespace = {"__file__": str(ROOT / "mirally/control_ui_shell.py"), "__name__": "mirally_paint_probe_baseline"}
-                        exec(compile(source, str(ROOT / "mirally/control_ui_shell.py") + "@" + arguments.workspace_paint_baseline_ref, "exec"), namespace)
-                        implementations.insert(0, ("baseline native " + arguments.workspace_paint_baseline_ref, namespace["ControlUIShell"]._companion_action))
+                    implementations = [("current", DesktopSurface._companion_action)]
                     original_dispatch = shell._companion_action
                     original_theme = js("document.documentElement.dataset.theme")
                     try:
@@ -339,7 +332,7 @@ def main() -> int:
                     results.append({"case": "workspace native paint ordering and real page colors", **versions,
                         "own_hwnd_pixel_calibration": pixel_reports, "dc_can_observe_webview_pixels": calibrated,
                         "pixel_limit": "DC results are unusable for visual/black-frame conclusions when calibration fails; no desktop capture performed",
-                        "phase_reports": phase_reports, "baseline_scope": "Baseline native implementation only; the real currently built frontend remains in use"})
+                        "phase_reports": phase_reports})
 
                 menu = user.GetSystemMenu(hwnd, False)
                 items = []
@@ -530,7 +523,7 @@ def main() -> int:
                     js("window.__mirallyCompanion.workspace()")
                     wait_for(lambda: shell._workspace is None and not native()["region"], appearance + " did not restore workbench")
                     restored = native()
-                    assert restored["hwnd"] == hwnd and restored["bounds"] == initial["bounds"] and not restored["topmost"], restored
+                    assert restored["hwnd"] == hwnd and restored["bounds"] == initial["bounds"] and not restored["topmost"], {"initial": initial, "restored": restored}
 
                 # Floating tooltips live outside the clipped surface DOM. They
                 # remain separate native Region parts, so their transparent
@@ -893,7 +886,7 @@ def main() -> int:
             # a missing product shutdown look like a passing native exit.
             if saved.get("process") is not None:
                 cleaned = {"host_exited": saved["process"].poll() is not None, "host_handle_released": host.process is None,
-                    "tray_disposed": shell._tray is None, "no_ufo_registration": shell._frontend_registration is None,
+                    "tray_disposed": shell._tray is None, "no_ufo_registration": not hasattr(shell, "_frontend_registration"),
                     "shell_closed": shell.closed.is_set(), "host_log_closed": host.log is None,
                     "runtime_retired": not (home / "runtime.json").exists()}
                 results.append({"case": saved.get("exit_gesture", "failed verification") + " cleans up", **cleaned, "native_bridge_counts": saved.get("bridge_counts", {})})

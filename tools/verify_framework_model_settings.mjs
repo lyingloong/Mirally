@@ -1,17 +1,16 @@
+import {loadPlaywright} from './testing/dependencies.cjs';
 /** Real settings UI + normal product Host + loopback-only model endpoint. No user profile or external API. */
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {createServer} from 'node:http';
 import {readFile, mkdir, mkdtemp, writeFile} from 'node:fs/promises';
-import {createRequire} from 'node:module';
 import {resolve, dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const output=resolve(process.argv[2]??join(root,'.artifacts/framework-model-settings'));await mkdir(output,{recursive:true});
 const home=await mkdtemp(join(output,'isolated-home-'));
-const require=createRequire(join(root,'integrations/openclaw/package.json'));
-const {chromium}=require(process.env.MIRALLY_PLAYWRIGHT??'playwright-core');
+const {chromium} = loadPlaywright();
 const calls=[], findings=[];let failGeneration=false,failDiscovery=false;
 const fixture=createServer(async(req,res)=>{
   const chunks=[];for await(const chunk of req)chunks.push(chunk);
@@ -53,7 +52,7 @@ try{
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   const test=id=>page.getByTestId('mirally-settings-'+id);
   const ready=()=>page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected' && document.querySelector('[data-testid="mirally-settings-model-id"]') && document.querySelector('[data-testid="mirally-settings-model"]')?.getAttribute('aria-busy')==='false');
-  const settings=()=>page.evaluate(()=>window.__mirallyLegacyHost.rpc('settings.get'));
+  const settings=()=>page.evaluate(()=>window.__mirallyHost.rpc('settings.get'));
   const save=async()=>{await test('model-save').click();await test('notice').filter({hasText:'模型连接已保存'}).waitFor();await ready();};
   await page.goto(runtime.url+'/settings/model-providers#token='+runtime.token);await ready();
   const initial=await settings();assert.equal(await test('model-reasoning').inputValue(),'off');

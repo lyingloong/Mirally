@@ -1,12 +1,11 @@
+import {loadPlaywright} from './testing/dependencies.cjs';
 /** Read-only browser acceptance; called by verify_framework.py on its disposable loopback-provider Host. */
 import assert from 'node:assert/strict';
 import {readFile,mkdir} from 'node:fs/promises';
-import {createRequire} from 'node:module';
 import {resolve,dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-const require=createRequire(join(root,'integrations/openclaw/package.json'));
-const {chromium}=require(process.env.MIRALLY_PLAYWRIGHT??'playwright-core');
+const {chromium} = loadPlaywright();
 const runtime=JSON.parse(await readFile(process.argv[2],'utf8'));
 assert.equal(new URL(runtime.url).hostname,'127.0.0.1');
 const id=process.argv[3], artifact=process.argv[4]; assert.ok(id&&artifact);
@@ -66,7 +65,7 @@ try {
  if(await retry.isVisible())await retry.click();
  let delivered=false;
  for(let n=0;n<100;n++){
-   delivered=await page.evaluate(async key=>{const p=document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active');if(p?.state?.sessionKey!==key)return false;const id=__mirallyLegacyHost.conversationIdForSession(key);return (await __mirallyLegacyHost.request('/api/artifacts?conversation_id='+encodeURIComponent(id))).artifacts.length>0;},retryKey);
+   delivered=await page.evaluate(async key=>{const p=document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active');if(p?.state?.sessionKey!==key)return false;const id=__mirallyHost.conversationIdForSession(key);return (await __mirallyHost.request('/api/artifacts?conversation_id='+encodeURIComponent(id))).artifacts.length>0;},retryKey);
    if(delivered)break;await page.waitForTimeout(200);
  }
  assert.equal(delivered,true,'Retried Work must create an actual artifact');

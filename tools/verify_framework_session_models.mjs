@@ -1,16 +1,15 @@
+import {loadPlaywright} from './testing/dependencies.cjs';
 /** Real model picker and product owner in an isolated profile; no external API. */
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {readFile, mkdir, mkdtemp, writeFile} from 'node:fs/promises';
-import {createRequire} from 'node:module';
 import {resolve, dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const output=resolve(process.argv[2]??join(root,'.artifacts/framework-session-models'));await mkdir(output,{recursive:true});
 const home=await mkdtemp(join(output,'isolated-home-'));
-const require=createRequire(join(root,'integrations/openclaw/package.json'));
-const {chromium}=require(process.env.MIRALLY_PLAYWRIGHT??'playwright-core');
+const {chromium} = loadPlaywright();
 const child=spawn(join(root,'.venv/Scripts/python.exe'),['-m','mirally','--headless','--home',home],{cwd:root,windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,PYTHONUTF8:'1'}});
 let log='',runtime,browser;child.stdout.on('data',chunk=>log+=chunk);child.stderr.on('data',chunk=>log+=chunk);
 const delay=ms=>new Promise(done=>setTimeout(done,ms));

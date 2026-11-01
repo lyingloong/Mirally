@@ -37,7 +37,7 @@ flowchart LR
 | `mirally/framework/capabilities.py` | 文件授权根、工作区写入和网页开关 |
 | `mirally/framework/context.py` | 按需只读组合记忆、活动和来源缺口；查询不启动采集 |
 | `mirally/framework_workers.py` | Activity/Memory 子进程和语义任务生命周期 |
-| `mirally/framework/*.py` | 材料、附件、桌面观察、旧档案只读查看、摘要等明确接口 |
+| `mirally/framework/*.py` | 材料、附件、桌面观察、摘要等明确接口 |
 | `kernel/dsh/packages/mirally/mirally-product/` | 本机鉴权 Host、Session/模型适配、原生工具覆盖、微信协议、手机服务、日历工具 |
 | `kernel/dsh/packages/mirally/mirally-extensions/` | Skill、脚本、MCP 与可信插件的生命周期 |
 | `frontend/control-ui/` | Lit 壳、原对话/外观组件与 `pages/mirally/` 自有页面 |
@@ -111,20 +111,9 @@ py -3.10 -m venv .venv
 
 Skill、MCP 和可信插件通过显式配置接入同一 DSH 会话与工具管线；脚本执行单独确认并按内容指纹复核。扩展变更会使后续会话能力变化，停用时撤销注册与在途调用。完整契约见[扩展接口](extensions.md)。
 
-## 数据迁移与历史回退
+## 已退役实现
 
-默认不会扫描或导入本机已有的 OpenClaw 私有配置。需要迁移时，使用显式来源、空目标和停止旧 owner 的独立流程：
-
-```powershell
-.\.venv\Scripts\python.exe -m mirally.framework.migration --home "新的空数据目录" `
-  --memory-profile "显式旧 memory.yaml" --activity-profile "显式旧 activity.yaml" `
-  --openclaw-config "独立配置导出.json" --legacy-history "旧会话目录"
-# 审核预览后添加 --apply --confirm-stopped
-```
-
-目标必须不存在或为空，拒绝覆盖和链接/目录联接。旧会话复制到新 home 的独立归档，只读查看，不转换为 DSH transcript。回退使用 `--rollback` 后退出新宿主；不会把新会话转换回旧格式。
-
-旧 `--openclaw` 入口保留在 `mirally/__main__.py`，作为显式历史/回退参考；历史基线为提交 `2eeb778a`。它不再维护、不参与默认启动、不自动消费新 home 的配置。两个入口不能同时采集或维护同一来源。
+当前只提供 Mirally/DSH 启动链路。旧 OpenClaw 启动器、插件集成、旧配置导入和旧档案浏览已移除；历史实现通过 Git 提交 `2eeb778a` 追溯，不在现行代码中保留兼容回退。源码清理不读取、覆盖或删除本机已有的私有配置、凭据和数据。
 
 ## 验证
 

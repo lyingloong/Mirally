@@ -1,10 +1,9 @@
+import {loadPlaywright} from './testing/dependencies.cjs';
 /** Sequential real built phone/desktop UI acceptance against an isolated Host. */
 import assert from 'node:assert/strict';
 import {readFile,mkdir} from 'node:fs/promises';
-import {createRequire} from 'node:module';
 import {resolve,join} from 'node:path';
-const require=createRequire(resolve('integrations/openclaw/package.json'));
-const {chromium}=require('playwright-core');
+const {chromium} = loadPlaywright();
 const runtime=JSON.parse(await readFile(process.argv[2],'utf8'));
 assert.equal(runtime.mode,'test','Requires an isolated test-mode product home');
 const output=resolve('.artifacts/mobile-work-browser');await mkdir(output,{recursive:true});
