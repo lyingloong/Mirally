@@ -850,9 +850,50 @@ def validate_state(state: dict[str, Any], config: dict[str, Any]) -> list[str]:
 # CLI
 
 
+_ENCODING_FALLBACK_NOTE = (
+    "note: stdout cannot encode raw non-ASCII JSON; it was re-emitted with ASCII \\u escapes. "
+    "Set PYTHONIOENCODING=utf-8 for raw text.\n"
+)
+
+
+def _write_text(stream: Any, text: str) -> None:
+    """Write text, degrading to backslash escapes when the stream cannot encode it.
+
+    Console encoding is a display concern, never a workflow result. On
+    ``UnicodeEncodeError`` the text is re-encoded with the stream's own
+    ``backslashreplace`` handler (what CPython uses for stderr by default), so
+    callers keep their exit codes on non-UTF-8 consoles. The stream is not
+    reconfigured: redirected streams and other owners of ``sys.stdout`` are
+    left untouched.
+    """
+    try:
+        stream.write(text)
+    except UnicodeEncodeError:
+        encoding = getattr(stream, "encoding", None) or "ascii"
+        stream.write(text.encode(encoding, errors="backslashreplace").decode(encoding, errors="replace"))
+
+
+def _write_encoding_note() -> None:
+    """Explain the ASCII JSON fallback on stderr without ever raising."""
+    try:
+        buffer = getattr(sys.stderr, "buffer", None)
+        if buffer is not None:
+            buffer.write(_ENCODING_FALLBACK_NOTE.encode("ascii"))
+    except Exception:
+        pass
+
+
 def print_json(value: Any) -> None:
-    json.dump(value, sys.stdout, ensure_ascii=False, indent=2)
-    sys.stdout.write("\n")
+    # Serialize the whole document before touching stdout, so a console that
+    # cannot encode it never receives a half-written JSON document. The ASCII
+    # fallback keeps the exact same parsed value (only the bytes differ) and
+    # pure ASCII is writable on every ASCII-superset console encoding.
+    text = json.dumps(value, ensure_ascii=False, indent=2) + "\n"
+    try:
+        sys.stdout.write(text)
+    except UnicodeEncodeError:
+        sys.stdout.write(json.dumps(value, ensure_ascii=True, indent=2) + "\n")
+        _write_encoding_note()
 
 
 def format_point(point: dict[str, Any]) -> str:
@@ -868,45 +909,48 @@ def format_point(point: dict[str, Any]) -> str:
 
 
 def print_status(summary: dict[str, Any]) -> None:
-    print(f"concurrency {summary['concurrency']} | load {summary['load']} | free {summary['free_slots']}")
-    print(f"next action: {summary['action']}")
+    _write_text(
+        sys.stdout, f"concurrency {summary['concurrency']} | load {summary['load']} | free {summary['free_slots']}\n"
+    )
+    _write_text(sys.stdout, f"next action: {summary['action']}\n")
     if summary["paused"]:
-        print("quota restart pause: all new development is paused")
+        _write_text(sys.stdout, "quota restart pause: all new development is paused\n")
     if summary["active"]:
-        print("active:")
+        _write_text(sys.stdout, "active:\n")
         for point in summary["active"]:
-            print("  " + format_point(point))
+            _write_text(sys.stdout, "  " + format_point(point) + "\n")
     if summary["merge_queue"]:
-        print("waiting for user merge approval (only the head is exempt):")
+        _write_text(sys.stdout, "waiting for user merge approval (only the head is exempt):\n")
         for point in summary["merge_queue"]:
             marker = "head/exempt" if point["exempt"] else "queued/counts toward concurrency"
-            print(f"  {format_point(point)} ({marker})")
+            _write_text(sys.stdout, f"  {format_point(point)} ({marker})\n")
     if summary["user_pending"]:
-        print("user points waiting:")
+        _write_text(sys.stdout, "user points waiting:\n")
         for point in summary["user_pending"]:
-            print("  " + format_point(point))
+            _write_text(sys.stdout, "  " + format_point(point) + "\n")
     if summary["user_capacity_waiting"]:
-        print("user rework waiting for capacity:")
+        _write_text(sys.stdout, "user rework waiting for capacity:\n")
         for point in summary["user_capacity_waiting"]:
-            print("  " + format_point(point))
+            _write_text(sys.stdout, "  " + format_point(point) + "\n")
     if summary["agent_auto_reserved"] or summary["max_auto_agent_in_flight"]:
-        print(
+        _write_text(
+            sys.stdout,
             "AI auto-start reserved/in flight: "
             f"{len(summary['agent_auto_reserved'])}/{summary['max_auto_agent_in_flight']}, "
-            f"auto-started today: {summary['auto_today']}/{summary['max_auto_agent_per_day']}"
+            f"auto-started today: {summary['auto_today']}/{summary['max_auto_agent_per_day']}\n",
         )
     if summary["agent_proposed"]:
-        print("AI proposals:")
+        _write_text(sys.stdout, "AI proposals:\n")
         for point in summary["agent_proposed"]:
-            print("  " + format_point(point))
+            _write_text(sys.stdout, "  " + format_point(point) + "\n")
     if summary["quota_blocked"]:
-        print("quota blocked:")
+        _write_text(sys.stdout, "quota blocked:\n")
         for point in summary["quota_blocked"]:
-            print("  " + format_point(point))
+            _write_text(sys.stdout, "  " + format_point(point) + "\n")
     if summary["capacity_blocked"]:
-        print("capacity deferred (resume when a slot frees):")
+        _write_text(sys.stdout, "capacity deferred (resume when a slot frees):\n")
         for point in summary["capacity_blocked"]:
-            print("  " + format_point(point))
+            _write_text(sys.stdout, "  " + format_point(point) + "\n")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -995,8 +1039,8 @@ def command_init(args: argparse.Namespace) -> int:
         write_json(state_path, empty_state())
     if not config_path.exists():
         write_json(config_path, DEFAULT_CONFIG)
-    print(f"state:  {state_path}")
-    print(f"config: {config_path}")
+    _write_text(sys.stdout, f"state:  {state_path}\n")
+    _write_text(sys.stdout, f"config: {config_path}\n")
     return 0
 
 
@@ -1027,7 +1071,7 @@ def command_list(args: argparse.Namespace) -> int:
         print_json(points)
     else:
         for point in points:
-            print(format_point(point))
+            _write_text(sys.stdout, format_point(point) + "\n")
     return 0
 
 
@@ -1204,9 +1248,9 @@ def command_validate(args: argparse.Namespace) -> int:
         print_json({"ok": not issues, "issues": issues})
     elif issues:
         for issue in issues:
-            print("ERROR " + issue)
+            _write_text(sys.stdout, "ERROR " + issue + "\n")
     else:
-        print("state OK")
+        _write_text(sys.stdout, "state OK\n")
     return 0 if not issues else 1
 
 
@@ -1244,7 +1288,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return COMMANDS[args.command](args)
     except WorkflowError as error:
-        print(f"error: {error}", file=sys.stderr)
+        _write_text(sys.stderr, f"error: {error}\n")
         return 2
 
 
