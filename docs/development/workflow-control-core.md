@@ -116,6 +116,7 @@ CI runner 使用真实 Temp，不需要此覆盖。
 
 - 不要求新规格避开 open PR 文件；冲突由工程师在实现/返工中 rebase/merge 解决一次。
 - 合并顺序由用户/Codex 决定；队长不做 merge，也不因池子大而停开发。
+- 状态助手的 `merge-approved` 只接受待合并队首；用户/Codex 可直接在 GitHub 合并任意已审 PR。非队首被合并后，队长按 reconciliation 记录（必要时 force），队列顺序不是授权，也不是合并前置。
 - 若用户要求准备合并，队长只提供：PR 链接、head、CI、冲突/风险、建议顺序。
 
 ## 8. 报告处理

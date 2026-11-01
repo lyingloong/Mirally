@@ -27,9 +27,9 @@ DEFAULT_CONFIG_PATH = REPO_ROOT / "output" / "agent-workflow" / "config.json"
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "concurrency": 3,
-    "max_auto_agent_in_flight": 1,
-    "max_auto_agent_per_day": 2,
-    "merge_queue_exempt": 1,
+    "max_auto_agent_in_flight": 2,
+    "max_auto_agent_per_day": 100,
+    "merge_queue_exempt": 100,
     "primary_route": {"provider": "ustc", "model": "deepseek-flash"},
     "quota": {
         "enabled": True,

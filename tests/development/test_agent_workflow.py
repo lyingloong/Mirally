@@ -53,6 +53,9 @@ class ConfigTests(unittest.TestCase):
     def test_defaults_match_agreed_workflow(self):
         config = wf.load_config(Path(tempfile.gettempdir()) / "definitely-missing-agent-workflow.json")
         self.assertEqual(config["concurrency"], 3)
+        self.assertEqual(config["max_auto_agent_in_flight"], 2)
+        self.assertEqual(config["max_auto_agent_per_day"], 100)
+        self.assertEqual(config["merge_queue_exempt"], 100)
         self.assertEqual(config["quota"]["retry_after_minutes"], 30)
         self.assertEqual(config["quota"]["backoff_minutes"], [30, 60, 120])
         self.assertEqual(config["quota"]["fallback"]["mode"], "quota_restart_only")
@@ -152,7 +155,9 @@ class StateTests(unittest.TestCase):
 class SummaryTests(unittest.TestCase):
     def setUp(self):
         self.state = wf.empty_state()
-        self.config = make_config()
+        # These tests exercise the legacy single-slot/head-only semantics explicitly;
+        # production defaults are 2 AI in flight and all merge-pool PRs exempt.
+        self.config = make_config(max_auto_agent_in_flight=1, merge_queue_exempt=1)
 
     def add_user(self, title="user work"):
         return wf.new_point(self.state, source="user", title=title)
@@ -378,7 +383,7 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(first["status"], "specifying")
 
     def test_resume_rechecks_ai_in_flight_cap(self):
-        config = make_config()
+        config = make_config(max_auto_agent_in_flight=1)
         state = wf.empty_state()
         first = wf.new_point(state, source="agent", title="first", risk="low")
         second = wf.new_point(state, source="agent", title="second", risk="low")
@@ -420,7 +425,7 @@ class AdmissionTests(unittest.TestCase):
         self.assertFalse(wf.build_summary(state, config)["paused"])
 
     def test_resume_awaiting_merge_recomputes_queue_load(self):
-        config = make_config(concurrency=1)
+        config = make_config(concurrency=1, merge_queue_exempt=1)
         state = wf.empty_state()
         first = wf.new_point(state, source="user", title="first")
         second = wf.new_point(state, source="user", title="second")
@@ -521,7 +526,7 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(wf.build_summary(state, config)["load"], 2)
 
     def test_merge_reject_parks_on_ai_in_flight_cap(self):
-        config = make_config()
+        config = make_config(max_auto_agent_in_flight=1)
         state = wf.empty_state()
         first = wf.new_point(state, source="agent", title="first", risk="low")
         second = wf.new_point(state, source="agent", title="second", risk="low")
