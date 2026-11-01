@@ -48,6 +48,10 @@ function fixture(t, conversations = [first, second]) {
         }
         state.revision++; return {state: {...state}};
       }
+      if (method === 'channel.weixin.mode') {
+        assert.equal(params.expected_revision, state.revision, 'mode change retains the revision guard');
+        state.mode = params.mode; state.revision++; return {state: {...state}};
+      }
       throw Error('unexpected RPC ' + method);
     },
     conversation: async id => rows.find(row => row.conversation_id === id),
@@ -71,7 +75,8 @@ test('assistant session switches do not interrupt an active delegation; direct s
   f.state.mode = 'assistant';
   await f.send('新对话');
   await f.send('切换 ' + second.title);
-  assert.match(f.deliveries.at(-1).text, /正在处理/);
+  assert.match(f.deliveries.at(-1).text, /还在回复上一条消息/);
+  assert.match(f.deliveries.at(-1).text, /停止回复/);
   assert.equal(f.calls.some(call => call.method === 'cancel-weixin' || call.method === 'channel.weixin.select'), false);
   f.state.mode = 'direct';
   await f.send('切换 ' + second.title);
@@ -91,21 +96,34 @@ test('Chinese phone session list marks the current conversation and offers numbe
   await f.send('/sessions');
   assert.equal(f.deliveries.at(-1).text, text);
   await f.send('当前会话');
-  assert.match(f.deliveries.at(-1).text, /当前会话：桌面实验/);
+  assert.match(f.deliveries.at(-1).text, /当前会话：桌面实验（直接会话）/);
   assert.ok(f.deliveries.at(-1).text.length < 100, 'status does not repeat the complete help menu');
+});
+
+test('mode switches name the way back and status reports the active mode', async t => {
+  const f = fixture(t);
+  f.state.direct_conversation_id = first.conversation_id;
+  await f.send('助理');
+  assert.equal(f.state.mode, 'assistant');
+  assert.match(f.deliveries.at(-1).text, /已进入助理模式。发送“会话模式”可返回会话：桌面实验。/);
+  await f.send('当前会话');
+  assert.match(f.deliveries.at(-1).text, /当前会话：桌面实验（助理）/);
+  await f.send('会话模式');
+  assert.equal(f.state.mode, 'direct');
+  assert.match(f.deliveries.at(-1).text, /已返回会话：桌面实验/);
 });
 
 test('numbered session selection uses the delivered list snapshot and expires on route changes', async t => {
   const f = fixture(t);
   await f.send('切换 2');
-  assert.match(f.deliveries.at(-1).text, /序号已失效/);
+  assert.match(f.deliveries.at(-1).text, /编号已失效/);
   await f.send('会话', 'list-1');
   f.channel.numberedLists.settle('command-list-1:control', true);
   f.rows.reverse(); // A changing recent-session sort cannot change list identity.
   await f.send('切换 2');
   assert.equal(f.state.conversation_id, second.conversation_id);
   await f.send('切换 1');
-  assert.match(f.deliveries.at(-1).text, /序号已失效/);
+  assert.match(f.deliveries.at(-1).text, /编号已失效/);
   assert.equal(f.state.conversation_id, second.conversation_id);
   await f.send('1');
   await Promise.all([...f.channel.jobs]);
@@ -122,7 +140,7 @@ test('older session pages keep their displayed numbering and never use an undeli
   assert.match(f.deliveries.at(-1).text, /1\. 会话 19/);
   assert.match(f.deliveries.at(-1).text, /上一页：会话 1/);
   await f.send('切换 1');
-  assert.match(f.deliveries.at(-1).text, /序号已失效/);
+  assert.match(f.deliveries.at(-1).text, /编号已失效/);
   f.channel.numberedLists.settle('command-page-two:control', true);
   await f.send('切换 1');
   assert.equal(f.state.conversation_id, 'conversation_page-19');
