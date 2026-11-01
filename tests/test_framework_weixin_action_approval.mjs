@@ -37,7 +37,7 @@ test('微信审批完整分段送达后才能确认，且绑定身份、会话�
   const result=f.host.actionGate.request({sessionId:'native',commandId:'command',kind:'shell',title:'命令',detail:text});
   await tick();
   assert.equal(f.rows[0].status,'sent');
-  const assembled=f.sent.map(s=>s.replace(/^\[\d+\/\d+\] /,'')).join('');
+  const assembled=f.sent.map(s=>s.replace(/^（\d+\/\d+） /,'')).join('');
   assert.ok(assembled.includes(text));
   const code=assembled.match(/\/approve ([0-9]{9})/)[1];
   await assert.rejects(f.host.actionGate.decideRemote({...f.scope, revision:2},code,true));

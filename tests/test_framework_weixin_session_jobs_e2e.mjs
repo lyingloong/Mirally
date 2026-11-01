@@ -119,10 +119,12 @@ for (const nativeJobs of [false,true]) test(`real ${nativeJobs?'DSH':'Mirally'} 
   await until(async()=>(await rpc('command.list',{conversation_id:session.id,command_id:'desktop-start'})).commands.some(x=>x.state==='completed'),'desktop turn complete');
   const send=(id,text)=>queue.push({message_type:1,message_state:2,message_id:String(id),from_user_id:'owner',to_user_id:'bot',create_time_ms:Date.now(),context_token:'fixture-context',item_list:[{type:1,text_item:{text}}]});
   send(1,'微信查询进度');
-  await until(()=>replies.includes('收到，正在处理。'),'receipt before model completes');
+  await until(()=>replies.includes('已收到，正在处理。'),'receipt before model completes');
   assert.equal(replies.some(text=>text.includes('EXPERIMENT_PROGRESS_73')),false);
   send('stop-reply','/stop');
   await until(()=>replies.some(text=>text.includes('已停止当前会话的回复')),'stop only the in-flight reply');
+  await delay(500);
+  assert.equal(replies.some(text=>text.includes('这轮回复已停止')),false,'/stop reports the cancelled turn exactly once');
   progressReleased=true;releaseProgress();
   const resumedAt=replies.length;send('resume-progress','微信查询进度');
   await until(()=>replies.slice(resumedAt).some(text=>text.includes('实验结果')),'progress after stopping reply');
@@ -201,7 +203,7 @@ for (const nativeJobs of [false,true]) test(`real ${nativeJobs?'DSH':'Mirally'} 
   const history=await api(`/api/sessions/${session.id}/history`);
   assert.ok(history.messages.some(message=>message.role==='user'&&message.input_origin==='desktop'&&message.text==='桌面启动实验'));
   assert.ok(history.messages.some(message=>message.role==='user'&&message.input_origin==='weixin'&&message.text==='微信查询进度'));
-  assert.equal(history.messages.some(message=>message.text==='收到，正在处理。'),false,'transport receipt does not enter model history');
+  assert.equal(history.messages.some(message=>message.text==='已收到，正在处理。'),false,'transport receipt does not enter model history');
   assert.equal(remoteHintSeen,true,'enabled WeChat capability context must reach the model');
 
   // Phone controls use the same durable product owner and native DSH history.
