@@ -12,7 +12,7 @@
 - 前端沿用原 Mirally 的整体视觉、布局习惯、组件、动画和桌宠。用户已确认导航、页面内容与操作可按 Mirally 自有产品重新组织，不再保留不匹配的 OpenClaw 后台管理内容；这更新此前“只改后端接缝”的限制，不授权另造一套简化视觉。优先复用已有组件与产品体验，页面以真实 Mirally 能力和状态为依据；须通过实际页面与操作验收，保留草稿、材料、会话与成果归属。
 - 关闭主窗口、隐藏到托盘与明确退出是不同操作：关闭行为可设置，默认有可用托盘时隐藏；托盘单击必须恢复原窗口，明确退出须完成自己连接的产品宿主与后台收尾，包含启动中与复用宿主情形。默认产品页面、首次空状态、重连/失败页、图标及安装身份均使用 Mirally 品牌；源码标识、协议兼容与许可证来源不以盲目替换文本清理。
 - 本阶段不接入 UFO：新默认框架不加载 UFO 执行器、注册相关模型工具或开放任务入口。UFO 子模块与其专用测试依赖已移除；`mirally/runtime/ufo/` 产品适配、`config/mirally/ufo/` 配置与 [UFO 复盘](docs/product/research-2026-10-31-ufo.md) 保留作参考，后续围绕 Mirally 的产品接口借鉴其 Windows 适配，不以接入 UFO 作为框架依赖。原 Mirally 自有桌宠、窗口交互和用户主动截图不受此调整影响；不恢复旧 Activity native plugin 或接入 Galaxy。
-- UFO 产品适配放在 `mirally/runtime/ufo/`，Python 测试放在根目录 `tests/`；子模块源码不再随仓库提供，后续 Windows 适配按 Mirally 自有接口设计，设计参考见 [UFO 复盘](docs/product/research-2026-10-31-ufo.md) 与 PN-0085。
+- UFO 产品适配放在 `mirally/runtime/ufo/`，Python 测试放在根目录 `tests/`；子模块源码不再随仓库提供，仓库也不再提供需要 UFO 源码的验证入口，后续 Windows 适配按 Mirally 自有接口设计，设计参考见 [UFO 复盘](docs/product/research-2026-10-31-ufo.md) 与 PN-0085。
 - `kernel/dsh/` 是本仓库直接管理的源码，不是只读 vendor 或 submodule；允许直接调整 Agent loop、Session、Host、模型/工具链和 UI，无需为内核修改再次取得授权。保留 [上游基线与改动说明](kernel/dsh/UPSTREAM.md)、许可证和第三方声明；新增内核行为须同步相关调用方、文档和针对性验证。上游插件优先等策略仅作为参考，不能阻止本分支已授权的侵入式设计；产品领域仍保持清晰职责与可扩展接口。
 - 不编辑 `node_modules/` 或未纳入源码管理的上游发行包。当前前端保留的第三方来源、许可证与独立 UI 库标识按实际用途维护，不因弃用旧宿主而盲目改名。UFO 产品 YAML 只维护在 `config/mirally/ufo/`。
 

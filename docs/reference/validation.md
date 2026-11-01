@@ -19,7 +19,7 @@ node --test tests/test_test_dependencies.cjs
 ```
 
 ```powershell
-# 产品 Python 测试
+# 产品 Python 测试（不需要 UFO 子模块或额外依赖）
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 
 # Node/产品链路测试
@@ -36,6 +36,8 @@ npm --prefix frontend/control-ui run build
 ```
 
 `tools/verify_framework.py` 不访问外部 API；它验证会话、工具、停止、重启、Skill、脚本产物、MCP 协议、原生插件、微信回环和主动入箱等链路。浏览器验收使用本机 Edge，独立 `playwright-core` 包不下载浏览器；可通过 `MIRALLY_PLAYWRIGHT` 显式选择模块或路径。相对路径基于仓库根目录，与执行时工作目录无关。
+
+完整 Python 套件依赖可写的临时目录；同一 `TEMP` 目录残留旧数据时，个别记忆/观察分页用例可能报与本改动无关的失败。重跑前换用新的可写临时目录（例如 `$env:TEMP` 指向仓库内 gitignored 的空目录）即可复现全绿；CI runner 使用真实 Temp，不需要此覆盖。
 
 ```powershell
 # 对显式 --test-mode --home 的隔离宿主，GUI 顺序运行

@@ -56,7 +56,7 @@
 2. 确认变更会触及的 owner、持久状态、命令/来源校验及生命周期；涉及不同执行器时分别检查真实状态和停止语义。
 3. 从代表测试扩展到受影响的交互与失败路径。测试命令、构建准备及真实 GUI/API 的边界见[验证](validation.md)；新 worktree 的数据与依赖隔离见[协作指南](../../CONTRIBUTING.md)。
 
-找不到条目时，先查[能力矩阵](capabilities.md)、[DSH 组合入口](../../kernel/dsh/packages/mirally/mirally-product/composition.mjs)和对应领域目录。`UFO/` 与 `mirally/runtime/ufo/` 是参考/冻结适配，当前默认框架不加载；拟议桌面能力见[研究记录](../product/research-2026-10-31-ufo.md)，不能当作已开放功能入口。
+找不到条目时，先查[能力矩阵](capabilities.md)、[DSH 组合入口](../../kernel/dsh/packages/mirally/mirally-product/composition.mjs)和对应领域目录。`mirally/runtime/ufo/` 是保留的参考/冻结适配（UFO 子模块源码已移除），当前默认框架不加载；拟议桌面能力见[研究记录](../product/research-2026-10-31-ufo.md)，不能当作已开放功能入口。
 
 ## 维护约定
 

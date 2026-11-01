@@ -2,11 +2,6 @@
 
 from concurrent.futures import ThreadPoolExecutor
 import os
-from pathlib import Path
-import subprocess
-import sys
-import tempfile
-import textwrap
 import threading
 import unittest
 from types import SimpleNamespace
@@ -179,66 +174,6 @@ class ObservationTests(unittest.TestCase):
         self.windows.append(SimpleNamespace(process_id=Mock(side_effect=RuntimeError("stale"))))
         with observation_isolation(self.services, excluded_process_ids={987654}):
             self.assertEqual(self.targets[2]().get_desktop_windows(), [])
-
-
-@unittest.skipUnless(sys.platform == "win32", "Real Windows UFO imports")
-class RealObservationImports(unittest.TestCase):
-    def test_real_ufo_capture_fallback_and_window_labels_in_isolated_process(self):
-        import yaml
-        root = Path(__file__).resolve().parents[1]
-        with tempfile.TemporaryDirectory() as directory:
-            product = Path(directory)
-            config = product / "config" / "mirally" / "ufo"
-            config.mkdir(parents=True)
-            for source in (root / "config" / "mirally" / "ufo").iterdir():
-                if source.name == "agents.yaml" or (source.suffix != ".yaml" and source.name != "agents.yaml.template"):
-                    continue
-                value = yaml.safe_load(source.read_text(encoding="utf-8"))
-                name = "agents.yaml" if source.name.endswith(".template") else source.name
-                (config / name).write_text(yaml.safe_dump(value), encoding="utf-8")
-            script = textwrap.dedent('''
-                import os, sys
-                from pathlib import Path
-                from types import SimpleNamespace
-                from unittest.mock import Mock, patch
-                from PIL import Image
-                sys.path.insert(0, sys.argv[1])
-                from mirally.runtime.config import configure_ufo_config_root
-                configure_ufo_config_root(Path.cwd(), ufo_root=Path(sys.argv[1]) / 'UFO')
-                from mirally.runtime.native_compat import native_compatibility
-                from mirally.runtime.ufo.observation import observation_isolation
-                events = []
-                services = SimpleNamespace(capture=events.append, cancelled=lambda: False)
-                with native_compatibility():
-                    from ufo.automator.ui_control import screenshot
-                    from ufo.automator.ui_control.inspector import ControlInspectorFacade
-                    from ufo.client.mcp.local_servers.ui_mcp_server import UIServerState, _verify_id
-                    inspector = ControlInspectorFacade('uia')
-                    def window(pid):
-                        return SimpleNamespace(process_id=lambda: pid, is_normal=lambda: True,
-                            element_info=SimpleNamespace(name='fixture'),
-                            capture_as_image=Mock(side_effect=RuntimeError('force fallback')), handle=0)
-                    own, target = window(os.getpid()), window(987654)
-                    original_capture = screenshot.DesktopPhotographer.capture
-                    with patch.object(inspector.backend_strategy, 'get_desktop_windows', return_value=[own, target]), \
-                         patch.object(screenshot.ImageGrab, 'grab', return_value=Image.new('RGB', (20, 20), 'blue')):
-                        with observation_isolation(services):
-                            assert inspector.get_desktop_app_dict() == {'1': target}
-                            image = screenshot.ControlPhotographer(target).capture()
-                            assert image.size == (20, 20)
-                            assert events == ['before', 'after']
-                    assert screenshot.DesktopPhotographer.capture is original_capture
-                    assert UIServerState().last_app_windows is None
-                assert 'galaxy' not in sys.modules
-                print('real observation imports OK')
-            ''')
-            result = subprocess.run(
-                [sys.executable, "-c", script, str(root)], cwd=product,
-                env=dict(os.environ, PYTHONIOENCODING="utf-8"), capture_output=True,
-                text=True, encoding="utf-8", timeout=60,
-            )
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertIn("real observation imports OK", result.stdout)
 
 
 if __name__ == "__main__":
