@@ -7,7 +7,8 @@ not call GitHub or the AgentTeams API.
 
 State and local config live under ``output/agent-workflow/`` by default (the
 directory is gitignored). The tracked process definition is
-``docs/development/agent-teams-workflow.md``.
+``docs/development/agent-teams-workflow.md``. A lock file beside the state
+serializes read-modify-write commands across processes.
 """
 from __future__ import annotations
 
@@ -17,9 +18,11 @@ import json
 import os
 import sys
 import tempfile
+import time
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_STATE_PATH = REPO_ROOT / "output" / "agent-workflow" / "state.json"
@@ -184,6 +187,64 @@ def validate_config(config: dict[str, Any]) -> None:
             raise WorkflowError("config.quota.fallback.mode currently supports only quota_restart_only")
         if not fallback.get("provider") or not fallback.get("model"):
             raise WorkflowError("fallback requires both provider and model")
+
+
+LOCK_TIMEOUT = 10.0
+LOCK_POLL_SECONDS = 0.02
+STALE_LOCK_SECONDS = 120.0
+
+
+@contextmanager
+def state_lock(state_path: Path, *, timeout: float = LOCK_TIMEOUT) -> Iterator[None]:
+    """Serialize read-modify-write commands that share one state file.
+
+    Commands load the whole state, edit it in memory and write it back, so two
+    processes racing there silently drop each other's points. The sibling
+    ``<state>.lock`` is created with O_CREAT|O_EXCL (atomic on local disks) and
+    removed when the command finishes. A lock older than ``STALE_LOCK_SECONDS``
+    is treated as left by a crashed process and removed; otherwise the command
+    waits up to ``timeout`` and reports an actionable error instead of writing
+    over another process's state.
+    """
+    lock = state_path.with_name(state_path.name + ".lock")
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            try:
+                age = time.time() - lock.stat().st_mtime
+            except FileNotFoundError:
+                continue  # the winner released the lock between our calls
+            if age > STALE_LOCK_SECONDS:
+                # A crashed command cannot release its lock; drop it after the
+                # stale threshold instead of blocking every later command.
+                _write_text(sys.stderr, f"warning: removing stale lock {lock} ({age:.0f}s old)\n")
+                try:
+                    lock.unlink()
+                except FileNotFoundError:
+                    pass
+                continue
+            if time.monotonic() >= deadline:
+                raise WorkflowError(
+                    f"state is locked by another process ({lock}); "
+                    "retry after that command finishes, or delete the lock file if it is stale"
+                )
+            time.sleep(LOCK_POLL_SECONDS)
+            continue
+        except FileNotFoundError:
+            # A fresh checkout has no state directory yet (`init` creates it).
+            lock.parent.mkdir(parents=True, exist_ok=True)
+            continue
+        os.close(handle)
+        break
+    try:
+        yield
+    finally:
+        try:
+            lock.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def load_state(path: Path) -> dict[str, Any]:
@@ -1286,7 +1347,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
-        return COMMANDS[args.command](args)
+        with state_lock(Path(args.state)):
+            return COMMANDS[args.command](args)
     except WorkflowError as error:
         _write_text(sys.stderr, f"error: {error}\n")
         return 2
