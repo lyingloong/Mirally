@@ -26,6 +26,7 @@ DEFAULT_STATE_PATH = REPO_ROOT / "output" / "agent-workflow" / "state.json"
 DEFAULT_CONFIG_PATH = REPO_ROOT / "output" / "agent-workflow" / "config.json"
 
 DEFAULT_CONFIG: dict[str, Any] = {
+    "config_version": 2,
     "concurrency": 3,
     "max_auto_agent_in_flight": 2,
     "max_auto_agent_per_day": 100,
@@ -155,6 +156,36 @@ def load_config(path: Path) -> dict[str, Any]:
         config = deep_merge(DEFAULT_CONFIG, raw)
     validate_config(config)
     return config
+
+
+LEGACY_CONFIG_UPGRADES: dict[str, tuple[int, int]] = {
+    "max_auto_agent_in_flight": (1, 2),
+    "max_auto_agent_per_day": (2, 100),
+    "merge_queue_exempt": (1, 100),
+}
+
+
+def upgrade_config(path: Path, *, apply: bool = False) -> dict[str, Any]:
+    """Explicitly migrate only known legacy workflow defaults; never on load."""
+    if not path.exists():
+        raise WorkflowError(f"config does not exist: {path}")
+    raw = read_json(path)
+    if not isinstance(raw, dict):
+        raise WorkflowError(f"{path} top-level value must be an object")
+    changes: dict[str, dict[str, int]] = {}
+    for key, (legacy, replacement) in LEGACY_CONFIG_UPGRADES.items():
+        if raw.get(key) == legacy:
+            changes[key] = {"from": legacy, "to": replacement}
+            raw[key] = replacement
+    if raw.get("config_version") != DEFAULT_CONFIG["config_version"]:
+        changes["config_version"] = {
+            "from": raw.get("config_version"),
+            "to": DEFAULT_CONFIG["config_version"],
+        }
+        raw["config_version"] = DEFAULT_CONFIG["config_version"]
+    if apply and changes:
+        write_json(path, raw)
+    return {"path": str(path), "applied": bool(apply and changes), "changes": changes}
 
 
 def validate_config(config: dict[str, Any]) -> None:
@@ -676,6 +707,45 @@ def merge_done(state: dict[str, Any], config: dict[str, Any], point_id: str) -> 
     return point
 
 
+def merge_reconcile(
+    state: dict[str, Any],
+    config: dict[str, Any],
+    point_id: str,
+    *,
+    pr: int,
+    head_sha: str,
+    approved_by: str,
+    confirm_merged: bool,
+    note: str | None = None,
+) -> dict[str, Any]:
+    """Record a user/Codex-confirmed merge that happened outside the state helper.
+
+    This is intentionally explicit: the captain cannot verify GitHub from here, so
+    the caller must confirm the merge and provide the exact PR/head identity.
+    """
+    if not confirm_merged:
+        raise WorkflowError("merge-reconcile requires --confirm-merged after verifying the PR is merged")
+    if approved_by not in {"user", "codex"}:
+        raise WorkflowError("approved_by must be user or codex")
+    point = point_by_id(state, point_id)
+    if point["status"] != "awaiting_merge":
+        raise WorkflowError(f"{point_id} is not awaiting_merge")
+    if point.get("pr") != pr:
+        raise WorkflowError(f"{point_id} PR mismatch: state has {point.get('pr')}, got {pr}")
+    if point.get("head_sha") != head_sha:
+        raise WorkflowError(f"{point_id} head mismatch: state has {point.get('head_sha')}, got {head_sha}")
+    now = iso(utcnow())
+    point["status"] = "done"
+    point["merge_approved_at"] = point.get("merge_approved_at") or now
+    point["merged_at"] = now
+    point["merge_reconciled_at"] = now
+    point["merge_reconciled_by"] = approved_by
+    point["merge_reconcile_note"] = note or f"reconciled non-head merge by {approved_by}"
+    append_note(point, point["merge_reconcile_note"])
+    touch(point)
+    return point
+
+
 def merge_reject(
     state: dict[str, Any],
     config: dict[str, Any],
@@ -1013,6 +1083,17 @@ def build_parser() -> argparse.ArgumentParser:
     merge_rejected.add_argument("--reason")
     merge_rejected.add_argument("--close", action="store_true")
 
+    merge_reconcile = sub.add_parser(
+        "merge-reconcile",
+        help="record a user/Codex-confirmed non-head merge with PR/head audit",
+    )
+    merge_reconcile.add_argument("id")
+    merge_reconcile.add_argument("--pr", type=int, required=True)
+    merge_reconcile.add_argument("--head-sha", required=True)
+    merge_reconcile.add_argument("--approved-by", choices=["user", "codex"], required=True)
+    merge_reconcile.add_argument("--note")
+    merge_reconcile.add_argument("--confirm-merged", action="store_true")
+
     reject = sub.add_parser("reject-point", help="reject a proposed/queued point")
     reject.add_argument("id")
     reject.add_argument("--reason")
@@ -1030,6 +1111,11 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--json", action="store_true")
 
     sub.add_parser("config", help="print the merged config")
+    config_upgrade = sub.add_parser(
+        "config-upgrade",
+        help="explicitly migrate known legacy config defaults; dry-run unless --apply",
+    )
+    config_upgrade.add_argument("--apply", action="store_true")
     return parser
 
 
@@ -1204,6 +1290,31 @@ def command_merge_rejected(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_merge_reconcile(args: argparse.Namespace) -> int:
+    state_path = Path(args.state)
+    state = load_state(state_path)
+    config = load_config(Path(args.config))
+    point = merge_reconcile(
+        state,
+        config,
+        args.id,
+        pr=args.pr,
+        head_sha=args.head_sha,
+        approved_by=args.approved_by,
+        confirm_merged=args.confirm_merged,
+        note=args.note,
+    )
+    save_state(state_path, state)
+    print_json(point)
+    return 0
+
+
+def command_config_upgrade(args: argparse.Namespace) -> int:
+    result = upgrade_config(Path(args.config), apply=args.apply)
+    print_json(result)
+    return 0
+
+
 def command_reject_point(args: argparse.Namespace) -> int:
     state_path = Path(args.state)
     state = load_state(state_path)
@@ -1275,11 +1386,13 @@ COMMANDS = {
     "merge-approved": command_merge_approved,
     "merge-done": command_merge_done,
     "merge-rejected": command_merge_rejected,
+    "merge-reconcile": command_merge_reconcile,
     "reject-point": command_reject_point,
     "block": command_block,
     "resume": command_resume,
     "validate": command_validate,
     "config": command_config,
+    "config-upgrade": command_config_upgrade,
 }
 
 

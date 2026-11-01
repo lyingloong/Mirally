@@ -61,6 +61,37 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config["quota"]["fallback"]["mode"], "quota_restart_only")
         self.assertEqual(config["quota"]["fallback"]["provider"], "deepseek-account")
         self.assertEqual(config["primary_route"]["provider"], "ustc")
+        self.assertEqual(config["config_version"], 2)
+
+    def test_config_upgrade_is_explicit_and_preserves_custom_values(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            wf.write_json(
+                path,
+                {
+                    "concurrency": 3,
+                    "max_auto_agent_in_flight": 1,
+                    "max_auto_agent_per_day": 5,
+                    "merge_queue_exempt": 1,
+                    "custom": "keep-me",
+                },
+            )
+            dry = wf.upgrade_config(path, apply=False)
+            self.assertIn("merge_queue_exempt", dry["changes"])
+            self.assertEqual(wf.read_json(path)["merge_queue_exempt"], 1)
+            applied = wf.upgrade_config(path, apply=True)
+            self.assertTrue(applied["applied"])
+            raw = wf.read_json(path)
+            self.assertEqual(raw["merge_queue_exempt"], 100)
+            self.assertEqual(raw["max_auto_agent_in_flight"], 2)
+            self.assertEqual(raw["max_auto_agent_per_day"], 5)
+            self.assertEqual(raw["custom"], "keep-me")
+            self.assertEqual(raw["config_version"], 2)
+
+    def test_config_upgrade_requires_existing_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(wf.WorkflowError):
+                wf.upgrade_config(Path(directory) / "missing.json")
 
     def test_invalid_concurrency_is_rejected(self):
         with self.assertRaises(wf.WorkflowError):
@@ -318,6 +349,60 @@ class MergeGateTests(unittest.TestCase):
         self.assertIsNotNone(first["merged_at"])
         wf.merge_approve(self.state, self.config, second["id"])
         self.assertEqual(second["status"], "merging")
+
+    def test_merge_reconcile_records_non_head_with_audit(self):
+        first = self.prepare("first")
+        second = self.prepare("second")
+        for point, pr in ((first, 101), (second, 102)):
+            point["pr"] = pr
+            point["head_sha"] = f"{pr:040d}"
+        with self.assertRaises(wf.WorkflowError):
+            wf.merge_reconcile(
+                self.state,
+                self.config,
+                second["id"],
+                pr=102,
+                head_sha=second["head_sha"],
+                approved_by="codex",
+                confirm_merged=False,
+            )
+        self.assertEqual(second["status"], "awaiting_merge")
+        with self.assertRaises(wf.WorkflowError):
+            wf.merge_reconcile(
+                self.state,
+                self.config,
+                second["id"],
+                pr=102,
+                head_sha="0" * 40,
+                approved_by="codex",
+                confirm_merged=True,
+            )
+        self.assertEqual(second["status"], "awaiting_merge")
+        point = wf.merge_reconcile(
+            self.state,
+            self.config,
+            second["id"],
+            pr=102,
+            head_sha=second["head_sha"],
+            approved_by="codex",
+            confirm_merged=True,
+            note="merged out of order on GitHub",
+        )
+        self.assertEqual(point["status"], "done")
+        self.assertEqual(first["status"], "awaiting_merge")
+        self.assertEqual(point["merge_reconciled_by"], "codex")
+        self.assertIsNotNone(point["merge_reconciled_at"])
+        self.assertIsNotNone(point["merged_at"])
+        with self.assertRaises(wf.WorkflowError):
+            wf.merge_reconcile(
+                self.state,
+                self.config,
+                second["id"],
+                pr=102,
+                head_sha=second["head_sha"],
+                approved_by="codex",
+                confirm_merged=True,
+            )
 
     def test_merge_reject_returns_to_repair_or_close(self):
         point = self.prepare("one")

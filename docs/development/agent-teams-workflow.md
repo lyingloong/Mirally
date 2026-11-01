@@ -234,9 +234,14 @@ free_slots     = max(0, concurrency - load)
 .\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py review-fail dev-0001 --reason "失败文案不可操作"
 
 # 用户批准合并：状态助手的 merge-approved 只接受队首；
-# 用户/Codex 也可直接在 GitHub 合并任意已审 PR，队长随后按 reconciliation 记录
+# 用户/Codex 也可直接在 GitHub 合并任意已审 PR，非队首用 merge-reconcile 审计记账
 .\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py merge-approved dev-0001
 .\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py merge-done dev-0001
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py merge-reconcile dev-0002 `
+  --pr 6 --head-sha e25180091335c4d3b60a8f21ffc77623b275be8a --approved-by codex --confirm-merged
+
+# 已有环境显式升级 config（默认 dry-run；确认 changes 后加 --apply）
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py config-upgrade --apply
 
 # 用户退回合并
 .\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py merge-rejected dev-0001 --reason "语气不合适"
