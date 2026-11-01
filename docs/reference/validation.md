@@ -40,6 +40,9 @@ node --test kernel/dsh/packages/mirally/mirally-extensions/tests/*.test.mjs
 # 固定前端来源与正式构建
 npm --prefix frontend/control-ui run verify:source
 npm --prefix frontend/control-ui run build
+
+# 文档相对链接与仓库内锚点
+.\\.venv\\Scripts\\python.exe tools\\check_docs_links.py
 ```
 
 `tools/verify_framework.py` 不访问外部 API；它验证会话、工具、停止、重启、Skill、脚本产物、MCP 协议、原生插件、微信回环和主动入箱等链路。浏览器验收使用本机 Edge，独立 `playwright-core` 包不下载浏览器；可通过 `MIRALLY_PLAYWRIGHT` 显式选择模块或路径。相对路径基于仓库根目录，与执行时工作目录无关。
