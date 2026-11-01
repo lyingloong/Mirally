@@ -147,6 +147,8 @@ CI runner 使用真实 Temp，不需要此覆盖。
 8. 异常/角色/模型/配额问题 → 报告用户。
 9. **GitHub PR 巡检**：对每个 open/池内 PR 查 `gh pr view --comments`、`pulls/N/comments`、`reviews`、`checks`、`mergeable`。Codex/用户 P0/P1/P2、request changes、CI 失败 → 建 repair 或明确记录非阻塞理由；已合并 → 更新 state；不要只等 AgentTeams 报告。
 
+补位不写死人数：从 `config.concurrency` 算 `free = concurrency - load`，从 `agent_teams_status` 读 roster/idle 成员；工程槽按 active/repair/ready 顺序填，需求师并行补规格，审查师按 verify/review 队列连续供。槽位增减、加人/减人后重新计算；若某角色确实无 ready 工作，写明原因，不默认闲置。
+
 ## 10. 工具入口
 
 - 状态助手：`tools/dev_workflow/agent_workflow.py`
