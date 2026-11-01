@@ -121,7 +121,7 @@ CI runner 使用真实 Temp，不需要此覆盖。
 
 ## 8. 报告处理
 
-收到成员报告后：
+收到成员报告或外部 PR 评论后：
 
 1. 读 state / task / PR / CI，不凭记忆。
 2. 用 `agent_workflow.py` 推进状态；受限状态走专用命令。
@@ -130,6 +130,8 @@ CI runner 使用真实 Temp，不需要此覆盖。
 5. 检查是否有空闲槽位/ready 规格；按第 4 节补位。
 6. 不自动 merge；不创建 integration 除非用户批准。
 7. 用户点的 PR 必须保留“用户原始需求”一节：可整理为通顺语句，但不得改变原意，并与改动逐项对应；AI 提议点不得冒充用户需求。
+
+外部 PR 评论也是报告：Codex/用户在 GitHub 上提的 P0/P1/P2、request changes、CI 失败，不能被“AgentTeams 审查 pass”掩盖；必须主动转成 repair 任务或明确记录为什么非阻塞。
 
 ## 9. 巡检（30 分钟）
 
@@ -141,6 +143,7 @@ CI runner 使用真实 Temp，不需要此覆盖。
 6. 池子只记录，不因池大暂停开发。
 7. 无合适 low 点 → 暂停发掘并报告。
 8. 异常/角色/模型/配额问题 → 报告用户。
+9. **GitHub PR 巡检**：对每个 open/池内 PR 查 `gh pr view --comments`、`pulls/N/comments`、`reviews`、`checks`、`mergeable`。Codex/用户 P0/P1/P2、request changes、CI 失败 → 建 repair 或明确记录非阻塞理由；已合并 → 更新 state；不要只等 AgentTeams 报告。
 
 ## 10. 工具入口
 

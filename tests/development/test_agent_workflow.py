@@ -191,7 +191,9 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(summary["merge_queue"][0]["id"], point["id"])
         self.assertTrue(summary["merge_queue"][0]["exempt"])
         self.assertFalse(summary["merge_queue"][0]["counts_toward_concurrency"])
-        self.assertEqual(summary["action"], "ask_user_merge")
+        # A waiting merge is a notification; with free slots and no other work,
+        # discovery should still be suggested instead of blocking on merge approval.
+        self.assertEqual(summary["action"], "discover_agent")
 
     def test_second_merge_ready_point_counts_toward_concurrency(self):
         first = self.add_user("first")
@@ -274,6 +276,17 @@ class SummaryTests(unittest.TestCase):
         wf.start_point(self.state, self.config, summary["agent_queued"][0]["id"])
         summary = wf.build_summary(self.state, self.config)
         self.assertFalse(summary["should_discover_agent"])
+
+
+    def test_merge_waiting_does_not_block_ready_work(self):
+        waiting = self.add_user("waiting merge")
+        waiting["status"] = "awaiting_merge"
+        waiting["merge_ready_at"] = wf.iso(wf.utcnow())
+        queued = self.add_user("queued user work")
+        summary = wf.build_summary(self.state, self.config)
+        self.assertGreater(summary["free_slots"], 0)
+        self.assertEqual([point["id"] for point in summary["start_user"]], [queued["id"]])
+        self.assertEqual(summary["action"], "start_user")
 
 
 class MergeGateTests(unittest.TestCase):

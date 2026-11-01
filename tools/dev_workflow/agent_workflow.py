@@ -509,8 +509,6 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
     action = "idle"
     if paused:
         action = "wait_quota"
-    elif merge_waiting:
-        action = "ask_user_merge"
     elif start_user:
         action = "start_user"
     elif user_capacity_waiting and free > 0:
@@ -521,6 +519,9 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
         action = "promote_agent"
     elif should_discover_agent:
         action = "discover_agent"
+    elif merge_waiting:
+        # Merge approval is a notification, not a reason to leave free slots idle.
+        action = "ask_user_merge"
     elif capacity_blocked and free > 0:
         action = "resume_capacity"
 
