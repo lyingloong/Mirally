@@ -6,11 +6,11 @@ Run from the repository root:
 
 The scan covers Mirally-owned source, documentation and configuration, including
 the Mirally product chain under ``kernel/dsh/packages/mirally`` and the frontend
-files this repository owns (Mirally pages/scripts/locales plus paths listed in
-``frontend/control-ui/local-changes.json``). Upstream kernel/frontend files not
-listed there, the UFO submodule, dependencies and generated output are not
-scanned; binary assets with a text suffix are skipped instead of failing UTF-8
-decoding.
+files this repository owns (Mirally pages/scripts/locales plus the manifest and
+the paths listed in ``frontend/control-ui/local-changes.json``). Upstream
+kernel/frontend files not listed there, the UFO submodule, dependencies and
+generated output are not scanned; binary assets with a text suffix are skipped
+instead of failing UTF-8 decoding.
 """
 
 from __future__ import annotations
@@ -28,7 +28,8 @@ FRONTEND_ROOT = "frontend/control-ui"
 FRONTEND_DIRS = ("ui/src/pages/mirally", "scripts", "locales")
 FRONTEND_MANIFEST = "local-changes.json"
 ROOT_FILES = ("README.md", "AGENTS.md", "CONTRIBUTING.md", "CHANGELOG.md", "run.ps1", "run-openclaw.ps1")
-TEXT_SUFFIXES = {".py", ".md", ".mjs", ".cjs", ".ps1", ".yml", ".yaml", ".json", ".toml", ".txt", ".css", ".ts", ".tsx"}
+TEXT_SUFFIXES = {".py", ".md", ".mjs", ".cjs", ".ps1", ".yml", ".yaml", ".json", ".toml", ".txt",
+                 ".css", ".html", ".webmanifest", ".ts", ".tsx"}
 MARKERS = ("<<<<<<<", "|||||||", ">>>>>>>")
 
 
@@ -44,6 +45,7 @@ def frontend_owned_files(root: Path = ROOT) -> list[Path]:
     files = [path for relative in FRONTEND_DIRS for path in _text_files(frontend / relative)]
     manifest = frontend / FRONTEND_MANIFEST
     if manifest.is_file():
+        files.append(manifest)
         try:
             entries = json.loads(manifest.read_text(encoding="utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):

@@ -77,18 +77,32 @@ class CheckSourcesTests(unittest.TestCase):
         root = self.temp_root()
         self.write(root, "kernel/dsh/packages/mirally/mirally-product/src/channel.mjs", "<<<<<<< HEAD\n")
         self.write(root, "frontend/control-ui/ui/src/pages/mirally/page.ts", "<<<<<<< HEAD\n")
-        self.write(root, "frontend/control-ui/local-changes.json", '{"ui/src/styles/patched.css": "note"}\n')
+        self.write(root, "frontend/control-ui/local-changes.json",
+                   '{"ui/index.html": "page shell", "ui/public/manifest.webmanifest": "PWA manifest",'
+                   ' "ui/src/styles/patched.css": "note"}\n')
+        self.write(root, "frontend/control-ui/ui/index.html", "<<<<<<< HEAD\n")
+        self.write(root, "frontend/control-ui/ui/public/manifest.webmanifest", "<<<<<<< HEAD\n")
         self.write(root, "frontend/control-ui/ui/src/styles/patched.css", "<<<<<<< HEAD\n")
         self.assertEqual(self.problems(root), [
+            "frontend/control-ui/ui/index.html:1: leftover merge-conflict marker",
+            "frontend/control-ui/ui/public/manifest.webmanifest:1: leftover merge-conflict marker",
             "frontend/control-ui/ui/src/pages/mirally/page.ts:1: leftover merge-conflict marker",
             "frontend/control-ui/ui/src/styles/patched.css:1: leftover merge-conflict marker",
             "kernel/dsh/packages/mirally/mirally-product/src/channel.mjs:1: leftover merge-conflict marker",
+        ])
+
+    def test_frontend_manifest_itself_is_scanned(self) -> None:
+        root = self.temp_root()
+        self.write(root, "frontend/control-ui/local-changes.json", "<<<<<<< HEAD\n")
+        self.assertEqual(self.problems(root), [
+            "frontend/control-ui/local-changes.json:1: leftover merge-conflict marker",
         ])
 
     def test_upstream_and_generated_paths_are_not_scanned(self) -> None:
         root = self.temp_root()
         for name in (
             "kernel/dsh/src/upstream.md",
+            "frontend/control-ui/ui/mobile.html",
             "frontend/control-ui/ui/src/app/vendored.ts",
             "frontend/control-ui/ui/dist/bundle.css",
             "kernel/dsh/packages/mirally/mirally-product/dist/generated.css",
