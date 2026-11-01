@@ -108,3 +108,8 @@ jobs:
 
       - name: Test workflow state manager
         run: python -m unittest tests.development.test_agent_workflow -v
+
+      - name: Check sources for conflict markers and Python syntax
+        run: |
+          python tools/check_sources.py
+          python -m unittest tests.development.test_check_sources -v
