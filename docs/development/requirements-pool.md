@@ -64,7 +64,7 @@
 | `REQ-MODEL-PROVIDER` | 其他模型服务商接口适配调研 | `user-request` | `SEED-MODEL-PROVIDER` | dev-0017 | queued |
 | `REQ-UFO-CLEANUP` | 移除 UFO 子模块与专用测试依赖 | `user-request` | `SEED-UFO-CLEANUP` | dev-0012 | PR #16 open |
 | `REQ-WORKFLOW-CONTROL` | 控制核心/工作流默认值/PR 规范 | `user-request` | `SEED-WORKFLOW-CONTROL` | — | PR #15 open |
-| `REQ-FEATURE-MAP` | feature map 开发工作流章节 | `agent` | `SEED-FEATURE-MAP` | dev-0011 | implementing |
+| `REQ-FEATURE-MAP` | feature map 开发工作流章节 | `agent` | `SEED-FEATURE-MAP` | dev-0011 | verifying；PR #17 |
 | `REQ-WEIXIN-TEXT` | 微信端中文提示优化 | `user` | `SEED-WEIXIN-TEXT` | dev-0001 | done；PR #5 |
 | `REQ-CLI-ENCODING` | CLI 非 UTF-8 输出修复 | `agent` | `SEED-CLI-ENCODING` | dev-0002 | done；PR #6 |
 | `REQ-WORKFLOW-STATE` | 状态并发锁 + CI Python 子集 | `agent` | `SEED-WORKFLOW-STATE` | dev-0009/0010 | PR #13/#14 open |
