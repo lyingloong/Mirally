@@ -1,8 +1,9 @@
 """Tests for tools/check_sources.py (pure standard library, no venv required).
 
-Every tree fixture writes into a scanned directory (``tools/``, ``docs/``,
-``config/``) so the cases exercise the same owned-files selection the real
-repository uses.
+Every tree fixture writes into a directory the guard scans (``tools/``,
+``docs/``, ``config/``, the Mirally kernel product chain, or the owned frontend
+paths) so the cases exercise the same owned-files selection the real repository
+uses.
 """
 from __future__ import annotations
 
@@ -70,6 +71,30 @@ class CheckSourcesTests(unittest.TestCase):
         root = self.temp_root()
         self.write(root, "tools/node_modules/x.md", "<<<<<<< HEAD\n")
         self.assertNotIn(root / "tools" / "node_modules" / "x.md", check_sources.owned_files(root))
+        self.assertEqual(self.problems(root), [])
+
+    def test_owned_kernel_and_frontend_sources_are_scanned(self) -> None:
+        root = self.temp_root()
+        self.write(root, "kernel/dsh/packages/mirally/mirally-product/src/channel.mjs", "<<<<<<< HEAD\n")
+        self.write(root, "frontend/control-ui/ui/src/pages/mirally/page.ts", "<<<<<<< HEAD\n")
+        self.write(root, "frontend/control-ui/local-changes.json", '{"ui/src/styles/patched.css": "note"}\n')
+        self.write(root, "frontend/control-ui/ui/src/styles/patched.css", "<<<<<<< HEAD\n")
+        self.assertEqual(self.problems(root), [
+            "frontend/control-ui/ui/src/pages/mirally/page.ts:1: leftover merge-conflict marker",
+            "frontend/control-ui/ui/src/styles/patched.css:1: leftover merge-conflict marker",
+            "kernel/dsh/packages/mirally/mirally-product/src/channel.mjs:1: leftover merge-conflict marker",
+        ])
+
+    def test_upstream_and_generated_paths_are_not_scanned(self) -> None:
+        root = self.temp_root()
+        for name in (
+            "kernel/dsh/src/upstream.md",
+            "frontend/control-ui/ui/src/app/vendored.ts",
+            "frontend/control-ui/ui/dist/bundle.css",
+            "kernel/dsh/packages/mirally/mirally-product/dist/generated.css",
+        ):
+            self.write(root, name, "<<<<<<< HEAD\n")
+        self.write(root, "frontend/control-ui/local-changes.json", "{}\n")
         self.assertEqual(self.problems(root), [])
 
     def test_repository_is_green(self) -> None:
