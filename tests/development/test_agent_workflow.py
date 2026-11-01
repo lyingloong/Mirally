@@ -519,6 +519,32 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(first["status"], "blocked")
         self.assertEqual(first["blocked_reason"], "capacity")
 
+    def test_user_capacity_waiting_has_priority_over_ai(self):
+        config = make_config(concurrency=1)
+        state = wf.empty_state()
+        first = wf.new_point(state, source="user", title="first")
+        second = wf.new_point(state, source="user", title="second")
+        first["status"] = "awaiting_merge"
+        first["merge_ready_at"] = wf.iso(wf.utcnow())
+        wf.start_point(state, config, second["id"])
+        wf.merge_reject(state, config, first["id"], reason="rework")
+        self.assertEqual(first["status"], "blocked")
+        wf.block_point(state, config, second["id"], reason="external")
+        summary = wf.build_summary(state, config)
+        self.assertEqual([point["id"] for point in summary["user_capacity_waiting"]], [first["id"]])
+        self.assertEqual(summary["action"], "resume_capacity")
+        self.assertFalse(summary["should_discover_agent"])
+        self.assertFalse(summary["can_auto_start_agent"])
+
+        agent = wf.new_point(state, source="agent", title="agent", risk="low")
+        with self.assertRaises(wf.WorkflowError):
+            wf.promote_point(state, config, agent["id"], auto=True)
+        wf.promote_point(state, config, agent["id"], auto=False)
+        with self.assertRaises(wf.WorkflowError):
+            wf.start_point(state, config, agent["id"])
+        wf.resume_point(state, config, first["id"])
+        self.assertEqual(first["status"], "repairing")
+
     def test_set_status_cannot_bypass_start_admission(self):
         with tempfile.TemporaryDirectory() as directory:
             state_path = Path(directory) / "state.json"

@@ -431,6 +431,13 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
         for point in points
         if point["source"] == "user" and point["status"] in {"inbox", "queued"}
     ]
+    user_capacity_waiting = [
+        point
+        for point in points
+        if point["source"] == "user"
+        and point["status"] == "blocked"
+        and point.get("blocked_reason") == "capacity"
+    ]
     agent_in_flight = [
         point for point in points if point["source"] == "agent" and point["status"] in ACTIVE_STATUSES
     ]
@@ -465,11 +472,15 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
     can_start = free > 0 and not paused
 
     start_user = user_pending[:free] if can_start else []
-    start_agent = agent_queued[: max(0, free - len(start_user))] if can_start else []
+    if user_capacity_waiting:
+        start_agent = []
+    else:
+        start_agent = agent_queued[: max(0, free - len(start_user))] if can_start else []
 
     can_auto_start_agent = bool(
         can_start
         and not user_pending
+        and not user_capacity_waiting
         and not agent_queued
         and agent_candidates
         and ai_cap_ok
@@ -477,6 +488,7 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
     should_discover_agent = bool(
         can_start
         and not user_pending
+        and not user_capacity_waiting
         and not agent_queued
         and not agent_proposed
         and ai_cap_ok
@@ -485,6 +497,8 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
     auto_block_reason = None
     if user_pending:
         auto_block_reason = "user pending points take priority"
+    elif user_capacity_waiting:
+        auto_block_reason = "user capacity-waiting rework must resume first"
     elif not can_start:
         auto_block_reason = "waiting for quota restart" if paused else "concurrency is full"
     elif not ai_cap_ok:
@@ -499,6 +513,8 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
         action = "ask_user_merge"
     elif start_user:
         action = "start_user"
+    elif user_capacity_waiting and free > 0:
+        action = "resume_capacity"
     elif start_agent:
         action = "start_agent"
     elif can_auto_start_agent:
@@ -514,6 +530,7 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
         "free_slots": free,
         "active": [_brief(point) for point in active],
         "user_pending": [_brief(point) for point in user_pending],
+        "user_capacity_waiting": [_brief(point) for point in user_capacity_waiting],
         "start_user": [_brief(point) for point in start_user],
         "agent_in_flight": [_brief(point) for point in agent_in_flight],
         "agent_auto_reserved": [_brief(point) for point in agent_auto_reserved],
@@ -570,6 +587,8 @@ def promote_point(
             raise WorkflowError("workflow is paused for quota restart")
         if summary["user_pending"]:
             raise WorkflowError("user pending points must be scheduled first")
+        if summary["user_capacity_waiting"]:
+            raise WorkflowError("user capacity-waiting rework must resume first")
         if summary["free_slots"] <= 0:
             raise WorkflowError("concurrency is full")
         if len(summary["agent_auto_reserved"]) >= int(config["max_auto_agent_in_flight"]):
@@ -597,9 +616,10 @@ def start_point(state: dict[str, Any], config: dict[str, Any], point_id: str) ->
         raise WorkflowError("workflow is paused for quota restart")
     if summary["free_slots"] <= 0:
         raise WorkflowError("concurrency is full")
-    if point["source"] == "agent" and summary["user_pending"]:
-        if len(summary["user_pending"]) >= summary["free_slots"]:
-            raise WorkflowError("user pending points must fill the available slots first")
+    if point["source"] == "agent":
+        user_priority = len(summary["user_pending"]) + len(summary["user_capacity_waiting"])
+        if user_priority and user_priority >= summary["free_slots"]:
+            raise WorkflowError("user pending or capacity-waiting points must fill the available slots first")
     if point["source"] == "agent" and point.get("auto_started"):
         if len(_active_auto_others(state, point)) >= int(config["max_auto_agent_in_flight"]):
             raise WorkflowError("AI auto-start in-flight cap reached")
@@ -864,6 +884,10 @@ def print_status(summary: dict[str, Any]) -> None:
     if summary["user_pending"]:
         print("user points waiting:")
         for point in summary["user_pending"]:
+            print("  " + format_point(point))
+    if summary["user_capacity_waiting"]:
+        print("user rework waiting for capacity:")
+        for point in summary["user_capacity_waiting"]:
             print("  " + format_point(point))
     if summary["agent_auto_reserved"] or summary["max_auto_agent_in_flight"]:
         print(
