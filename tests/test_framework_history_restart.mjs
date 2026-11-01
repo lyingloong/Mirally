@@ -15,8 +15,10 @@ import {setTimeout as delay} from 'node:timers/promises';
 const root = fileURLToPath(new URL('../', import.meta.url)), png = readFileSync(join(root, 'mirally/assets/mirally-128.png')).toString('base64');
 const moduleUrl = source => 'data:text/javascript;base64,' + Buffer.from(stripTypeScriptTypes(source, {mode: 'transform', sourceUrl: 'mirally-history-test.ts'})).toString('base64');
 const reads = moduleUrl(readFileSync(join(root, 'frontend/control-ui/ui/src/app/mirally-read-models.ts'), 'utf8'));
+const reminders = moduleUrl(readFileSync(join(root, 'frontend/control-ui/ui/src/app/desktop-reminders.ts'), 'utf8'));
 const {MirallyBrowserClient} = await import(moduleUrl(readFileSync(join(root, 'frontend/control-ui/ui/src/app/mirally-client.ts'), 'utf8')
-  .replace(/(["'])\.\/mirally-read-models\.(?:ts|js)\1/g, () => JSON.stringify(reads))));
+  .replace(/(["'])\.\/mirally-read-models\.(?:ts|js)\1/g, () => JSON.stringify(reads))
+  .replace(/(["'])\.\/desktop-reminders\.(?:ts|js)\1/g, () => JSON.stringify(reminders))));
 async function until(check, label, timeout = 20000) {
   const end = Date.now() + timeout;
   while (Date.now() < end) {const result = await check(); if (result) return result; await delay(15);}

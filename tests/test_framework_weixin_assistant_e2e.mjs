@@ -1,3 +1,4 @@
+import {loadPlaywright} from '../tools/testing/dependencies.cjs';
 /** Real DSH, product owner and an isolated WeChat/model transport. */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,7 +11,6 @@ import {tmpdir} from 'node:os';
 import {join, dirname, basename} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
-import {createRequire} from 'node:module';
 import {createCipheriv, createDecipheriv, createHash, randomBytes} from 'node:crypto';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
@@ -103,8 +103,7 @@ test('assistant coordinates the original DSH session with remote authority', {ti
   const mediaKey=Buffer.from(Buffer.from(mediaMessage.file_item.media.aes_key,'base64').toString('ascii'),'hex');
   const decipher=createDecipheriv('aes-128-ecb',mediaKey,null);assert.equal(Buffer.concat([decipher.update(uploadBytes),decipher.final()]).toString(),artifactContent);
   if(process.env.MIRALLY_SPEECH_GUI==='1') {
-    const require=createRequire(join(root,'integrations/openclaw/package.json'));
-    const browser=await require('playwright-core').chromium.launch({channel:'msedge',headless:true});
+    const browser=await loadPlaywright().chromium.launch({channel:'msedge',headless:true});
     try {
       const page=await browser.newPage({viewport:{width:1280,height:900}}),pageErrors=[];
       page.on('pageerror',error=>pageErrors.push(error.message));

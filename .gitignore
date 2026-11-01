@@ -24,7 +24,7 @@
 /config/mirally/memory.yaml
 /config/mirally/activity.yaml
 
-# Legacy private state can remain while the name migration is pending.
+# Private state from retired versions must never be exposed by source cleanup.
 /config/openassist/
 
 # OS and editor files

@@ -22,12 +22,12 @@ export interface ProductHost {
 }
 
 type ProductWindow = Window & {
-  __mirallyLegacyHost?: ProductHost;
+  __mirallyHost?: ProductHost;
   __mirallyFramework?: {showPage(page: string): Promise<unknown>};
 };
 
 export function getProductHost(): ProductHost {
-  const host = (window as ProductWindow).__mirallyLegacyHost;
+  const host = (window as ProductWindow).__mirallyHost;
   if (!host?.request || !host?.rpc) {
     throw new Error("Mirally 产品连接尚未就绪，请稍后重试。");
   }

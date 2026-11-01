@@ -21,7 +21,7 @@
 - 来源：Agent 核对本机锁定版本的随包文档与 SDK，讨论中修正此前比较。
 - 状态：接口存在已核对；Mirally 迁移到该接口的方案待评估。
 - 要点：OpenClaw 2026.9.6 已提供 Feature UI 插件，可增加页面和面板，也可替换输入框、会话列表及工作区；接口仍标为实验性质。Mirally 当前主要通过 WebView2 注入 JS/CSS 定制界面，尚未整体采用这些接口。减少界面耦合可以同时评估规范使用现有宿主扩展和更换宿主两条路线，不能把现有 DOM 注入的局限直接归因于 OpenClaw 缺少 UI 扩展能力。
-- 依据：[锁定依赖版本](../../integrations/openclaw/package.json)、[现有界面注入](../../mirally/control_ui_brand.py)、[官方 Feature plugins 文档](https://docs.openclaw.ai/plugins/feature-plugins)。接口存在不等于本产品已经接入或验收。
+- 依据：[锁定依赖版本](https://github.com/lyingloong/Mirally/blob/2eeb778a/integrations/openclaw/package.json)、[现有界面注入](https://github.com/lyingloong/Mirally/blob/2eeb778a/mirally/control_ui_brand.py)、[官方 Feature plugins 文档](https://docs.openclaw.ai/plugins/feature-plugins)。接口存在不等于本产品已经接入或验收。
 
 ## PN-0003 · 2026-10-21 22:34 +08:00 · 先设计 Mirally 自有产品框架
 
@@ -706,3 +706,10 @@
 - 来源：用户提出增加 feature map，帮助 Agent 快速上手；要求通过独立分支与 PR 提交。
 - 要点：以用户任务为索引，连接主要代码入口、状态或执行 owner、代表测试和专题文档；配合能力矩阵与架构说明使用，便于并行开发时发现跨模块影响。
 - 维护：功能或主要入口、归属、代表测试变化时随 PR 更新对应条目；保持短索引，不复制完整接口与能力状态，路径存在性由现有链接检查辅助验证。见[Feature map](../reference/feature-map.md)。
+
+## PN-0084 · 2026-11-01 16:27 +08:00 · 弃用运行线彻底退役
+
+- 类型：用户决定 / 更新 PN-0027
+- 来源：用户指出 OpenClaw 已弃用，仍保留启动器和 integrations 不合理，要求遵守开发阶段不为弃用代码保留兼容的约定。
+- 决定：移除旧运行宿主、安装配置工具、插件、旧数据导入/档案兼容与专用测试；公共窗口、伙伴、活动/记忆能力迁入现行模块，测试依赖独立管理。历史实现通过 Git 追溯，不以“冻结回退”保留可执行链路。
+- 边界：清理源码不删除本机私有数据和凭据；当前前端的第三方来源、许可证、保留组件及独立 UI 库按实际用途维护，不能为去除来源名称而破坏现有体验。

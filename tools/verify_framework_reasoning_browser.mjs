@@ -1,12 +1,11 @@
+import {loadPlaywright} from './testing/dependencies.cjs';
 /** Actual thinking/tool presentation; production model use requires an explicit --live flag. */
 import assert from 'node:assert/strict';
 import {readFile,mkdir} from 'node:fs/promises';
-import {createRequire} from 'node:module';
 import {resolve,dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-const require=createRequire(join(root,'integrations/openclaw/package.json'));
-const {chromium}=require(process.env.MIRALLY_PLAYWRIGHT??'playwright-core');
+const {chromium} = loadPlaywright();
 const runtime=JSON.parse(await readFile(process.argv[2],'utf8'));
 assert.ok(runtime.mode==='test'||process.argv.includes('--live'),'Normal model requests require --live; use only an explicitly isolated profile.');
 const output=resolve(process.argv[3]&&!process.argv[3].startsWith('--')?process.argv[3]:join(root,'.artifacts/reasoning-browser'));

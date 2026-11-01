@@ -29,7 +29,7 @@
 - 透明运行时导出：`mirally.png`（1254 × 1254 RGBA）。
 - 窗口/任务栏图标：`mirally.ico`（16–256 px 多尺寸）。
 - 尺寸导出：`mirally-{size}.png`，含 512 px。
-- 开屏、伙伴、工作与主题资源位于 `mirally/assets/control-ui-*`，由 `mirally.control_ui_brand` 提供给前端。
+- 开屏、伙伴、快捷开始与主题资源位于 `mirally/assets/control-ui-*`，由自有桌面壳和 `mirally-product/src/presentation.mjs` 提供给前端。
 
 重建图标：
 

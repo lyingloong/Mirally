@@ -1,6 +1,6 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const {parseHTML} = require('../integrations/openclaw/node_modules/linkedom');
+const {parseHTML} = require('../tools/testing/dependencies.cjs').loadLinkedom();
 const activity = require('../mirally/assets/control-ui-activity.js');
 
 const status = overrides => ({

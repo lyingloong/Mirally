@@ -1,6 +1,6 @@
 """Durable observation store with one coordinated SQLite writer.
 
-The store is intentionally independent from OpenClaw's session database and
+The store is intentionally independent from model session databases and
 from UFO.  A bounded command queue feeds one writer connection; reads use
 short-lived read connections.  Observations are append-only and consumers use
 ``ingest_seq`` cursors rather than wall-clock timestamps.

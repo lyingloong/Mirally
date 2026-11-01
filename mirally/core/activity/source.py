@@ -2,7 +2,7 @@
 
 Consumers depend on this protocol rather than on SQLite or Windows handles.
 The concrete ``ObservationStore`` is one implementation; a future IPC client
-can implement the same methods without changing UFO/OpenClaw integrations.
+can implement the same methods without changing Activity consumers.
 """
 
 from __future__ import annotations

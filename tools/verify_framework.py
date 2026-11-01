@@ -33,8 +33,11 @@ class FixtureProvider(BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
         self.calls.append(body)
         messages = body.get("messages", [])
+        # Native DSH adds runtime and Skill reminders as user-role context.
+        # The fixture routes the actual human request, not those injected rows.
         human_inputs = [(index, str(item.get("content", ""))) for index, item in enumerate(messages)
-            if item.get("role") == "user" and not str(item.get("content", "")).startswith(("Current runtime context.", "Current runtime context: none."))]
+            if item.get("role") == "user" and not str(item.get("content", "")).startswith((
+                "Current runtime context.", "Current runtime context: none.", "<system-reminder>"))]
         human_index, last = human_inputs[-1] if human_inputs else (-1, "")
         is_result = any(item.get("role") == "tool" for item in messages[human_index + 1:])
         contact_check = any("Mirally optional personal check-in" in str(item.get("content", "")) for item in messages if item.get("role") == "system")
@@ -148,6 +151,8 @@ def verify(root: Path, home: Path, *, browser_files: bool = False, browser_histo
         public = client.rpc("settings.get")
         assert "offline-fixture-key" not in json.dumps(public)
         assert public["activity_enabled"] is False and public["background_enabled"] is False
+        assert client.rpc("calendar.settings.get")["confirmed"] is False
+        client.rpc("calendar.settings.update", {"time_zone": "Asia/Shanghai"})
         checks.append("private model configuration and passive defaults")
         try:
             client.call("/api/health", origin="https://untrusted.invalid")
@@ -175,7 +180,12 @@ def verify(root: Path, home: Path, *, browser_files: bool = False, browser_histo
         session = client.call("/api/sessions", {"title": "End-to-end acceptance"})
         client.send(session, "chat-1", "hello")
         assert "native model adapter" in client.history(session)[-1]["text"]
-        assert not any("ufo" in tool.get("function", {}).get("name", "").lower() or "desktop" in tool.get("function", {}).get("name", "").lower() for tool in FixtureProvider.calls[-1].get("tools", []))
+        tool_names = {tool.get("function", {}).get("name", "") for tool in FixtureProvider.calls[-1].get("tools", [])}
+        assert not any("ufo" in name.lower() for name in tool_names), tool_names
+        # Mirally's own observations are supported; deferred desktop input and
+        # the retired UFO executor must not return through another tool alias.
+        assert {name for name in tool_names if "desktop" in name.lower()} <= {
+            "mirally_desktop_foreground", "mirally_desktop_windows", "mirally_desktop_screenshot"}, tool_names
         duplicate = client.call("/api/sessions/" + session["id"] + "/messages", {"commandId": "chat-1", "text": "hello"})
         assert duplicate["replay"]
         checks.append("real native provider, Agent loop, transcript and command deduplication")

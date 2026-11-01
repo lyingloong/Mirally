@@ -1,8 +1,8 @@
 """Read-only MCP server for the product-owned Activity knowledge layer.
 
-OpenClaw launches this module as a local stdio MCP server.  The server keeps
-the protocol boundary independent from OpenClaw plugins while reusing the
-same bounded :class:`ActivityAgentBridge` used by the compatibility adapter.
+An MCP host launches this module as a local stdio server.  The server reuses
+the bounded :class:`ActivityAgentBridge` and remains independent of any
+particular agent runtime.
 It never starts the collector and it never exposes SQLite or arbitrary SQL to
 the caller.
 """

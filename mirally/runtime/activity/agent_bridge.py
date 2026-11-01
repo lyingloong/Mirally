@@ -1,11 +1,11 @@
 """Small JSONL bridge for on-demand activity knowledge queries.
 
-The OpenClaw adapter talks to this module over stdin/stdout.  The bridge is
+Agent adapters talk to this module over stdin/stdout.  The bridge is
 deliberately query-only: it never starts the activity collector and it does
 not read or create an activity database until a caller has requested a
 knowledge operation while activity collection is enabled.  That keeps
 ordinary agent turns free of activity lookups and makes the same interface
-available to every OpenClaw harness.
+available to independent agent hosts.
 
 Protocol::
 
@@ -166,7 +166,7 @@ class ActivityAgentBridge:
                                "availability_checked": status != "disabled", "reason": reason},
                    "collector": self._collector_status(None)}
         # Keep ``result`` present on every successful response.  This lets
-        # OpenClaw use one decoder for health, empty and populated queries.
+        # callers use one decoder for health, empty and populated queries.
         return {**payload, "result": payload}
 
     @staticmethod
@@ -246,7 +246,7 @@ class ActivityAgentBridge:
 
     def handle(self, request: Mapping[str, Any]) -> dict[str, Any]:
         # ``command`` is the Python-facing spelling; ``op`` keeps the wire
-        # contract terse for OpenClaw tool calls.  Accepting both also makes
+        # contract terse for MCP tool calls.  Accepting both also makes
         # the bridge straightforward to exercise outside the plugin.
         command = str(request.get("command", request.get("op", ""))).strip().lower()
         args = _as_mapping(request.get("args"))

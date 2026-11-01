@@ -1,14 +1,13 @@
+import {loadPlaywright} from './testing/dependencies.cjs';
 /** Actual retained sidebar/header menus; pass a disposable --test-mode runtime.json. */
 import assert from 'node:assert/strict';
 import {readFile, mkdir, writeFile} from 'node:fs/promises';
-import {createRequire} from 'node:module';
 import {resolve, dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-const require=createRequire(join(root,'integrations/openclaw/package.json'));
-const {chromium}=require(process.env.MIRALLY_PLAYWRIGHT??'playwright-core');
+const {chromium} = loadPlaywright();
 const runtime=JSON.parse(await readFile(process.argv[2],'utf8'));
 assert.equal(runtime.mode,'test','Conversation organization acceptance requires an isolated test Host');
 const output=resolve(process.argv[3]??join(root,'.artifacts/session-organization'));
@@ -52,7 +51,7 @@ async function statusFilter(value) {
 }
 try {
   await page.goto(runtime.url+'/new#token='+runtime.token);await ready();
-  const created=await page.evaluate(()=>window.__mirallyLegacyHost.client.request('sessions.create',{displayName:'会话组织验收',idempotencyKey:crypto.randomUUID()}));
+  const created=await page.evaluate(()=>window.__mirallyHost.client.request('sessions.create',{displayName:'会话组织验收',idempotencyKey:crypto.randomUUID()}));
   key=created.key;id=key.replace(/^agent:main:/,'');await selectSession();await row().waitFor();
   const original=await metadata();assert.equal(original.metadata_version,1);
   await sidebarAction('rename');await submitRename('侧栏改名后的会话');

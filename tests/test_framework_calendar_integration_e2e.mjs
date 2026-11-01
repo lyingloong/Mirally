@@ -1,3 +1,4 @@
+import {loadPlaywright} from '../tools/testing/dependencies.cjs';
 /** Isolated real DSH + Python state and local OpenAI/iLink fixtures. */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -5,7 +6,6 @@ import {createServer} from 'node:http';
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import {mkdtemp,readFile,realpath,rm,writeFile,mkdir} from 'node:fs/promises';
-import {createRequire} from 'node:module';
 import {tmpdir} from 'node:os';
 import {basename,dirname,join} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
@@ -90,8 +90,7 @@ test('model creates local-time meetings and real iLink receives reminder for the
   assert.ok(meeting);assert.equal(new Date(meeting.due_at).toISOString(),`${tomorrow}T02:00:00.000Z`);
   assert.ok(requests.some(input=>JSON.stringify(input).includes('Asia/Shanghai')),'model receives confirmed timezone');
   if(process.env.MIRALLY_CALENDAR_GUI==='1') {
-    const require=createRequire(join(root,'integrations/openclaw/package.json'));
-    const browser=await require('playwright-core').chromium.launch({channel:'msedge',headless:true});
+    const browser=await loadPlaywright().chromium.launch({channel:'msedge',headless:true});
     try {
       const page=await browser.newPage({viewport:{width:1280,height:900}}),pageErrors=[];
       page.on('pageerror',error=>pageErrors.push(error.message));

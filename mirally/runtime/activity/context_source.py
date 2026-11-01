@@ -11,7 +11,7 @@ from .organizer_service import ActivityOrganizerService
 
 
 class ActivityContextSource:
-    """Transport-independent adapter for OpenClaw and Activity consumers."""
+    """Transport-independent adapter for Activity consumers."""
 
     def __init__(self, service: ActivityOrganizerService) -> None:
         self.service = service

@@ -15,7 +15,7 @@ import {setTimeout as delay} from 'node:timers/promises';
 import vm from 'node:vm';
 
 const require = createRequire(import.meta.url);
-const {createLegacyNativeBridge} = require('../mirally/framework_ui/legacy-native-bridge.js');
+const {createMirallyNativeBridge} = require('../mirally/framework_ui/native-bridge.js');
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const clientPath = join(root, 'frontend/control-ui/ui/src/app/mirally-client.ts');
@@ -90,7 +90,7 @@ function fixture(t, options = {}) {
     throw new Error('Unexpected HTTP request: ' + path);
   };
   f.client = new MirallyBrowserClient({token: 'explicit-transport-token', onEvent: event => events.push(event), onHello: hello => hellos.push(hello), onClose: value => closes.push(value), ...options});
-  f.host = browser.window.__mirallyLegacyHost;
+  f.host = browser.window.__mirallyHost;
   t.after(() => f.client.stop());
   f.start = async () => { f.client.start(); await until(() => hellos.length && streams.length, 'client connection'); };
   f.push = value => streams.at(-1).enqueue(new TextEncoder().encode('data: ' + JSON.stringify(value) + '\r\n\r\n'));
@@ -207,7 +207,7 @@ test('event subscribers share the existing SSE and unsubscribe independently', a
 test('capture exclusion refreshes native policy on connect and saved preference SSE without another stream', async t => {
   const f = fixture(t), nativeMessages = [];
   f.window.chrome = {webview: {postMessage: value => nativeMessages.push(value)}};
-  const bridge = createLegacyNativeBridge(f.window, f.host).install();
+  const bridge = createMirallyNativeBridge(f.window, f.host).install();
   t.after(() => bridge.dispose());
   await f.start();
   const refresh = {type: 'mirally-framework', action: 'refresh-capture-preference'};
@@ -231,7 +231,7 @@ test('capture exclusion refreshes native policy on connect and saved preference 
 test('ordinary browser shim never receives native capture refresh during connect or preference SSE', async t => {
   const f = fixture(t), notices = [];
   f.host.notify = value => notices.push(value);
-  const bridge = createLegacyNativeBridge(f.window, f.host).install();
+  const bridge = createMirallyNativeBridge(f.window, f.host).install();
   t.after(() => bridge.dispose());
   assert.equal(f.window.chrome.webview.__mirallyBrowserOnly, true);
   await f.start();
@@ -853,7 +853,7 @@ test('isolated test-mode Host accepts original-client ownership, retries, and ex
   assert.equal(receipts.length, 1);
   const material = JSON.parse(await readFile(join(home, 'materials', receipts[0]), 'utf8'));
   assert.equal(material.name, '材料.txt'); assert.equal(material.conversation_id, first.key.replace(/^agent:main:/, ''));
-  const host = browser.window.__mirallyLegacyHost, id = host.conversationIdForSession(first.key);
+  const host = browser.window.__mirallyHost, id = host.conversationIdForSession(first.key);
   assert.equal(id, first.key.replace(/^agent:main:/, ''));
   const summary = async target => (await host.request('/api/sessions')).sessions.find(item => item.id === target);
 

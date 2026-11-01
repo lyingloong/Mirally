@@ -187,7 +187,7 @@
       root.__mirallyWork?.close?.();
       // The legacy `config` route redirects to language settings and discards
       // its query. The canonical appearance loader preserves our marker.
-      if (root.__mirallyLegacyHost) native.navigate('activity', {search: ''});
+      if (root.__mirallyHost) native.navigate('activity', {search: ''});
       else native.navigate('appearance', {search: '?mirally=activity'});
       schedule();
       return true;
@@ -433,7 +433,7 @@
       for (const action of ['start', 'pause', 'resume', 'stop']) $(`[data-action="${action}"]`).addEventListener('click', () => control(action));
       $('[data-action="open-memory"]').addEventListener('click',()=>{
         const native=context();
-        if(native?.navigate)native.navigate('memory',root.__mirallyLegacyHost?{search:''}:{pathname:`${native.basePath || ''}/settings/memory/memories`,search:''});
+        if(native?.navigate)native.navigate('memory',root.__mirallyHost?{search:''}:{pathname:`${native.basePath || ''}/settings/memory/memories`,search:''});
       });
     }
     function mountEntry() {
@@ -451,7 +451,7 @@
       }
       const base = context()?.basePath || '';
       const link = entry.querySelector('a');
-      const href = root.__mirallyLegacyHost?`${base}/activity`:`${base}/settings/appearance?mirally=activity`;
+      const href = root.__mirallyHost?`${base}/activity`:`${base}/settings/appearance?mirally=activity`;
       if (link.getAttribute('href') !== href) link.setAttribute('href', href);
       link.classList.toggle('settings-sidebar__item--active', visible);
       if (visible && link.getAttribute('aria-current') !== 'page') link.setAttribute('aria-current', 'page');
@@ -472,7 +472,7 @@
         subscribedContext = native;
         stopRouter = native?.router?.subscribe?.(schedule);
       }
-      const next = isPage(root.location, !!root.__mirallyLegacyHost), main = document.querySelector('#control-ui-main');
+      const next = isPage(root.location, !!root.__mirallyHost), main = document.querySelector('#control-ui-main');
       if (next && main) {
         if (!panel) createPanel();
         const outlet = main.querySelector('openclaw-router-outlet');
