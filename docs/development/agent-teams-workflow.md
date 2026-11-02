@@ -101,6 +101,17 @@ free_slots     = max(0, concurrency - load)
 6. AI 点仍必须经过审查和**用户合并批准**，自动启动不等于自动合并。
 7. 需求师发现新点时要去重：检查 open PR、最近合并、backlog、已有分支；优先小范围、低风险、可验证的改进。
 
+## 需要决策的点：Proposal PR → Implementation PR
+
+需要用户/Codex 做产品取舍、数据/权限/协议决策，或删除类高风险改动时，先走 Proposal，不直接写实现：
+
+1. **Proposal PR**：分支 `proposal/<dev-id>-<slug>`，只改 `docs/development/proposals/<dev-id>.md`，用[方案提案模板](proposal-template.md)。标题 `[Proposal] <dev-id> ...`，不写产品代码。
+2. **问题在 PR comment**：用 `Q1/Q2` 编号提问；用户/Codex 直接回复。队长把回复摘要写回文档，并在评论确认已记录。
+3. **Decision gate**：用户/Codex 明确回复 `proposal approved`/“同意按推荐方案”或加 `proposal:accepted` 标签后，才创建 implementation 任务和实现 PR。
+4. **Implementation PR**：引用 Proposal PR 和已确认决策，正常走实现 → 验证 → 审查 → 待合并池；实现中若需改方案，回 Proposal 重新确认。
+
+Proposal PR 是决策载体，不进入待合并池；低风险纯文档点不需要 Proposal。
+
 ## 审查与合并闸门
 
 - 审查 fail：审查师在 PR 留 comment 和具体 findings，点回到 `repairing`；修复后重新审查，不需要用户介入。
