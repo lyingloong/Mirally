@@ -39,6 +39,14 @@ npm --prefix frontend/control-ui run build
 
 完整 Python 套件依赖可写的临时目录；同一 `TEMP` 目录残留旧数据时，个别记忆/观察分页用例可能报与本改动无关的失败。重跑前换用新的可写临时目录（例如 `$env:TEMP` 指向仓库内 gitignored 的空目录）即可复现全绿；CI runner 使用真实 Temp，不需要此覆盖。
 
+验证产物统一写到 `output/tmp/<工具或开发点>/<运行标识>/`（`output/` 已忽略）。仓库根出现未被忽略的 `tmp*` 条目会让 `git status` 长期带噪声，用只读检查确认：
+
+```powershell
+.\.venv\Scripts\python.exe tools\check_local_artifacts.py
+```
+
+它只报告、不写盘、不删除、不改 `.gitignore`：退出码 `0` 干净，`1` 有未忽略的根级 `tmp*` 条目（逐个列出），`2` 不是仓库根。清理是显式的人工动作——把需要的文件挪进 `output/tmp/`，其余自行删除；仓库不提供自动清理，也不替你判断哪些还能用。
+
 ```powershell
 # 对显式 --test-mode --home 的隔离宿主，GUI 顺序运行
 node tools/verify_framework_browser.mjs <隔离home/runtime.json>
