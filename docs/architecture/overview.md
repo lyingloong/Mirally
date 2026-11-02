@@ -43,7 +43,7 @@ flowchart LR
 | `frontend/control-ui/` | Lit 壳、原对话/外观组件与 `pages/mirally/` 自有页面 |
 | `mirally/core/activity`、`runtime/activity` | 观察存储、知识投影、采集器、CLI 与历史浏览器 |
 | `mirally/core/memory`、`runtime/memory` | 持久记忆、投影、维护、召回与 CLI |
-| `mirally/runtime/ufo`、`UFO/` | 旧桌面执行适配与只读子模块；默认产品不加载 |
+| `mirally/runtime/ufo` | 旧桌面执行适配；默认产品不加载，UFO 子模块源码已移除 |
 
 持久状态各有唯一 owner：
 

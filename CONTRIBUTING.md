@@ -21,7 +21,7 @@ git status --short --branch
 
 将示例分支和目录替换为任务专属名称。不同工作目录可共享 Git 历史，但不共享未提交的文件；不要让多个 Agent 同时修改同一工作目录。已有分支只能在一个 worktree 中检出。
 
-每个新工作目录都需要按 [README](README.md) 安装自己的 `.venv`、Node 依赖并构建；这些忽略文件不会随 worktree 自动复制。`kernel/dsh/` 是同仓源码；`UFO/` 是只读子模块，不是默认产品链路的前置依赖，涉及其既有维护适配时再按需准备。
+每个新工作目录都需要按 [README](README.md) 安装自己的 `.venv`、Node 依赖并构建；这些忽略文件不会随 worktree 自动复制。`kernel/dsh/` 是同仓源码；UFO 子模块与其专用测试依赖已移除，默认产品链路不需要 UFO 源码，`mirally/runtime/ufo/` 适配保留作参考。
 
 ## 隔离运行与数据
 
