@@ -1,4 +1,9 @@
-"""Offline end-to-end acceptance against the built native Mirally kernel."""
+"""Offline end-to-end acceptance against the built native Mirally kernel.
+
+Exit codes: 0 = every acceptance check passed; 1 = a real acceptance check failed;
+2 = usage error (for example a non-empty --home); 3 = skipped because prerequisites
+are missing (nothing was started, no port was bound).
+"""
 
 from __future__ import annotations
 
@@ -19,7 +24,50 @@ import http.cookiejar
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from mirally.framework_host import FrameworkHost, discover_node
+from mirally.framework_host import FrameworkHost, discover_node, node_candidates, node_version  # noqa: E402
+
+EXIT_OK = 0
+EXIT_FAILURE = 1
+EXIT_USAGE = 2
+EXIT_SKIPPED = 3
+SETUP_COMMAND = r"run .venv\Scripts\python.exe tools\setup_framework.py first"
+
+
+def node_supported(root: Path) -> tuple[bool, list[str]]:
+    """Read-only Node check with the same version rule and order as discover_node()."""
+    problems = []
+    for candidate in node_candidates(root):
+        path = Path(candidate).expanduser()
+        if not path.is_file():
+            problems.append(f"{path} does not exist")
+            continue
+        parts = node_version(path)
+        if parts is not None and ((parts[0] == 22 and parts >= (22, 19, 0)) or parts[0] >= 24):
+            return True, []
+        problems.append(f"{path} is not Node 22.19+ (22.x) or Node 24+")
+    return False, problems
+
+
+def missing_prerequisites(root: Path) -> list[str]:
+    """Read-only list of what FrameworkHost.start() needs; never builds or starts anything."""
+    root = Path(root)
+    missing = []
+    kernel_entry = root / "kernel/dsh/packages/mirally/mirally-product/start.mjs"
+    if not kernel_entry.is_file():
+        missing.append(f"kernel entry {kernel_entry}")
+    kernel_module = root / "kernel/dsh/packages/core/agent/lib/index.js"
+    if not kernel_module.is_file():
+        missing.append(f"kernel build output {kernel_module}")
+    frontend_build = root / "frontend/control-ui/dist/.mirally-build.json"
+    if not frontend_build.is_file():
+        missing.append(f"frontend build output {frontend_build}")
+    python = root / ".venv" / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+    if not python.is_file():
+        missing.append(f"framework virtualenv {python}")
+    node_found, problems = node_supported(root)
+    if not node_found:
+        missing.append("Node 22.19+ (22.x) or Node 24+ (" + "; ".join(problems or ["not found on PATH"]) + ")")
+    return missing
 
 
 class FixtureProvider(BaseHTTPRequestHandler):
@@ -346,21 +394,37 @@ def verify(root: Path, home: Path, *, browser_files: bool = False, browser_histo
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog="exit codes: 0 passed, 1 acceptance failure, 2 usage error, 3 skipped (missing prerequisites)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--home", type=Path)
     parser.add_argument("--browser-files", action="store_true", help="Also verify the retained Files UI in headless Edge against the real loopback tool artifact")
     parser.add_argument("--browser-history", action="store_true", help="Also verify actual native material/tool history in Edge using the loopback provider")
     args = parser.parse_args()
-    if args.home:
-        assert not args.home.exists() or not any(args.home.iterdir()), "Acceptance requires a fresh isolated home"
-        checks = verify(args.root.resolve(), args.home.resolve(), browser_files=args.browser_files, browser_history=args.browser_history)
-    else:
-        with tempfile.TemporaryDirectory(prefix="mirally-acceptance-") as temporary:
-            checks = verify(args.root.resolve(), Path(temporary) / "product home", browser_files=args.browser_files, browser_history=args.browser_history)
+    if args.home and args.home.exists() and any(args.home.iterdir()):
+        print(f"ERROR: --home must be missing or empty for isolation: {args.home}", file=sys.stderr)
+        return EXIT_USAGE
+    root = args.root.resolve()
+    missing = missing_prerequisites(root)
+    if missing:
+        print("SKIP: missing prerequisites: " + ", ".join(missing), file=sys.stderr)
+        print(SETUP_COMMAND, file=sys.stderr)
+        return EXIT_SKIPPED
+    try:
+        if args.home:
+            checks = verify(root, args.home.resolve(), browser_files=args.browser_files, browser_history=args.browser_history)
+        else:
+            with tempfile.TemporaryDirectory(prefix="mirally-acceptance-") as temporary:
+                checks = verify(root, Path(temporary) / "product home", browser_files=args.browser_files, browser_history=args.browser_history)
+    except Exception as error:
+        print(f"FAIL: {type(error).__name__}: {error}", file=sys.stderr)
+        return EXIT_FAILURE
     for check in checks:
         print("PASS " + check)
-    return 0
+    return EXIT_OK
 
 
 if __name__ == "__main__":
