@@ -725,6 +725,10 @@ def cancel_point(
     point = point_by_id(state, point_id)
     if point["status"] in TERMINAL_STATUSES:
         raise WorkflowError(f"{point_id} is already terminal and cannot be cancelled")
+    if point["status"] == "merging":
+        raise WorkflowError(
+            f"{point_id} is merging; wait for the merge result or repair instead of cancelling"
+        )
     if not reason:
         raise WorkflowError("cancel-point requires a reason")
     point["status"] = "cancelled"

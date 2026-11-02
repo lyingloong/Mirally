@@ -130,7 +130,7 @@ Q1（范围）：记忆是否只保留“值得长期记住”的内容，还是
 
 - Proposal 对应点状态仍是 `specifying`（或 `blocked` 等用户决策）
 - Proposal 通过后，点进入 `implementing`，创建 implementation 任务
-- Proposal 被拒绝或撤回：用 `cancel-point <id> --reason <原因>` 直接进入 `cancelled`，不要把状态写成 `rejected`/`proposed`。`specifying` 和 `blocked` 都支持；`blocked` 不需要先 `resume`，因此满容量时也能取消并释放记录。提案记录保留在文档/Git 历史，PR 关闭，不进入待合并池
+- Proposal 被拒绝或撤回：用 `cancel-point <id> --reason <原因>` 直接进入 `cancelled`，不要把状态写成 `rejected`/`proposed`。`specifying` 和 `blocked` 都支持；`blocked` 不需要先 `resume`，因此满容量时也能取消并释放记录。`merging` 和终态不能取消；`merging` 只能等合并结果或转 `repairing`。提案记录保留在文档/Git 历史，PR 关闭，不进入待合并池
 - Proposal PR 本身不进入待合并池；它是决策载体，不是产品实现
 
 ## 6. 不作为

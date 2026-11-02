@@ -305,6 +305,13 @@ class MergeGateTests(unittest.TestCase):
         self.assertIsNotNone(point["merge_ready_at"])
         self.assertIsNone(point.get("merged_at"))
 
+    def test_cancel_point_rejects_merging(self):
+        point = self.prepare("one")
+        wf.merge_approve(self.state, self.config, point["id"])
+        self.assertEqual(point["status"], "merging")
+        with self.assertRaises(wf.WorkflowError):
+            wf.cancel_point(self.state, point["id"], reason="should not cancel merging")
+
     def test_only_the_head_can_be_approved(self):
         first = self.prepare("first")
         second = self.prepare("second")
