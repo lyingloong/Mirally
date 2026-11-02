@@ -107,7 +107,7 @@ free_slots     = max(0, concurrency - load)
 
 1. **Proposal PR**：分支 `proposal/<dev-id>-<slug>`，只改 `docs/development/proposals/<dev-id>.md`，用[方案提案模板](proposal-template.md)。标题 `[Proposal] <dev-id> ...`，不写产品代码。
 2. **问题在 PR comment**：用 `Q1/Q2` 编号提问；用户/Codex 直接回复。队长把回复摘要写回文档，并在评论确认已记录。
-3. **Decision gate**：用户/Codex 明确回复 `proposal approved`/“同意按推荐方案”或加 `proposal:accepted` 标签后，才创建 implementation 任务和实现 PR。
+3. **Decision gate**：用户/Codex 必须针对当前 proposal commit/方案明确回复 `proposal approved`/“同意按推荐方案”，且影响实施的 Q 已解决或明确延后，才创建 implementation 任务和实现 PR；`proposal:accepted` 标签只是可视标记，不能单独作为批准依据。
 4. **Implementation PR**：引用 Proposal PR 和已确认决策，正常走实现 → 验证 → 审查 → 待合并池；实现中若需改方案，回 Proposal 重新确认。
 
 Proposal PR 是决策载体，不进入待合并池；低风险纯文档点不需要 Proposal。

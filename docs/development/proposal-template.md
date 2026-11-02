@@ -27,11 +27,13 @@
 
 ### 阶段 B：Decision Gate
 
-满足以下任一条即可进入实现：
+进入实现必须同时满足：
 
-- 用户/Codex 在 PR comment 明确写 `proposal approved` 或“同意按推荐方案”
-- 或仓库标签 `proposal:accepted`
-- 或用户直接指示“按这个方案实现”
+- 用户/Codex 在 PR comment 明确写下针对**当前 proposal commit/方案**的 `proposal approved` 或“同意按推荐方案”；用户直接指示“按这个方案实现”也算
+- 所有影响实施的 Q 已标为 `resolved`，或明确写成“延后到实现阶段”并说明理由
+- 队长已把决定摘要写回 proposal 文档并提交；若方案有实质变化，需要重新确认
+
+`proposal:accepted` 标签只是可视标记，**不得单独作为批准依据**；标签只有在上述明确批准后才可添加。Implementation PR 必须引用批准评论和 proposal commit。
 
 未满足时，Implementation PR 不应创建；不得用“先写代码再让用户确认”替代。
 
@@ -128,7 +130,7 @@ Q1（范围）：记忆是否只保留“值得长期记住”的内容，还是
 
 - Proposal 对应点状态仍是 `specifying`（或 `blocked` 等用户决策）
 - Proposal 通过后，点进入 `implementing`，创建 implementation 任务
-- Proposal 被拒绝：点 `rejected` 或回 `proposed`，保留提案记录
+- Proposal 被拒绝或撤回：当前状态机用 `cancelled`（`specifying -> cancelled` 是允许的），不要写成 `rejected`/`proposed`；若点处于 `blocked`，先用 `resume` 回到原状态再 `cancelled`，释放容量。提案记录保留在文档/Git 历史，PR 关闭，不进入待合并池
 - Proposal PR 本身不进入待合并池；它是决策载体，不是产品实现
 
 ## 6. 不作为
