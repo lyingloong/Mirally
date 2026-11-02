@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
@@ -12,6 +13,23 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 STARTUP_TIMEOUT = 60
+
+
+def probe_product_worker() -> tuple[bool, str]:
+    """The worker under test imports the product framework, not only stdlib."""
+    if importlib.util.find_spec("yaml") is None:
+        return False, "requires the product framework dependencies (PyYAML); run in the windows-core job or the repo .venv"
+    try:
+        import mirally.framework.service  # noqa: F401
+    except Exception as error:
+        return False, (
+            f"cannot import the product framework ({type(error).__name__}: {error}); "
+            "run in the windows-core job or the repo .venv"
+        )
+    return True, ""
+
+
+PRODUCT_WORKER_AVAILABLE, PRODUCT_WORKER_SKIP_REASON = probe_product_worker()
 
 
 def worker_command(home: Path) -> list[str]:
@@ -71,6 +89,7 @@ def stop_worker(process: subprocess.Popen[str]) -> tuple[int, str, str]:
     return process.returncode, stdout, stderr
 
 
+@unittest.skipUnless(PRODUCT_WORKER_AVAILABLE, PRODUCT_WORKER_SKIP_REASON)
 class WorkerLockTests(unittest.TestCase):
     def test_second_worker_on_same_home_reports_readable_error(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
