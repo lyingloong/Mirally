@@ -28,7 +28,7 @@
 - 需求师 → 工程师 → 验证 → 审查 → 待合并池；
 - Proposal 决策门；
 - 独立 worktree/PR；
-- 用户/Codex 合并，不自动 merge；
+- Codex 按授权合并；插件只同步 GitHub 合并结果，不创建/执行 merge；
 - 进度页、种子池、配额退避。
 
 但 AgentTeams 本身有几个不匹配：
@@ -130,7 +130,7 @@ Seed（种子）
           → Review
           → Repair（可循环）
       → PR（GitHub）
-      → Merge gate（用户/Codex）
+      → Codex merge gate（插件只同步结果）
 ```
 
 ### 3.1 Seed
@@ -151,7 +151,7 @@ Seed（种子）
   "title": "…",
   "source": "user|agent",
   "risk": "low|normal|high",
-  "status": "inbox|proposed|queued|specifying|blocked|implementing|verifying|reviewing|repairing|awaiting_merge|merging|done|rejected|cancelled",
+  "status": "inbox|proposed|queued|specifying|blocked|implementing|verifying|reviewing|repairing|awaiting_merge|done|rejected|cancelled",
   "labels": ["source:user", "proposal-required"],
   "specPath": "…",
   "pr": 123,
@@ -173,7 +173,6 @@ Seed（种子）
 | `verification` | 独立复跑/证据 | objective, acceptance, verify |
 | `review` | 审查 verdict | reviewedTaskId, acceptance |
 | `repair` | 修复 finding | sourceTaskId/findings, inScope, verify |
-| `integration` | 用户批准后合并 | 只由队长/用户触发 |
 | `work` | 评估/文档/冲突返工 | objective, acceptance |
 
 ### 3.4 Task 状态
@@ -189,7 +188,7 @@ Seed（种子）
 ## 4. 状态机与质量门
 
 ```text
-inbox → proposed → queued → specifying → implementing → verifying → reviewing → awaiting_merge → merging → done
+inbox → proposed → queued → specifying → implementing → verifying → reviewing → awaiting_merge → done
 ```
 
 分支：
@@ -208,7 +207,7 @@ inbox → proposed → queued → specifying → implementing → verifying → 
 3. 进入实现前必须有规格；高风险/产品取舍先 Proposal。
 4. 验证和审查独立于实现；不能拿实现者自测当唯一证据。
 5. 审查最多 3 轮自动返工；超过后 escalated 给用户，不无限循环。
-6. 用户/Codex 明确批准才可合并；插件**永不自动 merge**。
+6. 只有 Codex 按授权合并；插件只同步 GitHub 的实际合并结果，不创建 merge 任务、不执行 merge。
 7. 任何状态转换写事件日志；恢复时以事件 + 投影重建。
 
 ---
@@ -259,9 +258,9 @@ inbox → proposed → queued → specifying → implementing → verifying → 
 
 ### 6.3 合并门
 
-- 插件只把点推到 `awaiting_merge`。
-- 用户/Codex 批准后，创建 `integration` 任务；由用户/审查师执行 merge。
-- 合并后插件同步 `origin/main`、更新点 `done`、清理 worktree。
+- 插件只把点推到 `awaiting_merge`，然后等待 GitHub 事实。
+- **只有 Codex 按授权决定并执行合并**；插件不创建 `integration` 任务，也不把 merge 权限交给队长/审查师。
+- Codex 合并后，插件通过 `pr.sync` 观察到 `MERGED`，同步 `origin/main`、更新点 `done`、清理 worktree。
 - 不自动 merge、不自动关闭 PR、不自动改写用户分支。
 
 ---
@@ -326,7 +325,7 @@ export default function plugin(ctx) { /* 注册 tools/services/jobs */ }
 | `ProposalGate` | Proposal PR/Q&A/approval |
 | `ProgressPage` | 生成 HTML + data JSON |
 | `Recovery` | 幂等重放、stale attempt、预算/容量恢复 |
-| `Notifier` | 用户需要处理的决策/合并/预算报警 |
+| `Notifier` | 用户需要处理的决策/预算/异常报警（合并由 Codex） |
 
 ### 9.3 工具 API（给模型）
 
@@ -340,8 +339,7 @@ workflow.task.create|claim|update|complete|fail
 workflow.task.next(role)
 workflow.review.submit(task_id, verdict, findings)
 workflow.proposal.create|decision
-workflow.pr.sync(number)
-workflow.merge.approve(point_id)   # 只记录用户批准，不执行 merge
+workflow.pr.sync(number)   # 只读取 GitHub 状态；不执行 merge
 workflow.progress.render()
 ```
 
@@ -398,7 +396,7 @@ events(id, type, entity, payload_json, created_at)
   ],
   "roles": {"analysts": 3, "engineers": 3, "reviewers": 3},
   "concurrency": {"global": 9, "perGroup": 3},
-  "mergePolicy": "manual",
+  "mergePolicy": "codex-only",
   "reviewMaxRounds": 3,
   "pollSeconds": 60,
   "statePath": "<user-data>/mirally-workflow/state.sqlite3",
