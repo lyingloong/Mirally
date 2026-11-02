@@ -15,7 +15,173 @@ import unittest
 from unittest.mock import patch
 
 from mirally.framework import FrameworkError, FrameworkService
+from mirally.framework import delivery_health
 from mirally.framework.service import SCHEMA_VERSION
+
+
+class DeliveryHealthSnapshotTests(unittest.TestCase):
+    """Read-only delivery snapshot (SPEC-1): counts only, no content, no writes."""
+
+    MARKER = "MARKER_DELIVERY_BODY"
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.base = Path(self.temp.name) / "中文 root with spaces"
+        self.base.mkdir()
+        self.home = self.base / "个人 数据"
+        self.scratch = Path(self.temp.name) / "scratch"
+        self.scratch.mkdir()
+        self.now = 1_000_000_000_000
+        self.database = self.home / "framework" / "product.sqlite3"
+        self.services = []
+
+    def tearDown(self):
+        for service in self.services:
+            service.close()
+        self.services.clear()
+        self.temp.cleanup()
+
+    def service(self):
+        service = FrameworkService(self.base, self.home, clock=lambda: self.now)
+        # Closed in tearDown *before* the temp dir is removed: Windows keeps
+        # product.sqlite3 locked while this connection is open.
+        self.services.append(service)
+        return service
+
+    def close_services(self):
+        """Quiesce the writer so the snapshot sees checkpointed rows."""
+        for service in self.services:
+            service.close()
+        self.services.clear()
+
+    def report(self, home=None):
+        return delivery_health.build(home or self.home, work=self.scratch, now_ms=lambda: self.now)
+
+    def test_empty_home_reports_zeros_without_errors(self):
+        report = self.report()
+        self.assertEqual(report["schema"], "mirally.delivery.health.v1")
+        self.assertEqual(report["database"], "absent")
+        self.assertEqual(report["errors"], [])
+        self.assertEqual(report["counts"], dict.fromkeys(delivery_health.DELIVERY_STATUSES, 0))
+        self.assertEqual(report["stale"],
+                         {"pending_older_than_1h": 0, "sending_older_than_10m": 0, "unknown_any": 0})
+        self.assertEqual(report["commitments"],
+                         {"pending": 0, "queued": 0, "due_overdue": 0, "expired": 0})
+        self.assertEqual(report["initiatives"],
+                         {"pending": 0, "queued": 0, "expired": 0, "dismissed": 0})
+        self.assertEqual(report["inbox"], {"unread": 0})
+        self.assertFalse(self.database.exists(), "the snapshot must not create the product database")
+        self.assertEqual(delivery_health.main(
+            ["--home", str(self.home), "--json", "--scratch", str(self.scratch)]), 0)
+
+    def test_stale_pending_sending_and_unknown_are_counted(self):
+        service = self.service()
+        # pending, older than the 1h threshold, on a channel the tick never delivers.
+        service.commitment_create(title="waiting", due_at_utc_ms=self.now, request_id="p1",
+                                  channel="test-channel")
+        service.delivery_tick()
+        # sending, older than the 10m threshold: claimed, sender "died".
+        service.commitment_create(title="sending", due_at_utc_ms=self.now, request_id="s2",
+                                  channel="test-channel")
+        sending_id = service.delivery_tick()["delivery_ids"][0]
+        token = service.delivery_claim(sending_id)["claim_token"]
+        self.now += delivery_health.PENDING_STALE_MS + 1
+        # While the writer is live the pages sit in -wal and the snapshot must
+        # disclose that gap instead of reporting a clean zero.
+        live = self.report()
+        self.assertEqual(live["database"], "read")
+        self.assertIsNone(live["stale"]["pending_older_than_1h"])
+        service.delivery_ack(sending_id, token, state="unknown", receipt={"provider_id": "lost"})
+        self.close_services()
+        report = self.report()
+        self.assertEqual(report["stale"]["pending_older_than_1h"], 1)
+        self.assertEqual(report["stale"]["unknown_any"], 1)
+        self.assertEqual(report["counts"]["pending"], 1)
+        self.assertEqual(report["counts"]["unknown"], 1)
+        # The commitment already counts as overdue while its delivery is stuck.
+        self.assertEqual(report["commitments"]["due_overdue"], 2)
+
+    def test_overdue_commitment_and_expired_initiative_are_visible(self):
+        service = self.service()
+        service.commitment_create(title="overdue", due_at_utc_ms=self.now + 10, request_id="o1",
+                                  channel="test-channel")
+        service.initiative_offer(title="topic", body="body", reason="relevant", dedupe_key="d1",
+                                 expires_at_utc_ms=self.now + 10)
+        self.now += 100
+        service.delivery_tick()  # expires the initiative; the test channel never delivers
+        self.close_services()
+        report = self.report()
+        self.assertEqual(report["commitments"]["due_overdue"], 1)
+        self.assertEqual(report["initiatives"]["expired"], 1)
+        self.assertEqual(report["initiatives"]["pending"], 0)
+        self.assertEqual(report["by_kind"]["pending"]["commitment"], 1)
+        # An inbox reminder is delivered immediately and becomes `fulfilled`,
+        # so it stops counting as overdue.
+        service = self.service()
+        service.commitment_create(title="now", due_at_utc_ms=self.now, request_id="o2")
+        service.delivery_tick()
+        self.close_services()
+        report = self.report()
+        self.assertEqual(report["counts"]["delivered"], 1)
+        self.assertEqual(report["by_channel"]["inbox"], 1)
+        self.assertEqual(report["inbox"]["unread"], 1)
+        self.assertEqual(report["commitments"]["due_overdue"], 1)
+
+    def test_sensitive_content_never_reaches_the_snapshot(self):
+        service = self.service()
+        service.initiative_offer(title=self.MARKER, body=self.MARKER, reason=self.MARKER,
+                                 dedupe_key=self.MARKER, expires_at_utc_ms=self.now + 10)
+        service.commitment_create(title=self.MARKER, body=self.MARKER,
+                                  due_at_utc_ms=self.now, request_id=self.MARKER,
+                                  channel="test-channel")
+        identity = service.delivery_tick()["delivery_ids"][0]
+        token = service.delivery_claim(identity)["claim_token"]
+        service.delivery_ack(identity, token, state="failed",
+                             receipt={"provider_id": self.MARKER, "detail": self.MARKER})
+        self.close_services()
+        report = self.report()
+        rendered = json.dumps(report, ensure_ascii=False)
+        self.assertNotIn(self.MARKER, rendered)
+        for leaked in ("provider_id", "reference_id", "title", "body", "receipt",
+                       "sources", "claim_token"):
+            self.assertNotIn(leaked, rendered)
+        # Neither the home path nor its non-ASCII directory names may leak.
+        for fragment in (str(self.home), str(self.home).replace("\\", "/"), "个人 数据",
+                         self.base.name):
+            self.assertNotIn(fragment, rendered)
+        self.assertGreaterEqual(report["counts"]["failed"], 1)
+
+    def test_snapshot_is_read_only_for_the_product_database(self):
+        service = self.service()
+        service.commitment_create(title="audit me", due_at_utc_ms=self.now, request_id="ro1")
+        service.delivery_tick()
+        service.close()
+        # Compare bytes rather than reading through a handle: on Windows an
+        # open SQLite connection keeps the file locked for the whole test.
+        before = self.database.read_bytes()
+        mtime = self.database.stat().st_mtime_ns
+        entries_before = sorted(path.name for path in self.database.parent.iterdir())
+        self.report()
+        self.assertEqual(self.database.read_bytes(), before)
+        self.assertEqual(self.database.stat().st_mtime_ns, mtime)
+        # Opening a WAL database read-only still creates -wal/-shm, so the
+        # snapshot must read a copy: nothing new may appear beside the source,
+        # and the caller's work directory must be left empty.
+        self.assertEqual(entries_before, sorted(path.name for path in self.database.parent.iterdir()))
+        self.assertEqual(sorted(self.scratch.iterdir()), [])
+        self.assertEqual(self.report(), self.report())
+
+    def test_unreadable_database_discloses_errors_instead_of_zeros(self):
+        self.database.parent.mkdir(parents=True)
+        self.database.write_bytes(b"this is not a sqlite database")
+        report = self.report()
+        self.assertNotEqual(report["errors"], [])
+        self.assertEqual(report["database"], "unreadable")
+        # Missing measurements must never be reported as a clean zero.
+        self.assertIsNone(report["counts"]["pending"])
+        self.assertIsNone(report["stale"]["unknown_any"])
+        self.assertEqual(delivery_health.main(
+            ["--home", str(self.home), "--json", "--scratch", str(self.scratch)]), 1)
 
 
 class FrameworkProductTests(unittest.TestCase):
