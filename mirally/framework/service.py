@@ -895,7 +895,25 @@ class FrameworkService:
             state = "status"
             for row in self.db.execute(f"SELECT id,sources_json FROM {table} WHERE {state} IN ('pending','sending')").fetchall():
                 if any(ref["source_id"] == source_id for ref in json.loads(row["sources_json"])):
-                    self.db.execute(f"UPDATE {table} SET status='cancelled' WHERE id=?", (row["id"],))
+                    if table == "deliveries":
+                        # Same shape as the other cancel paths (:commitment_cancel,
+                        # :initiative_dismiss): record when the delivery was
+                        # cancelled, and keep why in the receipt so a later
+                        # "user dismissed / source revoked / replaced" question is
+                        # answerable. Only the enum is stored, never source content.
+                        basis = "source_disabled" if not enabled else "source_changed"
+                        existing = self.db.execute("SELECT receipt_json FROM deliveries WHERE id=?", (row["id"],)).fetchone()
+                        receipt = json.loads(existing["receipt_json"]) if existing and existing["receipt_json"] else {}
+                        if not isinstance(receipt, dict):
+                            # Never drop a non-object receipt: keep it under a key instead.
+                            receipt = {"previous_receipt": receipt}
+                        receipt["cancelled_basis"] = basis
+                        self.db.execute("UPDATE deliveries SET status='cancelled',updated_at=?,receipt_json=? WHERE id=?",
+                                        (self.clock(), _json(receipt), row["id"]))
+                    else:
+                        # initiatives has no updated_at column and this change must
+                        # not add one; only the cancel judgement stays as before.
+                        self.db.execute(f"UPDATE {table} SET status='cancelled' WHERE id=?", (row["id"],))
         return {**self._source(source_id), "affected": affected}
 
     def source_set(self, source_id: str, enabled: bool, reason: str = "user_changed_source") -> dict[str, Any]:
