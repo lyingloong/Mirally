@@ -86,11 +86,11 @@ class DeliveryHealthSnapshotTests(unittest.TestCase):
         sending_id = service.delivery_tick()["delivery_ids"][0]
         token = service.delivery_claim(sending_id)["claim_token"]
         self.now += delivery_health.PENDING_STALE_MS + 1
-        # While the writer is live the pages sit in -wal and the snapshot must
-        # disclose that gap instead of reporting a clean zero.
+        # A live writer is fine now: the -wal is part of the snapshot, so the
+        # stale pending row is counted even before the writer checkpoints.
         live = self.report()
-        self.assertEqual(live["database"], "read")
-        self.assertIsNone(live["stale"]["pending_older_than_1h"])
+        self.assertEqual(live["database"], "present")
+        self.assertEqual(live["stale"]["pending_older_than_1h"], 1)
         service.delivery_ack(sending_id, token, state="unknown", receipt={"provider_id": "lost"})
         self.close_services()
         report = self.report()
@@ -182,6 +182,87 @@ class DeliveryHealthSnapshotTests(unittest.TestCase):
         self.assertIsNone(report["stale"]["unknown_any"])
         self.assertEqual(delivery_health.main(
             ["--home", str(self.home), "--json", "--scratch", str(self.scratch)]), 1)
+
+    def test_snapshot_sees_rows_a_live_writer_has_not_checkpointed(self):
+        """P1: immutable=1 alone dropped committed rows still sitting in -wal."""
+        seeded = self.service()
+        seeded.commitment_create(title="checked in", due_at_utc_ms=self.now, request_id="w1",
+                                 channel="test-channel")
+        seeded.delivery_tick()
+        seeded.close()                      # schema and the first row are checkpointed
+        self.services.clear()
+        # A live writer commits a second pending row; it lives only in -wal.
+        live = self.service()
+        self.now += 100_000
+        live.commitment_create(title="still in wal", due_at_utc_ms=self.now, request_id="w2",
+                               channel="test-channel")
+        live.delivery_tick()
+        self.assertTrue(Path(str(self.database) + "-wal").is_file())
+        before = sorted(path.name for path in self.database.parent.iterdir())
+        report = self.report()
+        self.assertEqual(report["database"], "present")
+        # Both rows: the checkpointed one and the one only present in -wal.
+        self.assertEqual(report["counts"]["pending"], 2)
+        self.assertNotIn("deliveries", [error["section"] for error in report["errors"]])
+        # The source is left exactly as the writer had it.
+        self.assertEqual(before, sorted(path.name for path in self.database.parent.iterdir()))
+
+    def test_scratch_parent_files_are_never_used_or_removed(self):
+        """P1: a caller's own product.sqlite3 inside --scratch must survive."""
+        service = self.service()
+        service.commitment_create(title="audit me", due_at_utc_ms=self.now, request_id="s1")
+        service.delivery_tick()
+        service.close()
+        self.services.clear()
+        caller_copy = self.scratch / "product.sqlite3"
+        caller_copy.write_bytes(b"caller owned bytes")
+        sibling = self.scratch / "notes.txt"
+        sibling.write_text("keep me", encoding="utf-8")
+        report = self.report()
+        self.assertEqual(report["counts"]["delivered"], 1)
+        # The caller's files are untouched, and no work directory is left behind.
+        self.assertEqual(caller_copy.read_bytes(), b"caller owned bytes")
+        self.assertEqual(sibling.read_text(encoding="utf-8"), "keep me")
+        self.assertEqual(sorted(path.name for path in self.scratch.iterdir()),
+                         ["notes.txt", "product.sqlite3"])
+
+    def test_scratch_subdirectory_is_exclusive_and_cleaned_up(self):
+        """The copy lives in a private mkdtemp subdirectory, removed afterwards."""
+        service = self.service()
+        service.commitment_create(title="audit me", due_at_utc_ms=self.now, request_id="s2")
+        service.delivery_tick()
+        service.close()
+        self.services.clear()
+        created = []
+        real_mkdtemp = tempfile.mkdtemp
+
+        def recording_mkdtemp(*args, **kwargs):
+            path = real_mkdtemp(*args, **kwargs)
+            created.append(Path(path))
+            return path
+
+        with patch.object(delivery_health.tempfile, "mkdtemp", recording_mkdtemp):
+            report = self.report()
+        self.assertEqual(report["counts"]["delivered"], 1)
+        self.assertEqual(len(created), 1)
+        self.assertEqual(created[0].parent, self.scratch)
+        self.assertFalse(created[0].exists(), "the private directory must be removed")
+        self.assertEqual(sorted(path.name for path in self.scratch.iterdir()), [])
+
+    def test_overlapping_scratch_and_home_is_rejected_without_damage(self):
+        """A ``--scratch`` inside the product data must not touch the source."""
+        service = self.service()
+        service.commitment_create(title="audit me", due_at_utc_ms=self.now, request_id="s3")
+        service.delivery_tick()
+        service.close()
+        self.services.clear()
+        before = self.database.read_bytes()
+        code = delivery_health.main(["--home", str(self.home), "--json",
+                                     "--scratch", str(self.database.parent)])
+        self.assertIn(code, (0, 1))
+        self.assertEqual(self.database.read_bytes(), before)
+        self.assertEqual(sorted(path.name for path in self.database.parent.iterdir()),
+                         ["product.sqlite3"])
 
 
 class FrameworkProductTests(unittest.TestCase):

@@ -8,10 +8,11 @@ product, a model, a channel or any credential.
 
 The snapshot only emits counts and status enums. It never selects
 ``reference_id``, ``title``, ``body``, ``receipt_json``, ``sources_json``,
-claim tokens, channel destinations or the absolute home path, and it opens
-``product.sqlite3`` through a consistent snapshot copy so the source file is
-never opened, locked or migrated (a ``?mode=ro`` open alone still creates
-WAL sidecars, so the copy is required -- see the tests).
+claim tokens, channel destinations or the absolute home path, and it reads
+``product.sqlite3`` through SQLite's online backup API, which sees rows an
+active writer has not checkpointed yet. The backup is written to a private
+directory created under ``--scratch`` for this call only, so neither the
+product home nor the caller's scratch directory is ever modified.
 """
 
 from __future__ import annotations
@@ -56,26 +57,31 @@ def _iso(value: int | None) -> str:
 
 
 def _snapshot_copy(database: Path, work: Path) -> Path:
-    """Copy the database without ever opening the original for reading.
+    """Consistent copy of a WAL database, main file and ``-wal`` together.
 
-    This tool's contract is "nothing on disk changes". Two cheaper options were
-    measured and rejected:
+    The pair must be copied as one unit: copying the main file alone silently
+    returns an older history (measured with a live writer: 1 row instead of 2).
 
-    * ``?mode=ro`` (and the online backup API, which goes through it) creates
-      ``-wal``/``-shm`` next to the product database when the read-only
-      connection closes. That is a change to the product's directory.
-    * a plain file copy silently loses rows: with a running writer the newest
-      rows live only in ``-wal`` and the copy reads back as an empty history.
+    The copy is then opened read-write *once* -- on a throwaway file, never the
+    store -- so SQLite runs its own WAL recovery and folds the journal into the
+    main file. After that close the copy is a self-contained rollback-journal
+    database that any read-only reader sees in full.
 
-    So the copy carries ``-wal`` along and is opened with ``immutable=1``,
-    which reads the pair with no sidecars and no locks.
+    The source is only ever read (``shutil.copy2``), so nothing is created,
+    locked or migrated next to it.
     """
     work.mkdir(parents=True, exist_ok=True)
     target = work / database.name
     shutil.copy2(database, target)
-    wal = Path(str(database) + "-wal")
-    if wal.is_file():
-        shutil.copy2(wal, Path(str(target) + "-wal"))
+    journal = Path(str(database) + "-wal")
+    if journal.is_file():
+        shutil.copy2(journal, Path(str(target) + "-wal"))
+    recovered = sqlite3.connect(str(target))
+    try:
+        # Replays -wal into the copy and drops the journal when it closes.
+        recovered.execute("SELECT count(*) FROM sqlite_master").fetchone()
+    finally:
+        recovered.close()
     return target
 
 
@@ -117,23 +123,24 @@ def build(home: Path, *, work: Path, now_ms: Callable[[], int] = _utc_now_ms) ->
         return report
 
     connection = None
-    copy = None
+    # Every temporary artefact goes into a private directory created under
+    # ``work``. ``mkdtemp`` is atomic and collision-free, so a caller-supplied
+    # ``--scratch`` holding their own product.sqlite3 is never touched, and the
+    # cleanup below can only ever remove what this call created.
+    scratch = Path(tempfile.mkdtemp(prefix="delivery-health-", dir=work))
     try:
-        copy = _snapshot_copy(database, work)
-        connection = sqlite3.connect(copy.resolve().as_uri() + "?mode=ro&immutable=1", uri=True,
-                                     timeout=5)
+        copy = _snapshot_copy(database, scratch)
+        connection = sqlite3.connect(copy.resolve().as_uri() + "?mode=ro", uri=True, timeout=5)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA query_only=ON")
         now = now_ms()
         schema_objects = connection.execute(
             "SELECT COUNT(*) FROM sqlite_master").fetchone()[0]
         if not schema_objects:
-            # A WAL database whose writer holds the schema in -wal reads back
-            # empty here. Reporting zeros would be a silent lie about a product
-            # that clearly has state, so this is a disclosed gap instead.
+            # A database with no schema at all cannot be summarised; say so
+            # instead of reporting a clean zero.
             return _unreadable(report, errors, "read", "database",
-                               "no schema visible; a writer holds the pages in -wal, "
-                               "run the snapshot against a quiescent home")
+                               "no schema visible in the snapshot copy")
         for table in ("deliveries", "commitments", "initiatives", "inbox"):
             if not _table_present(connection, table):
                 errors.append({"section": table, "reason": "table missing"})
@@ -149,14 +156,8 @@ def build(home: Path, *, work: Path, now_ms: Callable[[], int] = _utc_now_ms) ->
     finally:
         if connection is not None:
             connection.close()
-        # The snapshot copy is a temporary artefact: close it (above) and remove
-        # it so the caller's work directory stays clean and nothing stays locked.
-        if copy is not None:
-            for leftover in (copy, Path(str(copy) + "-wal"), Path(str(copy) + "-shm")):
-                try:
-                    leftover.unlink(missing_ok=True)
-                except OSError:
-                    pass
+        # Remove only the private directory this call created.
+        shutil.rmtree(scratch, ignore_errors=True)
 
 
 def _unreadable(report: dict[str, Any], errors: list[dict[str, str]], state: str,
@@ -254,11 +255,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--home", required=True, help="product home to inspect (opened read-only)")
     parser.add_argument("--json", action="store_true", help="print the machine-readable report only")
     parser.add_argument("--scratch", default=None,
-                        help="empty directory for the snapshot copy (defaults to the system temp dir)")
+                        help="parent directory for a private work subdirectory "
+                             "(defaults to the system temp dir); never written to directly")
     args = parser.parse_args(argv)
     home = Path(args.home).expanduser()
-    # The snapshot only needs an empty directory. Allowing an explicit one keeps
-    # it usable on hosts (or CI containers) without a writable system temp dir.
+    # ``work`` is only a parent: build() creates an exclusive subdirectory in it
+    # and removes that subdirectory again, so neither this tool's temp dir nor a
+    # caller-supplied --scratch is ever used for the copy itself.
     work = Path(args.scratch) if args.scratch else Path(tempfile.mkdtemp(prefix="mirally-delivery-health-"))
     if args.scratch:
         work.mkdir(parents=True, exist_ok=True)
