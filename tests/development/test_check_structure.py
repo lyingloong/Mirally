@@ -145,6 +145,22 @@ class ImportDirectionTests(unittest.TestCase):
         self.assertEqual([item["import"] for item in result["violations"]], ["mirally.runtime"])
 
 
+class IndexDerivationTests(unittest.TestCase):
+    def test_top_level_and_tools_entries_are_derived_from_index_paths(self):
+        files = [
+            "README.md",
+            "docs/x.md",
+            "tools/check_a.py",
+            "tools/dev_workflow/ops.py",
+            "tools/litter.py",
+        ]
+        self.assertEqual(check_structure._top_level_entries(files), ["README.md", "docs", "tools"])
+        self.assertEqual(
+            check_structure._tools_direct_entries(files),
+            ["check_a.py", "dev_workflow", "litter.py"],
+        )
+
+
 class ReportTests(unittest.TestCase):
     def test_current_checkout_audit_is_clean_and_json_is_machine_readable(self):
         result = subprocess.run([sys.executable, str(TOOL), "--json"], cwd=str(ROOT), capture_output=True, text=True)
@@ -185,6 +201,50 @@ class ReportTests(unittest.TestCase):
         report = json.loads(result.stdout)
         self.assertFalse(report["ok"])
         self.assertEqual(report["checks"]["top_level"]["unregistered"], ["unregistered"])
+
+    def test_staged_uncommitted_root_and_tools_files_are_reported(self):
+        # No commit at all: the audit must follow the index, not HEAD.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "-C", str(root), "init", "-q"], check=True, capture_output=True)
+            (root / "README.md").write_text("# fixture\n", encoding="utf-8")
+            (root / "tools").mkdir()
+            (root / "tools" / "check_fixture.py").write_text("", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "."], check=True, capture_output=True)
+            (root / "rogue_root.txt").write_text("x\n", encoding="utf-8")
+            (root / "tools" / "litter.py").write_text("", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "-A"], check=True, capture_output=True)
+            result = subprocess.run([sys.executable, str(TOOL), "--root", str(root), "--json"],
+                                    capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        report = json.loads(result.stdout)
+        self.assertFalse(report["ok"])
+        self.assertEqual(report["checks"]["top_level"]["unregistered"], ["rogue_root.txt"])
+        self.assertEqual(
+            [item["entry"] for item in report["checks"]["tools"]["violations"]],
+            ["litter.py"],
+        )
+
+    def test_chinese_path_import_direction_is_checked_from_the_index(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "-C", str(root), "init", "-q"], check=True, capture_output=True)
+            (root / "README.md").write_text("# fixture\n", encoding="utf-8")
+            (root / "mirally" / "core").mkdir(parents=True)
+            (root / "mirally" / "core" / "中文 模块.py").write_text("import mirally.runtime\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "-A"], check=True, capture_output=True)
+            subprocess.run([
+                "git", "-C", str(root), "-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid",
+                "commit", "-qm", "fixture",
+            ], check=True, capture_output=True)
+            result = subprocess.run([sys.executable, str(TOOL), "--root", str(root), "--json"],
+                                    capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(
+            [(item["file"], item["import"]) for item in report["checks"]["imports"]["violations"]],
+            [("mirally/core/中文 模块.py", "mirally.runtime")],
+        )
 
 
 if __name__ == "__main__":

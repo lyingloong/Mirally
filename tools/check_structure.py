@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import os
 import re
 import subprocess
 import sys
@@ -74,21 +75,41 @@ IMPORT_EXCEPTIONS = {
 }
 
 
-def _git_lines(root: Path, *arguments: str) -> list[str]:
-    """Return non-empty stdout lines from one git command."""
+def _git_index_paths(root: Path) -> list[str]:
+    """Return every index path as a filesystem string.
+
+    ``-z`` prints raw, NUL-separated paths: unlike the default output it does
+    not quote or octal-escape non-ASCII names, so the prefix checks below see
+    the real path (e.g. ``mirally/core/中文.py``). The index, not ``HEAD``, is
+    the source of truth, so staged-but-uncommitted files are audited too.
+    """
     try:
         result = subprocess.run(
-            ["git", "-C", str(root), *arguments],
+            ["git", "-C", str(root), "ls-files", "-z"],
             capture_output=True,
-            text=True,
             check=True,
         )
     except FileNotFoundError as error:
         raise RuntimeError("git is required to audit tracked files") from error
     except subprocess.CalledProcessError as error:
-        detail = (error.stderr or "").strip() or f"git {' '.join(arguments)} failed"
+        detail = (error.stderr or b"").decode("utf-8", "replace").strip() or "git ls-files -z failed"
         raise RuntimeError(detail) from error
-    return [line for line in result.stdout.splitlines() if line]
+    return [os.fsdecode(path) for path in result.stdout.split(b"\0") if path]
+
+
+def _top_level_entries(files: list[str]) -> list[str]:
+    """Top-level components of index paths (files and their directories)."""
+    return sorted({path.split("/", 1)[0] for path in files})
+
+
+def _tools_direct_entries(files: list[str]) -> list[str]:
+    """Direct entries under tools/ derived from index paths."""
+    entries: set[str] = set()
+    for path in files:
+        parts = path.split("/")
+        if parts[0] == "tools" and len(parts) > 1:
+            entries.add(parts[1])
+    return sorted(entries)
 
 
 def check_top_level(entries: list[str], allowed: frozenset[str] = TOP_LEVEL_ALLOWED) -> dict[str, Any]:
@@ -191,13 +212,11 @@ def check_imports(root: Path, files: list[str]) -> dict[str, Any]:
 
 def audit(root: Path = REPO_ROOT) -> dict[str, Any]:
     root = Path(root)
-    entries = _git_lines(root, "ls-tree", "--name-only", "HEAD")
-    files = _git_lines(root, "ls-files")
-    tools_entries = _git_lines(root, "ls-tree", "--name-only", "HEAD:tools")
+    files = _git_index_paths(root)
     checks = {
-        "top_level": check_top_level(entries),
+        "top_level": check_top_level(_top_level_entries(files)),
         "artifacts": check_artifacts(files),
-        "tools": check_tools(tools_entries),
+        "tools": check_tools(_tools_direct_entries(files)),
         "imports": check_imports(root, files),
     }
     return {"ok": all(check["ok"] for check in checks.values()), "root": str(root), "checks": checks}
@@ -237,7 +256,10 @@ def main(argv: list[str] | None = None) -> int:
     except RuntimeError as error:
         report = {"ok": False, "root": str(args.root), "error": str(error)}
     if args.json:
-        print(json.dumps(report, ensure_ascii=False, indent=2))
+        # Reports can quote non-ASCII paths; a legacy console code page (cp1252)
+        # must not turn the audit result into a UnicodeEncodeError.
+        encoding = sys.stdout.encoding or "utf-8"
+        print(json.dumps(report, ensure_ascii=False, indent=2).encode(encoding, "backslashreplace").decode(encoding))
     elif "error" in report:
         print(f"error: {report['error']}", file=sys.stderr)
     else:
