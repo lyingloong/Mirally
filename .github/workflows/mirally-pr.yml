@@ -68,7 +68,11 @@ jobs:
             'tests.test_framework_conversation_resolve',
             'tests.test_framework_weixin_assistant_security',
             'tests.test_framework_conversation_metadata',
-            'tests.test_framework_recaps'
+            'tests.test_framework_recaps',
+            'tests.test_memory_store',
+            'tests.test_memory_recall',
+            'tests.test_memory_synthesis',
+            'tests.test_memory_config_reload'
           )
           .\.venv\Scripts\python.exe -m unittest @tests -v
 
