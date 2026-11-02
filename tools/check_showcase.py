@@ -8,9 +8,11 @@ Run from the repository root:
 The audit reads only tracked pages under ``showcase/``: document metadata
 (``lang``, ``<title>``, viewport, exactly one ``<h1>``), external http(s)
 references (upstream license/credits files are exempt through an explicit
-list), per-tag ``<img>`` alt coverage, ``prefers-reduced-motion`` support and,
-when ``showcase/exports/*.html`` exists, the offline self-containment and
-script syntax of that export. Nothing is written and nothing is downloaded;
+list), per-tag ``<img>`` alt coverage (attributes are matched by complete name,
+so ``data-alt`` does not count as ``alt``), ``prefers-reduced-motion`` support
+and, when ``showcase/exports/*.html`` exists, the offline self-containment of
+that export: script syntax, and every local script/stylesheet it references must
+already exist next to the page. Nothing is written and nothing is downloaded;
 exit code 0 means clean, 1 means findings, 2 means bad arguments.
 """
 
@@ -37,12 +39,20 @@ EXTERNAL_WHITELIST = (
 )
 HTTP = re.compile(r"https?://[^\s\"'<>)]+")
 IMG_TAG = re.compile(r"<img\b[^>]*>", re.IGNORECASE | re.DOTALL)
-ALT_ATTR = re.compile(r"\balt\s*=\s*(?:\"([^\"]*)\"|'([^']*)'|\{([^}]*)\})", re.IGNORECASE)
+# A JSX/HTML attribute: a complete attribute name plus ``=`` and its value.
+# ``data-alt="…"`` must not satisfy the alt requirement, so attributes are
+# parsed by whole name instead of searching for a ``\balt`` substring.
+ATTRIBUTE = re.compile(
+    r"([A-Za-z_][\w:.-]*)\s*=\s*(?:\"([^\"]*)\"|'([^']*)'|\{([^}]*)\})",
+    re.DOTALL,
+)
 H1 = re.compile(r"<h1\b", re.IGNORECASE)
 REDUCED_MOTION = re.compile(r"prefers-reduced-motion", re.IGNORECASE)
 SCRIPT_TAG = re.compile(r"<script\b([^>]*)>(.*?)</script>", re.IGNORECASE | re.DOTALL)
+LINK_TAG = re.compile(r"<link\b([^>]*)>", re.IGNORECASE)
 EXPORT_ATTR_HTTP = re.compile(r"\b(?:src|href)\s*=\s*[\"']https?://", re.IGNORECASE)
 RESIDUAL_IMAGE_PATH = re.compile(r"[\"'](?:\./)?images/")
+EMBEDDED_URL = re.compile(r"^(?:data:|#|$)", re.IGNORECASE)
 
 
 def page_files(root: Path) -> list[Path]:
@@ -97,6 +107,22 @@ def check_external(files: list[Path], root: Path) -> tuple[list[str], dict[str, 
     return problems, {"license_links": exempt}
 
 
+def attributes(tag: str) -> dict[str, str | None]:
+    """Map complete attribute names to their literal value (None if dynamic).
+
+    ``{expression}`` values are returned as ``None`` because the audit cannot
+    evaluate them statically. Names are compared case-insensitively, matching
+    HTML attribute semantics.
+    """
+    parsed: dict[str, str | None] = {}
+    for match in ATTRIBUTE.finditer(tag):
+        name = match.group(1).lower()
+        dynamic = match.group(4) is not None
+        value = next((group for group in match.groups()[1:] if group is not None), "")
+        parsed.setdefault(name, None if dynamic else value)
+    return parsed
+
+
 def check_images(files: list[Path], root: Path, strict: bool) -> tuple[list[str], list[str], int]:
     # ``alt=""`` is the HTML-spec marker for a decorative image, so the default
     # audit accepts it and reports the spec's extra aria-hidden/role rule as an
@@ -111,17 +137,20 @@ def check_images(files: list[Path], root: Path, strict: bool) -> tuple[list[str]
             total += 1
             tag = match.group(0)
             where = f"{name}:{line_of(text, match.start())}"
-            alt = ALT_ATTR.search(tag)
-            if alt is None:
+            parsed = attributes(tag)
+            if "alt" not in parsed:
                 problems.append(f"{where}: <img> is missing an alt attribute")
                 continue
-            value = next((group for group in alt.groups() if group is not None), "")
-            if value.strip() or alt.group(3) is not None:
-                continue  # descriptive or dynamic alt text: author intent stated
-            marked = re.search(r"\baria-hidden\s*=\s*[\"']true[\"']|\brole\s*=\s*[\"']presentation[\"']", tag, re.IGNORECASE)
-            if marked:
+            alt = parsed["alt"]
+            if alt is None:
+                continue  # dynamic alt={expression}: author intent stated
+            if alt.strip():
+                continue  # descriptive alt text
+            if parsed.get("aria-hidden", "").strip().lower() == "true" or (
+                parsed.get("role", "").strip().lower() == "presentation"
+            ):
                 continue
-            message = f"{where}: decorative alt=\"\" without aria-hidden or role=presentation"
+            message = f'{where}: decorative alt="" without aria-hidden or role=presentation'
             (problems if strict else notes).append(message)
     return problems, notes, total
 
@@ -130,6 +159,31 @@ def check_reduced_motion(files: list[Path]) -> tuple[list[str], dict[str, int]]:
     uses = sum(len(REDUCED_MOTION.findall(read(path))) for path in files if path.suffix in {".css", ".js", ".jsx", ".mjs"})
     problems = [] if uses else ["showcase: no prefers-reduced-motion handling found in styles or scripts"]
     return problems, {"reduced_motion": uses}
+
+
+def check_export_resources(text: str, page: Path, name: str) -> list[str]:
+    """Require every local script/stylesheet an exported page references to exist."""
+    problems: list[str] = []
+    references: list[tuple[str, str, int]] = []
+    for tag in SCRIPT_TAG.finditer(text):
+        parsed = attributes(tag.group(1))
+        if parsed.get("src"):
+            references.append(("script", parsed["src"] or "", tag.start()))
+    for tag in LINK_TAG.finditer(text):
+        parsed = attributes(tag.group(1))
+        if (parsed.get("rel") or "").strip().lower() == "stylesheet" and parsed.get("href"):
+            references.append(("stylesheet", parsed["href"] or "", tag.start()))
+    for kind, reference, offset in references:
+        if EMBEDDED_URL.match(reference.strip()) or reference.strip().startswith("//"):
+            continue  # already inlined (data:), a fragment, or protocol-relative
+        where = f"{name}:{line_of(text, offset)}"
+        if re.match(r"^[a-z][a-z0-9+.-]*:", reference.strip(), re.IGNORECASE) or reference.strip().startswith("/"):
+            problems.append(f"{where}: exported page references non-relative {kind} {reference}")
+            continue
+        local = (page.parent / reference.split("?", 1)[0].split("#", 1)[0]).resolve()
+        if not local.is_file():
+            problems.append(f"{where}: exported page references missing local {kind} {reference}")
+    return problems
 
 
 def check_exports(root: Path) -> tuple[list[str], list[str], int]:
@@ -147,6 +201,7 @@ def check_exports(root: Path) -> tuple[list[str], list[str], int]:
             problems.append(f"{name}:{line_of(text, match.start())}: exported page keeps an external src/href")
         for match in RESIDUAL_IMAGE_PATH.finditer(text):
             problems.append(f"{name}:{line_of(text, match.start())}: exported page keeps a residual relative image path")
+        problems += check_export_resources(text, path, name)
         for number, script in enumerate(SCRIPT_TAG.finditer(text), 1):
             if re.search(r"\bsrc\s*=", script.group(1), re.IGNORECASE):
                 continue

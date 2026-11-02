@@ -96,6 +96,39 @@ class ShowcaseAuditTests(unittest.TestCase):
         self.assertEqual(len(strict["problems"]), 1, strict["problems"])
         self.assertIn("aria-hidden", strict["problems"][0])
 
+    def test_prefixed_attribute_names_do_not_satisfy_alt(self) -> None:
+        # ``data-alt``/``aria-label`` are not ``alt``; a regression here would
+        # silently pass images that screen readers cannot describe.
+        app = (
+            'export function App() {\n'
+            '  return <>\n'
+            '    <h1>A</h1>\n'
+            '    <img src="./a.png" data-alt="description" />\n'
+            '    <img src="./b.png" aria-label="description" />\n'
+            '    <img src="./c.png" alt="ok" />\n'
+            '  </>;\n'
+            '}\n'
+        )
+        result = self.audit(self.fixture(app=app))
+        self.assertEqual(result["summary"]["images"], 3)
+        self.assertEqual(len(result["problems"]), 2, result["problems"])
+        self.assertTrue(all("missing an alt attribute" in problem for problem in result["problems"]))
+        self.assertIn("App.jsx:4", result["problems"][0])
+
+    def test_alt_attribute_name_is_matched_whole_and_case_insensitively(self) -> None:
+        app = (
+            'export function App() {\n'
+            '  return <>\n'
+            '    <h1>A</h1>\n'
+            '    <img src="./a.png" ALT="" aria-hidden="true" />\n'
+            '    <img src="./b.png" Alt={label} />\n'
+            '  </>;\n'
+            '}\n'
+        )
+        result = self.audit(self.fixture(app=app))
+        self.assertEqual(result["problems"], [])
+        self.assertEqual(result["notes"], [])
+
     def test_external_reference_is_rejected_but_license_files_are_exempt(self) -> None:
         app = 'export function App() {\n  return <><h1>A</h1><img src="https://cdn.example.com/a.png" alt="A" /></>;\n}\n'
         result = self.audit(self.fixture(app=app))
@@ -126,6 +159,55 @@ class ShowcaseAuditTests(unittest.TestCase):
             self.assertIn("node --check", joined)
         else:
             self.assertTrue(any("node is unavailable" in note for note in result["notes"]))
+
+    def test_export_missing_local_script_or_stylesheet_is_reported(self) -> None:
+        # An offline page that points at missing local files parses fine but
+        # cannot render or run, so presence must be verified, not assumed.
+        root = self.fixture()
+        export = root / "showcase" / "exports" / "Mirally.html"
+        export.parent.mkdir(parents=True)
+        export.write_text(
+            '<!doctype html><html><head><link rel="stylesheet" href="missing.css"></head>\n'
+            '<body><script src="missing.js"></script></body></html>\n',
+            encoding="utf-8",
+        )
+        result = self.audit(root)
+        joined = "\n".join(result["problems"])
+        self.assertIn("missing local script missing.js", joined)
+        self.assertIn("missing local stylesheet missing.css", joined)
+
+    def test_export_local_resources_that_exist_are_accepted(self) -> None:
+        root = self.fixture()
+        exports = root / "showcase" / "exports"
+        (exports / "assets").mkdir(parents=True)
+        (exports / "assets" / "app.js").write_text('var ok = 1;\n', encoding="utf-8")
+        (exports / "assets" / "style.css").write_text("body { color: #111; }\n", encoding="utf-8")
+        (exports / "Mirally.html").write_text(
+            '<!doctype html><html><head>'
+            '<link rel="stylesheet" href="./assets/style.css">'
+            '<link rel="icon" href="missing-icon.png">'
+            '<link rel="stylesheet" href="data:text/css,body%7B%7D">'
+            '</head>\n<body><script src="./assets/app.js"></script></body></html>\n',
+            encoding="utf-8",
+        )
+        result = self.audit(root)
+        self.assertEqual(result["summary"]["exports"], 1)
+        self.assertEqual(result["problems"], [], result["problems"])
+
+    def test_export_non_relative_resource_reference_is_reported(self) -> None:
+        root = self.fixture()
+        export = root / "showcase" / "exports" / "Mirally.html"
+        export.parent.mkdir(parents=True)
+        export.write_text(
+            '<!doctype html><html><head></head>\n'
+            '<body><script src="/assets/app.js"></script></body></html>\n',
+            encoding="utf-8",
+        )
+        result = self.audit(root)
+        self.assertTrue(
+            any("non-relative script /assets/app.js" in problem for problem in result["problems"]),
+            result["problems"],
+        )
 
     def test_repository_baseline_is_clean(self) -> None:
         result = check_showcase.audit(ROOT)
