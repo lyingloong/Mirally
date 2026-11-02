@@ -251,6 +251,23 @@ free_slots     = max(0, concurrency - load)
 
 命令输出均为 JSON（`status` 加 `--json` 也是），便于队长读取。`set-status` 不能直接设置 `blocked`、`awaiting_merge`、`merging`、`done`，必须使用对应专用命令；也不能从 `queued` 直接进入 `specifying`（必须用 `start`，`--force` 只用于明确恢复），不能从 `proposed` 直接进入 `queued`（必须用 `promote`）。如果正常转换会增加负载但没有空槽，会登记 `blocked` / `blocked_reason=capacity`，不会强行超载或丢失返工意图；槽位释放后 `resume`。
 
+## 进度页
+
+`tools/dev_workflow/progress_page.py` 把 `state.json` 渲染成一张**只读**的 HTML 进度页，供用户和队长在一个页面里看到全部开发点、待合并池和数据缺口。它只读状态、不写状态：页面上的任何操作都不会改变调度，也不会触发合并。
+
+```powershell
+# 离线生成（默认，只读缓存的 PR 数据）
+.\.venv\Scripts\python.exe tools\dev_workflow\progress_page.py
+
+# 唯一联网步骤：用 gh 刷新 PR 缓存后再生成
+.\.venv\Scripts\python.exe tools\dev_workflow\progress_page.py --refresh-pr
+```
+
+- **输出**：默认写到 `output/agent-workflow/progress.html`，同目录再落一份 `progress.data.json`（页面用的同一份数据，便于脚本或后续点复用）。可用 `--out` / `--data` 改路径；`--workdir` 指定状态目录（默认 `output/agent-workflow`），指向仓库外会被拒绝并返回退出码 `2`。
+- **触发时机**：由队长在状态变化后手动生成，通常紧接 `status` / `validate` 之后——派任务、审查通过、批准合并、合并完成、配额阻塞或恢复各一次；也可以用来自查。页面是**快照**，不订阅事件，打开不会自动刷新；页头注明生成时间，与 `state.json` 或 GitHub 不一致时以二者为准。
+- **定位**：**页面由 workflow 维护**。它不是第二个事实源：`state.json` 是唯一真相，页面只做呈现；不要手改 `progress.html`（下次生成会被覆盖），也不要把它当状态输入。未运行生成器时，页面停留在上次的快照。
+- **数据**：卡片字段全部来自 `state.json` 与 `output/agent-workflow/` 下的本地文件（如 `verification/<id>.md` 的结论）。缺失的数据显示 `—` 并计入页面的数据缺口，不用推测值填充。PR 信息来自缓存；没有缓存且未加 `--refresh-pr` 时只提示缓存缺失，退出码仍为 `0`，不把“没联网”当成失败。
+
 ## 队长的循环
 
 ```text
