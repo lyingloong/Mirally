@@ -271,6 +271,23 @@ class SummaryTests(unittest.TestCase):
         self.assertFalse(summary["should_discover_agent"])
 
 
+    def test_cancel_blocked_point_does_not_require_capacity(self):
+        config = make_config(concurrency=3)
+        state = wf.empty_state()
+        blocked = wf.new_point(state, source="user", title="blocked proposal")
+        wf.start_point(state, config, blocked["id"])
+        wf.block_point(state, config, blocked["id"], reason="external")
+        for index in range(3):
+            point = wf.new_point(state, source="user", title=f"active {index}")
+            wf.start_point(state, config, point["id"])
+        self.assertEqual(wf.build_summary(state, config)["load"], 3)
+        wf.cancel_point(state, blocked["id"], reason="proposal withdrawn")
+        self.assertEqual(blocked["status"], "cancelled")
+        self.assertEqual(wf.build_summary(state, config)["load"], 3)
+        with self.assertRaises(wf.WorkflowError):
+            wf.cancel_point(state, blocked["id"], reason="already cancelled")
+
+
 class MergeGateTests(unittest.TestCase):
     def setUp(self):
         self.state = wf.empty_state()
