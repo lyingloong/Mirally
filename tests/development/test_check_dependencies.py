@@ -129,6 +129,64 @@ class CheckDependenciesTests(unittest.TestCase):
         self.assertEqual(payload["findings"][0]["kind"], "duplicate-constraint")
         self.assertEqual(payload["summary"]["findings"], 1)
 
+    def test_malformed_manifest_types_warn_and_keep_auditing(self) -> None:
+        """Valid JSON with unexpected types becomes a path-qualified warning (Codex P2)."""
+        root = self.base_tree()
+        self.write(root, "tools/testing/package.json", "[1, 2]")
+        report = check_dependencies.audit(root)
+        self.assertIn("invalid manifest: tools/testing/package.json (top-level value is list, "
+                      "expected object)", report["warnings"])
+        # The other manifests stay auditable and the run does not abort.
+        by_path = {manifest["path"]: manifest for manifest in report["manifests"]}
+        self.assertNotIn("tools/testing/package.json", by_path)
+        self.assertEqual([(item["name"], item["constraint"])
+                          for item in by_path["requirements-framework.txt"]["dependencies"]],
+                         [("requests", "==2.31.0"), ("pywebview", "==6.1")])
+        self.assertEqual(by_path["frontend/control-ui/package.json"]["dependencies"][0]["name"], "vite")
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(check_dependencies.main(["--root", str(root)]), 0)
+
+        self.write(root, "tools/testing/package.json", '{"dependencies": ["x"]}')
+        report = check_dependencies.audit(root)
+        self.assertIn("invalid manifest field: tools/testing/package.json dependencies is list, "
+                      "expected object", report["warnings"])
+        # A malformed field is skipped; sibling dependency fields are still read.
+        by_path = {manifest["path"]: manifest for manifest in report["manifests"]}
+        self.assertEqual(by_path["tools/testing/package.json"]["dependencies"], [])
+        self.assertEqual(by_path["requirements-framework.txt"]["dependencies"][0]["name"], "requests")
+
+        self.write(root, "tools/testing/package.json",
+                   '{"devDependencies": {"playwright-core": {"nested": true}, "vite": 6}}')
+        report = check_dependencies.audit(root)
+        self.assertIn("invalid manifest entry: tools/testing/package.json "
+                      "devDependencies.playwright-core has dict constraint", report["warnings"])
+        by_path = {manifest["path"]: manifest for manifest in report["manifests"]}
+        self.assertEqual([(item["name"], item["constraint"])
+                          for item in by_path["tools/testing/package.json"]["dependencies"]],
+                         [("vite", "6")])
+
+    def test_imports_use_full_ast_import_statements(self) -> None:
+        """Every name of a multi-name import counts, so real deps are not flagged (Codex P2)."""
+        root = self.base_tree()
+        self.write(root, "mirally/app.py", "import os, requests\n")
+        self.assertEqual(check_dependencies.imports_under(root / "mirally"), {"os", "requests"})
+        self.assertEqual([item["name"] for item in check_dependencies.audit(root)["unused_candidates"]],
+                         ["pywebview"])
+
+        self.write(root, "mirally/app.py", "import requests as rq, os as operating_system\n")
+        self.assertIn("requests", check_dependencies.imports_under(root / "mirally"))
+
+        self.write(root, "mirally/app.py", "import os, requests\nfrom webview import Window\n")
+        self.assertEqual(check_dependencies.audit(root)["unused_candidates"], [])
+
+        # A file with a syntax error must not abort the audit or hide other imports.
+        self.write(root, "mirally/app.py", "import requests\n\ndef broken(:\n")
+        self.write(root, "mirally/shell.py", "import webview\n")
+        modules = check_dependencies.imports_under(root / "mirally")
+        self.assertIn("requests", modules)
+        self.assertIn("webview", modules)
+        self.assertEqual(check_dependencies.audit(root)["unused_candidates"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -15,6 +15,7 @@ entries whose module is never imported under ``mirally/`` (candidate only), and
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import os
 import re
@@ -35,6 +36,7 @@ PIP_MANIFESTS = (
 NPM_MANIFESTS = (
     ("tools/testing/package.json", "test-tools", "devtools", "浏览器/DOM 验收工具"),
 )
+DEPENDENCY_FIELDS = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
 LOCKFILES = ("frontend/control-ui/package-lock.json", "tools/testing/package-lock.json",
              "kernel/dsh/pnpm-lock.yaml")
 FRONTEND_ROOT = "frontend/control-ui"
@@ -49,8 +51,8 @@ IMPORT_NAMES = {
 }
 REQUIREMENT = re.compile(r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[^\]]*\])?\s*"
                          r"(?P<constraint>[^;#]*?)\s*(?:;.*)?$")
-IMPORT = re.compile(r"^\s*(?:from\s+(?P<from>[A-Za-z_][\w.]*)\s+import|import\s+(?P<import>[A-Za-z_][\w.]*))",
-                    re.MULTILINE)
+# Last-resort fallback for a file that is not valid Python: a whole import list.
+IMPORT = re.compile(r"^[ \t]*import[ \t]+(?P<import>[\w. \t,]+)", re.MULTILINE)
 
 
 def canonical(name: str) -> str:
@@ -81,23 +83,57 @@ def read_requirements(path: Path) -> list[dict[str, str]]:
     return dependencies
 
 
-def read_package_json(path: Path) -> list[dict[str, str]]:
+class ManifestShapeError(ValueError):
+    """Valid JSON whose structure is not a package.json-like manifest."""
+
+
+def read_package_json(path: Path, warnings: list[str] | None = None,
+                      label: str | None = None) -> list[dict[str, str]]:
+    """Parse a package.json manifest.
+
+    Valid JSON with unexpected field types raises ``ManifestShapeError`` so the
+    caller can report a path-qualified warning instead of crashing; individual
+    dependency fields that are not objects are skipped with a warning.
+    """
     payload = json.loads(path.read_text(encoding="utf-8"))
+    where = label or path.as_posix()
+    if not isinstance(payload, dict):
+        raise ManifestShapeError(f"top-level value is {type(payload).__name__}, expected object")
     dependencies: list[dict[str, str]] = []
-    for field in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
-        for name, constraint in sorted((payload.get(field) or {}).items()):
-            dependencies.append({"name": name, "constraint": str(constraint), "field": field})
+    for field in DEPENDENCY_FIELDS:
+        declared = payload.get(field)
+        if declared is None:
+            continue
+        if not isinstance(declared, dict):
+            if warnings is not None:
+                warnings.append(f"invalid manifest field: {where} {field} is "
+                                f"{type(declared).__name__}, expected object")
+            continue
+        for name, constraint in sorted(declared.items()):
+            if isinstance(constraint, str):
+                value = constraint
+            elif isinstance(constraint, (int, float, bool)):
+                value = str(constraint)
+            else:
+                if warnings is not None:
+                    warnings.append(f"invalid manifest entry: {where} {field}.{name} has "
+                                    f"{type(constraint).__name__} constraint")
+                continue
+            dependencies.append({"name": name, "constraint": value, "field": field})
     return dependencies
 
 
 def _manifest(root: Path, relative: str, ecosystem: str, environment: str, kind: str,
-              owner: str) -> dict | None:
+              owner: str, warnings: list[str] | None = None) -> dict | None:
     path = root / relative
     if not path.is_file():
         return None
-    reader = read_requirements if ecosystem == "pip" else read_package_json
+    if ecosystem == "pip":
+        dependencies = read_requirements(path)
+    else:
+        dependencies = read_package_json(path, warnings, label=relative)
     return {"path": relative, "ecosystem": ecosystem, "environment": environment, "kind": kind,
-            "owner": owner, "dependencies": reader(path)}
+            "owner": owner, "dependencies": dependencies}
 
 
 def collect_manifests(root: Path) -> tuple[list[dict], list[str], dict]:
@@ -113,9 +149,13 @@ def collect_manifests(root: Path) -> tuple[list[dict], list[str], dict]:
                 warnings.append(f"missing expected manifest: {relative}")
             return
         try:
-            manifest = _manifest(root, relative, ecosystem, environment, kind, owner)
+            manifest = _manifest(root, relative, ecosystem, environment, kind, owner, warnings)
         except (json.JSONDecodeError, UnicodeDecodeError):
             warnings.append(f"unreadable manifest: {relative}")
+            return
+        except (ManifestShapeError, OSError) as error:
+            # Valid JSON with an unexpected shape must not abort the whole audit.
+            warnings.append(f"invalid manifest: {relative} ({error})")
             return
         if manifest:
             manifests.append(manifest)
@@ -166,6 +206,13 @@ def duplicate_declarations(manifests: list[dict]) -> tuple[list[dict], int]:
 
 
 def imports_under(package_root: Path) -> set[str]:
+    """Modules imported by any ``.py`` file under the package root.
+
+    Parses with ``ast`` so every name in ``import a, b as c`` and
+    ``from x import y`` is collected (a regex only saw the first module and
+    misreported real dependencies as unused candidates). Files that do not
+    parse contribute the module names from their ``import`` lines.
+    """
     modules: set[str] = set()
     for path in _walk(package_root):
         if path.suffix != ".py":
@@ -174,9 +221,27 @@ def imports_under(package_root: Path) -> set[str]:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
-        for match in IMPORT.finditer(text):
-            module = match.group("from") or match.group("import")
-            modules.add(module)
+        try:
+            tree = ast.parse(text, filename=str(path))
+        except (SyntaxError, ValueError):
+            modules.update(_imports_from_lines(text))
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                modules.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                modules.add(node.module)
+    return modules
+
+
+def _imports_from_lines(text: str) -> set[str]:
+    """Best-effort module names for a file that is not valid Python."""
+    modules: set[str] = set()
+    for match in IMPORT.finditer(text):
+        for part in match.group("import").split(","):
+            module = part.split(" as ")[0].strip()
+            if module:
+                modules.add(module)
     return modules
 
 
