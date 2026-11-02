@@ -184,7 +184,26 @@ def run(*, repo_root: Path | None = None, days: float = DEFAULT_DAYS, apply: boo
     return 0, format_report(entries, days=days, applied=apply, removed=removed)
 
 
+def _console_safe() -> None:
+    """Make reports printable on non-UTF-8 consoles (GBK, cp1252, ascii).
+
+    Every message this tool prints is Chinese, so on a legacy code page the
+    final ``print`` would raise ``UnicodeEncodeError`` *after* the work is done
+    and turn a successful run into exit code 1. Unencodable characters degrade
+    to ``?`` instead; the deletion logic itself is unaffected.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (OSError, ValueError):
+            pass
+
+
 def main(argv: list[str] | None = None, *, now: float | None = None) -> int:
+    _console_safe()
     parser = argparse.ArgumentParser(description="显式清理 output/tmp 下的过期临时目录（默认 dry-run）")
     parser.add_argument("--apply", action="store_true", help="真正删除；不指定时只打印候选")
     parser.add_argument("--days", type=float, default=DEFAULT_DAYS,

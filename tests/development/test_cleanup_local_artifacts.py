@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import sys
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -197,6 +198,31 @@ class CleanupLocalArtifactsTests(unittest.TestCase):
         self.assertIn("run-a/", report)
         self.assertIn("run-b/", report)
         self.assertIn("2 个目录", report)
+
+    def test_cli_survives_gbk_and_ascii_consoles(self):
+        """A non-UTF-8 console must not turn a successful run into exit 1.
+
+        Every message this tool prints is Chinese, so without the entry-point
+        reconfigure the final print raised UnicodeEncodeError after the work was
+        already done. Mirrors test_workflow_ops' GBK/ascii console precedent.
+        """
+        self.scratch("run-old", age_days=30)
+        for encoding in ("gbk:strict", "ascii:strict"):
+            with self.subTest(encoding=encoding):
+                env = {**os.environ, "PYTHONIOENCODING": encoding,
+                       "PYTHONPATH": str(ROOT)}
+                result = subprocess.run(
+                    [sys.executable, str(ROOT / "tools" / "cleanup_local_artifacts.py"),
+                     "--root", str(self.tmp), "--days", "7"],
+                    cwd=str(ROOT), env=env, capture_output=True, timeout=120,
+                )
+                stderr = result.stderr.decode("utf-8", "replace")
+                self.assertEqual(result.returncode, 0, stderr)
+                self.assertNotIn("Traceback", stderr)
+                self.assertNotIn("UnicodeEncodeError", stderr)
+                self.assertIn(b"run-old", result.stdout)
+                # dry run by default: the directory must still be there
+                self.assertTrue((self.tmp / "run-old").is_dir())
 
     def test_cli_dry_run_is_default_and_keeps_directories(self):
         stale = self.scratch("run-old", age_days=30)
