@@ -53,6 +53,11 @@ REQUIREMENT = re.compile(r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[^\]]*\])?\
                          r"(?P<constraint>[^;#]*?)\s*(?:;.*)?$")
 # Last-resort fallback for a file that is not valid Python: a whole import list.
 IMPORT = re.compile(r"^[ \t]*import[ \t]+(?P<import>[\w. \t,]+)", re.MULTILINE)
+# Same fallback for `from package.module import a, b as c`. A relative import
+# (`from . import x`) starts with a dot and therefore contributes no absolute
+# module name.
+FROM_IMPORT = re.compile(r"^[ \t]*from[ \t]+(?P<module>[A-Za-z_][\w.]*)[ \t]+import\b",
+                         re.MULTILINE)
 
 
 def canonical(name: str) -> str:
@@ -205,26 +210,43 @@ def duplicate_declarations(manifests: list[dict]) -> tuple[list[dict], int]:
     return conflicts, len(groups)
 
 
-def imports_under(package_root: Path) -> set[str]:
+def imports_under(package_root: Path, warnings: list[str] | None = None) -> set[str]:
     """Modules imported by any ``.py`` file under the package root.
 
     Parses with ``ast`` so every name in ``import a, b as c`` and
     ``from x import y`` is collected (a regex only saw the first module and
-    misreported real dependencies as unused candidates). Files that do not
-    parse contribute the module names from their ``import`` lines.
+    misreported real dependencies as unused candidates). A file that does not
+    parse contributes the module names from its ``import``/``from ... import``
+    lines, and is always reported in ``warnings``: a partial scan must never
+    look like a complete one, or a real dependency would be offered for removal.
     """
     modules: set[str] = set()
     for path in _walk(package_root):
         if path.suffix != ".py":
             continue
+        relative = _relative(path)
         try:
             text = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
+        except (UnicodeDecodeError, OSError) as error:
+            if warnings is not None:
+                warnings.append(f"unparseable python file: {relative} "
+                                f"(unreadable: {type(error).__name__}); imports are incomplete")
             continue
         try:
             tree = ast.parse(text, filename=str(path))
-        except (SyntaxError, ValueError):
-            modules.update(_imports_from_lines(text))
+        except (SyntaxError, ValueError) as error:
+            recovered = _imports_from_lines(text)
+            modules.update(recovered)
+            if warnings is not None:
+                reason = getattr(error, "msg", None) or type(error).__name__
+                line = getattr(error, "lineno", None)
+                location = f", line {line}" if line else ""
+                if recovered:
+                    detail = f"recovered {len(recovered)} module(s) from import lines"
+                else:
+                    detail = "no modules recovered; imports are unknown for this file"
+                warnings.append(f"unparseable python file: {relative} "
+                                f"({type(error).__name__}: {reason}{location}); {detail}")
             continue
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
@@ -234,19 +256,40 @@ def imports_under(package_root: Path) -> set[str]:
     return modules
 
 
+def _relative(path: Path, *, max_levels: int = 3) -> str:
+    """Shortest repo-ish path for a warning: prefer the cwd, else climb up."""
+    absolute = path.resolve()
+    for base in [Path.cwd().resolve(), *Path.cwd().resolve().parents[:max_levels]]:
+        try:
+            return absolute.relative_to(base).as_posix()
+        except ValueError:
+            continue
+    return absolute.as_posix()
+
+
 def _imports_from_lines(text: str) -> set[str]:
-    """Best-effort module names for a file that is not valid Python."""
+    """Best-effort module names for a file that is not valid Python.
+
+    Covers both ``import a, b as c`` and ``from pkg.mod import name``; a
+    from-import of a real dependency must still count, otherwise the recovery
+    path silently offers that dependency for removal.
+    """
     modules: set[str] = set()
     for match in IMPORT.finditer(text):
         for part in match.group("import").split(","):
             module = part.split(" as ")[0].strip()
             if module:
                 modules.add(module)
+    for match in FROM_IMPORT.finditer(text):
+        module = match.group("module").strip()
+        if module:
+            modules.add(module)
     return modules
 
 
-def unused_candidates(root: Path, manifests: list[dict]) -> list[dict]:
-    modules = imports_under(root / "mirally")
+def unused_candidates(root: Path, manifests: list[dict],
+                      warnings: list[str] | None = None) -> list[dict]:
+    modules = imports_under(root / "mirally", warnings)
     candidates: list[dict] = []
     for manifest in manifests:
         if manifest["environment"] != "product-venv" or manifest["kind"] != "runtime":
@@ -268,7 +311,7 @@ def audit(root: Path = ROOT) -> dict:
     root = root.resolve()
     manifests, warnings, extras = collect_manifests(root)
     duplicates, duplicate_groups = duplicate_declarations(manifests)
-    unused = unused_candidates(root, manifests)
+    unused = unused_candidates(root, manifests, warnings)
     findings = [{"kind": "duplicate-constraint", **item} for item in duplicates
                 if item["severity"] == "finding"]
     findings += [{"kind": "unused-candidate", **item} for item in unused]

@@ -187,6 +187,65 @@ class CheckDependenciesTests(unittest.TestCase):
         self.assertIn("webview", modules)
         self.assertEqual(check_dependencies.audit(root)["unused_candidates"], [])
 
+    def test_syntax_error_recovery_keeps_from_imports(self) -> None:
+        """A broken file must still yield its from-import, not offer it for removal (Codex P2)."""
+        root = self.base_tree()
+        # Valid line followed by a syntax error: `ast.parse` fails for the whole
+        # file, so the recovery path decides whether `requests` stays imported.
+        self.write(root, "mirally/app.py",
+                   "from requests import get\nimport webview\n\ndef broken(:\n")
+        modules = check_dependencies.imports_under(root / "mirally")
+        self.assertIn("requests", modules)
+        self.assertIn("webview", modules)
+        report = check_dependencies.audit(root)
+        self.assertEqual(report["unused_candidates"], [])
+        self.assertNotIn("requests", [item["name"] for item in report["findings"]])
+
+        # Aliases and dotted modules survive the fallback too.
+        self.write(root, "mirally/app.py",
+                   "from requests.adapters import HTTPAdapter as Adapter\n\ndef broken(:\n")
+        self.write(root, "mirally/shell.py", "from webview import Window\n")
+        recovered = check_dependencies.imports_under(root / "mirally")
+        self.assertIn("requests.adapters", recovered)
+        self.assertEqual(check_dependencies.audit(root)["unused_candidates"], [])
+
+        # A relative from-import names no absolute module and must not leak one.
+        self.write(root, "mirally/app.py", "from . import sibling\nfrom .sibling import helper\n\ndef broken(:\n")
+        self.assertEqual(check_dependencies._imports_from_lines(
+            self.relative_source(root, "mirally/app.py")), set())
+
+    def test_unparseable_file_is_always_reported_as_a_warning(self) -> None:
+        """An incomplete scan must be visible: path plus reason, never a silent empty set."""
+        root = self.base_tree()
+        self.write(root, "mirally/app.py", "import requests\nimport webview\n")
+        clean = check_dependencies.audit(root)
+        self.assertEqual([warning for warning in clean["warnings"] if "unparseable" in warning], [])
+
+        # Recovery finds nothing: the file contributes no imports and says so.
+        self.write(root, "mirally/broken.py", "def broken(:\n")
+        report = check_dependencies.audit(root)
+        warnings = [warning for warning in report["warnings"] if "unparseable" in warning]
+        self.assertEqual(len(warnings), 1, report["warnings"])
+        self.assertIn("mirally/broken.py", warnings[0])
+        self.assertIn("SyntaxError", warnings[0])
+        self.assertIn("no modules recovered", warnings[0])
+
+        # Recovery finds some modules: still reported, and it says what it kept.
+        self.write(root, "mirally/broken.py", "from requests import get\n\ndef broken(:\n")
+        warnings = [w for w in check_dependencies.audit(root)["warnings"] if "unparseable" in w]
+        self.assertEqual(len(warnings), 1, warnings)
+        self.assertIn("mirally/broken.py", warnings[0])
+        self.assertIn("recovered 1 module(s)", warnings[0])
+
+        # A file that cannot even be decoded is reported, not skipped silently.
+        (root / "mirally" / "binary.py").write_bytes(b"\xff\xfeimport requests\x00")
+        warnings = [w for w in check_dependencies.audit(root)["warnings"] if "unparseable" in w]
+        self.assertEqual(len(warnings), 2, warnings)
+        self.assertTrue(any("mirally/binary.py" in w and "unreadable" in w for w in warnings), warnings)
+
+    def relative_source(self, root: Path, name: str) -> str:
+        return (root / name).read_text(encoding="utf-8")
+
 
 if __name__ == "__main__":
     unittest.main()
