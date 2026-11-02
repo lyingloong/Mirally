@@ -62,6 +62,10 @@ jobs:
             'tests.test_framework_product',
             'tests.test_framework_channels',
             'tests.test_framework_calendar',
+            'tests.test_framework_capabilities',
+            'tests.test_framework_model_connections',
+            'tests.test_framework_materials',
+            'tests.test_framework_conversation_resolve',
             'tests.test_framework_weixin_assistant_security',
             'tests.test_framework_conversation_metadata',
             'tests.test_framework_recaps'
@@ -111,3 +115,8 @@ jobs:
 
       - name: Test workflow captain operations
         run: python -m unittest tests.development.test_workflow_ops -v
+
+      - name: Check sources for conflict markers and Python syntax
+        run: |
+          python tools/check_sources.py
+          python -m unittest tests.development.test_check_sources -v

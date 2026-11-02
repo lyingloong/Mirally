@@ -107,6 +107,7 @@
 - 接通 Activity/Memory 的可选生命周期、明确偏好和记忆纠正、确定性提醒、持久收件箱，以及带租约、来源复核、勿扰与冷却的可选主动检查；采集、后台模型和一般主动联系默认关闭。
 - 支持 Skill 正文与资源、需独立确认的脚本、MCP 工具/资源/模板/提示和版本化原生可信插件，停用时撤销原生能力。按最新范围，本阶段暂不接入 UFO；默认框架不加载执行器或开放其桌面任务入口，保留源码供后续 Windows 适配参考。
 - 新增可迁移源码安装、独立 home、显式数据复制/预览/回退及旧会话只读索引；旧 OpenClaw 入口改为显式 `--openclaw`，保留私有原配置。实际范围和尚未验收的真实桌面/外部模型边界见 [系统概览](docs/architecture/overview.md)。
+- 移除 UFO 只读子模块、其专用依赖清单，以及 6 个 UFO-only 测试/夹具和 `tests/test_native_observation.py` 中导入真实 UFO 的用例；本地完整 Python 测试不再需要初始化子模块。依赖 `UFO/` 源码路径、且调用已不存在的 `Assistant._completion` 的 `tools/verify_assistant_live.py` 一并移除（该入口已无法运行，live 路由检查应在后续按现行 `Assistant` 接口重建）。`mirally/runtime/ufo/` 产品适配、UFO 配置与设计复盘保留，默认产品仍不加载 UFO。
 
 
 ### Added

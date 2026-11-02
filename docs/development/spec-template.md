@@ -21,9 +21,12 @@
 ## 1. 点信息
 
 - 来源：user / agent
+- 需求来源：user-request / user-seed / agent-seed / existing-seed
+- 种子 ID：<如 SEED-README-OPT；无则写“直接需求”>
+- 用户原话/来源：<引用用户原话，或说明既有文档/种子依据；不得改变原意>
 - 风险：low / normal / high
 - 一句话目标：
-- 先读：docs/development/review-experience.md 的相关条目
+- 先读：docs/development/requirements-pool.md、docs/development/review-experience.md 的相关条目
 
 ## 2. 目标与非目标
 
