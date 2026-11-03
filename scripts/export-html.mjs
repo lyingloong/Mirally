@@ -61,6 +61,7 @@ const result = await build({
   root,
   base: "./",
   mode: "production",
+  define: { __MIRALLY_OFFLINE__: "true" },
   esbuild: { jsx: "automatic" },
   plugins: [
     {

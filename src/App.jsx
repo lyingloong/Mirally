@@ -30,6 +30,9 @@ const imageFiles = {
   vision: "./images/vision-ai.webp",
 };
 
+// The offline single-file export has no separate updates page to navigate to.
+const updatesHref = typeof __MIRALLY_OFFLINE__ === "undefined" ? "./updates/" : null;
+
 function Brand({ light = false, large = false }) {
   return (
     <span
@@ -134,6 +137,11 @@ function Header() {
               {title}
             </a>
           ))}
+          {updatesHref && (
+            <a href={updatesHref} onClick={() => setOpen(false)}>
+              更新
+            </a>
+          )}
         </nav>
         <a className="header-cta" href="#a-day">
           查看演示 <ArrowUpRight size={16} />

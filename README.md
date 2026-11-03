@@ -50,6 +50,14 @@ npm run export:html
 - 演示中的会议摘要由浏览器本地生成；页面不接入统计、追踪、登录或支付。
 - 修改文案或素材后重新构建，并检查窄窗口与键盘操作。
 
+## 更新页
+
+`updates/` 是产品更新页，访问路径 `/updates/`，首页导航的「更新」入口指向它。页面按「新增功能 / 体验优化 / 问题修复」分组，用分点条目和图示展示最近的开发内容。
+
+- 条目在 `src/updates/UpdatesPage.jsx` 的 `features`、`improvements`、`fixes` 数组里维护，修改标题、说明或分点即可更新页面。
+- 每个条目可设置 `image`，指向 `public/images/updates/` 下的图片，引用写法为 `../images/updates/文件名.webp`；保持 `null` 时显示「图示待补充」占位。
+- 更新日期在 `UpdatesHero` 中维护；发布前检查桌面与窄窗口的排版。
+
 ## 修改入口
 
 | 文件 | 内容 |
@@ -60,6 +68,8 @@ npm run export:html
 | `src/CapabilityVisual.jsx` | 当前能力的界面示意 |
 | `src/NextCapabilities.jsx` | 下一步能力的概念示意 |
 | `src/BusinessVisual.jsx` | 商业路径图解 |
+| `src/updates/UpdatesPage.jsx` | 更新页内容与分组 |
+| `src/updates/updates.css` | 更新页样式 |
 | `src/*.css` | 布局、章节适配与响应式样式 |
 | `public/images/` | 已生成的 WebP 宣传素材 |
 | `image-prompts/`、`IMAGE-BRIEFS.md` | 生图提示词与生成记录 |
