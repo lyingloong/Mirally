@@ -54,9 +54,10 @@ npm run export:html
 
 `updates/` 是产品更新页：`/updates/` 列出各期更新，每期是独立页面，例如 `/updates/2026-11-01/`。一期对应一段时间开发后的发布，按「新功能 / 体验优化 / 问题修复」分点说明，并为图示保留占位。
 
-- 每期内容在 `src/updates/releases.js` 里维护（`slug`、`date`、`period`、`title`、`summary`、`sections`、`media`）；`slug` 同时作为访问路径。新增一期时复制一个对象并修改即可，列表计数和「最新」标记按数组顺序生成。
+- 每期内容在 `src/updates/releases.js` 里维护：`slug`、`date`、`period`、`title`、`summary`（列表摘要）、`intro`（正文开篇）和 `sections`。`slug` 同时作为访问路径；新增一期时复制一个对象并修改即可。
+- 正文按「新功能 / 体验优化 / 问题修复」分组，条目跨分组连续编号；每个条目是一段可以直接读下来的说明，可选 `image: { alt, caption, src }` 在段落下方插入图示。
+- 条目图片的 `src` 指向 `public/images/updates/` 下的图片，引用写法为 `../images/updates/文件名.webp`；不填 `src` 时显示「图示待补充」占位。
 - 每期页面由 `scripts/sync-update-pages.mjs` 根据 `releases` 生成（`npm run dev` / `npm run build` 前自动执行），生成的 `updates/<slug>/index.html` 不纳入 Git，不要直接编辑。
-- `media` 里的 `src` 指向 `public/images/updates/` 下的图片，引用写法为 `../images/updates/文件名.webp`；保持 `null` 时显示「图示待补充」占位。
 - 发布前检查桌面与窄窗口的排版；打印样式会隐藏导航、返回链接和页脚，便于导出 PDF。
 
 ## 修改入口
