@@ -58,6 +58,7 @@ jobs:
             'tests.test_framework_entry',
             'tests.test_desktop_surface',
             'tests.test_framework_lifecycle',
+            'tests.test_framework_workers',
             'tests.test_framework_activity_views',
             'tests.test_framework_product',
             'tests.test_framework_channels',
@@ -110,13 +111,8 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Test workflow state manager and repository hygiene
-        run: python -m unittest tests.development.test_agent_workflow tests.development.test_repo_hygiene -v
-
-      - name: Test workflow captain operations
-        run: python -m unittest tests.development.test_workflow_ops -v
+      - name: Test development workflow tooling
+        run: python -m unittest discover -s tests/development -t . -v
 
       - name: Check sources for conflict markers and Python syntax
-        run: |
-          python tools/check_sources.py
-          python -m unittest tests.development.test_check_sources -v
+        run: python tools/check_sources.py
