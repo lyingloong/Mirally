@@ -84,6 +84,28 @@ py -3.10 -m venv .venv
 
 安装、模型配置和日常操作以[项目 README](../../README.md)为准；前端来源与独立构建见[前端](frontend.md)。
 
+## 框架 worker 的 JSON-lines 入站契约
+
+`python -m mirally.framework --root <仓库> --home <产品数据目录>` 是产品 worker：Node 宿主通过 stdin/stdout 的 JSON-lines 驱动它，调度、审批和模型循环都在宿主持有。本节只描述**既有**入站行为，供调用方对接和回归测试使用；实现见 `mirally/framework/__main__.py` 与 `mirally/framework/service.py`。
+
+- **入站**：stdin 逐行读取，上限 1 MiB（1 048 576 字节，含换行符）。超长行或没有以 `\n` 结尾的最后一行按 `INVALID_REQUEST` 拒绝，不执行任何方法。
+- **请求**：`{"id": <字符串或整数>, "method": "<路由名>", "params": {...}}`。`id` 必须是字符串或整数；布尔、浮点、null、数组、对象都按 `INVALID_REQUEST` 拒绝。`params` 缺省为空对象，非对象按 `INVALID_REQUEST` 拒绝。
+- **出站**：每条被读取的请求行对应 stdout 上恰好一行 UTF-8 JSON；stdout 只承载协议，stderr 只用于诊断。成功为 `{"id", "result"}`，失败为 `{"id", "error": {"code", "message"}}`；stdin EOF 后 worker 退出码为 0。
+- **错误回执分四类**（`code` 固定，`message` 为简短说明）：
+
+  | 类别 | `code` | 含义 |
+  | --- | --- | --- |
+  | 传输/结构错误 | `INVALID_REQUEST` | 非 JSON、非对象、`id` 类型不合法、`method`/`params` 类型不合法、超长或未换行 |
+  | 路由与参数错误 | `METHOD_NOT_FOUND`、`INVALID_PARAMS` | 未知路由；缺参、类型不符或校验失败 |
+  | 业务状态错误 | `CONFLICT`、`NOT_FOUND`、`FORBIDDEN`、`SCHEMA_VERSION`、`CHANNEL_UNCONFIGURED` | 产品状态不允许该操作；`message` 可直接展示给用户 |
+  | 未预期错误 | `INTERNAL_ERROR` | 任何未被映射为 `FrameworkError` 的异常 |
+
+  `INVALID_REQUEST`、`METHOD_NOT_FOUND`、`INVALID_PARAMS`、`CONFLICT`、`NOT_FOUND`、`FORBIDDEN`、`SCHEMA_VERSION` 来自 worker 自身的校验与路由；`CHANNEL_UNCONFIGURED` 等语义错误由具体模块抛出，沿用同一条回执通道。
+- **`INTERNAL_ERROR` 不回显请求**：回执固定为 `{"error": {"code": "INTERNAL_ERROR", "message": "product operation failed"}}`，`id` 照常回填，便于调用方配对；异常类型只写到 stderr（`framework RPC failed: <ExceptionName>`）。请求内容、参数和凭据不会出现在回执或 stderr 中。
+- **`worker_lock` 单实例**：worker 启动取得 `<home>/framework/worker.lock` 的排他锁（Windows `msvcrt.locking`，其他平台 `fcntl.flock`）。同一 home 上的第二个 worker 在启动阶段失败退出、非零退出码、stdout 无输出，并在 stderr 说明原因；不同 home 互不影响。这样活动、投递和会话状态不会被两个 owner 同时改写。
+
+回归测试 `tests/test_framework_worker_protocol.py` 以子进程方式启动真实 worker，按本契约逐条覆盖上面的行、`id`、四类回执、不回显和单实例行为；它只观察协议，不替换实现。
+
 ## 默认行为
 
 | 能力 | 默认 | 说明 |
