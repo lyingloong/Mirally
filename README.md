@@ -52,12 +52,12 @@ npm run export:html
 
 ## 更新页
 
-`updates/` 是产品更新页，访问路径 `/updates/`，首页导航的「更新」入口指向它。页面按日期倒序列出每次更新，左侧目录可直接跳到对应日期；每篇文档按「新增功能 / 体验优化 / 问题修复」分点说明，并为图示保留占位。
+`updates/` 是产品更新页：`/updates/` 列出各期更新，每期是独立页面，例如 `/updates/2026-11-01/`。一期对应一段时间开发后的发布，按「新功能 / 体验优化 / 问题修复」分点说明，并为图示保留占位。
 
-- 每次更新对应 `src/updates/entries.js` 里的一个对象（`id`、`date`、`title`、`summary`、`sections`、`media`），复制上一项修改内容即可新增一期。
+- 每期内容在 `src/updates/releases.js` 里维护（`slug`、`date`、`period`、`title`、`summary`、`sections`、`media`）；`slug` 同时作为访问路径。新增一期时复制一个对象并修改即可，列表计数和「最新」标记按数组顺序生成。
+- 每期页面由 `scripts/sync-update-pages.mjs` 根据 `releases` 生成（`npm run dev` / `npm run build` 前自动执行），生成的 `updates/<slug>/index.html` 不纳入 Git，不要直接编辑。
 - `media` 里的 `src` 指向 `public/images/updates/` 下的图片，引用写法为 `../images/updates/文件名.webp`；保持 `null` 时显示「图示待补充」占位。
-- `id` 使用日期字符串，作为页面锚点；目录高亮和「最新」标记按数组顺序自动生成。
-- 发布前检查桌面与窄窗口的排版；打印样式会隐藏目录和页脚，便于导出 PDF。
+- 发布前检查桌面与窄窗口的排版；打印样式会隐藏导航、返回链接和页脚，便于导出 PDF。
 
 ## 修改入口
 
@@ -69,8 +69,11 @@ npm run export:html
 | `src/CapabilityVisual.jsx` | 当前能力的界面示意 |
 | `src/NextCapabilities.jsx` | 下一步能力的概念示意 |
 | `src/BusinessVisual.jsx` | 商业路径图解 |
-| `src/updates/entries.js` | 每期更新内容（按日期） |
-| `src/updates/UpdatesPage.jsx` | 更新页结构与渲染 |
+| `src/updates/releases.js` | 每期更新内容与页面路径 |
+| `src/updates/UpdatesIndex.jsx` | 更新列表页 |
+| `src/updates/ReleasePage.jsx` | 单期更新页 |
+| `src/updates/chrome.jsx` | 更新页共用的页头页脚 |
+| `scripts/sync-update-pages.mjs` | 生成每期静态页面 |
 | `src/updates/updates.css` | 更新页样式 |
 | `src/*.css` | 布局、章节适配与响应式样式 |
 | `public/images/` | 已生成的 WebP 宣传素材 |

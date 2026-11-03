@@ -5,7 +5,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/sync-update-pages.mjs",
     "dev": "vite --host 127.0.0.1",
+    "prebuild": "node scripts/sync-update-pages.mjs",
     "build": "vite build",
     "export:html": "node scripts/export-html.mjs",
     "preview": "vite preview --host 127.0.0.1"

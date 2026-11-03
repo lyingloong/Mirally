@@ -3,3 +3,6 @@ dist/
 .vite/
 .artifacts/
 exports/
+
+# Generated from src/updates/releases.js by scripts/sync-update-pages.mjs
+updates/*/index.html
