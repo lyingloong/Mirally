@@ -1,4 +1,5 @@
-"""Check Mirally-owned sources for merge-conflict markers and Python syntax errors.
+"""Check Mirally-owned sources for merge-conflict markers, Python syntax errors
+and trace whitespace / line-ending damage.
 
 Run from the repository root:
 
@@ -12,6 +13,18 @@ upstream snapshot (``upstream-files.json``) plus the Mirally patches listed in
 submodule, dependencies and generated output are not scanned; excluded
 directories are pruned before descending. Binary assets with a text suffix are
 skipped instead of failing UTF-8 decoding.
+
+The whitespace checks are read-only and re-runnable: they report the same
+findings every time and never rewrite a file. A file is reported when
+
+* a line ends in a space or a tab (an all-whitespace line is trailing whitespace
+  too: the line exists only to hold invisible bytes),
+* the last byte is not ``\\n`` (empty files are exempt), or
+* it mixes CRLF and LF line endings.
+
+Files listed in ``CRLF_EXEMPT`` are excused from the CRLF-mixing check only,
+each with a written reason; ``CRLF`` alone is not a finding, so a checkout that
+normalizes line endings on Windows does not fail the guard.
 """
 
 from __future__ import annotations
@@ -33,6 +46,15 @@ ROOT_FILES = ("README.md", "AGENTS.md", "CONTRIBUTING.md", "CHANGELOG.md", "run.
 TEXT_SUFFIXES = {".py", ".md", ".mjs", ".cjs", ".js", ".cpp", ".ps1", ".yml", ".yaml", ".template",
                  ".json", ".toml", ".txt", ".css", ".html", ".webmanifest", ".ts", ".tsx"}
 MARKERS = ("<<<<<<<", "|||||||", ">>>>>>>")
+# Mixed CRLF/LF findings that are accepted on purpose. Every entry needs a reason;
+# anything else is reported, and the allowlist never covers trailing whitespace or
+# the missing final newline.
+CRLF_EXEMPT = {
+    "tests/test_framework_session_models_host.mjs":
+        "committed with a single CRLF on its last line only (4a37cb41); the line endings are "
+        "not part of what the test asserts, so rewriting it would add an unrelated diff. "
+        "Drop this entry once the file is rewritten with a single line-ending style.",
+}
 
 
 def _walk_files(base: Path) -> list[Path]:
@@ -86,9 +108,31 @@ def owned_files(root: Path = ROOT) -> list[Path]:
                    if path.is_file() and not any(part in SKIP_PARTS for part in path.relative_to(root).parts)})
 
 
+def whitespace_problems(label: str, data: bytes, *, line_ending_exempt: bool = False) -> list[str]:
+    """Trailing whitespace, missing final newline and mixed CRLF/LF, in line order."""
+    try:
+        lines = data.decode("utf-8").splitlines(keepends=True)
+    except UnicodeDecodeError:
+        return []  # binary asset with a text suffix: nothing to check
+    problems = []
+    for number, chunk in enumerate(lines, 1):
+        body = chunk.rstrip("\r\n")
+        if body != body.rstrip(" \t"):
+            problems.append(f"{label}:{number}: trailing whitespace")
+    if data and not data.endswith(b"\n"):
+        problems.append(f"{label}:{len(lines)}: missing final newline")
+    if not line_ending_exempt and b"\r\n" in data and b"\n" in data.replace(b"\r\n", b""):
+        problems.append(f"{label}:1: mixed CRLF and LF line endings")
+    return problems
+
+
 def check(path: Path, *, root: Path = ROOT) -> list[str]:
     try:
-        text = path.read_text(encoding="utf-8")
+        data = path.read_bytes()
+    except OSError:
+        return []
+    try:
+        text = data.decode("utf-8")
     except UnicodeDecodeError:
         return []  # binary asset with a text suffix: nothing to check
     label = path.relative_to(root).as_posix()
@@ -99,6 +143,7 @@ def check(path: Path, *, root: Path = ROOT) -> list[str]:
             compile(text, label, "exec")
         except SyntaxError as error:
             problems.append(f"{label}:{error.lineno}: syntax error: {error.msg}")
+    problems.extend(whitespace_problems(label, data, line_ending_exempt=label in CRLF_EXEMPT))
     return problems
 
 
@@ -110,7 +155,8 @@ def main() -> int:
         for problem in problems:
             print(f"  {problem}")
         return 1
-    print(f"OK: {len(files)} files, no merge-conflict markers or Python syntax errors.")
+    print(f"OK: {len(files)} files, no merge-conflict markers, Python syntax errors, "
+          "trailing whitespace or line-ending damage.")
     return 0
 
 

@@ -30,6 +30,12 @@ class CheckSourcesTests(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
 
+    def write_bytes(self, root: Path, name: str, data: bytes) -> None:
+        """Exact bytes, so line endings and trailing whitespace survive the fixture."""
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+
     def problems(self, root: Path) -> list[str]:
         return [problem for path in check_sources.owned_files(root) for problem in check_sources.check(path, root=root)]
 
@@ -145,6 +151,69 @@ class CheckSourcesTests(unittest.TestCase):
         problems = [problem for path in files for problem in check_sources.check(path)]
         self.assertEqual(problems, [])
         self.assertGreaterEqual(len(files), 300)
+
+    def test_whitespace_and_line_ending_damage_is_reported(self) -> None:
+        root = self.temp_root()
+        self.write_bytes(root, "docs/trail.md", b"text \n")           # space before the newline
+        self.write_bytes(root, "docs/tab.md", b"value\t\n")           # tab before the newline
+        self.write_bytes(root, "docs/blank.md", b"a\n  \nb\n")        # whitespace-only line
+        self.write_bytes(root, "docs/end.md", b"# Title\nno newline at end")  # missing final newline
+        self.write_bytes(root, "docs/mixed.txt", b"first\r\nsecond\n")        # CRLF and LF in one file
+        self.assertEqual(self.problems(root), [
+            "docs/blank.md:2: trailing whitespace",
+            "docs/end.md:2: missing final newline",
+            "docs/mixed.txt:1: mixed CRLF and LF line endings",
+            "docs/tab.md:1: trailing whitespace",
+            "docs/trail.md:1: trailing whitespace",
+        ])
+
+    def test_clean_line_endings_are_not_reported(self) -> None:
+        root = self.temp_root()
+        self.write_bytes(root, "docs/empty.txt", b"")                    # empty file is exempt
+        self.write_bytes(root, "docs/crlf.txt", b"one\r\ntwo\r\n")       # consistent CRLF is fine
+        self.write_bytes(root, "docs/lf.txt", b"one\ntwo\n")
+        self.write_bytes(root, "docs/last-line-space.md", b"trailing space in prose \n")
+        self.write_bytes(root, "docs/emoji.md", "\U0001F9A6 tail\n".encode("utf-8"))
+        self.assertEqual(self.problems(root), [
+            "docs/last-line-space.md:1: trailing whitespace",
+        ])
+
+    def test_crlf_exemption_is_explicit_and_narrow(self) -> None:
+        root = self.temp_root()
+        allowed, reason = next(iter(check_sources.CRLF_EXEMPT.items()))
+        self.assertTrue(reason.strip(), "every CRLF exemption needs a written reason")
+        directory, name = allowed.rsplit("/", 1)
+        suffix = Path(name).suffix
+        trailing = f"{directory}/trailing{suffix}"
+        sibling = f"{directory}/sibling{suffix}"
+        self.write_bytes(root, allowed, b"one\ntwo\r\n")      # excused: mixed line endings only
+        self.write_bytes(root, allowed, b"one \ntwo\r\n")     # whitelisted path keeps its whitespace finding
+        self.assertEqual(self.problems(root), [f"{allowed}:1: trailing whitespace"])
+        (root / allowed).unlink()
+        self.write_bytes(root, sibling, b"one\ntwo\r\n")      # different file: still reported
+        self.write_bytes(root, trailing, b"one\ntwo")         # different file: still reported
+        self.assertEqual(self.problems(root), [
+            f"{sibling}:1: mixed CRLF and LF line endings",
+            f"{trailing}:2: missing final newline",
+        ])
+
+    def test_crlf_exemptions_point_at_real_owned_files(self) -> None:
+        owned = {path.relative_to(ROOT).as_posix() for path in check_sources.owned_files()}
+        for name, reason in check_sources.CRLF_EXEMPT.items():
+            self.assertIn(name, owned, f"CRLF exemption for a file outside the scan: {name}")
+            self.assertNotEqual(reason.strip(), "", f"CRLF exemption without a reason: {name}")
+
+    def test_new_checks_stay_read_only(self) -> None:
+        root = self.temp_root()
+        self.write_bytes(root, "docs/dirty.md", b"a \r\nb")
+        before = (root / "docs/dirty.md").read_bytes()
+        self.problems(root)
+        self.problems(root)
+        self.assertEqual((root / "docs/dirty.md").read_bytes(), before)
+        self.assertEqual(self.problems(root), [
+            "docs/dirty.md:1: trailing whitespace",
+            "docs/dirty.md:2: missing final newline",
+        ])
 
 
 if __name__ == "__main__":
