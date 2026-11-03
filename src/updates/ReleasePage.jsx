@@ -6,7 +6,7 @@ function Figure({ image }) {
   if (image.src) {
     return (
       <figure className="release-figure">
-        <img src={image.src} alt={image.alt} loading="lazy" />
+        <img src={image.src} alt={image.alt} />
         <figcaption>{image.caption}</figcaption>
       </figure>
     );
