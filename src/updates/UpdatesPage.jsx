@@ -1,106 +1,20 @@
-import { ArrowRight, ArrowUpRight, Check, ImagePlus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowRight, ArrowUpRight, ImagePlus } from "lucide-react";
+import { updates } from "./entries.js";
 
-const features = [
-  {
-    title: "微信随身",
-    image: null,
-    alt: "微信对话与 Mirally 助理会话示意",
-    points: [
-      "在微信里直接对话：文字、语音、图片、文件与视频都能接收。",
-      "助理会话与直接会话随时切换，问题可委托原会话继续处理。",
-      "成果可以作为文件或图片回传微信。",
-    ],
-  },
-  {
-    title: "日历与提醒",
-    image: null,
-    alt: "日历安排与提醒投递示意",
-    points: [
-      "在对话中安排日程，并设置提前提醒。",
-      "支持每日、每周重复，按你的时区在桌面与微信分别投递。",
-      "可以查看、编辑或取消整个提醒系列。",
-    ],
-  },
-  {
-    title: "定时执行",
-    image: null,
-    alt: "会话定时执行与结果提醒示意",
-    points: [
-      "让会话在指定时间自动执行，支持一次与周期任务。",
-      "到期前复核会话与授权状态，解绑后自动暂停。",
-      "异常重启时不重放结果不明的执行。",
-    ],
-  },
-  {
-    title: "活动记忆",
-    image: null,
-    alt: "活动摘要与来源记录示意",
-    points: [
-      "整理电脑上的活动摘要，按问题找回会议、场地和决定。",
-      "回答附来源记录，可以展开查看原始片段。",
-      "采集范围与开关由你控制。",
-    ],
-  },
-  {
-    title: "手机网页",
-    image: null,
-    alt: "手机浏览器配对与继续对话示意",
-    points: [
-      "手机浏览器打开同一会话，扫码完成配对。",
-      "离开电脑也能继续对话、接收提醒。",
-      "配对设备可以随时查看与撤销。",
-    ],
-  },
-  {
-    title: "扩展与模型",
-    image: null,
-    alt: "Skill、MCP 与模型连接设置示意",
-    points: [
-      "接入 Skill、MCP 与可信插件，能力按需加载。",
-      "模型连接可以按对话与后台分别指定。",
-      "会话支持摘要与自动标题，手动标题优先。",
-    ],
-  },
-];
+const firstDate = updates[updates.length - 1]?.date ?? "";
+const lastDate = updates[0]?.date ?? "";
 
-const improvements = [
-  {
-    title: "微信回执更清楚",
-    text: "回执会说明进入哪种会话模式；忙碌、停止、失败和附件都有对应提示，菜单与帮助按用途分组。",
-    image: null,
-    alt: "微信回执与菜单分组示意",
-  },
-  {
-    title: "会话列表更稳定",
-    text: "会话按最近活动排序，置顶会话固定留在列表顶部，不再因顺序变化跳到标题上方。",
-    image: null,
-    alt: "会话列表排序与置顶示意",
-  },
-  {
-    title: "摘要与标题",
-    text: "手动标题优先；历史内容更新后会标记摘要过期，避免继续引用旧摘要。",
-    image: null,
-    alt: "会话摘要与标题示意",
-  },
-  {
-    title: "材料与附件",
-    text: "上传后立即回执，失败时回显具体原因；长回复标出截断位置。",
-    image: null,
-    alt: "材料上传回执示意",
-  },
-  {
-    title: "桌面体验",
-    text: "开屏、主题、托盘与伙伴形态保持一致，窗口恢复和退出流程更稳定。",
-    image: null,
-    alt: "桌面开屏与伙伴形态示意",
-  },
-];
-
-const fixes = [
-  "修复微信调用网页搜索时工具名称不匹配导致的拦截。",
-  "修复停止回复时重复提示的问题。",
-  "修复置顶会话显示在侧栏标题上方的问题。",
-];
+function monthSpan() {
+  if (!firstDate || !lastDate) return "";
+  const start = firstDate.slice(0, 7).split("-");
+  const end = lastDate.slice(0, 7).split("-");
+  if (start[0] === end[0] && start[1] === end[1])
+    return `${start[0]} 年 ${Number(start[1])} 月`;
+  if (start[0] === end[0])
+    return `${start[0]} 年 ${Number(start[1])}–${Number(end[1])} 月`;
+  return `${start[0]} 年 ${Number(start[1])} 月 – ${end[0]} 年 ${Number(end[1])} 月`;
+}
 
 function Brand() {
   return (
@@ -135,22 +49,6 @@ function Header() {
   );
 }
 
-function Media({ image, alt }) {
-  if (image) {
-    return (
-      <figure className="update-media">
-        <img src={image} alt={alt} loading="lazy" />
-      </figure>
-    );
-  }
-  return (
-    <div className="update-media update-media-empty" role="img" aria-label={`图示占位：${alt}`}>
-      <ImagePlus size={22} strokeWidth={1.4} aria-hidden="true" />
-      <span className="update-media-note">图示待补充</span>
-    </div>
-  );
-}
-
 function UpdatesHero() {
   return (
     <section className="updates-hero">
@@ -159,86 +57,100 @@ function UpdatesHero() {
           <span className="status-dot" /> PRODUCT UPDATES
         </span>
         <h1>更新</h1>
-        <p className="updates-lede">最近交付的新功能、体验优化与修复。</p>
+        <p className="updates-lede">按日期记录 Mirally 的每一次更新。</p>
         <div className="updates-meta">
-          <span>2026 年 11 月</span>
-          <span>持续更新</span>
+          <span>{monthSpan()}</span>
+          <span>{updates.length} 次更新</span>
         </div>
       </div>
     </section>
   );
 }
 
-function FeatureSection() {
+function UpdatesIndex({ active }) {
   return (
-    <section className="update-section" aria-labelledby="updates-features">
-      <div className="container">
-        <div className="update-section-heading">
-          <h2 id="updates-features">新增功能</h2>
-          <p>这一批新加入的用户可见能力</p>
-        </div>
-        <div className="update-grid">
-          {features.map((item) => (
-            <article className="update-card" key={item.title}>
-              <Media image={item.image} alt={item.alt} />
-              <div className="update-card-body">
-                <h3>{item.title}</h3>
-                <ul>
-                  {item.points.map((point) => (
-                    <li key={point}>{point}</li>
-                  ))}
-                </ul>
-              </div>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
+    <aside className="updates-index" aria-label="更新目录">
+      <p className="updates-index-title">更新记录</p>
+      <ol>
+        {updates.map((entry) => (
+          <li key={entry.id}>
+            <a
+              href={`#${entry.id}`}
+              aria-current={active === entry.id ? "true" : undefined}
+            >
+              <span className="updates-index-date">{entry.date}</span>
+              <span className="updates-index-name">{entry.title}</span>
+            </a>
+          </li>
+        ))}
+      </ol>
+    </aside>
   );
 }
 
-function ImprovementSection() {
+function Figure({ item }) {
+  if (item.src) {
+    return (
+      <figure className="update-figure">
+        <img src={item.src} alt={item.alt} loading="lazy" />
+        <figcaption>{item.caption}</figcaption>
+      </figure>
+    );
+  }
   return (
-    <section className="update-section" aria-labelledby="updates-improvements">
-      <div className="container">
-        <div className="update-section-heading">
-          <h2 id="updates-improvements">体验优化</h2>
-          <p>让已有流程更清楚、更稳定</p>
-        </div>
-        <div className="update-rows">
-          {improvements.map((item) => (
-            <article className="update-row" key={item.title}>
-              <div className="update-row-copy">
-                <h3>{item.title}</h3>
-                <p>{item.text}</p>
-              </div>
-              <Media image={item.image} alt={item.alt} />
-            </article>
-          ))}
-        </div>
+    <figure className="update-figure">
+      <div
+        className="update-figure-empty"
+        role="img"
+        aria-label={`图示占位：${item.alt}`}
+      >
+        <ImagePlus size={20} strokeWidth={1.4} aria-hidden="true" />
+        <span>图示待补充</span>
       </div>
-    </section>
+      <figcaption>{item.caption}</figcaption>
+    </figure>
   );
 }
 
-function FixSection() {
+function UpdateDocument({ entry, latest }) {
+  const headingId = `update-title-${entry.id}`;
   return (
-    <section className="update-section" aria-labelledby="updates-fixes">
-      <div className="container">
-        <div className="update-section-heading">
-          <h2 id="updates-fixes">问题修复</h2>
-          <p>近期解决的已知问题</p>
-        </div>
-        <ul className="update-fixes">
-          {fixes.map((item) => (
-            <li key={item}>
-              <Check size={16} aria-hidden="true" />
-              <span>{item}</span>
-            </li>
+    <article
+      className="update-doc"
+      id={entry.id}
+      aria-labelledby={headingId}
+    >
+      <header className="update-doc-head">
+        <p className="update-doc-date">
+          <time dateTime={entry.date}>{entry.date}</time>
+          {latest && <span className="update-doc-badge">最新</span>}
+        </p>
+        <h2 id={headingId}>{entry.title}</h2>
+        <p className="update-doc-summary">{entry.summary}</p>
+      </header>
+      {entry.sections
+        .filter((section) => section.items.length > 0)
+        .map((section) => (
+          <section className="update-doc-section" key={section.title}>
+            <h3>{section.title}</h3>
+            <ul className="update-doc-list">
+              {section.items.map((item) => (
+                <li key={item.title}>
+                  <strong>{item.title}</strong>
+                  <span>{item.text}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      {entry.media.length > 0 && (
+        <div className="update-doc-media">
+          {entry.media.map((item) => (
+            <Figure key={item.alt} item={item} />
           ))}
-        </ul>
-      </div>
-    </section>
+        </div>
+      )}
+    </article>
   );
 }
 
@@ -278,6 +190,25 @@ function Footer() {
 }
 
 export default function UpdatesPage() {
+  const [active, setActive] = useState(updates[0]?.id);
+
+  useEffect(() => {
+    if (!("IntersectionObserver" in window)) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) setActive(entry.target.id);
+        });
+      },
+      { rootMargin: "-15% 0px -70% 0px" },
+    );
+    updates.forEach((entry) => {
+      const element = document.getElementById(entry.id);
+      if (element) observer.observe(element);
+    });
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <>
       <a className="skip-link" href="#main">
@@ -286,9 +217,18 @@ export default function UpdatesPage() {
       <Header />
       <main id="main">
         <UpdatesHero />
-        <FeatureSection />
-        <ImprovementSection />
-        <FixSection />
+        <div className="container updates-layout">
+          <UpdatesIndex active={active} />
+          <div className="updates-documents">
+            {updates.map((entry, index) => (
+              <UpdateDocument
+                key={entry.id}
+                entry={entry}
+                latest={index === 0}
+              />
+            ))}
+          </div>
+        </div>
         <NextStep />
       </main>
       <Footer />
