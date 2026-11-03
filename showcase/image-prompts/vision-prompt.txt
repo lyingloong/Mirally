@@ -1,6 +1,0 @@
-Use case: photorealistic-natural
-Asset type: Mirally Everyday Ally closing vision campaign photograph, panoramic landscape
-Primary request: An exceptionally beautiful poetic coastal landscape at dawn. A curving footpath follows a green grassy headland above a calm expansive blue sea, a small human figure walking toward the luminous horizon. Distant blue-gray mountains, delicate sea mist, early golden daylight, a feeling of openness, optimism and possibility. High-end travel editorial photograph, authentic natural texture, restrained colors and subtle atmospheric depth.
-Composition/framing: Panoramic 16:9 environmental landscape, generous luminous sky and open water, foreground path leads the eye into the distance. Human figure small and naturally integrated, horizon in upper third, central region simple enough for separately rendered HTML typography.
-Color palette: Pale sky blue, soft warm ivory, muted coastal green, luminous peach dawn.
-Constraints: No lettering, logos, watermark, futuristic cities, robots, artificial UI, fantasy scenery, exaggerated oversaturation or visual clutter.

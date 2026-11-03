@@ -34,7 +34,6 @@ def owned_files() -> list[Path]:
         ROOT / "frontend" / "control-ui" / "README.md",
         ROOT / "frontend" / "control-ui" / "UPSTREAM.md",
         ROOT / "frontend" / "control-ui" / "THIRD_PARTY_NOTICES.md",
-        ROOT / "showcase" / "README.md",
         ROOT / "tools" / "testing" / "README.md",
     ]
     files += sorted((ROOT / "integrations").rglob("*.md"))
