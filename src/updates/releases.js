@@ -16,16 +16,18 @@ export const releases = [
             title: "微信渠道",
             text: "微信现在可以直接和 Mirally 对话。完成绑定后，文字、语音、图片、文件和视频都能收发；你可以选择或接续某个会话，也可以随时停止回复。整理好的结果还能作为文件或图片发回微信。",
             image: {
-              alt: "微信对话、绑定与成果回传示意",
-              caption: "微信对话与绑定",
+              src: "../../images/updates/wechat.webp",
+              alt: "微信里的 Mirally 对话与文件回传示意",
+              caption: "微信对话示意",
             },
           },
           {
             title: "日历与提醒",
             text: "在对话里说清楚时间和地点，Mirally 会把它安排进日历，并在合适的时间提醒你。日程支持每日、每周重复，提醒会按你的时区同时投递到桌面和微信。",
             image: {
-              alt: "日历安排与提醒投递示意",
-              caption: "日历与提醒",
+              src: "../../images/updates/calendar.webp",
+              alt: "日历、重复提醒与多端投递示意",
+              caption: "日历与提醒示意",
             },
           },
           {
@@ -36,8 +38,9 @@ export const releases = [
             title: "桌面执行",
             text: "Mirally 可以调用 PowerShell、受管理的后台进程和独立的 Edge 浏览器，也能按需观察窗口与屏幕。每次执行前，具体内容都会先交给你确认。",
             image: {
-              alt: "桌面执行与确认示意",
-              caption: "桌面执行",
+              src: "../../images/updates/desktop.webp",
+              alt: "执行前的确认与动作权限示意",
+              caption: "执行前确认示意",
             },
           },
           {
@@ -52,8 +55,9 @@ export const releases = [
             title: "手机网页",
             text: "手机浏览器打开同一个会话，扫码配对后就能继续对话、接收提醒，不需要在手机上重新登录。配对设备可以随时撤销。",
             image: {
+              src: "../../images/updates/mobile.webp",
               alt: "手机网页配对与继续对话示意",
-              caption: "手机网页",
+              caption: "手机网页示意",
             },
           },
           {
