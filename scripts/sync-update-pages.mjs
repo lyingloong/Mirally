@@ -17,10 +17,8 @@ function escapeHtml(value) {
 }
 
 function pageHtml(release) {
-  const title = escapeHtml(release.title);
-  const description = escapeHtml(
-    release.summary ?? `${release.title} — Mirally 更新`,
-  );
+  const title = escapeHtml(`${release.date} · ${release.title}`);
+  const description = escapeHtml(`Mirally 更新日志：${release.title}。`);
   return `<!doctype html>
 ${marker}
 <html lang="zh-CN">
@@ -29,11 +27,11 @@ ${marker}
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#f6f8f7" />
     <meta name="description" content="${description}" />
-    <meta property="og:title" content="${title} — Mirally 更新" />
+    <meta property="og:title" content="${title} — Mirally 更新日志" />
     <meta property="og:description" content="${description}" />
     <meta property="og:type" content="article" />
     <link rel="icon" type="image/png" href="../../mirally.png" />
-    <title>${title} — Mirally 更新</title>
+    <title>${title} — Mirally 更新日志</title>
   </head>
   <body>
     <div id="root"></div>

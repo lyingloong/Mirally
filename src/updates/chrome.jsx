@@ -1,4 +1,4 @@
-import { ArrowRight, ArrowUpRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 export function Brand({ root }) {
   return (
@@ -47,23 +47,5 @@ export function Footer({ root }) {
         </div>
       </div>
     </footer>
-  );
-}
-
-export function NextStep({ root }) {
-  return (
-    <section className="updates-next">
-      <div className="container updates-next-inner">
-        <p>想看看现在的 Mirally 能做什么？</p>
-        <div>
-          <a className="button button-dark" href={`${root}#already-here`}>
-            查看当前能力 <ArrowUpRight size={17} />
-          </a>
-          <a className="text-link" href={`${root}#a-day`}>
-            场景演示 <ArrowRight size={16} />
-          </a>
-        </div>
-      </div>
-    </section>
   );
 }

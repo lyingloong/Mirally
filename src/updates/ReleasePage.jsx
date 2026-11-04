@@ -1,40 +1,13 @@
-import { ImagePlus } from "lucide-react";
-import { Footer, Header, NextStep } from "./chrome.jsx";
+import { Footer, Header } from "./chrome.jsx";
 import { releases } from "./releases.js";
 
-function Figure({ image }) {
-  if (image.src) {
-    return (
-      <figure className="release-figure">
-        <img src={image.src} alt={image.alt} />
-        <figcaption>{image.caption}</figcaption>
-      </figure>
-    );
-  }
+function Media({ item }) {
   return (
     <figure className="release-figure">
-      <div
-        className="release-figure-empty"
-        role="img"
-        aria-label={`图示占位：${image.alt}`}
-      >
-        <ImagePlus size={20} strokeWidth={1.4} aria-hidden="true" />
-        <span>图示待补充</span>
-      </div>
-      <figcaption>{image.caption}</figcaption>
+      <img src={item.src} alt={item.alt} />
+      <figcaption>{item.caption}</figcaption>
     </figure>
   );
-}
-
-function numberedSections(release) {
-  let number = 0;
-  return release.sections.map((section) => ({
-    title: section.title,
-    items: section.items.map((item) => {
-      number += 1;
-      return { ...item, number: String(number).padStart(2, "0") };
-    }),
-  }));
 }
 
 export default function ReleasePage({ release }) {
@@ -42,7 +15,6 @@ export default function ReleasePage({ release }) {
   const newer = index > 0 ? releases[index - 1] : null;
   const older =
     index >= 0 && index < releases.length - 1 ? releases[index + 1] : null;
-  const sections = numberedSections(release);
 
   return (
     <>
@@ -53,46 +25,40 @@ export default function ReleasePage({ release }) {
       <main id="main">
         <article className="container release">
           <a className="release-back" href="../">
-            ← 所有更新
+            ← 更新日志
           </a>
           <header className="release-head">
-            <div className="release-meta">
+            <h1>
               <time dateTime={release.date}>{release.date}</time>
-              <span>{release.period}</span>
-              {index === 0 && <span className="release-badge">最新</span>}
-            </div>
-            <h1>{release.title}</h1>
-            <p className="release-intro">{release.intro ?? release.summary}</p>
+            </h1>
+            <p className="release-title">{release.title}</p>
           </header>
-          {sections.map((section) => (
-            <section className="release-part" key={section.title}>
-              <h2 className="release-part-title">{section.title}</h2>
-              <ol className="release-points">
+          {release.sections.map((section) => (
+            <section className="release-section" key={section.title}>
+              <h2>{section.title}</h2>
+              <ul className="release-items">
                 {section.items.map((item) => (
-                  <li className="release-point" key={item.title}>
-                    <h3>
-                      <span className="release-point-number" aria-hidden="true">
-                        {item.number}
-                      </span>
-                      {item.title}
-                    </h3>
-                    <p>{item.text}</p>
-                    {item.image && <Figure image={item.image} />}
+                  <li key={item.title}>
+                    <strong>{item.title}</strong>
+                    {item.text}
                   </li>
                 ))}
-              </ol>
+              </ul>
             </section>
           ))}
-          <p className="release-outro">
-            以上是本期更新。想了解现在能做什么，可以查看
-            <a href="../../#already-here">当前能力</a>。
-          </p>
+          {release.media && release.media.length > 0 && (
+            <div className="release-media">
+              {release.media.map((item) => (
+                <Media key={item.caption} item={item} />
+              ))}
+            </div>
+          )}
           {(older || newer) && (
             <nav className="release-nav" aria-label="其他更新">
               {older ? (
                 <a href={`../${older.slug}/`}>
                   <span>上一期</span>
-                  {older.title}
+                  {older.date} {older.title}
                 </a>
               ) : (
                 <span />
@@ -100,7 +66,7 @@ export default function ReleasePage({ release }) {
               {newer ? (
                 <a className="next" href={`../${newer.slug}/`}>
                   <span>下一期</span>
-                  {newer.title}
+                  {newer.date} {newer.title}
                 </a>
               ) : (
                 <span />
@@ -108,7 +74,6 @@ export default function ReleasePage({ release }) {
             </nav>
           )}
         </article>
-        <NextStep root="../../" />
       </main>
       <Footer root="../../" />
     </>

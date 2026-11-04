@@ -50,15 +50,15 @@ npm run export:html
 - 演示中的会议摘要由浏览器本地生成；页面不接入统计、追踪、登录或支付。
 - 修改文案或素材后重新构建，并检查窄窗口与键盘操作。
 
-## 更新页
+## 更新日志
 
-`updates/` 是产品更新页：`/updates/` 列出各期更新，每期是独立页面，例如 `/updates/2026-11-01/`。一期对应一段时间开发后的发布，按「新功能 / 体验优化 / 问题修复」分点说明，并为图示保留占位。
+`updates/` 是更新日志：`/updates/` 按日期列出各期，每期是独立页面，例如 `/updates/2026-11-01/`。每期按「新功能 / 优化 / 修复」列出条目，并在末尾附一组图示。
 
-- 每期内容在 `src/updates/releases.js` 里维护：`slug`、`date`、`period`、`title`、`summary`（列表摘要）、`intro`（正文开篇）和 `sections`。`slug` 同时作为访问路径；新增一期时复制一个对象并修改即可。
-- 正文按「新功能 / 体验优化 / 问题修复」分组，条目跨分组连续编号；每个条目是一段可以直接读下来的说明，可选 `image: { alt, caption, src }` 在段落下方插入图示。
-- 条目图片的 `src` 指向 `public/images/updates/` 下的图片，引用写法为 `../images/updates/文件名.webp`；不填 `src` 时显示「图示待补充」占位。
+- 每期内容在 `src/updates/releases.js`：`slug`、`date`、`title`、`sections`、`media`。`slug` 同时作为访问路径；新增一期时复制一个对象并修改即可。
+- 条目写成一行说明（`{ title, text }`，页面显示为「标题：内容」），不写导语和结尾宣传。
+- `media` 是页面底部的图示列表，`src` 指向 `public/images/updates/` 下的图片，写法为 `../images/updates/文件名.webp`。
 - 每期页面由 `scripts/sync-update-pages.mjs` 根据 `releases` 生成（`npm run dev` / `npm run build` 前自动执行），生成的 `updates/<slug>/index.html` 不纳入 Git，不要直接编辑。
-- 发布前检查桌面与窄窗口的排版；打印样式会隐藏导航、返回链接和页脚，便于导出 PDF。
+- 发布前检查桌面与窄窗口的排版；打印样式会隐藏导航、返回链接和页脚。
 
 ## 修改入口
 
