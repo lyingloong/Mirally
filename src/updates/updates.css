@@ -137,8 +137,21 @@
 
 .release-body figure figcaption {
   margin-top: 6px;
-  color: #879ca0;
-  font-size: 11px;
+  color: #7d9295;
+  font-size: 12px;
+}
+
+.figure-tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 2px 7px;
+  border: 1px solid #d5e2e0;
+  border-radius: 4px;
+  background: #eef4f3;
+  color: #4d6a6f;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  vertical-align: 1px;
 }
 
 .release-nav {

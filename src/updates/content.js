@@ -35,12 +35,18 @@ function resolveImage(src) {
 }
 
 const markdown = new MarkdownIt({ html: false, linkify: false });
+const SYNTHETIC_PREFIX = "合成示意图：";
 
 markdown.renderer.rules.image = (tokens, idx) => {
   const token = tokens[idx];
   const src = resolveImage(token.attrGet("src") ?? "");
   const alt = token.content ?? "";
-  return `<figure><img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}"><figcaption>${escapeHtml(alt)}</figcaption></figure>`;
+  const synthetic = alt.startsWith(SYNTHETIC_PREFIX);
+  const caption = synthetic ? alt.slice(SYNTHETIC_PREFIX.length) : alt;
+  const tag = synthetic
+    ? '<span class="figure-tag">合成示意图</span>'
+    : "";
+  return `<figure><img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}"><figcaption>${tag}${escapeHtml(caption)}</figcaption></figure>`;
 };
 
 function renderMarkdown(body) {
