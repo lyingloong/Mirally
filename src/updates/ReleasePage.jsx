@@ -1,11 +1,11 @@
 import { Footer, Header } from "./chrome.jsx";
 import { releases } from "./releases.js";
 
-function Media({ item }) {
+function Figure({ image }) {
   return (
     <figure className="release-figure">
-      <img src={item.src} alt={item.alt} />
-      <figcaption>{item.caption}</figcaption>
+      <img src={image.src} alt={image.alt} />
+      <figcaption>{image.caption}</figcaption>
     </figure>
   );
 }
@@ -36,23 +36,17 @@ export default function ReleasePage({ release }) {
           {release.sections.map((section) => (
             <section className="release-section" key={section.title}>
               <h2>{section.title}</h2>
-              <ul className="release-items">
-                {section.items.map((item) => (
-                  <li key={item.title}>
+              {section.items.map((item) => (
+                <div className="release-point" key={item.title}>
+                  <p>
                     <strong>{item.title}</strong>
                     {item.text}
-                  </li>
-                ))}
-              </ul>
+                  </p>
+                  {item.image && <Figure image={item.image} />}
+                </div>
+              ))}
             </section>
           ))}
-          {release.media && release.media.length > 0 && (
-            <div className="release-media">
-              {release.media.map((item) => (
-                <Media key={item.caption} item={item} />
-              ))}
-            </div>
-          )}
           {(older || newer) && (
             <nav className="release-nav" aria-label="其他更新">
               {older ? (

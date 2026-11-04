@@ -93,58 +93,40 @@
 }
 
 .release-section {
-  margin-top: 28px;
+  margin-top: 34px;
 }
 
 .release-section h2 {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
   color: #173b45;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-}
-
-.release-items {
-  margin: 8px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.release-items li {
-  position: relative;
-  padding: 5px 0 5px 16px;
-  color: #4e666b;
   font-size: 14px;
-  line-height: 1.9;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
-.release-items li::before {
-  content: "·";
-  position: absolute;
-  left: 2px;
-  color: #9fb3b5;
-  font-weight: 700;
+.release-point {
+  margin-top: 20px;
 }
 
-.release-items strong {
+.release-point p {
+  color: #3f585d;
+  font-size: 15px;
+  line-height: 1.95;
+}
+
+.release-point strong {
   color: #173b45;
   font-weight: 600;
 }
 
-.release-items strong::after {
+.release-point strong::after {
   content: "：";
   font-weight: 400;
 }
 
-.release-media {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 34px;
-}
-
 .release-figure {
-  min-width: 0;
-  margin: 0;
+  margin: 16px 0 4px;
 }
 
 .release-figure img {
@@ -244,9 +226,6 @@
   }
   .release-head h1 {
     font-size: 26px;
-  }
-  .release-media {
-    grid-template-columns: 1fr;
   }
   .release-nav {
     flex-direction: column;
