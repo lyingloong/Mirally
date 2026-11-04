@@ -52,11 +52,25 @@ npm run export:html
 
 ## 更新日志
 
-`updates/` 是更新日志：`/updates/` 按日期列出各期，每期是独立页面，例如 `/updates/2026-11-01/`。每期按「新功能 / 优化 / 修复」分小节，用正文段落说明，图示跟在相关段落后面。
+`updates/` 是更新日志：`/updates/` 按日期列出各期，每期是独立页面，例如 `/updates/2026-11-01/`。正文原文是 Markdown，由前端渲染。
 
-- 每期内容在 `src/updates/releases.js`：`slug`、`date`、`title`、`sections`。`slug` 同时作为访问路径；新增一期时复制一个对象并修改即可。
-- 每个条目渲染成一段「标题：内容」的正文，可以写成两三句；条目可选 `image: { src, alt, caption }`，图示放在该段之后。
-- 图片的 `src` 指向 `public/images/updates/` 下的文件，写法为 `../images/updates/文件名.webp`。
+- 每期一个文件：`content/updates/<日期>.md`，开头用 frontmatter 写日期和标题：
+
+```md
+---
+date: 2026-11-01
+title: 微信、日历与桌面执行
+---
+
+## 新功能
+
+**微信渠道**：支持扫码绑定、文字私聊……
+
+![微信对话与文件回传](../../public/images/updates/wechat.webp)
+```
+
+- 小节用 `##`，每个点一段，用 `**标题**：` 开头；细小的改动合并成一条，例如「视觉效果」「其他修复」，不必逐项列出。
+- 图片路径相对于 Markdown 文件，文件放在 `public/images/` 下；渲染时会按页面位置解析。
 - 不写营销式导语、数量统计和结尾推广；每期页面由 `scripts/sync-update-pages.mjs` 生成（`npm run dev` / `npm run build` 前自动执行），生成的 `updates/<slug>/index.html` 不纳入 Git。
 - 发布前检查桌面与窄窗口的排版；打印样式会隐藏导航、返回链接和页脚。
 
@@ -70,11 +84,12 @@ npm run export:html
 | `src/CapabilityVisual.jsx` | 当前能力的界面示意 |
 | `src/NextCapabilities.jsx` | 下一步能力的概念示意 |
 | `src/BusinessVisual.jsx` | 商业路径图解 |
-| `src/updates/releases.js` | 每期更新内容与页面路径 |
+| `content/updates/*.md` | 每期更新日志原文 |
+| `src/updates/content.js` | Markdown 解析与图示渲染 |
 | `src/updates/UpdatesIndex.jsx` | 更新列表页 |
 | `src/updates/ReleasePage.jsx` | 单期更新页 |
 | `src/updates/chrome.jsx` | 更新页共用的页头页脚 |
-| `scripts/sync-update-pages.mjs` | 生成每期静态页面 |
+| `scripts/sync-update-pages.mjs` | 读取 Markdown 并生成每期静态页面 |
 | `src/updates/updates.css` | 更新页样式 |
 | `src/*.css` | 布局、章节适配与响应式样式 |
 | `public/images/` | 已生成的 WebP 宣传素材 |

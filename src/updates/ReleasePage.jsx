@@ -1,14 +1,5 @@
 import { Footer, Header } from "./chrome.jsx";
-import { releases } from "./releases.js";
-
-function Figure({ image }) {
-  return (
-    <figure className="release-figure">
-      <img src={image.src} alt={image.alt} />
-      <figcaption>{image.caption}</figcaption>
-    </figure>
-  );
-}
+import { releases } from "./content.js";
 
 export default function ReleasePage({ release }) {
   const index = releases.findIndex((item) => item.slug === release.slug);
@@ -33,20 +24,10 @@ export default function ReleasePage({ release }) {
             </h1>
             <p className="release-title">{release.title}</p>
           </header>
-          {release.sections.map((section) => (
-            <section className="release-section" key={section.title}>
-              <h2>{section.title}</h2>
-              {section.items.map((item) => (
-                <div className="release-point" key={item.title}>
-                  <p>
-                    <strong>{item.title}</strong>
-                    {item.text}
-                  </p>
-                  {item.image && <Figure image={item.image} />}
-                </div>
-              ))}
-            </section>
-          ))}
+          <div
+            className="release-body"
+            dangerouslySetInnerHTML={{ __html: release.html }}
+          />
           {(older || newer) && (
             <nav className="release-nav" aria-label="其他更新">
               {older ? (

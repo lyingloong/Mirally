@@ -1,6 +1,6 @@
 import { ArrowRight } from "lucide-react";
 import { Footer, Header } from "./chrome.jsx";
-import { releases } from "./releases.js";
+import { releases } from "./content.js";
 
 export default function UpdatesIndex() {
   return (

@@ -1,4 +1,4 @@
-import { releases } from "./releases.js";
+import { releases } from "./content.js";
 import ReleasePage from "./ReleasePage.jsx";
 import UpdatesIndex from "./UpdatesIndex.jsx";
 
