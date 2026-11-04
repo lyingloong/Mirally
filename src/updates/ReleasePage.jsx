@@ -8,7 +8,7 @@ export default function ReleasePage({ release }) {
     index >= 0 && index < releases.length - 1 ? releases[index + 1] : null;
 
   return (
-    <>
+    <div className="updates-shell">
       <a className="skip-link" href="#main">
         跳到主要内容
       </a>
@@ -51,6 +51,6 @@ export default function ReleasePage({ release }) {
         </article>
       </main>
       <Footer root="../../" />
-    </>
+    </div>
   );
 }

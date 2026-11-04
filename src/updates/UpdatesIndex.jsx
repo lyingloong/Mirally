@@ -4,7 +4,7 @@ import { releases } from "./content.js";
 
 export default function UpdatesIndex() {
   return (
-    <>
+    <div className="updates-shell">
       <a className="skip-link" href="#main">
         跳到主要内容
       </a>
@@ -27,6 +27,6 @@ export default function UpdatesIndex() {
         </ol>
       </main>
       <Footer root="../" />
-    </>
+    </div>
   );
 }

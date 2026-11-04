@@ -1,3 +1,18 @@
+.updates-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.updates-shell > header,
+.updates-shell > footer {
+  flex-shrink: 0;
+}
+
+.updates-shell > main {
+  flex: 1 0 auto;
+}
+
 .updates-header .main-nav {
   margin-left: 24px;
 }
