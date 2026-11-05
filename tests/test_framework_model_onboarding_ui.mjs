@@ -116,3 +116,65 @@ test('history, search and loading do not create a setup welcome; ordinary welcom
   assert.equal(result.welcomeProps.length, 1);
   assert.equal(result.welcomeProps[0].onModelSetup, undefined);
 });
+
+
+test('welcome suggestions fill an empty draft and focus without sending', () => {
+  let draft = '', focused = 0, sent = 0;
+  const {renderWelcomeSuggestions} = load('components/chat-welcome.ts', ['renderWelcomeSuggestions'], {
+    registerCommandPaletteEnglish() {},
+  });
+  const rendered = renderWelcomeSuggestions({getDraft: () => draft,
+    onDraftChange: value => {draft = value;}, onFocusComposer: () => {focused++;},
+    onSend: () => {sent++;}});
+  const button = templates(rendered).find(item => item.strings.some(part => part.includes('<button')));
+  const activate = button.values[button.strings.findIndex(part => part.includes('@click='))];
+  activate();
+  assert.equal(draft, 'chat.welcome.suggestions.whatCanYouDo');
+  assert.equal(focused, 1);
+  assert.equal(sent, 0);
+});
+
+test('a delayed welcome suggestion preserves newer input including whitespace', () => {
+  let draft = '', writes = 0, focused = 0;
+  const {renderWelcomeSuggestions} = load('components/chat-welcome.ts', ['renderWelcomeSuggestions'], {
+    registerCommandPaletteEnglish() {},
+  });
+  const rendered = renderWelcomeSuggestions({draft: '', getDraft: () => draft,
+    onDraftChange: () => {writes++;}, onFocusComposer: () => {focused++;}});
+  const button = templates(rendered).find(item => item.strings.some(part => part.includes('<button')));
+  const activate = button.values[button.strings.findIndex(part => part.includes('@click='))];
+  for (const next of ['用户刚写的草稿', '  ']) {
+    draft = next;
+    activate();
+    assert.equal(draft, next);
+  }
+  assert.equal(writes, 0);
+  assert.equal(focused, 2);
+});
+
+test('named new-conversation link keeps native modified navigation and permission rejection', () => {
+  const {renderNewSessionLink} = load('../../components/new-session-link.ts', ['renderNewSessionLink'], {
+    pathForRoute: () => '/new', newSessionSearch: () => '?agent=main', icons: {plus: '+'},
+    shouldHandleNavigationClick: event => !event.ctrlKey,
+    t: key => key,
+  });
+  let opened = 0, prevented = 0;
+  const params = {basePath: '', agentId: 'main', className: 'sidebar-new-conversation',
+    label: '新对话', showLabel: true, onOpen: () => {opened++;}};
+  const rendered = renderNewSessionLink(params);
+  assert.match(stringify(rendered), /新对话/);
+  assert.match(stringify(rendered), /href=\/new\?agent=main/);
+  const activate = rendered.values[rendered.strings.findIndex(part => part.includes('@click='))];
+  activate({ctrlKey: true, preventDefault() {prevented++;}});
+  assert.equal(opened, 0);
+  assert.equal(prevented, 0);
+  activate({ctrlKey: false, preventDefault() {prevented++;}});
+  assert.equal(opened, 1);
+  const disabled = renderNewSessionLink({...params, disabledReason: 'not allowed'});
+  const reject = disabled.values[disabled.strings.findIndex(part => part.includes('@click='))];
+  reject({ctrlKey: true, preventDefault() {prevented++;}});
+  assert.equal(opened, 1);
+  assert.equal(prevented, 2);
+  assert.match(stringify(disabled), /aria-disabled=true/);
+  assert.doesNotMatch(stringify(disabled), /href=\/new/);
+});

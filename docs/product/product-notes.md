@@ -720,3 +720,12 @@
 - 来源：用户要求移除 UFO 子模块与仅依赖它的测试/依赖，清理本地全量验证噪声。
 - 决定：删除 UFO submodule（`.gitmodules`、gitlink `UFO`）及其专用依赖清单；删除 4 个 `tests/test_ufo_*.py` 与 2 个专用夹具（`ufo_startup_probe.py`、`native_execution_scenarios.py`）。完整 Python 测试不再需要初始化子模块或安装 UFO 依赖。
 - 边界：`mirally/runtime/ufo/` 产品适配、`config/mirally/ufo/` 配置与 [UFO 复盘](research-2026-10-31-ufo.md) 保留，供未来自研 Windows 适配参考；不恢复 UFO 执行链、不整体接入 UFO；子模块源码由 Git 历史追溯，需要时可回滚恢复。
+
+## PN-0086 · 2026-11-06 01:43 +08:00 · 全界面的视觉与易用性持续改进
+
+- 类型：用户要求 / 延续 PN-0057、PN-0058、PN-0059
+- 来源：用户希望整体界面更美观、使用更人性化，要求参考先进的 UI 与交互做法；Agent 结合现行页面和一手设计资料提出落点。
+- 状态：已采纳改进方向；各页面按具体改动实现与验收，不代表全界面已经完成改造。
+- 原则：沿用 Mirally 品牌、组件、主题、紧凑文字层级及伙伴体验，通过主次、对齐与间距改善可读性；让高频入口可辨认，低频参数按需展开。建议内容保留用户编辑和发送的决定，刷新与失败处理保护已有内容、草稿和操作连续性，控件与实际生效时机一致。
+- 依据：[Fluent 布局](https://fluent2.microsoft.design/layout)说明用间距表达关系与层级，[Fluent 导航](https://fluent2.microsoft.design/components/web/react/core/nav/usage)建议控制次操作数量，[WAI 状态消息](https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html)要求重要状态变化可被感知而无需转移焦点。这些是结合 Mirally 场景的设计依据，不照搬外部品牌，也不将参考样式当作体验验收。
+- 现行约束见 [UI 规范](../standards/ui-guidelines.md)与[视觉基线](../standards/ui-visual-system.md)；本轮行为范围见[前端](../architecture/frontend.md#高频操作与页面层级)。
