@@ -181,6 +181,8 @@ export type ChatThreadProps = ChatSendStatusActions & {
   onRequestUpdate?: () => void;
   onChatScroll?: (event: Event) => void;
   onHistoryIntent?: (event: Event) => void;
+  draft?: string;
+  getDraft?: () => string;
   onDraftChange: (next: string) => void;
   onSend: () => void;
   onSetReply?: (target: MessageReplyTarget) => void;

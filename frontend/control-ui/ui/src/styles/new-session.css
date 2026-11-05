@@ -1289,13 +1289,15 @@ wa-popover.new-session-page__where-popover::part(body) {
     color: var(--primary-foreground);
   }
 
+  /* Keep the hero and input in natural flow; spare viewport height must not
+     become auto margins around the identity while the input sits below it. */
   .new-session-page .agent-chat__welcome {
-    min-height: 100%;
+    min-height: auto;
   }
 
   .new-session-page .agent-chat__welcome-identity {
     gap: 6px;
-    margin-block: auto;
+    margin-block: 0;
   }
 
   .new-session-page .agent-chat__welcome-clawd {
@@ -1304,8 +1306,8 @@ wa-popover.new-session-page__where-popover::part(body) {
 
   .new-session-page__draft {
     flex: 0 0 auto;
-    justify-content: flex-end;
     min-height: 0;
+    margin-top: 8px;
   }
 
   .new-session-page__triggers {
@@ -1685,4 +1687,10 @@ wa-popover.new-session-page__where-popover::part(body) {
 
 .new-session-page__fixed-machine span:last-child {
   color: var(--muted);
+}
+
+/* Short desktop/landscape windows keep the same scroll owner and controls,
+   with a smaller paragraph gap before the form. */
+@media (min-width: 561px) and (max-height: 600px) {
+  .new-session-page__draft { margin-top: 12px; }
 }

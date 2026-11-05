@@ -447,10 +447,12 @@ export class NewSessionPage extends OpenClawLightDomElement {
       assistantName: agent ? normalizeAgentTargetLabel(agent, identity) : "",
       assistantAvatar: resolveAgentTextAvatar(agent ?? {}, identity),
       assistantAvatarUrl: resolveAgentAvatarUrl(agent ?? {}, identity),
-      hint: t(catalog.isTarget(this.data) ? "newSession.nativeTerminalHint" : "newSession.hint"),
+      hint: catalog.isTarget(this.data) ? t("newSession.nativeTerminalHint") : undefined,
       composer: this.renderDraftBlock(),
       hideSecondaryContent: this.submission.visibility === "incognito",
-      fadeSecondaryContent: this.submission.message.trim().length > 0,
+      draft: this.submission.message,
+      getDraft: () => this.submission.message,
+      onFocusComposer: () => this.focusComposer(),
       modelSetupRequired: this.submission.requiresModelSetup(),
       onModelSetup: () => this.context?.navigate("model-setup"),
       sessions: this.context?.sessions.state.result,
@@ -464,7 +466,6 @@ export class NewSessionPage extends OpenClawLightDomElement {
         hello: gateway?.hello ?? null,
       },
       onDraftChange: (next) => this.setMessageFromUser(next),
-      onSend: () => void this.submission.submit(),
       onOpenSession: (sessionKey) => {
         const { context, submission } = this;
         if (!context || submission.submitting || submission.pendingPlacement.sessionKey) {
