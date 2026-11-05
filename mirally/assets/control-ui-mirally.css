@@ -32,6 +32,16 @@
   --secondary:#203044; --secondary-foreground:#d5e3ef; --ring:#62c5fa; --focus:#62c5fa24;
   --grid-line:#8cb5d70a; --brand-logo-chip-bg:#172331;
 }
+/* A quiet conversation canvas for the default Mirally palettes. Keep the
+   surface token shared with chat fades; other theme artwork remains selectable. */
+:root[data-mirally][data-theme="light"] .shell--chat {
+  --bg-content:#fcfcfd;
+  --app-background-image:none;
+}
+:root[data-mirally][data-theme="dark"] .shell--chat {
+  --bg-content:#181c22;
+  --app-background-image:none;
+}
 /* Promotion occupies the history rail; remove its slot rather than leave a gap.
    Discord as an actual configured channel remains fully available. */
 [data-mirally] .sidebar-shell__invite,
