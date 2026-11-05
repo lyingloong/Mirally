@@ -4569,6 +4569,29 @@ wa-dropdown.sidebar-identity-menu::part(menu) {
   min-height: 0;
 }
 
+/* The Messages page reuses the `custodian` route id for its navigation state,
+   so it inherits the quick-chat page's full-height, non-scrolling shell even
+   though it is an ordinary long list. Give that one page the generic content
+   scrolling and padding back; the chat panel has no router content here. */
+.content--custodian:has(> openclaw-router-outlet mirally-messages-page) {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px var(--content-inline-padding) 32px;
+}
+
+.content--custodian:has(> openclaw-router-outlet mirally-messages-page) > openclaw-router-outlet {
+  display: block;
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+/* The settings shell owns its own inline padding, but it deliberately excluded
+   this class when the class only meant the full-height custodian page. */
+.shell--settings:not(.shell--mobile-nav)
+  .content--custodian:has(> openclaw-router-outlet mirally-messages-page) {
+  padding: 16px var(--space-4) 32px;
+}
+
 .content--workboard {
   display: flex;
   flex-direction: column;
