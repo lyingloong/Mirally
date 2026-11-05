@@ -61,6 +61,7 @@
 | 开发点状态、并发/配额闸门与待合并池 | [状态助手](../../tools/dev_workflow/agent_workflow.py)、[AgentTeams 工作流](../development/agent-teams-workflow.md) | 队长用状态助手推进 `proposed → … → awaiting_merge`；审查通过仍需用户批准，不自动合并；本机状态与配置在 `output/agent-workflow/`（gitignore，不是产品数据） | [状态机与闸门测试](../../tests/development/test_agent_workflow.py) |
 | 审查经验与可复用准则 | [审查经验库](../development/review-experience.md) | 审查师维护；候选先写入 `output/agent-workflow/experience-candidates.md`，整理走独立 docs PR | 无自动化测试；实现/审查前人工核对相关条目 |
 | 仓库文档链接守卫 | [链接检查器](../../tools/check_docs_links.py) | 文档改动后由改动者运行；入口是否仍正确、测试是否覆盖目标行为仍需审查核对 | `python tools/check_docs_links.py` 输出 0 broken |
+| CI 影响范围与依赖缓存 | [PR 工作流](../../.github/workflows/mirally-pr.yml)、[范围选择器](../../tools/check_ci_scope.py) | 明确的文档/开发工具改动只运行轻量检查；未知或无法比较时运行完整产品检查，规则见[验证](validation.md#github-actions-检查范围) | [范围与 Git 差异测试](../../tests/development/test_ci_scope.py) |
 
 ## 找到入口后的检查顺序
 
