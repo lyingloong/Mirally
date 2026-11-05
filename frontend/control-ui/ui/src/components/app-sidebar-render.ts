@@ -4,7 +4,7 @@ import { html as staticHtml, literal } from "lit/static-html.js";
 import { presenceUserKey } from "../../../src/shared/presence-user.ts";
 import type { GatewayControlUiPluginTab } from "../api/gateway.ts";
 import { mirallyNavigationText, serializeSidebarEntry, type SidebarZoneEntry } from "../app-navigation.ts";
-import { isRouteId, isSessionRouteId, pathForRoute } from "../app-route-paths.ts";
+import { isRouteId, isSessionRouteId } from "../app-route-paths.ts";
 import { gatewayPresentationScope } from "../app/gateway-presentation-scope.ts";
 import { isHomePanelAvailable } from "../app/panel-availability.ts";
 import { controlUiPublicAssetPath } from "../app/public-assets.ts";
@@ -472,16 +472,6 @@ export function renderAppSidebarFooterBar(host: AppSidebarRenderHost) {
   const accessibleDetail = identityDetail;
   const announcement = statusLabel ?? (host.connected ? mirallyNavigationText("已连接 Mirally", "Connected to Mirally") : "");
   return html`
-    <a class="sidebar-settings-link" href=${pathForRoute("config", host.basePath)}
-      @contextmenu=${(event: MouseEvent) => event.stopPropagation()}
-      @click=${(event: MouseEvent) => {
-        if (!shouldHandleNavigationClick(event)) return;
-        event.preventDefault();
-        host.onNavigate?.("config");
-      }}>
-      <span aria-hidden="true">${icons.settings}</span>
-      <span>${mirallyNavigationText("设置", "Settings")}</span>
-    </a>
     <div class="sidebar-footer-bar sidebar-footer-bar--one-action">
       <button
         type="button"

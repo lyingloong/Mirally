@@ -729,3 +729,11 @@
 - 原则：沿用 Mirally 品牌、组件、主题、紧凑文字层级及伙伴体验，通过主次、对齐与间距改善可读性；让高频入口可辨认，低频参数按需展开。建议内容保留用户编辑和发送的决定，刷新与失败处理保护已有内容、草稿和操作连续性，控件与实际生效时机一致。
 - 依据：[Fluent 布局](https://fluent2.microsoft.design/layout)说明用间距表达关系与层级，[Fluent 导航](https://fluent2.microsoft.design/components/web/react/core/nav/usage)建议控制次操作数量，[WAI 状态消息](https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html)要求重要状态变化可被感知而无需转移焦点。这些是结合 Mirally 场景的设计依据，不照搬外部品牌，也不将参考样式当作体验验收。
 - 现行约束见 [UI 规范](../standards/ui-guidelines.md)与[视觉基线](../standards/ui-visual-system.md)；本轮行为范围见[前端](../architecture/frontend.md#高频操作与页面层级)。
+
+## PN-0087 · 2026-11-06 02:22 +08:00 · 对话表面更素，设置集中在个人菜单
+
+- 类型：用户决定 / 细化 PN-0086
+- 来源：用户确认设置只收在“我的 Mirally”菜单，要求整个对话背景更浅、更素，并缩小桌面对话输入字体。
+- 状态：已确认设计取舍；具体呈现与体验验收以相关实现为准。
+- 决定：设置统一从“我的 Mirally”菜单进入，减少侧栏重复入口；对话区域整体采用更浅、更素的背景，让消息与输入内容成为视觉重点。桌面对话编辑器默认 14px，复用 `--control-ui-text-lg` 并随用户字号缩放，触屏保持至少 16px。
+- 理由与边界：以更清楚的入口归属、安静的背景和紧凑的输入文字减轻视觉负担；保留现有品牌、主题、伙伴与文字缩放，不以强制小字或另设字号开关实现。此条更新 PN-0086 对入口可辨认的具体落点，不意味着所有设置都需要常驻侧栏；现行字号见[视觉基线](../standards/ui-visual-system.md)。
