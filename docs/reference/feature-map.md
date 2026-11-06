@@ -56,7 +56,7 @@
 
 | 要修改的功能 | 从哪里开始 | 状态与执行归属 | 代表验证 |
 | --- | --- | --- | --- |
-| 首页、愿景与概念演示 | [网站说明](../../website/README.md)、[App.jsx](../../website/src/App.jsx) | `website/` 静态页面与本地演示；不访问产品宿主、数据库或模型服务，当前能力以[能力矩阵](capabilities.md)为准 | 网站 `build`、`export:html`；实际桌面/窄窗口与键盘操作 |
+| 项目首页、开发版截图与预设演示 | [网站说明](../../website/README.md)、[App.jsx](../../website/src/App.jsx)、[DayExperience.jsx](../../website/src/DayExperience.jsx)、[素材来源](../../website/public/CREDITS.md) | 本版为待反馈预览：白底自然滚动页面、三个产品特点和一处三标签演示；截图取自隔离开发版与预设会话，演示不访问产品宿主、数据库或模型服务。当前能力以[能力矩阵](capabilities.md)为准 | 网站 `build`、`export:html`；实际桌面/窄窗口、截图放大、标签键盘操作与摘要下载 |
 | 对外更新内容与日期页面 | [更新 Markdown](../../website/content/updates/)、[页面生成脚本](../../website/scripts/sync-update-pages.mjs)、[Vite 配置](../../website/vite.config.js) | 人工整理的 Markdown 是正文来源，构建生成日期页；不自动发布全部产品 CHANGELOG | 网站构建；`/updates/`、日期深链接与图片路径验收 |
 | 网站 CI 与 Pages 发布 | [网站工作流](../../.github/workflows/website.yml)、[范围选择器](../../tools/check_ci_scope.py) | 网站相关 PR 独立构建；`main` 网站变更或手动运行发布 Pages | [CI 范围测试](../../tests/development/test_ci_scope.py)、网站工作流及部署后检查；见[网站验证](validation.md#网站独立验证) |
 

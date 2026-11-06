@@ -30,7 +30,7 @@
 
 .updates-head p {
   margin-top: 10px;
-  color: #6b8386;
+  color: var(--muted);
   font-size: 13px;
 }
 
@@ -55,24 +55,24 @@
 .release-rows time {
   flex: none;
   width: 88px;
-  color: #7d9295;
+  color: var(--muted);
   font-size: 12px;
   letter-spacing: 0.04em;
 }
 
 .release-row-title {
-  color: #173b45;
+  color: var(--ink);
   font-size: 14px;
 }
 
 .release-rows svg {
   align-self: center;
   margin-left: auto;
-  color: #a6b8b9;
+  color: var(--muted);
 }
 
 .release-rows a:hover .release-row-title {
-  color: #1f7f90;
+  color: var(--accent);
 }
 
 .release {
@@ -81,12 +81,12 @@
 }
 
 .release-back {
-  color: #6b8386;
+  color: var(--muted);
   font-size: 12px;
 }
 
 .release-back:hover {
-  color: #173b45;
+  color: var(--ink);
 }
 
 .release-head {
@@ -103,7 +103,7 @@
 
 .release-title {
   margin-top: 8px;
-  color: #5e757a;
+  color: var(--muted);
   font-size: 14px;
 }
 
@@ -115,7 +115,7 @@
   margin-top: 34px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--line);
-  color: #173b45;
+  color: var(--ink);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -127,13 +127,13 @@
 
 .release-body p {
   margin-top: 14px;
-  color: #3f585d;
+  color: #41464d;
   font-size: 15px;
   line-height: 1.95;
 }
 
 .release-body strong {
-  color: #173b45;
+  color: var(--ink);
   font-weight: 600;
 }
 
@@ -152,7 +152,7 @@
 
 .release-body figure figcaption {
   margin-top: 6px;
-  color: #7d9295;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -160,10 +160,10 @@
   display: inline-block;
   margin-right: 6px;
   padding: 2px 7px;
-  border: 1px solid #d5e2e0;
+  border: 1px solid var(--line);
   border-radius: 4px;
-  background: #eef4f3;
-  color: #4d6a6f;
+  background: #f5f6f7;
+  color: var(--muted);
   font-size: 10px;
   letter-spacing: 0.04em;
   vertical-align: 1px;
@@ -182,16 +182,16 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  color: #40595e;
+  color: #41464d;
   font-size: 12px;
 }
 
 .release-nav a:hover {
-  color: #173b45;
+  color: var(--ink);
 }
 
 .release-nav a span {
-  color: #95a9ab;
+  color: var(--muted);
   font-size: 10px;
   letter-spacing: 0.04em;
 }
@@ -207,11 +207,12 @@
 
 .updates-footer .footer-inner > p {
   display: block;
-  color: #879ca0;
+  color: var(--muted);
   font-size: 11px;
 }
 
 .updates-footer .footer-inner > div {
+  display: flex;
   flex-direction: row;
   align-items: center;
   gap: 18px;
@@ -220,7 +221,7 @@
 
 .updates-footer .footer-inner > div a {
   padding: 6px 0;
-  color: #6b8386;
+  color: var(--muted);
 }
 
 @media (max-width: 860px) {
