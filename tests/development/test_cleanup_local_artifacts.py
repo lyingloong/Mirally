@@ -1,4 +1,4 @@
-"""Offline tests for tools/cleanup_local_artifacts.py (dev-0029, seed-coverage spec A).
+"""Offline tests for tools/check_cleanup_local_artifacts.py (dev-0029, seed-coverage spec A).
 
 Every fixture is a throwaway ``TemporaryDirectory`` shaped like a repository
 (``<root>/output/tmp/...``). Nothing here touches the real ``output/tmp``.
@@ -17,7 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from tools import cleanup_local_artifacts as cleanup  # noqa: E402
+from tools import check_cleanup_local_artifacts as cleanup  # noqa: E402
 
 DAY = 86_400
 NOW = 1_800_000_000.0
@@ -228,7 +228,8 @@ class CleanupLocalArtifactsTests(unittest.TestCase):
             self.assertIn("Git", report)
             self.assertTrue((victim / "keep.txt").is_file())
 
-            code = cleanup.main(["--root", str(tmp), "--apply", "--days", "7"], now=NOW)
+            code = cleanup.main(["--root", str(tmp), "--apply", "--days", "7"],
+                                now=NOW, repo_root=repo)
             self.assertEqual(code, 1)
             self.assertTrue((victim / "keep.txt").is_file())
 
@@ -246,6 +247,23 @@ class CleanupLocalArtifactsTests(unittest.TestCase):
             code, _ = cleanup.run(repo_root=repo, now=NOW, apply=True, days=7)
             self.assertEqual(code, 0)
             self.assertFalse(stale.exists())
+
+    def test_short_name_repo_and_long_root_paths_are_normalized(self):
+        """Runner temp paths may mix 8.3 short and long forms in one compare."""
+        if os.name != "nt":
+            self.skipTest("Windows 8.3 short names only")
+        import ctypes
+
+        buffer = ctypes.create_unicode_buffer(32_768)
+        length = ctypes.windll.kernel32.GetShortPathNameW(str(self.repo), buffer, len(buffer))
+        if not length or not buffer.value or Path(buffer.value) == self.repo:
+            self.skipTest("8.3 short names are unavailable on this volume")
+        short_tmp = Path(buffer.value) / "output" / "tmp"
+        stale = self.scratch("run-old", age_days=30)
+        code, report = cleanup.run(repo_root=self.repo, root=short_tmp, now=NOW,
+                                   apply=True, days=7)
+        self.assertEqual(code, 0, report)
+        self.assertFalse(stale.exists())
 
     def test_junction_tmp_root_is_refused_and_target_survives(self):
         outside = self.repo / "outside-tmp-root"
@@ -325,9 +343,9 @@ class CleanupLocalArtifactsTests(unittest.TestCase):
                 env = {**os.environ, "PYTHONIOENCODING": encoding,
                        "PYTHONPATH": str(ROOT)}
                 result = subprocess.run(
-                    [sys.executable, str(ROOT / "tools" / "cleanup_local_artifacts.py"),
+                    [sys.executable, str(ROOT / "tools" / "check_cleanup_local_artifacts.py"),
                      "--root", str(self.tmp), "--days", "7"],
-                    cwd=str(ROOT), env=env, capture_output=True, timeout=120,
+                    cwd=str(self.repo), env=env, capture_output=True, timeout=120,
                 )
                 stderr = result.stderr.decode("utf-8", "replace")
                 self.assertEqual(result.returncode, 0, stderr)
@@ -339,24 +357,33 @@ class CleanupLocalArtifactsTests(unittest.TestCase):
 
     def test_cli_dry_run_is_default_and_keeps_directories(self):
         stale = self.scratch("run-old", age_days=30)
-        code = cleanup.main(["--root", str(self.tmp), "--days", "7"], now=NOW)
+        code = cleanup.main(["--root", str(self.tmp), "--days", "7"], now=NOW,
+                            repo_root=self.repo)
         self.assertEqual(code, 0)
         self.assertTrue(stale.is_dir())
 
     def test_cli_apply_deletes(self):
         stale = self.scratch("run-old", age_days=30)
-        code = cleanup.main(["--root", str(self.tmp), "--apply", "--days", "7"], now=NOW)
+        code = cleanup.main(["--root", str(self.tmp), "--apply", "--days", "7"], now=NOW,
+                            repo_root=self.repo)
         self.assertEqual(code, 0)
         self.assertFalse(stale.exists())
+
+    def test_main_accepts_explicit_repo_root_without_cwd_dependence(self):
+        stale = self.scratch("run-old", age_days=30)
+        code = cleanup.main(["--days", "7"], now=NOW, repo_root=self.repo)
+        self.assertEqual(code, 0)
+        self.assertTrue(stale.is_dir())
 
     def test_cli_rejects_non_tmp_root(self):
         elsewhere = self.repo / "output" / "not-tmp"
         elsewhere.mkdir()
-        code = cleanup.main(["--root", str(elsewhere)])
+        code = cleanup.main(["--root", str(elsewhere)], repo_root=self.repo)
         self.assertEqual(code, 1)
 
     def test_cli_rejects_negative_days(self):
-        self.assertEqual(cleanup.main(["--root", str(self.tmp), "--days", "-1"]), 2)
+        self.assertEqual(cleanup.main(["--root", str(self.tmp), "--days", "-1"],
+                                      repo_root=self.repo), 2)
 
     def test_tool_is_read_only_until_apply(self):
         """The default path must not modify mtimes anywhere in the tree."""

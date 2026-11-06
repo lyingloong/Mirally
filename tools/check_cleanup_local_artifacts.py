@@ -19,10 +19,10 @@ Scope is deliberately narrow:
 * the repository root is verified with ``git rev-parse --show-toplevel``; a
   non-Git directory is refused even when it contains ``output/tmp``.
 
-    python tools/cleanup_local_artifacts.py             # dry run (default)
-    python tools/cleanup_local_artifacts.py --apply     # actually delete
-    python tools/cleanup_local_artifacts.py --days 3    # change the age floor
-    python tools/cleanup_local_artifacts.py --root <dir>  # only if inside a repo
+    python tools/check_cleanup_local_artifacts.py             # dry run (default)
+    python tools/check_cleanup_local_artifacts.py --apply     # actually delete
+    python tools/check_cleanup_local_artifacts.py --days 3    # change the age floor
+    python tools/check_cleanup_local_artifacts.py --root <dir>  # only if inside a repo
 
 Exit codes: 0 clean or successful run, 1 refused / unsafe input, 2 bad arguments.
 """
@@ -105,13 +105,46 @@ def git_worktree_root(path: Path) -> Path | None:
         return None
 
 
+def _long_path(path: Path) -> Path:
+    """Expand Windows 8.3 short components without following reparse points.
+
+    GitHub runners keep fixtures under ``C:\\Users\\RUNNER~1\\AppData\\...``
+    while ``Path.resolve()`` reports the long form. Comparing a short lexical
+    path with a long trusted root would make an in-repo path look like it left
+    the repository, so normalize names first; junctions stay detectable because
+    ``GetLongPathNameW`` does not resolve them.
+    """
+    if os.name != "nt":
+        return path
+    try:
+        import ctypes
+
+        buffer = ctypes.create_unicode_buffer(32_768)
+        length = ctypes.windll.kernel32.GetLongPathNameW(str(path), buffer, len(buffer))
+    except (AttributeError, OSError, ValueError):
+        return path
+    if 0 < length < len(buffer):
+        return Path(buffer.value)
+    return path
+
+
 def _reparse_components(base: Path, path: Path) -> list[Path]:
-    """Existing components between ``base`` and ``path`` that are links."""
-    base_abs, path_abs = base.absolute(), path.absolute()
+    """Existing components between ``base`` and ``path`` that are links.
+
+    Only components at or below the trusted Git root are inspected; ancestors
+    above ``base`` (runner temp parents, drive roots, short-name aliases) are
+    never treated as attacks. A path that cannot be related to ``base`` is left
+    to the separate boundary checks instead of being reported as a link.
+    """
+    base_abs, path_abs = _long_path(base.absolute()), _long_path(path.absolute())
     try:
         relative = path_abs.relative_to(base_abs)
     except ValueError:
-        return [path_abs]
+        try:
+            relative = Path(os.path.normcase(str(path_abs))).relative_to(
+                Path(os.path.normcase(str(base_abs))))
+        except ValueError:
+            return []
     found: list[Path] = []
     current = base_abs
     for part in relative.parts:
@@ -291,7 +324,14 @@ def _console_safe() -> None:
             pass
 
 
-def main(argv: list[str] | None = None, *, now: float | None = None) -> int:
+def main(argv: list[str] | None = None, *, now: float | None = None,
+         repo_root: Path | None = None) -> int:
+    """CLI entry point.
+
+    ``repo_root`` is an explicit injection point for tests/runners: when set,
+    the repository boundary is evaluated against it instead of deriving it from
+    ``--root`` or the process cwd.
+    """
     _console_safe()
     parser = argparse.ArgumentParser(description="显式清理 output/tmp 下的过期临时目录（默认 dry-run）")
     parser.add_argument("--apply", action="store_true", help="真正删除；不指定时只打印候选")
@@ -303,7 +343,7 @@ def main(argv: list[str] | None = None, *, now: float | None = None) -> int:
         print("--days 必须 >= 0", file=sys.stderr)
         return 2
     root = None
-    repo_root = None
+    trusted_root = Path(repo_root).absolute() if repo_root is not None else None
     if args.root:
         candidate = Path(args.root).expanduser()
         if not candidate.is_absolute():
@@ -316,8 +356,9 @@ def main(argv: list[str] | None = None, *, now: float | None = None) -> int:
         if root.name != TMP_RELATIVE.name or root.parent.name != TMP_RELATIVE.parent.name:
             print(f"拒绝：--root 必须指向某仓库的 output/tmp，收到 {root}", file=sys.stderr)
             return 1
-        repo_root = root.parent.parent.absolute()
-    code, report = run(days=args.days, apply=args.apply, root=root, repo_root=repo_root,
+        if trusted_root is None:
+            trusted_root = root.parent.parent.absolute()
+    code, report = run(days=args.days, apply=args.apply, root=root, repo_root=trusted_root,
                        require_default_root=root is None, now=now)
     print(report, file=sys.stderr if code else sys.stdout)
     return code
