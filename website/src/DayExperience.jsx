@@ -16,7 +16,6 @@ const scenes = [
   {
     id: "work",
     label: "工作",
-    title: "会议整理与文件产出",
     questions: ["整理会议待办", "导出会议摘要"],
     intro: "选择一个问题，查看整理结果。",
     answers: [
@@ -27,7 +26,6 @@ const scenes = [
   {
     id: "memory",
     label: "记忆",
-    title: "找回活动记录",
     questions: ["上午定了什么方案？", "为什么选河边广场？"],
     intro: "试着问问上午的记录。",
     answers: [
@@ -37,8 +35,7 @@ const scenes = [
   },
   {
     id: "life",
-    label: "生活",
-    title: "画面问答",
+    label: "生活 · 概念",
     questions: ["这个角色是谁？", "他和女主什么关系？"],
     intro: "根据当前画面提问，回答只到第三集。",
     answers: [
@@ -276,13 +273,16 @@ export default function DayExperience() {
   }
 
   return (
-    <section className="day-section chapter" id="a-day">
+    <section
+      className="day-section chapter"
+      id="a-day"
+      aria-labelledby="day-title"
+    >
       <div className="container day-container">
         <header className="day-section-heading">
-          <p className="eyebrow">交互演示</p>
-          <h2>从一句话，到下一步。</h2>
+          <h2 id="day-title">从一句话，到下一步。</h2>
           <p className="day-demo-note">
-            预设资料与回答，非产品实录；生活陪伴为未来概念。
+            预设交互演示，使用虚构资料；生活场景为未来概念。
           </p>
         </header>
         <div className="day-tabs" role="tablist" aria-label="Mirally 应用场景">
@@ -313,10 +313,6 @@ export default function DayExperience() {
           tabIndex={0}
         >
           <div className={`scene-desktop scene-desktop-${scene.id}`}>
-            <div className="scene-window-bar">
-              <strong>{scene.title}</strong>
-              <span>{active === 2 ? "概念演示" : "预设演示"}</span>
-            </div>
             <div className="scene-stage">
               {active === 0 ? (
                 <WorkSurface answered={answered} />
