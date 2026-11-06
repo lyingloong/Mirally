@@ -17,10 +17,10 @@ TOOL = ROOT / "tools" / "check_structure.py"
 
 class TopLevelTests(unittest.TestCase):
     def test_registered_top_level_entries_pass(self):
-        result = check_structure.check_top_level([".github", "docs", "README.md", "tools"])
+        result = check_structure.check_top_level([".github", "docs", "README.md", "tools", "website"])
         self.assertTrue(result["ok"])
         self.assertEqual(result["unregistered"], [])
-        self.assertEqual(result["entries"], 4)
+        self.assertEqual(result["entries"], 5)
 
     def test_unregistered_top_level_entry_is_reported(self):
         result = check_structure.check_top_level([".github", "docs", "new-area"])
@@ -29,6 +29,15 @@ class TopLevelTests(unittest.TestCase):
 
 
 class ArtifactTests(unittest.TestCase):
+    def test_website_sources_pass_but_generated_site_output_is_rejected(self):
+        self.assertTrue(check_structure.check_artifacts([
+            "website/src/App.jsx", "website/updates/index.html", "website/package-lock.json",
+        ])["ok"])
+        generated = ["website/.vite/cache.json", "website/.vite-temp/vite.config.js",
+                     "website/dist/index.html", "website/exports/standalone.html",
+                     "website/updates/2026-11-06/index.html"]
+        self.assertEqual(check_structure.check_artifacts(generated)["matches"], sorted(generated))
+
     def test_tracked_generated_files_are_reported(self):
         files = [
             "docs/readme.md",

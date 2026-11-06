@@ -1,6 +1,6 @@
 # 验证与未覆盖边界
 
-更新：2026-11-01，Asia/Shanghai。状态：现行。本文只保留稳定的验证范围、复现命令和未覆盖边界；各阶段具体测试数量、临时 home 和截图记录属于当次环境，可在 Git 历史中追溯。
+更新：2026-11-06，Asia/Shanghai。状态：现行。本文只保留稳定的验证范围、复现命令和未覆盖边界；各阶段具体测试数量、临时 home 和截图记录属于当次环境，可在 Git 历史中追溯。
 
 ## 原则
 
@@ -13,11 +13,26 @@
 
 ### GitHub Actions 检查范围
 
-[PR 工作流](../../.github/workflows/mirally-pr.yml)在 PR、`main` push 和手动运行时保留开发工具测试、源码与文档链接检查。只有改动完全属于[范围选择器](../../tools/check_ci_scope.py)列出的文档和开发工具路径时，才跳过 Windows 产品依赖安装、内核/前端构建及产品测试；产品代码、依赖、CI 配置、选择器本身和未知路径仍运行原有完整离线子集（包含记忆测试）。检查名称保持不变，跳过的产品 job 显示 `skipped`。
+[PR 工作流](../../.github/workflows/mirally-pr.yml)在 PR、`main` push 和手动运行时保留开发工具测试、源码与文档链接检查。只有改动完全属于[范围选择器](../../tools/check_ci_scope.py)列出的文档、开发工具和网站路径时，才跳过 Windows 产品依赖安装、内核/前端构建及产品测试；产品代码及依赖、产品或共享 CI 配置、选择器本身和未知路径仍运行原有完整离线子集（包含记忆测试）。检查名称保持不变，跳过的产品 job 显示 `skipped`。
 
 PR 比较事件的 base 与 GitHub 合并预览提交，`main` push 比较事件的 before/after；删除和重命名也计入。浅历史缺少比较基线、分类失败、空 diff 或开发工具检查失败时运行完整产品检查。手动 `workflow_dispatch` 始终运行完整检查，可用于复核或排查。代码 Draft PR 与正式 PR 使用相同规则，合并后的产品集成验证继续保留。
 
 pip、npm 和 pnpm 缓存只复用包下载；每次仍安装依赖并重新构建，不复用 `.venv`、`node_modules` 或构建产物。缓存未命中时照常安装。CI 的离线子集不替代受影响领域的本地验证或实际页面验收。
+
+### 网站独立验证
+
+网站使用 `website/package-lock.json`，不需要 Python、产品配置或模型凭据。在仓库根目录运行：
+
+```powershell
+npm --prefix website ci --no-audit --no-fund
+npm --prefix website run build
+npm --prefix website run export:html
+npm --prefix website run preview
+```
+
+`dist/` 和单文件 `exports/Mirally.html` 均位于 `website/`，属于可重新生成的忽略产物。[网站工作流](../../.github/workflows/website.yml)在网站相关 PR 中独立构建；`main` push 确认存在网站变更后发布 Pages，手动运行仅允许从 `main` 发布。网站检查不替代产品检查，混合改动分别验证。
+
+发布目标为 `https://lyingloong.github.io/Mirally/`。先验证新站首页、`/updates/` 和日期深链接、图片/字体及窄窗口/键盘操作，再将旧站切为保留路径、query 与 hash 的跳转，并核对跳转后的实际页面。构建成功不等于线上部署或重定向已生效；每次发布以工作流结果和实际访问为准。[历史验收记录](../../website/VERIFICATION.md)保留迁移前证据，不代表本次合仓或新地址验收。
 
 ### 本地命令
 

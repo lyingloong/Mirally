@@ -36,15 +36,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SKIP_PARTS = {".git", ".venv", "node_modules", "output", ".artifacts", "UFO", "__pycache__",
-              "dist", "build", "coverage", ".vite", ".turbo"}
-SCAN_DIRS = ("tools", "tests", "mirally", "docs", "config", ".github", "kernel/dsh/packages/mirally")
+              "dist", "build", "coverage", ".vite", ".vite-temp", ".turbo"}
+SCAN_DIRS = ("tools", "tests", "mirally", "docs", "config", ".github", "kernel/dsh/packages/mirally", "website")
 EXTRA_FILES = ("kernel/README.md", "kernel/dsh/UPSTREAM.md")
 FRONTEND_ROOT = "frontend/control-ui"
 FRONTEND_UPSTREAM = "upstream-files.json"
 FRONTEND_CHANGES = "local-changes.json"
 ROOT_FILES = ("README.md", "AGENTS.md", "CONTRIBUTING.md", "CHANGELOG.md", "run.ps1", "run-openclaw.ps1")
 TEXT_SUFFIXES = {".py", ".md", ".mjs", ".cjs", ".js", ".cpp", ".ps1", ".yml", ".yaml", ".template",
-                 ".json", ".toml", ".txt", ".css", ".html", ".webmanifest", ".ts", ".tsx"}
+                 ".json", ".toml", ".txt", ".css", ".html", ".webmanifest", ".ts", ".tsx", ".jsx"}
 MARKERS = ("<<<<<<<", "|||||||", ">>>>>>>")
 # Mixed CRLF/LF findings that are accepted on purpose. Every entry needs a reason;
 # anything else is reported, and the allowlist never covers trailing whitespace or
@@ -57,13 +57,13 @@ CRLF_EXEMPT = {
 }
 
 
-def _walk_files(base: Path) -> list[Path]:
+def _walk_files(base: Path, *, extra_skip: tuple[str, ...] = ()) -> list[Path]:
     """Text files under one root; excluded directories are pruned before descending."""
     if not base.is_dir():
         return []
     found: list[Path] = []
     for current, dirs, names in os.walk(base):
-        dirs[:] = [name for name in dirs if name not in SKIP_PARTS]
+        dirs[:] = [name for name in dirs if name not in SKIP_PARTS and name not in extra_skip]
         for name in names:
             path = Path(current) / name
             if path.is_file() and path.suffix in TEXT_SUFFIXES:
@@ -102,7 +102,7 @@ def frontend_owned_files(root: Path = ROOT) -> list[Path]:
 def owned_files(root: Path = ROOT) -> list[Path]:
     files = [root / name for name in ROOT_FILES + EXTRA_FILES if (root / name).is_file()]
     for name in SCAN_DIRS:
-        files.extend(_walk_files(root / name))
+        files.extend(_walk_files(root / name, extra_skip=("exports",) if name == "website" else ()))
     files.extend(frontend_owned_files(root))
     return sorted({path for path in files
                    if path.is_file() and not any(part in SKIP_PARTS for part in path.relative_to(root).parts)})

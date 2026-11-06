@@ -46,6 +46,7 @@ TOP_LEVEL_ALLOWED = frozenset({
     "showcase",
     "tests",
     "tools",
+    "website",
 })
 
 # Directories under tools/ follow the same registration rule as top-level ones.
@@ -56,7 +57,9 @@ TOOLS_NAME = re.compile(r"^(check|verify|build|setup|redraw|render)[_-][a-z0-9_-
 # Tracked paths that are build output or caches. The audit scans git's index,
 # not the working tree, so ignored local artifacts never trigger it.
 ARTIFACT_PATTERNS = (
-    re.compile(r"(^|/)(dist|coverage|node_modules|__pycache__|\.pytest_cache|\.artifacts)/"),
+    re.compile(r"(^|/)(dist|coverage|node_modules|__pycache__|\.pytest_cache|\.artifacts|\.vite|\.vite-temp)/"),
+    re.compile(r"^website/exports/"),
+    re.compile(r"^website/updates/[^/]+/index\.html$"),
     re.compile(r"\.tsbuildinfo$"),
     re.compile(r"\.map$"),
 )

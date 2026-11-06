@@ -15,9 +15,9 @@
 | `tools/` | 开发与验收工具 | 命名与分类约定见下文；新增直接子目录需登记 |
 | `docs/` | 现行文档 | 索引在 [文档导航](../README.md)；一个主题一篇 |
 | `config/` | 产品 YAML 与模板 | `config/mirally/`、`config/mirally/ufo/`；模板约定见下文 |
-| `showcase/` | 产品与愿景展示站 | 独立构建，不参与主产品启动链 |
+| `website/` | 产品与愿景展示站 | 独立 npm 依赖、静态构建与 Pages 发布，不参与主产品启动链；见[网站说明](../../website/README.md) |
 | `UFO/`、`.gitmodules`、`requirements-ufo.txt` | 只读子模块与专用依赖 | 移除由独立 PR 处理；移除后同步本表与审计白名单 |
-| `.github/` | CI 与仓库自动化 | 工作流只做验证，不承载产品行为 |
+| `.github/` | CI、静态站发布与仓库自动化 | 产品检查与网站构建/Pages 发布分开，不承载产品运行时行为 |
 | 根文件（`AGENTS.md`、`CONTRIBUTING.md`、`README.md`、`CHANGELOG.md`、`run.ps1`、`.gitignore`、`requirements-framework.txt`） | 项目级约定与入口 | 不新增根级脚本/配置；确有需要先登记 |
 
 ## 允许位置与新增登记

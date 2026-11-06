@@ -2,15 +2,15 @@
 
 Mirally 的对外展示站点源码，独立于产品运行时：不需要模型配置、API Key、产品数据库或私有凭据。
 
-本仓库由 Mirally 主仓库的 `showcase/` 迁移而来（2026-11），此后独立维护；主仓库不再包含展示站源码。
+网站最初来自主仓的 `showcase/`，2026-11 拆出为独立仓库；现将独仓最新版本 `be5235490f95bb680a387aa7df2b1dfa45f473dd` 连同 Git 历史合回主仓 `website/`，继续独立构建与发布。
 
-- 线上地址：<https://lyingloong.github.io/Mirally-site/>
-- 素材来源与边界：`public/CREDITS.md`
-- 历史验收记录：`VERIFICATION.md`
+- 新站部署地址：<https://lyingloong.github.io/Mirally/>；新站确认后，旧地址 <https://lyingloong.github.io/Mirally-site/> 再切为保留路径、query 和 hash 的跳转。
+- 素材来源与边界：[CREDITS.md](public/CREDITS.md)
+- 迁移前历史验收：[VERIFICATION.md](VERIFICATION.md)，不代表本次合仓及新地址已验收。
 
 ## 本地运行
 
-需要 Node.js 20.19+ 或 22.12+，以及 npm。
+需要 Node.js 20.19+ 或 22.12+，以及 npm。以下命令均在 `website/` 目录执行。
 
 ```powershell
 npm ci
@@ -28,7 +28,7 @@ npm run preview
 
 `dist/` 是完整静态站，可部署到任意静态托管；模块脚本需要 HTTP 服务，不要直接双击 `dist/index.html`。构建产物、图片与字体都在本地，不依赖外部 CDN。
 
-推送到 `main` 后由 GitHub Actions（`.github/workflows/pages.yml`）构建并发布到 GitHub Pages。
+主仓 [website.yml](../.github/workflows/website.yml) 对网站相关 PR 执行独立构建；`main` push 确认网站变更后发布到 GitHub Pages，也可从 `main` 手动发布。产品 CI 与网站流程分开。发布验收见[验证文档](../docs/reference/validation.md#网站独立验证)。
 
 ## 单文件离线版
 
@@ -46,7 +46,7 @@ npm run export:html
 
 内容边界：
 
-- 「当前能力」依据 Mirally 主仓库的能力矩阵整理；「下一步能力」与生活场景中的角色识别属于概念示意，不代表已发布功能。
+- 「当前能力」依据 Mirally 的[能力矩阵](../docs/reference/capabilities.md)整理；「下一步能力」与生活场景中的角色识别属于概念示意，不代表已发布功能。
 - 演示中的会议摘要由浏览器本地生成；页面不接入统计、追踪、登录或支付。
 - 修改文案或素材后重新构建，并检查窄窗口与键盘操作。
 

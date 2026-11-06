@@ -34,4 +34,4 @@ npm --prefix frontend/control-ui run build
 
 [实际验收与未覆盖边界](docs/reference/validation.md) · [文档导航](docs/README.md) · [更新记录](CHANGELOG.md) · [产品思考记录](docs/product/product-notes.md)
 
-产品与愿景展示网页见独立公开仓库 [Mirally-site](https://github.com/lyingloong/Mirally-site)，发布在 <https://lyingloong.github.io/Mirally-site/>。DSH 与前端固定来源的许可证、来源说明和第三方声明继续保留；UFO 本阶段不接入，其子模块源码不再随仓库提供。
+产品与愿景展示站源码位于 [website/](website/README.md)，保留独立依赖、构建与发布流程，不参与产品启动。新站部署地址为 <https://lyingloong.github.io/Mirally/>；新部署确认后再将旧站切为跳转。DSH 与前端固定来源的许可证、来源说明和第三方声明继续保留；UFO 本阶段不接入，其子模块源码不再随仓库提供。
