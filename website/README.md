@@ -42,12 +42,17 @@ npm run export:html
 
 ## 页面内容
 
-当前首页沿用迁移前的六章叙事：认识 Mirally、应用场景、当前能力、下一步能力、我们的愿景、商业路径。场景演示使用预设资料，人物、剧集与活动均为虚构，不连接产品宿主或模型服务。
+新版首页采用白底、自然滚动的项目介绍：英文品牌标题配中文正文，展示开发版界面、三个产品特点、一处工作/记忆/生活切换演示，以及简短的后续方向、更新、GitHub 和作者主页入口。页面尚未提供中英文切换。
+
+首页主图 `public/images/product-desktop.webp` 取自隔离运行的 Mirally 开发版界面，使用本地模型 fixture 与预设会话资料；它是产品界面截图，不是真实用户会话，也不代表真实外部模型或服务的验收结果。
+
+迁移前六章叙事收拢为一页：移除重复的 Hero 场景、独立能力图解、整幅愿景图和商业路径章节，让读者先看到产品与演示。后续方向保留简短说明，未实现的团队与服务规划不作为当前能力呈现；原生成资产和提示词保留作来源历史。
 
 内容边界：
 
-- 「当前能力」依据 Mirally 的[能力矩阵](../docs/reference/capabilities.md)整理；「下一步能力」与生活场景中的角色识别属于概念示意，不代表已发布功能。
-- 演示中的会议摘要由浏览器本地生成；页面不接入统计、追踪、登录或支付。
+- 三个特点围绕伙伴形态、对话与成果、记忆管理展开，能力范围以 Mirally 的[能力矩阵](../docs/reference/capabilities.md)为准；后续方向与生活演示中的角色识别属于概念示意。
+- 交互演示的资料和回答均为预设，人物、剧集与活动均为虚构，不连接产品宿主、模型服务或个人数据。会议摘要由浏览器本地生成并标注演示数据。
+- 页面不接入统计、追踪、登录或支付。
 - 修改文案或素材后重新构建，并检查窄窗口与键盘操作。
 
 ## 更新日志
@@ -79,12 +84,9 @@ title: 微信、日历与桌面执行
 
 | 文件 | 内容 |
 | --- | --- |
-| `src/App.jsx` | 主页面、导航、品牌文案与愿景 |
-| `src/HeroExperience.jsx` | 首页工作与生活切换 |
-| `src/DayExperience.jsx` | 三段场景交互与摘要下载 |
-| `src/CapabilityVisual.jsx` | 当前能力的界面示意 |
-| `src/NextCapabilities.jsx` | 下一步能力的概念示意 |
-| `src/BusinessVisual.jsx` | 商业路径图解 |
+| `src/App.jsx` | 项目首页、截图放大、三个产品特点、后续方向与导航 |
+| `src/DayExperience.jsx`、`src/day-experience.css` | 工作/记忆/生活三个标签页的预设交互与摘要下载 |
+| `public/images/product-desktop.webp` | 开发版真实界面截图，使用隔离演示会话与预设数据 |
 | `content/updates/*.md` | 每期更新日志原文 |
 | `src/updates/content.js` | Markdown 解析与图示渲染 |
 | `src/updates/UpdatesIndex.jsx` | 更新列表页 |
@@ -92,8 +94,8 @@ title: 微信、日历与桌面执行
 | `src/updates/chrome.jsx` | 更新页共用的页头页脚 |
 | `scripts/sync-update-pages.mjs` | 读取 Markdown 并生成每期静态页面 |
 | `src/updates/updates.css` | 更新页样式 |
-| `src/*.css` | 布局、章节适配与响应式样式 |
-| `public/images/` | 已生成的 WebP 宣传素材 |
-| `image-prompts/`、`IMAGE-BRIEFS.md` | 生图提示词与生成记录 |
+| `src/style.css` | 首页布局、文字层级、弹窗与响应式样式 |
+| `public/images/`、`public/CREDITS.md` | 当前展示素材、截图来源与历史生成资产说明 |
+| `image-prompts/`、`IMAGE-BRIEFS.md` | 历史生图提示词与生成记录 |
 
 依赖版本由 `package-lock.json` 锁定。正常展示不发生付费 API 请求。

@@ -73,14 +73,8 @@ const result = await build({
           !/\.[jt]sx?$/.test(id)
         )
           return;
-        // A download works from file://; top-level navigation to data: is blocked
-        // by browsers. Include all third-party licenses in the same local download.
-        code = code
-          .replace(
-            'href="./CREDITS.md" target="_blank" rel="noreferrer"',
-            'href="./CREDITS.md" download="Mirally-素材来源与许可.txt"',
-          )
-          .replace("查看素材来源 <", "下载素材来源与许可 <");
+        // The component uses __MIRALLY_OFFLINE__ to render a download link;
+        // only public asset references are rewritten here.
         return { code: inlinePublicAssets(code), map: null };
       },
     },
