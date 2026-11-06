@@ -8,8 +8,6 @@ Mirally 的对外展示站点源码，独立于产品运行时：不需要模型
 - 素材来源与边界：[CREDITS.md](public/CREDITS.md)
 - 迁移前历史验收：[VERIFICATION.md](VERIFICATION.md)，不代表本次合仓及新地址已验收。
 
-本分支正在预览新版首页，待用户反馈后再决定是否合并；以下页面说明描述这版源码，不代表已经上线。
-
 ## 本地运行
 
 需要 Node.js 20.19+ 或 22.12+，以及 npm。以下命令均在 `website/` 目录执行。
