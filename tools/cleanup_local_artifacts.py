@@ -9,10 +9,15 @@ Scope is deliberately narrow:
 * only direct **sub-directories** of ``output/tmp/`` are candidates;
 * loose files directly under ``output/tmp/`` are reported and never deleted;
 * nothing outside ``output/tmp/`` is inspected or removed;
-* a directory younger than ``--days`` (default 7) is kept;
+* a directory younger than ``--days`` (default 7) is kept; age is the newest
+  mtime in the whole run directory, so an old tool directory holding a fresh
+  run is not treated as stale;
 * symlinks are never followed or deleted - they are reported and skipped, so a
   link cannot be used to reach outside the temporary root;
-* a path that resolves outside ``output/tmp/`` is refused.
+* ``output/tmp`` and every ancestor up to the Git root must be real
+  directories; a symlink/junction in that chain is refused, not followed;
+* the repository root is verified with ``git rev-parse --show-toplevel``; a
+  non-Git directory is refused even when it contains ``output/tmp``.
 
     python tools/cleanup_local_artifacts.py             # dry run (default)
     python tools/cleanup_local_artifacts.py --apply     # actually delete
@@ -28,6 +33,7 @@ import argparse
 import os
 import shutil
 import stat
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -79,6 +85,69 @@ def _is_link(path: Path) -> bool:
     return bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
 
 
+def git_worktree_root(path: Path) -> Path | None:
+    """Repository root reported by Git for ``path``, or None outside a worktree."""
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if completed.returncode != 0:
+        return None
+    reported = completed.stdout.strip()
+    if not reported:
+        return None
+    try:
+        return Path(reported).resolve()
+    except OSError:
+        return None
+
+
+def _reparse_components(base: Path, path: Path) -> list[Path]:
+    """Existing components between ``base`` and ``path`` that are links."""
+    base_abs, path_abs = base.absolute(), path.absolute()
+    try:
+        relative = path_abs.relative_to(base_abs)
+    except ValueError:
+        return [path_abs]
+    found: list[Path] = []
+    current = base_abs
+    for part in relative.parts:
+        current = current / part
+        if _is_link(current):
+            found.append(current)
+    return found
+
+
+def _newest_mtime(path: Path) -> float:
+    """Newest mtime in a run tree, without following links.
+
+    POSIX does not update a directory mtime when files below it are written, so
+    judging staleness by the top directory alone could delete an active run.
+    """
+    newest = path.lstat().st_mtime
+    pending = [path]
+    while pending:
+        current = pending.pop()
+        try:
+            children = list(current.iterdir())
+        except OSError:
+            continue
+        for child in children:
+            if _is_link(child):
+                continue
+            try:
+                info = child.lstat()
+            except OSError:
+                continue
+            newest = max(newest, info.st_mtime)
+            if stat.S_ISDIR(info.st_mode):
+                pending.append(child)
+    return newest
+
+
 def audit(root: Path, *, days: float = DEFAULT_DAYS, now: float | None = None,
           repo_root: Path | None = None) -> list[Entry]:
     """Return every direct child of ``root`` with its eligibility.
@@ -90,15 +159,22 @@ def audit(root: Path, *, days: float = DEFAULT_DAYS, now: float | None = None,
     stamp = time.time() if now is None else now
     if not root.is_dir():
         return []
-    base = repo_root or ROOT
+    base = (repo_root or ROOT).resolve()
     entries: list[Entry] = []
     for child in sorted(root.iterdir(), key=lambda item: item.name):
-        age = (stamp - child.lstat().st_mtime) / DAY_SECONDS
+        try:
+            lstat = child.lstat()
+        except OSError:
+            continue
         if _is_link(child):
+            age = (stamp - lstat.st_mtime) / DAY_SECONDS
             entries.append(Entry(child.name, child, "symlink", age, False,
                                  "符号链接/目录联接：不跟随、不删除"))
             continue
         if child.is_dir():
+            # A run directory is only stale when *everything* below it is old:
+            # an old tool dir holding a fresh run must survive.
+            age = (stamp - _newest_mtime(child)) / DAY_SECONDS
             if not _inside(child, base / TMP_RELATIVE):
                 entries.append(Entry(child.name, child, "dir", age, False,
                                      "解析后位于 output/tmp 之外：拒绝"))
@@ -109,6 +185,7 @@ def audit(root: Path, *, days: float = DEFAULT_DAYS, now: float | None = None,
                 continue
             entries.append(Entry(child.name, child, "dir", age, True, f"超过 {days:g} 天"))
             continue
+        age = (stamp - lstat.st_mtime) / DAY_SECONDS
         if child.is_file():
             entries.append(Entry(child.name, child, "file", age, False,
                                  "output/tmp 根下的散落文件：只报告，不删除"))
@@ -119,10 +196,11 @@ def audit(root: Path, *, days: float = DEFAULT_DAYS, now: float | None = None,
 
 def remove(entry: Entry, *, root: Path, repo_root: Path | None = None) -> None:
     """Delete one eligible directory, re-checking the boundary right before acting."""
-    base = repo_root or ROOT
+    base = (repo_root or ROOT).resolve()
     if not entry.eligible or entry.kind != "dir":
         raise ValueError(f"refusing to remove ineligible entry {entry.name}")
-    if _is_link(entry.path) or not _inside(entry.path, base / TMP_RELATIVE):
+    if (_is_link(entry.path) or _reparse_components(base, entry.path)
+            or not _inside(entry.path, base / TMP_RELATIVE)):
         raise ValueError(f"refusing to remove {entry.name}: outside output/tmp")
     shutil.rmtree(entry.path)
 
@@ -162,14 +240,25 @@ def run(*, repo_root: Path | None = None, days: float = DEFAULT_DAYS, apply: boo
     ``root`` may point at any directory for tests, but the boundary check always
     compares it against ``output/tmp`` of the *given* repository root, so a
     custom root can never widen the deletion surface beyond a tmp directory.
+    The repository root itself must be a real Git worktree, and no component
+    between it and the temporary root may be a symlink/junction.
     """
-    base = repo_root or ROOT
-    target = (root if root is not None else temporary_root(base)).resolve()
-    expected = (base / TMP_RELATIVE).resolve()
-    if require_default_root and target != expected:
+    base = (repo_root or ROOT).resolve()
+    trusted = git_worktree_root(base)
+    if trusted is None or trusted != base:
+        return 1, f"拒绝：{base} 不是可信的 Git 工作树根；output/tmp 清理仅限 Git 仓库。"
+    expected = base / TMP_RELATIVE
+    target = expected if root is None else Path(root).absolute()
+    if require_default_root and target.resolve() != expected.resolve():
         return 1, f"拒绝：{target} 不是 {expected}。"
     if not _inside(target, expected):
         return 1, f"拒绝：{target} 不在 output/tmp 之内。"
+    linked = _reparse_components(base, expected)
+    if root is not None:
+        linked += _reparse_components(expected, target)
+    if linked:
+        return 1, (f"拒绝：output/tmp 或其祖先为符号链接/目录联接（{linked[0]}）；"
+                   "不跟随、不删除。")
     entries = audit(target, days=days, now=now, repo_root=base)
     removed = 0
     if apply:
@@ -219,13 +308,15 @@ def main(argv: list[str] | None = None, *, now: float | None = None) -> int:
         candidate = Path(args.root).expanduser()
         if not candidate.is_absolute():
             candidate = Path.cwd() / candidate
-        root = candidate.resolve()
+        # Keep the lexical path (not resolved): a junction must be detected by
+        # run() instead of being silently followed to its target.
+        root = candidate.absolute()
         # A custom root keeps working only when it still ends in output/tmp, and
         # the boundary is then evaluated against that root's own repository.
         if root.name != TMP_RELATIVE.name or root.parent.name != TMP_RELATIVE.parent.name:
             print(f"拒绝：--root 必须指向某仓库的 output/tmp，收到 {root}", file=sys.stderr)
             return 1
-        repo_root = root.parent.parent
+        repo_root = root.parent.parent.absolute()
     code, report = run(days=args.days, apply=args.apply, root=root, repo_root=repo_root,
                        require_default_root=root is None, now=now)
     print(report, file=sys.stderr if code else sys.stdout)

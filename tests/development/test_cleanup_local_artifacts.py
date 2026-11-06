@@ -7,6 +7,7 @@ Every fixture is a throwaway ``TemporaryDirectory`` shaped like a repository
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 import subprocess
 import tempfile
@@ -27,6 +28,27 @@ def _age(path: Path, days: float) -> None:
     os.utime(path, (stamp, stamp))
 
 
+def _age_tree(path: Path, days: float) -> None:
+    """Stamp a whole fixture tree so mtime newest==fixture age is deterministic."""
+    stamp = NOW - days * DAY
+    for item in [path, *sorted(path.rglob("*"))]:
+        if item.is_symlink():
+            continue
+        os.utime(item, (stamp, stamp))
+
+
+def _make_link(link: Path, target: Path) -> bool:
+    """Create a real Windows junction (or a symlink fallback) for boundary tests."""
+    if sys.platform == "win32":
+        if os.system(f'mklink /J "{link}" "{target}" >nul 2>&1') == 0:
+            return True
+    try:
+        link.symlink_to(target, target_is_directory=True)
+        return True
+    except (OSError, NotImplementedError):
+        return False
+
+
 class CleanupLocalArtifactsTests(unittest.TestCase):
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
@@ -34,8 +56,16 @@ class CleanupLocalArtifactsTests(unittest.TestCase):
         self.repo = Path(temp.name)
         self.tmp = self.repo / "output" / "tmp"
         self.tmp.mkdir(parents=True)
+        self._git_init(self.repo)
 
     # -- helpers ---------------------------------------------------------
+    def _git_init(self, repo: Path) -> None:
+        if shutil.which("git") is None:
+            self.skipTest("git is required for the trusted-root checks")
+        completed = subprocess.run(["git", "-C", str(repo), "init", "-q"],
+                                   capture_output=True, text=True, timeout=60)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
     def scratch(self, name: str, *, age_days: float, files: int = 2) -> Path:
         directory = self.tmp / name
         directory.mkdir()
@@ -43,7 +73,7 @@ class CleanupLocalArtifactsTests(unittest.TestCase):
             (directory / f"f{index}.log").write_text("x", encoding="utf-8")
         (directory / "nested").mkdir()
         (directory / "nested" / "deep.txt").write_text("y", encoding="utf-8")
-        _age(directory, age_days)
+        _age_tree(directory, age_days)
         return directory
 
     def run_cleanup(self, **kwargs):
@@ -148,15 +178,8 @@ class CleanupLocalArtifactsTests(unittest.TestCase):
         outside.mkdir()
         (outside / "secret.txt").write_text("must survive", encoding="utf-8")
         junction = self.tmp / "junction-out"
-        created = False
-        if sys.platform == "win32":
-            created = os.system(f'mklink /J "{junction}" "{outside}" >nul 2>&1') == 0
-        if not created:
-            try:
-                junction.symlink_to(outside, target_is_directory=True)
-                created = True
-            except (OSError, NotImplementedError):
-                self.skipTest("links unavailable on this platform")
+        if not _make_link(junction, outside):
+            self.skipTest("links unavailable on this platform")
         code, report = self.run_cleanup(apply=True, days=0)
         self.assertEqual(code, 0)
         self.assertIn("不跟随、不删除", report)
@@ -189,7 +212,97 @@ class CleanupLocalArtifactsTests(unittest.TestCase):
             cleanup.remove(entry, root=self.tmp, repo_root=self.repo)
         self.assertTrue(fresh.is_dir())
 
-    # -- 4. reporting and CLI --------------------------------------------
+    # -- 4. trusted Git root, ancestor links and run-level age ------------
+    def test_non_git_worktree_is_refused_and_target_untouched(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            tmp = repo / "output" / "tmp"
+            tmp.mkdir(parents=True)
+            victim = tmp / "run-old"
+            victim.mkdir()
+            (victim / "keep.txt").write_text("must survive", encoding="utf-8")
+            _age_tree(victim, 30)
+
+            code, report = cleanup.run(repo_root=repo, now=NOW, apply=True, days=7)
+            self.assertEqual(code, 1)
+            self.assertIn("Git", report)
+            self.assertTrue((victim / "keep.txt").is_file())
+
+            code = cleanup.main(["--root", str(tmp), "--apply", "--days", "7"], now=NOW)
+            self.assertEqual(code, 1)
+            self.assertTrue((victim / "keep.txt").is_file())
+
+    def test_trusted_git_root_with_unicode_and_spaces(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory) / "中文 repo with spaces"
+            repo.mkdir()
+            self._git_init(repo)
+            tmp = repo / "output" / "tmp"
+            tmp.mkdir(parents=True)
+            stale = tmp / "run-old"
+            stale.mkdir()
+            (stale / "f.log").write_text("x", encoding="utf-8")
+            _age_tree(stale, 30)
+            code, _ = cleanup.run(repo_root=repo, now=NOW, apply=True, days=7)
+            self.assertEqual(code, 0)
+            self.assertFalse(stale.exists())
+
+    def test_junction_tmp_root_is_refused_and_target_survives(self):
+        outside = self.repo / "outside-tmp-root"
+        victim = outside / "victim"
+        victim.mkdir(parents=True)
+        (victim / "keep.txt").write_text("must survive", encoding="utf-8")
+        _age_tree(outside, 90)
+        self.tmp.rmdir()
+        if not _make_link(self.tmp, outside):
+            self.skipTest("links unavailable on this platform")
+        code, report = self.run_cleanup(apply=True, days=0)
+        self.assertEqual(code, 1)
+        self.assertIn("拒绝", report)
+        self.assertTrue((victim / "keep.txt").is_file())
+        self.assertTrue(cleanup._is_link(self.tmp))
+        self.assertTrue(self.tmp.is_dir(), "链接本身不应被删除")
+
+    def test_junction_output_ancestor_is_refused_and_target_survives(self):
+        outside = self.repo / "outside-output"
+        victim = outside / "tmp" / "victim"
+        victim.mkdir(parents=True)
+        (victim / "keep.txt").write_text("must survive", encoding="utf-8")
+        _age_tree(outside, 90)
+        self.tmp.rmdir()
+        (self.repo / "output").rmdir()
+        if not _make_link(self.repo / "output", outside):
+            self.skipTest("links unavailable on this platform")
+        code, report = self.run_cleanup(apply=True, days=0)
+        self.assertEqual(code, 1)
+        self.assertIn("拒绝", report)
+        self.assertTrue((victim / "keep.txt").is_file())
+
+    def test_old_tool_directory_with_a_fresh_run_is_kept(self):
+        tool = self.tmp / "old-tool"
+        run = tool / "run-new"
+        run.mkdir(parents=True)
+        (run / "work.log").write_text("active", encoding="utf-8")
+        _age_tree(tool, 30)
+        _age_tree(run, 0.1)
+        code, report = self.run_cleanup(apply=True, days=7)
+        self.assertEqual(code, 0)
+        self.assertTrue((run / "work.log").is_file())
+        self.assertIn("old-tool", report)
+        self.assertIn("保留", report)
+
+    def test_apply_still_removes_tool_directory_when_every_run_is_old(self):
+        tool = self.tmp / "old-tool"
+        run = tool / "run-old"
+        run.mkdir(parents=True)
+        (run / "work.log").write_text("stale", encoding="utf-8")
+        _age_tree(tool, 30)
+        _age_tree(run, 20)
+        code, _ = self.run_cleanup(apply=True, days=7)
+        self.assertEqual(code, 0)
+        self.assertFalse(tool.exists())
+
+    # -- 5. reporting and CLI --------------------------------------------
     def test_report_lists_each_candidate_with_age(self):
         self.scratch("run-a", age_days=20)
         self.scratch("run-b", age_days=40)
