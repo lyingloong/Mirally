@@ -1,6 +1,6 @@
 # 依赖清单、owner 与审计节奏
 
-更新：2026-11-02，Asia/Shanghai。状态：现行。本文只描述依赖面、owner、锁文件和**只读**审计方式；不批准任何升级、删除或替换。
+更新：2026-11-06，Asia/Shanghai。状态：现行。本文只描述依赖面、owner、锁文件和**只读**审计方式；不批准任何升级、删除或替换。
 
 来源：用户种子 **SEED-DEPS**（用户原话“优化依赖”）的审计整理。它把“优化依赖”拆成可审计步骤，本身不代表已确认要升级或裁剪任何包；真正的升级/删除必须在独立开发点里做并单独验收。
 
@@ -9,7 +9,7 @@
 | # | 清单 / 锁文件 | 位置 | 生态 | 分类 | Owner 与更新规则 |
 | --- | --- | --- | --- | --- | --- |
 | D1 | `requirements-framework.txt` | 仓库根 | pip | 运行时 | 产品运行时（桌面与 Python worker，安装进根 `.venv`）。修改需产品验证；`tools/setup_framework.py` 是安装入口。 |
-| D2 | `requirements-ufo.txt` | 仓库根 | pip | 可选参考 | 仅供保留的 UFO 参考适配；正在由独立点/PR 处理移除，本文件不重复处理。 |
+| D2 | `requirements-ufo.txt` | 仓库根 | pip | 可选参考 | UFO 子模块已移除，该清单文件**当前不存在**。审计工具将其登记为可选清单：存在则解析，缺失时跳过且不产生「missing expected manifest」警告；只有 D1/D3/D6 与前端 `package.json` 属于必需清单。UFO 产品适配日后若需要独立依赖，再新增清单并恢复本行。 |
 | D3 | `kernel/dsh/.github/review-ownership/requirements.txt` | kernel | pip | kernel CI | kernel 审查机器人专用，与产品运行时隔离；随 kernel 上游维护。 |
 | D4 | `kernel/dsh/pnpm-lock.yaml` + 371 个非 fixture `package.json` | kernel | pnpm workspace | 上游源码 | 同仓 DSH 上游工作区；升级需整体验证模型/工具/会话主链，另立点。各 importer 可各自声明版本范围，由锁文件解析。 |
 | D5 | `frontend/control-ui/package-lock.json` + 14 个 `package.json` | frontend | npm | 固定上游 | 固定上游 Control UI 来源（`verify:source` 逐字节校验）；Mirally 自有页面在其上扩展，不随产品依赖升级。 |
@@ -38,7 +38,7 @@
 当前基线（离线实测，不代表长期不变）：
 
 ```text
-Manifests: 389  Declarations: 6422  Lockfiles: 3
+Manifests: 388  Declarations: 6422  Lockfiles: 3
 Excluded fixture package.json: 12  Duplicate groups: 384 (conflicting: 19, informational: 19)
 Findings: 0
 ```
@@ -56,16 +56,17 @@ Findings: 0
 | `frontend/control-ui/**` | 不升级、不裁剪 | 固定上游来源；需按 `verify:source` 与上游策略整体更新，见[前端](../architecture/frontend.md)。 |
 | `kernel/dsh/**` | 本审计不动 | 同仓 DSH 升级影响模型/工具/会话主链，需独立点与全量验证。 |
 | 运行时依赖（D1） | 不删除 | 删除需真实运行验证，属独立点。 |
-| `requirements-ufo.txt`（D2） | 交给对应独立点 | 避免与在飞 PR 重复。 |
+| `requirements-ufo.txt`（D2） | 文件不存在即跳过，不补建 | 可选清单；缺失不是缺口，审计也不把它列为 finding。 |
 | 可选依赖（D7） | 只文档化 | 是否固定版本由用户决定。 |
 | 安全审计（CVE） | 不在本文联网执行 | 需要用户授权网络与配额。 |
 
 ## 基线记录
 
-本机离线可测部分（2026-11-02，实现 worktree）：
+本机离线可测部分（2026-11-06，实现 worktree；已 rebase 到含 UFO 子模块移除的 `main`）：
 
-- 清单：3 个 pip 清单 + 1 个验收工具清单 + 14 个前端 `package.json` + 371 个 kernel 非 fixture `package.json`（另有 12 个 fixture `package.json` 被排除）。
+- 清单：2 个存在的 pip 清单（`requirements-framework.txt`、kernel CI `requirements.txt`；`requirements-ufo.txt` 不存在且属可选）+ 1 个验收工具清单 + 14 个前端 `package.json` + 371 个 kernel 非 fixture `package.json`（另有 12 个 fixture `package.json` 被排除）。
 - 声明条目：6422；锁文件 3 个（`frontend/control-ui/package-lock.json`、`tools/testing/package-lock.json`、`kernel/dsh/pnpm-lock.yaml`）。
+- 合计清单 388 个，警告 0（无「missing expected manifest」），finding 0。
 - `requirements-framework.txt` 直接依赖：17 条；未使用候选 0（启发式）。
 
 未记录：`.venv` 体积、`kernel/dsh` 与 `frontend/control-ui` 的 `node_modules` 体积、`npm --prefix frontend/control-ui run build` 与 `python tools/setup_framework.py` 耗时。审计环境未安装前端/内核依赖且不联网，这些数值需要在准备依赖的机器上按同一命令补充，不设阈值断言。

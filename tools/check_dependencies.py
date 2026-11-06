@@ -28,10 +28,12 @@ SKIP_DIRS = {".git", ".venv", "node_modules", "output", ".artifacts", "UFO", "__
 FIXTURE_PARTS = {"fixture", "fixtures", "test", "tests", "example", "examples", "sample", "samples",
                  "demo", "demos", "benchmark", "benchmarks", "e2e"}
 
+# (relative, environment, kind, owner, required). Only `runtime` and `ci` are
+# required: an absent optional manifest is legitimately absent, not a finding.
 PIP_MANIFESTS = (
-    ("requirements-framework.txt", "product-venv", "runtime", "产品运行时（.venv）"),
-    ("requirements-ufo.txt", "product-venv", "optional", "UFO 参考适配（dev-0012 处理中）"),
-    ("kernel/dsh/.github/review-ownership/requirements.txt", "kernel-ci", "ci", "kernel CI 审查机器人"),
+    ("requirements-framework.txt", "product-venv", "runtime", "产品运行时（.venv）", True),
+    ("requirements-ufo.txt", "product-venv", "optional", "UFO 参考适配（可选；缺失时跳过）", False),
+    ("kernel/dsh/.github/review-ownership/requirements.txt", "kernel-ci", "ci", "kernel CI 审查机器人", True),
 )
 NPM_MANIFESTS = (
     ("tools/testing/package.json", "test-tools", "devtools", "浏览器/DOM 验收工具"),
@@ -165,8 +167,8 @@ def collect_manifests(root: Path) -> tuple[list[dict], list[str], dict]:
         if manifest:
             manifests.append(manifest)
 
-    for relative, environment, kind, owner in PIP_MANIFESTS:
-        add(relative, "pip", environment, kind, owner, required=kind in {"runtime", "optional", "ci"})
+    for relative, environment, kind, owner, required in PIP_MANIFESTS:
+        add(relative, "pip", environment, kind, owner, required=required)
     for relative, environment, kind, owner in NPM_MANIFESTS:
         add(relative, "npm", environment, kind, owner, required=True)
     for path in _walk(root / FRONTEND_ROOT, "package.json"):

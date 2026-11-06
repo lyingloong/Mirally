@@ -129,6 +129,22 @@ class CheckDependenciesTests(unittest.TestCase):
         self.assertEqual(payload["findings"][0]["kind"], "duplicate-constraint")
         self.assertEqual(payload["summary"]["findings"], 1)
 
+    def test_absent_optional_manifest_is_not_required(self) -> None:
+        """requirements-ufo.txt was removed from the repo; its absence must not warn."""
+        root = self.base_tree()
+        (root / "requirements-ufo.txt").unlink()
+        report = check_dependencies.audit(root)
+        self.assertEqual([warning for warning in report["warnings"] if "requirements-ufo" in warning], [],
+                         report["warnings"])
+        self.assertNotIn("requirements-ufo.txt",
+                         {manifest["path"] for manifest in report["manifests"]})
+        # Required manifests still warn when they disappear.
+        (root / "requirements-framework.txt").unlink()
+        report = check_dependencies.audit(root)
+        self.assertIn("missing expected manifest: requirements-framework.txt", report["warnings"])
+        self.assertFalse([warning for warning in report["warnings"] if "requirements-ufo" in warning],
+                         report["warnings"])
+
     def test_malformed_manifest_types_warn_and_keep_auditing(self) -> None:
         """Valid JSON with unexpected types becomes a path-qualified warning (Codex P2)."""
         root = self.base_tree()
