@@ -180,6 +180,43 @@ class DeliveryInvalidationTests(unittest.TestCase):
         self.assertEqual({row["id"] for row in after_rows}, before)
         self.assertIn(delivery["id"], before)
 
+    # Late acknowledgement must not erase the cancellation ------------------
+    def test_late_delivered_ack_keeps_cancel_basis_and_time(self):
+        delivery = self.pending_delivery()
+        claimed = self.call("delivery.claim", delivery_id=delivery["id"])
+        self.assertEqual(claimed["id"], delivery["id"])
+        self.assertEqual(claimed["status"], "sending")
+        token = claimed["claim_token"]
+        baselined = self.delivery(delivery["id"])
+        self.assertEqual(baselined["status"], "sending")
+        self.now += 3_000
+        self.disable_source()
+        cancelled = self.delivery(delivery["id"])
+        self.assertEqual(cancelled["status"], "cancelled")
+        self.assertEqual(cancelled["receipt"]["cancelled_basis"], "source_disabled")
+        self.assertEqual(cancelled["receipt"]["cancelled_at"], self.now)
+        cancelled_at = cancelled["updated_at"]
+        self.now += 60_000
+
+        acked = self.call("delivery.ack", delivery_id=delivery["id"], claim_token=token,
+                          state="delivered", receipt={"channel_message_id": "wx-42"})
+
+        self.assertEqual(acked["status"], "cancelled")
+        receipt = acked["receipt"]
+        # The late ack is recorded ...
+        self.assertEqual(receipt["state"], "delivered")
+        self.assertIs(receipt["late"], True)
+        self.assertEqual(receipt["receipt"], {"channel_message_id": "wx-42"})
+        # ... without losing why and when the plan was cancelled.
+        self.assertEqual(receipt["cancelled_basis"], "source_disabled")
+        self.assertEqual(receipt["cancelled_at"], cancelled_at)
+        self.assertEqual(acked["updated_at"], self.now)
+        # The late ack never fulfils the cancelled plan: the owner keeps its own status
+        # and the delivery row stays cancelled.
+        owner = next(row for row in self.call("initiative.list")["initiatives"]
+                     if row["id"] == delivery["reference_id"])
+        self.assertNotEqual(owner["status"], "delivered")
+
 
 if __name__ == "__main__":
     unittest.main()

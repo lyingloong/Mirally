@@ -908,8 +908,9 @@ class FrameworkService:
                             # Never drop a non-object receipt: keep it under a key instead.
                             receipt = {"previous_receipt": receipt}
                         receipt["cancelled_basis"] = basis
+                        receipt["cancelled_at"] = self.clock()
                         self.db.execute("UPDATE deliveries SET status='cancelled',updated_at=?,receipt_json=? WHERE id=?",
-                                        (self.clock(), _json(receipt), row["id"]))
+                                        (receipt["cancelled_at"], _json(receipt), row["id"]))
                     else:
                         # initiatives has no updated_at column and this change must
                         # not add one; only the cancel judgement stays as before.
@@ -1358,11 +1359,21 @@ class FrameworkService:
                 raise FrameworkError("CONFLICT", "delivery claim token mismatch")
             if old["status"] in {"delivered", "failed"}:
                 return old
-            # Late evidence is retained, but never resurrects a cancelled plan.
-            result_state = "cancelled" if old["status"] == "cancelled" else state
-            facts = {"state": state, "late": old["status"] == "cancelled", "receipt": receipt or {}}
+            # Late evidence is retained, but never resurrects a cancelled plan and never
+            # erases why it was cancelled: the cancellation keys stay in the receipt.
+            late = old["status"] == "cancelled"
+            result_state = "cancelled" if late else state
+            previous = old.get("receipt") if isinstance(old.get("receipt"), dict) else {}
+            facts = {"state": state, "late": late, "receipt": receipt or {}}
+            if late:
+                if "previous_receipt" in previous:
+                    facts["previous_receipt"] = previous["previous_receipt"]
+                if "cancelled_basis" in previous:
+                    facts["cancelled_basis"] = previous["cancelled_basis"]
+                # The cancel time survives the late ack; updated_at still records the ack.
+                facts["cancelled_at"] = previous.get("cancelled_at", old["updated_at"])
             self.db.execute("UPDATE deliveries SET status=?,receipt_json=?,updated_at=? WHERE id=?", (result_state, _json(facts), self.clock(), delivery_id))
-            if result_state == "delivered":
+            if not late and result_state == "delivered":
                 table = "commitments" if old["kind"] == "commitment" else "initiatives"
                 self.db.execute(f"UPDATE {table} SET status=? WHERE id=? AND status NOT IN ('cancelled','dismissed')", ("fulfilled" if old["kind"] == "commitment" else "delivered", old["reference_id"]))
         return self._record("deliveries", delivery_id)
