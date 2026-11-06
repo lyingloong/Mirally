@@ -80,6 +80,16 @@ class CheckSourcesTests(unittest.TestCase):
         self.assertNotIn(root / "tools" / "node_modules" / "x.md", check_sources._walk_files(root / "tools"))
         self.assertEqual(self.problems(root), [])
 
+    def test_website_jsx_is_owned_but_downloads_and_generated_output_are_pruned(self) -> None:
+        root = self.temp_root()
+        self.write(root, "website/src/App.jsx", "<<<<<<< HEAD\n")
+        for name in ("website/node_modules/pkg/index.js", "website/dist/index.html",
+                     "website/exports/standalone.html", "website/.vite/cache.json",
+                     "website/.vite-temp/vite.config.js"):
+            self.write(root, name, "<<<<<<< HEAD\n")
+        self.assertEqual(self.problems(root), ["website/src/App.jsx:1: leftover merge-conflict marker"])
+        self.assertEqual(check_sources.owned_files(root), [root / "website/src/App.jsx"])
+
     def test_owned_kernel_and_frontend_sources_are_scanned(self) -> None:
         root = self.temp_root()
         self.write(root, "kernel/dsh/packages/mirally/mirally-product/src/channel.mjs", "<<<<<<< HEAD\n")

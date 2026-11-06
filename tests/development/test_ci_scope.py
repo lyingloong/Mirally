@@ -58,7 +58,8 @@ class CiScopeTests(unittest.TestCase):
                 ".github/pull_request_template.md", "tools/testing/README.md",
                 "tools/dev_workflow/ops.py", "tests/development/test_example.py",
                 "tools/check_docs_links.py", "tools/check_sources.py",
-                "tools/check_structure.py", "tools/check_local_artifacts.py"]
+                "tools/check_structure.py", "tools/check_local_artifacts.py",
+                "website/src/App.jsx", "website/package-lock.json", ".github/workflows/website.yml"]
         self.assertFalse(ci_scope.requires_product(safe))
         for path in ["mirally/framework/service.py", "tools/setup_framework.py",
                      "tools/check_ci_scope.py", ".github/workflows/mirally-pr.yml",
@@ -76,6 +77,9 @@ class CiScopeTests(unittest.TestCase):
             ("mirally/old.py", None, True),
             ("docs/old.md", "mirally/new.py", True),
             ("mirally/old.py", "docs/new.md", True),
+            ("website/src/old.jsx", "mirally/new.py", True),
+            ("mirally/old.py", "website/src/new.jsx", True),
+            ("website/src/old.jsx", "website/src/new.jsx", False),
         ]:
             with self.subTest(old=old, new=new):
                 root = self.repo()
@@ -163,17 +167,50 @@ class CiScopeTests(unittest.TestCase):
         with patch.object(ci_scope, "ROOT", root), patch.dict(os.environ, environment):
             with redirect_stdout(io.StringIO()):
                 self.assertEqual(ci_scope.main(), 0)
-            self.assertEqual(output.read_text(encoding="utf-8"), "existing=value\nproduct=false\n")
+            self.assertEqual(output.read_text(encoding="utf-8"), "existing=value\nproduct=false\nwebsite=false\nwebsite_changed=false\n")
             self.assertIn("CI scope:", summary.read_text(encoding="utf-8"))
             # A malformed event must append an explicit full-check selection.
             event_file.write_text("{not valid JSON", encoding="utf-8")
             with redirect_stdout(io.StringIO()):
                 self.assertEqual(ci_scope.main(), 0)
-            self.assertTrue(output.read_text(encoding="utf-8").endswith("product=true\n"))
+            self.assertTrue(output.read_text(encoding="utf-8").endswith("product=true\nwebsite=true\nwebsite_changed=false\n"))
             event_file.unlink()
             with redirect_stdout(io.StringIO()):
                 self.assertEqual(ci_scope.main(), 0)
-            self.assertTrue(output.read_text(encoding="utf-8").endswith("product=true\n"))
+            self.assertTrue(output.read_text(encoding="utf-8").endswith("product=true\nwebsite=true\nwebsite_changed=false\n"))
+
+    def test_website_selection_uses_full_diff_beyond_hosted_path_filter_limit(self) -> None:
+        root = self.repo()
+        base = self.git(root, "rev-parse", "HEAD")
+        for number in range(310):
+            self.write(root, f"docs/fixture-{number:03}.md")
+        self.write(root, "website/src/App.jsx")
+        head = self.commit(root)
+        paths, _ = ci_scope.comparison_paths("push", {"before": base, "after": head}, head, root)
+        self.assertEqual(len(paths), 311)
+        self.assertFalse(ci_scope.requires_product(paths))
+        self.assertTrue(ci_scope.website_changed(paths))
+        self.assertFalse(ci_scope.website_changed(None))
+        self.assertFalse(ci_scope.website_changed([]))
+        self.assertFalse(ci_scope.website_changed(["mirally/framework/service.py", "unknown.txt"]))
+        self.assertTrue(ci_scope.website_changed([".github/workflows/website.yml"]))
+
+    def test_website_output_distinguishes_validation_from_publication_evidence(self) -> None:
+        for filename, product, website in [("website/src/App.jsx", "false", "true"),
+                                            ("mirally/product.py", "true", "false")]:
+            with self.subTest(filename=filename):
+                root = self.repo()
+                base = self.git(root, "rev-parse", "HEAD")
+                self.write(root, filename)
+                head = self.commit(root)
+                self.write(root, "event.json", json.dumps({"before": base, "after": head}))
+                environment = {"GITHUB_EVENT_NAME": "push", "GITHUB_EVENT_PATH": str(root / "event.json"),
+                               "GITHUB_SHA": head, "GITHUB_OUTPUT": str(root / "output.txt"),
+                               "GITHUB_STEP_SUMMARY": str(root / "summary.txt")}
+                with patch.object(ci_scope, "ROOT", root), patch.dict(os.environ, environment), redirect_stdout(io.StringIO()):
+                    self.assertEqual(ci_scope.main(), 0)
+                actual = dict(line.split("=", 1) for line in (root / "output.txt").read_text(encoding="utf-8").splitlines())
+                self.assertEqual(actual, {"product": product, "website": website, "website_changed": website})
 
 
 if __name__ == "__main__":

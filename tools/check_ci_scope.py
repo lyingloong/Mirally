@@ -14,6 +14,7 @@ REPOSITORY_FILES = {
     ".github/pull_request_template.md", "tools/testing/README.md",
     "tools/check_docs_links.py", "tools/check_sources.py",
     "tools/check_structure.py", "tools/check_local_artifacts.py",
+    ".github/workflows/website.yml",
 }
 
 
@@ -24,7 +25,7 @@ def requires_product(paths: list[str]) -> bool:
         return (
             path in REPOSITORY_FILES
             or (path.startswith("docs/") and path.endswith(".md"))
-            or path.startswith(("tools/dev_workflow/", "tests/development/"))
+            or path.startswith(("tools/dev_workflow/", "tests/development/", "website/"))
         )
 
     return not paths or not all(repository_only(path) for path in paths)
@@ -34,18 +35,18 @@ def valid_sha(value: object) -> bool:
     return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{40}", value) is not None and value != "0" * 40
 
 
-def select_scope(event_name: str, event: dict, head: str, root: Path) -> tuple[bool, str]:
+def comparison_paths(event_name: str, event: dict, head: str, root: Path) -> tuple[list[str] | None, str]:
     if event_name not in {"pull_request", "push"}:
-        return True, "Manual or unrecognized event: run all checks."
+        return None, "Manual or unrecognized event: run all checks."
     try:
         if event_name == "pull_request":
             base = event["pull_request"]["base"]["sha"]
         else:
             base = event["before"]
             if event["after"] != head:
-                return True, "Push SHA does not match the checkout: run all checks."
+                return None, "Push SHA does not match the checkout: run all checks."
         if not valid_sha(base) or not valid_sha(head):
-            return True, "Missing or invalid comparison SHA: run all checks."
+            return None, "Missing or invalid comparison SHA: run all checks."
 
         def git(*arguments: str) -> bytes:
             return subprocess.run(
@@ -54,7 +55,7 @@ def select_scope(event_name: str, event: dict, head: str, root: Path) -> tuple[b
             ).stdout
 
         if git("rev-parse", "HEAD").decode("ascii").strip() != head:
-            return True, "Checkout differs from the event SHA: run all checks."
+            return None, "Checkout differs from the event SHA: run all checks."
         # PR HEAD is GitHub's synthetic merge. Its base is available with depth 2.
         # Push compares the entire before/after range, never just the last commit.
         # No rename detection: moving product code into docs must still run tests.
@@ -63,26 +64,38 @@ def select_scope(event_name: str, event: dict, head: str, root: Path) -> tuple[b
     except (KeyError, TypeError, ValueError, OSError, subprocess.SubprocessError):
         # A shallow multi-commit push may lack before. Do not fetch extra history
         # or silently treat an incomplete comparison as documentation-only.
-        return True, "Comparison unavailable: run all checks."
+        return None, "Comparison unavailable: run all checks."
     product = requires_product(paths)
-    reason = "Product, unknown or empty diff: run all checks." if product else "Only documentation/development tooling changed: skip product build and tests."
-    return product, reason
+    reason = "Product, unknown or empty diff: run product checks." if product else "Only website/documentation/development tooling changed: skip product build and tests."
+    return paths, reason
+
+
+def select_scope(event_name: str, event: dict, head: str, root: Path) -> tuple[bool, str]:
+    paths, reason = comparison_paths(event_name, event, head, root)
+    return requires_product(paths or []), reason
+
+
+def website_changed(paths: list[str] | None) -> bool:
+    """Positive website evidence is required for automatic Pages publication."""
+    return bool(paths) and any(path.startswith("website/") or path == ".github/workflows/website.yml" for path in paths)
 
 
 def main() -> int:
     try:
         event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
-        product, reason = select_scope(
+        paths, reason = comparison_paths(
             os.environ.get("GITHUB_EVENT_NAME", ""), event,
             os.environ.get("GITHUB_SHA", ""), ROOT,
         )
     except (KeyError, ValueError, OSError):
-        product, reason = True, "Event unavailable: run all checks."
-    value = "true" if product else "false"
-    print(f"product={value}: {reason}")
+        paths, reason = None, "Event unavailable: run all checks."
+    changed = website_changed(paths)
+    values = {"product": requires_product(paths or []), "website": not paths or changed, "website_changed": changed}
+    outputs = "".join(f"{key}={'true' if value else 'false'}\n" for key, value in values.items())
+    print(outputs.strip() + ": " + reason)
     if output := os.environ.get("GITHUB_OUTPUT"):
         with Path(output).open("a", encoding="utf-8") as stream:
-            stream.write(f"product={value}\n")
+            stream.write(outputs)
     if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
         with Path(summary).open("a", encoding="utf-8") as stream:
             stream.write(f"CI scope: {reason}\n")

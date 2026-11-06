@@ -15,7 +15,7 @@
 
 下表的“归属”指状态或执行责任，不指某位开发者。涉及多个位置时，先确认事实由谁保存、请求由谁批准、动作由谁执行。
 
-开发工作流与工具不在这四个位置内，见[开发工作流与工具](#开发工作流与工具)。
+产品展示站独立于这四个运行时位置，见[产品展示站](#产品展示站)；开发工具见[开发工作流与工具](#开发工作流与工具)。
 
 ## 对话、模型与行动
 
@@ -52,6 +52,14 @@
 | [窗口、托盘、伙伴三形态与关闭](../architecture/desktop.md) | [framework_host.py](../../mirally/framework_host.py)、[framework_shell.py](../../mirally/framework_shell.py)、[desktop_surface.py](../../mirally/desktop_surface.py) | Python 壳持有原生窗口/托盘与退出流程；公共 surface 保留伙伴、裁剪和主动截图行为 | [窗口壳与托盘](../../tests/test_framework_shell.py)、[伙伴还原](../../tests/test_framework_companion_restore.py)；原生 GUI 按[验证文档](validation.md)顺序验收 |
 | [页面、导航、主题、品牌与快捷开始](../architecture/frontend.md) | [route.ts](../../frontend/control-ui/ui/src/pages/mirally/route.ts)、[侧栏](../../frontend/control-ui/ui/src/components/app-sidebar-render.ts)、[我的 Mirally 菜单（设置入口）](../../frontend/control-ui/ui/src/components/app-sidebar-identity-menu.ts)、[产品页面目录](../../frontend/control-ui/ui/src/pages/mirally/)、[客户端适配](../../frontend/control-ui/ui/src/app/mirally-client.ts) | 复用原前端组件；品牌/伙伴资源见[资源说明](../../mirally/assets/README.md)。修改固定来源文件前核对[来源维护](../architecture/frontend.md#来源维护) | [当前客户端](../../tests/test_framework_original_client.mjs)、[请求边界](../../tests/test_framework_ui_races.mjs)、[首次引导、建议草稿与新对话入口](../../tests/test_framework_model_onboarding_ui.mjs)；同时遵守[UI 规范](../standards/ui-guidelines.md) |
 
+## 产品展示站
+
+| 要修改的功能 | 从哪里开始 | 状态与执行归属 | 代表验证 |
+| --- | --- | --- | --- |
+| 首页、愿景与概念演示 | [网站说明](../../website/README.md)、[App.jsx](../../website/src/App.jsx) | `website/` 静态页面与本地演示；不访问产品宿主、数据库或模型服务，当前能力以[能力矩阵](capabilities.md)为准 | 网站 `build`、`export:html`；实际桌面/窄窗口与键盘操作 |
+| 对外更新内容与日期页面 | [更新 Markdown](../../website/content/updates/)、[页面生成脚本](../../website/scripts/sync-update-pages.mjs)、[Vite 配置](../../website/vite.config.js) | 人工整理的 Markdown 是正文来源，构建生成日期页；不自动发布全部产品 CHANGELOG | 网站构建；`/updates/`、日期深链接与图片路径验收 |
+| 网站 CI 与 Pages 发布 | [网站工作流](../../.github/workflows/website.yml)、[范围选择器](../../tools/check_ci_scope.py) | 网站相关 PR 独立构建；`main` 网站变更或手动运行发布 Pages | [CI 范围测试](../../tests/development/test_ci_scope.py)、网站工作流及部署后检查；见[网站验证](validation.md#网站独立验证) |
+
 ## 开发工作流与工具
 
 开发工作流不改变产品事实；它由仓库内的状态助手和流程文档驱动，队长推进状态，合并仍由用户批准。
@@ -61,7 +69,7 @@
 | 开发点状态、并发/配额闸门与待合并池 | [状态助手](../../tools/dev_workflow/agent_workflow.py)、[AgentTeams 工作流](../development/agent-teams-workflow.md) | 队长用状态助手推进 `proposed → … → awaiting_merge`；审查通过仍需用户批准，不自动合并；本机状态与配置在 `output/agent-workflow/`（gitignore，不是产品数据） | [状态机与闸门测试](../../tests/development/test_agent_workflow.py) |
 | 审查经验与可复用准则 | [审查经验库](../development/review-experience.md) | 审查师维护；候选先写入 `output/agent-workflow/experience-candidates.md`，整理走独立 docs PR | 无自动化测试；实现/审查前人工核对相关条目 |
 | 仓库文档链接守卫 | [链接检查器](../../tools/check_docs_links.py) | 文档改动后由改动者运行；入口是否仍正确、测试是否覆盖目标行为仍需审查核对 | `python tools/check_docs_links.py` 输出 0 broken |
-| CI 影响范围与依赖缓存 | [PR 工作流](../../.github/workflows/mirally-pr.yml)、[范围选择器](../../tools/check_ci_scope.py) | 明确的文档/开发工具改动只运行轻量检查；未知或无法比较时运行完整产品检查，规则见[验证](validation.md#github-actions-检查范围) | [范围与 Git 差异测试](../../tests/development/test_ci_scope.py) |
+| CI 影响范围与依赖缓存 | [PR 工作流](../../.github/workflows/mirally-pr.yml)、[范围选择器](../../tools/check_ci_scope.py) | 明确的文档/开发工具改动只运行轻量检查，网站改动另走网站工作流；未知或无法比较时运行完整产品检查，规则见[验证](validation.md#github-actions-检查范围) | [范围与 Git 差异测试](../../tests/development/test_ci_scope.py) |
 
 ## 找到入口后的检查顺序
 

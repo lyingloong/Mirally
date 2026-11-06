@@ -6,6 +6,7 @@
 
 ### 仓库与站点
 
+- 将独立展示站最新版本合入主仓 `website/`，保留 Git 历史、素材许可与历史验收记录；网站继续独立安装、构建及发布，网站改动不触发 Windows 产品构建。新站部署到 `https://lyingloong.github.io/Mirally/`，确认发布后再将旧站切为保留路径、查询参数与片段的跳转。
 - 产品展示站迁移到独立公开仓库 [Mirally-site](https://github.com/lyingloong/Mirally-site) 并发布到 GitHub Pages；主仓库移除 `showcase/`，素材、许可说明和验收记录随仓库迁移。
 
 ### Framework v1
