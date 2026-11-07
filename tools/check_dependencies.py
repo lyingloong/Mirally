@@ -9,7 +9,8 @@ The audit only reads files: it never installs, upgrades or deletes anything and
 never uses the network. It reports (1) the same direct dependency declared with
 different constraints inside one environment, (2) requirements-framework.txt
 entries whose module is never imported under ``mirally/`` (candidate only), and
-(3) which manifests are runtime, optional, CI, upstream, tooling or fixtures.
+(3) which manifests are runtime, optional, CI, upstream, website, tooling or
+fixtures.
 """
 
 from __future__ import annotations
@@ -37,10 +38,11 @@ PIP_MANIFESTS = (
 )
 NPM_MANIFESTS = (
     ("tools/testing/package.json", "test-tools", "devtools", "浏览器/DOM 验收工具"),
+    ("website/package.json", "website", "website", "产品网站（website/）"),
 )
 DEPENDENCY_FIELDS = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
 LOCKFILES = ("frontend/control-ui/package-lock.json", "tools/testing/package-lock.json",
-             "kernel/dsh/pnpm-lock.yaml")
+             "website/package-lock.json", "kernel/dsh/pnpm-lock.yaml")
 FRONTEND_ROOT = "frontend/control-ui"
 KERNEL_ROOT = "kernel/dsh"
 # Data-only companions or split namespaces that are imported through another name.

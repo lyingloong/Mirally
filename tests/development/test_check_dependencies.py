@@ -39,6 +39,8 @@ class CheckDependenciesTests(unittest.TestCase):
         self.write(root, "kernel/dsh/.github/review-ownership/requirements.txt", "Pygments==2.21.0\n")
         self.write(root, "tools/testing/package.json",
                    '{"devDependencies": {"playwright-core": "1.63.0"}}')
+        self.write(root, "website/package.json",
+                   '{"dependencies": {"markdown-it": "^15.0.3"}, "devDependencies": {"vite": "^6.4.1"}}')
         self.write(root, "frontend/control-ui/package.json", '{"dependencies": {"vite": "6.0.0"}}')
         self.write(root, "frontend/control-ui/ui/package.json", '{"dependencies": {"vite": "6.0.0"}}')
         self.write(root, "kernel/dsh/package.json", '{"dependencies": {"zod": "^4.4.3"}}')
@@ -75,6 +77,42 @@ class CheckDependenciesTests(unittest.TestCase):
         self.assertIn("unreadable manifest: frontend/control-ui/packages/broken/package.json",
                       report["warnings"])
         self.assertGreaterEqual(report["summary"]["excluded_fixture_package_json"], 1)
+
+    def test_website_manifest_and_lockfile_are_audited(self) -> None:
+        """website/ is a product surface: its manifest and lockfile count like the rest."""
+        root = self.base_tree()
+        for relative in ("frontend/control-ui/package-lock.json", "tools/testing/package-lock.json",
+                         "kernel/dsh/pnpm-lock.yaml", "website/package-lock.json"):
+            self.write(root, relative, "{}")
+        report = check_dependencies.audit(root)
+        by_path = {manifest["path"]: manifest for manifest in report["manifests"]}
+        website = by_path["website/package.json"]
+        self.assertEqual(website["environment"], "website")
+        self.assertEqual(website["kind"], "website")
+        self.assertEqual([(item["name"], item["constraint"]) for item in website["dependencies"]],
+                         [("markdown-it", "^15.0.3"), ("vite", "^6.4.1")])
+        self.assertIn("website/package-lock.json", report["lockfiles"])
+        self.assertEqual(report["summary"]["lockfiles"], 4)
+        # Website declarations are part of the audited total, not silently skipped.
+        self.assertEqual(report["summary"]["declarations"],
+                         sum(len(item["dependencies"]) for item in report["manifests"]))
+        self.assertIn("markdown-it", {dependency["name"] for manifest in report["manifests"]
+                                      for dependency in manifest["dependencies"]})
+
+    def test_missing_or_malformed_website_manifest_is_reported(self) -> None:
+        """Absence is a warning and an invalid shape warns, never a silent skip."""
+        root = self.base_tree()
+        (root / "website" / "package.json").unlink()
+        report = check_dependencies.audit(root)
+        self.assertIn("missing expected manifest: website/package.json", report["warnings"])
+        self.assertNotIn("website/package.json", {manifest["path"] for manifest in report["manifests"]})
+
+        self.write(root, "website/package.json", "[1, 2]")
+        report = check_dependencies.audit(root)
+        self.assertIn("invalid manifest: website/package.json (top-level value is list, "
+                      "expected object)", report["warnings"])
+        self.assertNotIn("website/package.json", {manifest["path"] for manifest in report["manifests"]})
+        self.assertEqual(report["findings"], [])
 
     def test_same_environment_conflict_is_a_finding(self) -> None:
         root = self.base_tree()
