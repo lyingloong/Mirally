@@ -232,7 +232,7 @@ def count_pending_decisions(path: Path) -> int:
     return len(re.findall(r"^\s*(?:\d+\.|[-*])\s+\S", match.group(1), re.M))
 
 
-_VERSION_SUFFIX = re.compile(r"-r(\d+)$")
+_VERSION_SUFFIX = re.compile(r"-r(\d+)(?=$|-)")
 
 
 def _latest_record(paths: list[Path]) -> Path | None:
@@ -240,8 +240,10 @@ def _latest_record(paths: list[Path]) -> Path | None:
 
     Names such as ``dev-0033.md``, ``dev-0033-r2.md`` and ``dev-0033-r10.md`` sort
     lexicographically as ``r10 < r2``, so a plain ``sorted()`` would keep showing a
-    stale PASS after a rework FAIL. Rounds are compared numerically first (an
-    unsuffixed file counts as round 1) and the freshest write breaks ties, so a
+    stale PASS after a rework FAIL. Review files carry the round in the middle too
+    (``review-dev-0033-r2-pr-comment.md``), so the tag is matched anywhere before a
+    trailing ``-`` or the end of the stem. Rounds are compared numerically first
+    (an unsuffixed file counts as round 1) and the freshest write breaks ties, so a
     re-run that reuses a name still wins.
     """
     if not paths:
@@ -310,13 +312,13 @@ def _change_summary(files: list[dict], title: str | None = None) -> dict[str, An
 def merge_state(point: dict, pr_entry: dict | None) -> dict[str, Any]:
     """Classify an ``awaiting_merge`` point as Codex-mergeable or user-blocked.
 
-    Merging is not a single decision. ``codex`` means the PR is open, GitHub says
-    ``MERGEABLE``, CI reported at least one check and all of them passed, so the
-    Codex merge gate can pick it up without a new user decision. ``user`` means the
-    user still has to decide: the PR is missing from the cache, not mergeable, has
-    failing/pending checks, or has no CI checks at all (a green mergeable bit alone
-    is not evidence). ``None`` applies to every other status (the card then shows
-    nothing extra).
+    Merging is not a single decision. ``codex`` means the PR is open (cache state
+    ``OPEN``), GitHub says ``MERGEABLE``, CI reported at least one check and all of
+    them passed, so the Codex merge gate can pick it up without a new user decision.
+    ``user`` means the user still has to decide: the PR is missing from the cache,
+    is already CLOSED/MERGED, not mergeable, has failing/pending checks, or has no
+    CI checks at all (a green mergeable bit alone is not evidence). ``None`` applies
+    to every other status (the card then shows nothing extra).
     """
     if point.get("status") != "awaiting_merge":
         return {"state": None, "reason": None}
@@ -325,6 +327,10 @@ def merge_state(point: dict, pr_entry: dict | None) -> dict[str, Any]:
         return {"state": "user", "reason": "未关联 PR"}
     if not pr_entry:
         return {"state": "user", "reason": "PR 不在缓存中"}
+    pr_state = str(pr_entry.get("state") or "").upper()
+    if pr_state != "OPEN":
+        # A stale cache can still carry green checks from when the PR was open.
+        return {"state": "user", "reason": f"PR 状态 {pr_state or '未知'}，不可合并"}
     checks = pr_entry.get("checks") or {}
     total = sum(int(checks.get(key) or 0) for key in CI_KEYS)
     if total == 0:

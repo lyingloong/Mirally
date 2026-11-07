@@ -237,13 +237,16 @@ class ProgressPageConsoleTests(unittest.TestCase):
 
     def test_merge_state_treats_zero_checks_as_a_user_decision(self):
         point = {"status": "awaiting_merge", "pr": 12}
-        cached = {"mergeable": "MERGEABLE", "checks": {"pass": 0, "pending": 0, "fail": 0}}
+        cached = {"state": "OPEN", "mergeable": "MERGEABLE", "checks": {"pass": 0, "pending": 0, "fail": 0}}
         self.assertEqual(pp.merge_state(point, cached), {"state": "user", "reason": "无 CI 检查"})
         # The same PR with at least one green check is the Codex-mergeable boundary.
         self.assertEqual(
-            pp.merge_state(point, {"mergeable": "MERGEABLE", "checks": {"pass": 1, "pending": 0, "fail": 0}})["state"],
+            pp.merge_state(point, {"state": "OPEN", "mergeable": "MERGEABLE",
+                                   "checks": {"pass": 1, "pending": 0, "fail": 0}})["state"],
             "codex",
         )
+
+
 CROSS_ENTRY_CHILD = r'''
 import contextlib, sys, time
 from pathlib import Path

@@ -200,6 +200,33 @@ class ProgressPageTests(unittest.TestCase):
         self.assertEqual(by_id["dev-0002"]["verification"]["verdict"], "FAIL")
         self.assertEqual(by_id["dev-0002"]["verification"]["file"], "verification/dev-0002-r10.md")
 
+    def test_review_rounds_match_middle_labels_and_beat_reversed_mtime(self):
+        self.write_state([_point("dev-0001", status="reviewing"),
+                          _point("dev-0002", status="reviewing")])
+        # Real review filenames carry the round in the middle before "-pr-comment".
+        first_pass = self.workdir / "review-dev-0001-r1-pr-comment.md"
+        second_fail = self.workdir / "review-dev-0001-r2-pr-comment.md"
+        first_pass.write_text("- 结论：**PASS**；首轮通过\n", encoding="utf-8")
+        second_fail.write_text("- 结论：**FAIL**；F-2 未关闭\n", encoding="utf-8")
+        # Round number wins even when the stale PASS file was written later.
+        os.utime(first_pass, (2_000_000, 2_000_000))
+        os.utime(second_fail, (1_000_000, 1_000_000))
+        r2_pass = self.workdir / "review-dev-0002-r2-pr-comment.md"
+        r10_fail = self.workdir / "review-dev-0002-r10-pr-comment.md"
+        r2_pass.write_text("- 结论：**PASS**；第二轮通过\n", encoding="utf-8")
+        r10_fail.write_text("- 结论：**FAIL**；第十轮返工仍失败\n", encoding="utf-8")
+        os.utime(r2_pass, (3_000_000, 3_000_000))
+        os.utime(r10_fail, (1_000_000, 1_000_000))
+        review1 = pp.collect_review(self.workdir, "dev-0001")
+        self.assertEqual(review1["verdict"], "FAIL")
+        self.assertEqual(review1["file"], "review-dev-0001-r2-pr-comment.md")
+        review2 = pp.collect_review(self.workdir, "dev-0002")
+        self.assertEqual(review2["verdict"], "FAIL")
+        self.assertEqual(review2["file"], "review-dev-0002-r10-pr-comment.md")
+        by_id = {c["id"]: c for c in self.cards(self.build()["model"])}
+        self.assertIn("审查未通过", by_id["dev-0001"]["decisions"][0])
+        self.assertIn("审查未通过", by_id["dev-0002"]["decisions"][0])
+
     # -- 6. pending-decision derivation ---------------------------------
     def test_pending_decision_priority_and_spec_decision_count(self):
         points = [
@@ -274,6 +301,27 @@ class ProgressPageTests(unittest.TestCase):
         self.assertIsNone(by_id["dev-0005"]["merge"]["state"])
         self.assertIn('<span class="badge ok">可交 Codex 合并</span>', page["html"])
         self.assertIn('<span class="badge warn">待用户决定</span>', page["html"])
+
+    def test_merge_state_requires_an_open_pr_even_when_checks_are_green(self):
+        self.write_state([
+            _point("dev-0001", status="awaiting_merge", pr=7),
+            _point("dev-0002", status="awaiting_merge", pr=8),
+        ])
+        self.pr_cache([
+            {"number": 7, "title": "已关闭", "headRefName": "b1", "state": "CLOSED",
+             "mergeable": "MERGEABLE", "url": "u7", "files": [],
+             "statusCheckRollup": [{"conclusion": "SUCCESS"}]},
+            {"number": 8, "title": "已合并", "headRefName": "b2", "state": "MERGED",
+             "mergeable": "MERGEABLE", "url": "u8", "files": [],
+             "statusCheckRollup": [{"conclusion": "SUCCESS"}]},
+        ])
+        page = self.build()
+        by_id = {c["id"]: c for c in self.cards(page["model"])}
+        for point_id, pr_state in (("dev-0001", "CLOSED"), ("dev-0002", "MERGED")):
+            self.assertEqual(by_id[point_id]["merge"]["state"], "user")
+            self.assertIn(pr_state, by_id[point_id]["merge"]["reason"])
+            self.assertIn("不可合并", by_id[point_id]["decisions"][0])
+        self.assertNotIn('<span class="badge ok">可交 Codex 合并</span>', page["html"])
 
     # -- 7. offline / --refresh-pr --------------------------------------
     def test_missing_pr_cache_is_not_fatal(self):
