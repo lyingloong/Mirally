@@ -208,32 +208,33 @@ summary:focus-visible {
 .product-header-cta:hover {
   background: var(--surface);
 }
+/* The opening pairs a concise introduction with a real interface excerpt. */
 .project-intro {
-  padding-top: 92px;
+  padding-block: 88px 86px;
 }
-.intro-copy {
+.hero-layout {
   display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  align-items: end;
-  gap: 80px;
+  grid-template-columns: minmax(0, 0.84fr) minmax(0, 1.25fr);
+  align-items: center;
+  gap: 60px;
 }
 .intro-copy h1 {
   margin-top: 22px;
-  font-size: clamp(42px, 4.8vw, 62px);
-  line-height: 1.33;
+  font-size: clamp(38px, 4.2vw, 54px);
+  line-height: 1.4;
   font-weight: 500;
-  letter-spacing: -0.02em;
 }
 .title-period {
   color: var(--accent);
 }
 .intro-detail {
-  padding-bottom: 6px;
+  margin-top: 25px;
 }
 .intro-description {
+  max-width: 360px;
   color: #555c63;
-  font-size: 18px;
-  line-height: 1.85;
+  font-size: 17px;
+  line-height: 1.95;
 }
 .intro-actions {
   display: flex;
@@ -248,31 +249,30 @@ summary:focus-visible {
 .project-status {
   margin-top: 20px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.8;
 }
 .product-preview {
-  margin-top: 58px;
-}
-.product-stage {
-  padding: 32px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 14px;
+  min-width: 0;
 }
 .product-image-button {
   position: relative;
   display: block;
   width: 100%;
+  aspect-ratio: 1020 / 720;
   padding: 0;
   border: 1px solid #dfe2e5;
-  border-radius: 8px;
+  border-radius: 9px;
   background: #fff;
-  box-shadow: 0 12px 32px #2025300a;
+  box-shadow: 0 18px 50px #20253009;
   cursor: zoom-in;
 }
 .product-image-button > img {
-  border-radius: 7px;
+  border-radius: 8px;
   width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: right;
 }
 .image-expand {
   position: absolute;
@@ -280,8 +280,8 @@ summary:focus-visible {
   right: 14px;
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 6px;
   background: #fff;
   border: 1px solid var(--line);
@@ -290,66 +290,107 @@ summary:focus-visible {
 .product-preview figcaption {
   display: flex;
   justify-content: space-between;
-  gap: 12px 24px;
+  align-items: center;
+  gap: 8px 20px;
   flex-wrap: wrap;
   color: var(--muted);
   font-size: 12px;
   padding-top: 17px;
   line-height: 1.7;
 }
+.product-preview figcaption > span:last-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 .foundations {
-  padding-top: 128px;
+  padding-top: 112px;
 }
 .section-heading h2,
+.companion-copy h2,
 .start-copy h2 {
   font-size: 40px;
   font-weight: 500;
-  line-height: 1.4;
+  line-height: 1.5;
+}
+.foundation-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 40px;
+}
+.foundation-heading > p {
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.9;
+  padding-bottom: 5px;
+}
+.feature-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 72px;
+  margin-top: 52px;
+}
+.feature-item {
+  border-top: 1px solid var(--line);
+  padding-top: 30px;
+}
+.feature-item > svg {
+  color: var(--accent);
+  margin-bottom: 24px;
+}
+.feature-item h3 {
+  font-size: 23px;
+  font-weight: 500;
+  line-height: 1.55;
+  margin-bottom: 16px;
+}
+.feature-item p {
+  max-width: 450px;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.95;
+}
+.companion-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 80px;
+  align-items: center;
+  margin-top: 112px;
+  padding-top: 96px;
+  border-top: 1px solid var(--line);
+}
+.companion-copy h2 {
+  margin-top: 18px;
+}
+.companion-copy > p:not(.eyebrow) {
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.95;
+  margin-top: 23px;
+}
+.companion-copy .text-link {
   margin-top: 16px;
 }
-.foundation-layout {
-  display: grid;
-  grid-template-columns: 0.95fr 1.05fr;
-  gap: 84px;
-  margin-top: 44px;
-  align-items: stretch;
-}
 .companion-portrait {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #f7f8f9;
-  padding: 28px 24px 30px;
   text-align: center;
-}
-.portrait-label {
-  color: var(--muted);
-  font-size: 13px;
 }
 .companion-art {
   display: grid;
   place-items: center;
-  flex: 1;
   width: 100%;
-  min-height: 248px;
+  min-height: 280px;
 }
 .companion-art img {
-  width: 150px;
-  height: 180px;
-}
-.companion-portrait > p {
-  font-size: 24px;
-  line-height: 1.6;
-  font-weight: 400;
+  width: 200px;
+  height: 240px;
 }
 .companion-forms {
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 22px;
-  margin-top: 25px;
+  gap: 26px;
+  margin-top: 20px;
   color: var(--muted);
   font-size: 13px;
 }
@@ -358,45 +399,14 @@ summary:focus-visible {
   align-items: center;
   gap: 7px;
 }
-.feature-list {
-  padding-block: 7px;
-}
-.feature-item {
-  display: flex;
-  gap: 23px;
-  padding-block: 30px;
-  border-bottom: 1px solid var(--line);
-}
-.feature-item:first-child {
-  padding-top: 0;
-}
-.feature-item:last-child {
-  border-bottom: 0;
-  padding-bottom: 0;
-}
-.feature-number {
-  margin-top: 5px;
-  font-size: 12px;
-  color: var(--muted);
-}
-.feature-item h3 {
-  font-size: 21px;
-  font-weight: 500;
-  line-height: 1.55;
-  margin-bottom: 13px;
-}
-.feature-item p {
-  color: var(--muted);
-  font-size: 16px;
-  line-height: 1.9;
-}
 .extension-note {
+  grid-column: 1 / -1;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 32px;
-  padding-block: 35px;
-  margin-top: 48px;
+  padding-block: 34px;
+  margin-top: 80px;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
@@ -417,10 +427,10 @@ summary:focus-visible {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 92px;
-  padding-block: 128px;
+  padding-block: 112px;
 }
 .start-copy h2 {
-  font-size: 34px;
+  margin-top: 18px;
 }
 .start-copy > p:not(.eyebrow) {
   font-size: 16px;
@@ -589,31 +599,32 @@ dialog::backdrop {
   color: var(--muted);
   margin-top: 12px;
 }
-@media (max-width: 1000px) {
-  .intro-copy {
-    gap: 40px;
-    grid-template-columns: 1.1fr 1fr;
+@media (max-width: 1050px) {
+  .hero-layout {
+    gap: 36px;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr);
+  }
+  .intro-copy h1 {
+    font-size: 40px;
   }
   .intro-description {
     font-size: 16px;
   }
-  .desktop-break {
-    display: none;
-  }
   .intro-actions {
     gap: 12px 20px;
   }
-  .foundation-layout {
-    gap: 44px;
+  .product-image-button {
+    aspect-ratio: 1020 / 720;
   }
+  .desktop-break {
+    display: none;
+  }
+  .companion-section,
   .getting-started {
     gap: 50px;
   }
-  .start-copy h2 {
-    font-size: 30px;
-  }
 }
-@media (max-width: 740px) {
+@media (max-width: 800px) {
   .container,
   .header-inner {
     width: calc(100% - 48px);
@@ -638,24 +649,24 @@ dialog::backdrop {
     display: none;
   }
   .project-intro {
-    padding-top: 54px;
+    padding-block: 52px 56px;
   }
-  .intro-copy {
+  .hero-layout {
     grid-template-columns: minmax(0, 1fr);
-    gap: 24px;
+    gap: 36px;
   }
   .intro-copy h1 {
-    font-size: clamp(36px, 7.2vw, 52px);
-    line-height: 1.4;
-    margin-top: 18px;
+    font-size: clamp(36px, 6.6vw, 52px);
+    line-height: 1.45;
+    margin-top: 16px;
   }
   .intro-detail {
-    padding: 0;
+    margin-top: 20px;
   }
   .intro-description {
     font-size: 16px;
     line-height: 1.9;
-    max-width: 420px;
+    max-width: 450px;
   }
   .intro-actions {
     margin-top: 22px;
@@ -664,88 +675,75 @@ dialog::backdrop {
   .project-status {
     margin-top: 16px;
   }
-  .product-preview {
-    margin-top: 34px;
-  }
-  .product-stage {
-    padding: 12px;
-    border-radius: 8px;
-  }
-  .product-image-button,
-  .product-image-button > img {
-    border-radius: 4px;
+  .product-image-button {
+    aspect-ratio: 1020 / 720;
   }
   .product-preview figcaption {
-    font-size: 12px;
-    gap: 4px;
     padding-top: 12px;
-  }
-  .product-preview figcaption > span:first-child {
-    flex-basis: 100%;
   }
   .image-expand {
     bottom: 8px;
     right: 8px;
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
   }
   .foundations {
-    padding-top: 80px;
+    padding-top: 72px;
   }
-  .section-heading h2 {
+  .section-heading h2,
+  .companion-copy h2,
+  .start-copy h2 {
     font-size: 32px;
     line-height: 1.5;
   }
-  .foundation-layout {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 32px;
-    margin-top: 28px;
+  .foundation-heading {
+    display: block;
   }
-  .companion-portrait {
-    padding-block: 24px;
-  }
-  .companion-art {
-    min-height: 205px;
-  }
-  .companion-art img {
-    width: 130px;
-    height: 156px;
-  }
-  .companion-portrait > p {
-    font-size: 22px;
-  }
-  .companion-forms {
+  .foundation-heading > p {
     margin-top: 20px;
+    padding: 0;
   }
-  .feature-item {
-    gap: 20px;
-    padding-block: 26px;
+  .feature-list {
+    gap: 36px;
+    margin-top: 32px;
   }
   .feature-item h3 {
-    font-size: 19px;
+    font-size: 21px;
+  }
+  .feature-item > svg {
+    margin-bottom: 20px;
+  }
+  .companion-section {
+    column-gap: 24px;
+    margin-top: 72px;
+    padding-top: 64px;
+  }
+  .companion-art img {
+    width: 165px;
+    height: 198px;
+  }
+  .companion-art {
+    min-height: 220px;
+  }
+  .companion-forms {
+    gap: 12px 18px;
+    margin-top: 14px;
   }
   .extension-note {
     flex-direction: column;
     align-items: flex-start;
     gap: 15px;
     padding-block: 27px;
-    margin-top: 30px;
+    margin-top: 52px;
   }
   .getting-started {
-    grid-template-columns: minmax(0, 1fr);
     gap: 38px;
-    padding-block: 80px;
-  }
-  .start-copy h2 {
-    font-size: 30px;
-    line-height: 1.5;
+    padding-block: 72px;
   }
   .start-copy > .button {
     margin-top: 22px;
   }
   .footer-main {
-    flex-direction: column;
-    align-items: flex-start;
     gap: 22px;
     padding-block: 30px;
   }
@@ -762,6 +760,30 @@ dialog::backdrop {
   }
   .footer-inner > p {
     display: none;
+  }
+}
+@media (max-width: 580px) {
+  .product-preview figcaption > span:first-child {
+    flex-basis: 100%;
+  }
+  .feature-list,
+  .companion-section,
+  .getting-started {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .companion-section {
+    row-gap: 32px;
+  }
+  .companion-art img {
+    width: 185px;
+    height: 222px;
+  }
+  .extension-note {
+    margin-top: 18px;
+  }
+  .footer-main {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 @media (max-width: 360px) {

@@ -4,15 +4,16 @@
   --demo-accent: var(--accent);
   --demo-line: var(--line);
   --demo-soft: var(--surface);
-  padding: 112px 0 0;
-  background: var(--paper);
+  padding: 84px 0 88px;
+  background: #f6f7f8;
   color: var(--demo-text);
 }
 .day-container {
   min-width: 0;
 }
 .day-section-heading {
-  margin-bottom: 36px;
+  margin-bottom: 26px;
+  text-align: center;
 }
 .day-section-heading h2 {
   margin: 0;
@@ -28,8 +29,8 @@
 }
 .day-tabs {
   display: flex;
-  gap: 30px;
-  border-bottom: 1px solid var(--demo-line);
+  justify-content: center;
+  gap: 36px;
 }
 .day-tab {
   position: relative;
@@ -67,10 +68,9 @@
 }
 .day-experience {
   margin-top: 24px;
-  padding: 24px;
   border: 1px solid var(--demo-line);
-  border-radius: 12px;
-  background: var(--demo-soft);
+  border-radius: 9px;
+  background: var(--paper);
 }
 .scene-stage {
   display: grid;
@@ -78,8 +78,8 @@
   align-items: start;
   gap: 40px;
   min-height: 390px;
-  padding: 36px;
-  border-radius: 5px;
+  padding: 40px;
+  border-radius: 9px;
   background: var(--paper);
 }
 .scene-work-surface,
@@ -495,7 +495,7 @@
 }
 @media (max-width: 740px) {
   .day-section {
-    padding: 72px 0 0;
+    padding: 60px 0;
   }
   .day-section-heading h2 {
     font-size: 32px;
@@ -510,7 +510,6 @@
     font-size: 16px;
   }
   .day-experience {
-    padding: 12px;
     margin-top: 20px;
   }
   .scene-stage {
