@@ -37,18 +37,43 @@ if sys.argv[1:] == ["--version"]:
 """
 
 
+def _wrapper_executable(path: str) -> str:
+    """Return an ASCII-safe interpreter path for the Windows batch wrapper.
+
+    ``cmd.exe`` reads ``.cmd`` files with the active ANSI code page, so UTF-8
+    wrapper text breaks when an absolute path contains non-ASCII characters.
+    The 8.3 short path is ASCII and refers to the same file.
+    """
+    if sys.platform != "win32":
+        return path
+    try:
+        import ctypes
+
+        buffer = ctypes.create_unicode_buffer(32768)
+        length = ctypes.windll.kernel32.GetShortPathNameW(path, buffer, len(buffer))
+        if length:
+            return buffer.value
+    except (AttributeError, OSError):
+        pass
+    return path
+
+
 def fake_node(directory: Path, version: str) -> Path:
     """A real, runnable stand-in whose ``node --version`` prints ``version``."""
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "node-version.txt").write_text(version + "\n", encoding="ascii")
     script = directory / "node_version.py"
     script.write_text(NODE_STAND_IN, encoding="utf-8")
+    python = _wrapper_executable(sys.executable)
     if sys.platform == "win32":
         path = directory / "node.cmd"
-        path.write_text('@echo off\r\n"%s" "%s" %%*\r\n' % (sys.executable, script), encoding="ascii")
+        # Only the interpreter path is absolute; the script is resolved from the
+        # wrapper's own directory so a Chinese TEMP path never enters batch text.
+        path.write_text('@echo off\r\n"%s" "%%~dp0node_version.py" %%*\r\n' % python, encoding="utf-8")
     else:
         path = directory / "node"
-        path.write_text('#!/bin/sh\nexec "%s" "%s" "$@"\n' % (sys.executable, script), encoding="ascii")
+        path.write_text('#!/bin/sh\nexec "%s" "$(dirname "$0")/node_version.py" "$@"\n' % python,
+                        encoding="utf-8")
         path.chmod(0o755)
     return path
 
@@ -151,6 +176,27 @@ class VerifyFrameworkPrereqProcessTests(TempRootTestCase):
                                 timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), "v22.19.0")
+
+    def test_node_fixture_runs_from_a_chinese_temp_directory(self):
+        # Regression: writing the wrapper with ascii raised UnicodeEncodeError when
+        # TEMP contained Chinese characters, before any test body could run.
+        chinese_temp = self.base / "中文临时目录"
+        node = fake_node(chinese_temp / "node-中文", "v22.19.0")
+        result = subprocess.run([str(node), "--version"], capture_output=True, text=True,
+                                timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "v22.19.0")
+
+    def test_node_fixture_writes_wrapper_for_a_chinese_interpreter_path(self):
+        # The wrapper embeds the interpreter path; a Chinese install path must not
+        # fail the write. The copy only needs to exist for the short-path lookup.
+        chinese_python = self.base / "中文解释器" / "python.exe"
+        chinese_python.parent.mkdir(parents=True)
+        shutil.copy2(sys.executable, chinese_python)
+        with mock.patch.object(sys, "executable", str(chinese_python)):
+            node = fake_node(self.base / "node-chinese-python", "v22.19.0")
+        self.assertTrue(node.is_file())
+        self.assertIn("node_version.py", node.read_text(encoding="utf-8"))
 
     def test_outdated_node_skips(self):
         # The real v20 stand-in is actually run by the script (no mocking), so this also
