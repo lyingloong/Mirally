@@ -50,6 +50,10 @@ GITHUB_LINK = re.compile(
 GITHUB_REMOTE = re.compile(r"github\.com[:/](?P<owner>[^/\s]+)/(?P<repo>[^/\s]+?)(?:\.git)?/?$")
 REPOSITORY_ARGUMENT = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 LOCAL_REFS = {"main", "master", "HEAD"}
+# GitHub pages under /issues and /pull that carry no issue/pull number to validate.
+NON_NUMBER_PAGES = {"issues": {"", "new"}, "pull": {""}}
+NUMBER = re.compile(r"\d+")
+PULL_PATCH = re.compile(r"\d+\.(?:diff|patch)")
 
 
 def _repository_slug(value: str) -> str | None:
@@ -166,7 +170,10 @@ def repository_links(target: str, repository: str | None, root: Path = ROOT) -> 
     links, points at another repository, or the repository identifier is unknown
     (then the whole group is skipped and `main()` prints the reason once). Never
     touches the network: `main`/`master`/`HEAD` refs must exist in `root`, every
-    other ref is only shape-checked so historical links keep working.
+    other ref is only shape-checked so historical links keep working. For issues
+    and pulls only a pure-number rest is validated; numbered sub-pages
+    (`/pull/34/files`, `/pull/34.diff`, ...) and number-less pages (`/issues`,
+    `/issues/new`) are allowed instead of reported.
     """
     if repository is None:
         return []
@@ -179,18 +186,26 @@ def repository_links(target: str, repository: str | None, root: Path = ROOT) -> 
     kind = match.group("kind")
     rest = (match.group("rest") or "").strip("/")
     if kind in {"issues", "pull"}:
-        if re.fullmatch(r"[1-9]\d*", rest):
-            return []
+        number, _, suffix = rest.partition("/")
+        if NUMBER.fullmatch(number):
+            # /<n>, /<n>/files, /<n>/commits/<sha>, ...: only the number is checkable.
+            return [] if int(number) else [f"（{kind} 编号必须是正整数：{rest}）"]
+        if not suffix and number in NON_NUMBER_PAGES[kind]:
+            return []  # /issues (list), /issues/new, /pull (list)
+        if kind == "pull" and PULL_PATCH.fullmatch(rest):
+            return []  # /pull/<n>.diff and /pull/<n>.patch
         return [f"（{kind} 编号必须是正整数：{rest or '空'}）"]
+    rest = unquote(rest).strip("/")
+    if ".." in rest.split("/"):
+        # The ref is part of `rest`: reject parent segments there and in the path.
+        return [f"（ref/path 不能包含 '..'：{rest}）"]
     ref, _, path = rest.partition("/")
     if not ref:
         return [f"（{kind} 缺少 ref）"]
-    path = unquote(path).strip("/")
+    path = path.strip("/")
     if not path:
         # `/tree/<ref>` is the repository root; `/blob/<ref>` must name a file.
         return [] if kind == "tree" else ["（blob 链接缺少文件路径）"]
-    if ".." in path.split("/"):
-        return [f"（路径不能包含 '..'：{path}）"]
     if ref not in LOCAL_REFS:
         return []
     if not (root / path).exists():

@@ -189,8 +189,41 @@ class RepositoryLinkTests(unittest.TestCase):
         )
         self.assertEqual(self.problems(text), [
             "page.md -> https://github.com/lyingloong/Mirally/blob/2eeb778a/../secrets"
-            "（路径不能包含 '..'：../secrets）",
+            "（ref/path 不能包含 '..'：2eeb778a/../secrets）",
         ])
+
+    def test_parent_segments_in_ref_are_rejected(self):
+        # The ref is not local (so its content is not checked), but its shape still
+        # must not smuggle a parent segment in front of the path.
+        text = (
+            "[ref](https://github.com/lyingloong/Mirally/blob/../secrets)\n"
+            "[tree ref](https://github.com/lyingloong/Mirally/tree/../main)\n"
+            "[nested](https://github.com/lyingloong/Mirally/blob/2eeb778a/a/../b)\n"
+        )
+        self.assertEqual(self.problems(text), [
+            "page.md -> https://github.com/lyingloong/Mirally/blob/../secrets"
+            "（ref/path 不能包含 '..'：../secrets）",
+            "page.md -> https://github.com/lyingloong/Mirally/tree/../main"
+            "（ref/path 不能包含 '..'：../main）",
+            "page.md -> https://github.com/lyingloong/Mirally/blob/2eeb778a/a/../b"
+            "（ref/path 不能包含 '..'：2eeb778a/a/../b）",
+        ])
+
+    def test_issue_and_pull_pages_are_not_reported(self):
+        # Only a pure-number rest is validated. Issue/pull list pages, the new-issue
+        # page, numbered sub-pages and patch/diff views are legitimate GitHub pages.
+        text = (
+            "[list](https://github.com/lyingloong/Mirally/issues)\n"
+            "[query](https://github.com/lyingloong/Mirally/issues?q=is%3Aopen)\n"
+            "[new](https://github.com/lyingloong/Mirally/issues/new)\n"
+            "[files](https://github.com/lyingloong/Mirally/pull/34/files)\n"
+            "[diff](https://github.com/lyingloong/Mirally/pull/34.diff)\n"
+            "[patch](https://github.com/lyingloong/Mirally/pull/34.patch)\n"
+            "[commits](https://github.com/lyingloong/Mirally/pull/34/commits)\n"
+            "[checks](https://github.com/lyingloong/Mirally/pull/34/checks)\n"
+            "[review](https://github.com/lyingloong/Mirally/pull/34/review)\n"
+        )
+        self.assertEqual(self.problems(text), [])
 
     def test_issue_and_pull_numbers_are_format_checked(self):
         text = (
