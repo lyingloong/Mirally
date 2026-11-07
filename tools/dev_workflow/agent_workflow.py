@@ -712,6 +712,31 @@ def reject_point(
     return point
 
 
+def cancel_point(
+    state: dict[str, Any],
+    point_id: str,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    """Cancel a non-terminal point without requiring a free active slot.
+
+    Used for proposals/blocked points that must be closed while the queue is full;
+    unlike resume, this does not need to re-enter an active status.
+    """
+    point = point_by_id(state, point_id)
+    if point["status"] in TERMINAL_STATUSES:
+        raise WorkflowError(f"{point_id} is already terminal and cannot be cancelled")
+    if point["status"] == "merging":
+        raise WorkflowError(
+            f"{point_id} is merging; wait for the merge result or repair instead of cancelling"
+        )
+    if not reason:
+        raise WorkflowError("cancel-point requires a reason")
+    point["status"] = "cancelled"
+    append_note(point, reason)
+    touch(point)
+    return point
+
+
 def block_point(
     state: dict[str, Any],
     config: dict[str, Any],
@@ -1016,6 +1041,13 @@ def build_parser() -> argparse.ArgumentParser:
     reject.add_argument("id")
     reject.add_argument("--reason")
 
+    cancel = sub.add_parser(
+        "cancel-point",
+        help="cancel a non-terminal point without requiring a free active slot",
+    )
+    cancel.add_argument("id")
+    cancel.add_argument("--reason", required=True)
+
     block = sub.add_parser("block", help="block a point due to quota or external state")
     block.add_argument("id")
     block.add_argument("--reason", required=True, choices=["quota", "external", "other"])
@@ -1213,6 +1245,15 @@ def command_reject_point(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_cancel_point(args: argparse.Namespace) -> int:
+    state_path = Path(args.state)
+    state = load_state(state_path)
+    point = cancel_point(state, args.id, args.reason)
+    save_state(state_path, state)
+    print_json(point)
+    return 0
+
+
 def command_block(args: argparse.Namespace) -> int:
     state_path = Path(args.state)
     state = load_state(state_path)
@@ -1275,6 +1316,7 @@ COMMANDS = {
     "merge-done": command_merge_done,
     "merge-rejected": command_merge_rejected,
     "reject-point": command_reject_point,
+    "cancel-point": command_cancel_point,
     "block": command_block,
     "resume": command_resume,
     "validate": command_validate,
