@@ -311,10 +311,12 @@ def merge_state(point: dict, pr_entry: dict | None) -> dict[str, Any]:
     """Classify an ``awaiting_merge`` point as Codex-mergeable or user-blocked.
 
     Merging is not a single decision. ``codex`` means the PR is open, GitHub says
-    ``MERGEABLE`` and every check has passed, so the Codex merge gate can pick it
-    up without a new user decision. ``user`` means the user still has to decide:
-    the PR is missing from the cache, not mergeable, or has failing/pending checks.
-    ``None`` applies to every other status (the card then shows nothing extra).
+    ``MERGEABLE``, CI reported at least one check and all of them passed, so the
+    Codex merge gate can pick it up without a new user decision. ``user`` means the
+    user still has to decide: the PR is missing from the cache, not mergeable, has
+    failing/pending checks, or has no CI checks at all (a green mergeable bit alone
+    is not evidence). ``None`` applies to every other status (the card then shows
+    nothing extra).
     """
     if point.get("status") != "awaiting_merge":
         return {"state": None, "reason": None}
@@ -324,6 +326,11 @@ def merge_state(point: dict, pr_entry: dict | None) -> dict[str, Any]:
     if not pr_entry:
         return {"state": "user", "reason": "PR 不在缓存中"}
     checks = pr_entry.get("checks") or {}
+    total = sum(int(checks.get(key) or 0) for key in CI_KEYS)
+    if total == 0:
+        # No checks means nobody has proved the head is safe to merge; a green
+        # "mergeable" bit alone is not a substitute for CI.
+        return {"state": "user", "reason": "无 CI 检查"}
     failing = int(checks.get("fail") or 0) + int(checks.get("pending") or 0)
     if failing:
         parts = [f'fail {checks.get("fail", 0)}' if checks.get("fail") else "",
@@ -685,8 +692,16 @@ def fixture_root(root: Path | None = None) -> Path:
     return root / "output"
 
 
+class _SafeArgumentParser(argparse.ArgumentParser):
+    """Argparse help/usage must survive a non-UTF-8 console as well."""
+
+    def _print_message(self, message: str, file=None) -> None:  # noqa: D401 - argparse hook
+        if message:
+            wf._write_text(file or sys.stderr, message)
+
+
 def main(argv: list[str] | None = None, *, run=subprocess.run) -> int:
-    parser = argparse.ArgumentParser(description="生成 Mirally 开发进度页（只读）")
+    parser = _SafeArgumentParser(description="生成 Mirally 开发进度页（只读）")
     parser.add_argument("--workdir", default=str(DEFAULT_WORKDIR))
     parser.add_argument("--offline", action="store_true", help="仅使用缓存的 PR 数据（默认行为）")
     parser.add_argument("--refresh-pr", action="store_true", help="调用 gh 刷新 PR 缓存（唯一联网步骤）")
@@ -706,14 +721,14 @@ def main(argv: list[str] | None = None, *, run=subprocess.run) -> int:
     allowed = [root, fixture_root(root)]
     inside = any(workdir == base or base in workdir.parents for base in allowed)
     if not inside:
-        print(f"--workdir 必须位于仓库内：{workdir}", file=sys.stderr)
+        wf._write_text(sys.stderr, f"--workdir 必须位于仓库内：{workdir}\n")
         return 2
     if not workdir.is_dir():
-        print(f"--workdir 不存在：{workdir}", file=sys.stderr)
+        wf._write_text(sys.stderr, f"--workdir 不存在：{workdir}\n")
         return 2
     if args.refresh_pr:
         outcome = refresh_pr_cache(workdir, run=run)
-        print(outcome["message"], file=sys.stderr)
+        wf._write_text(sys.stderr, outcome["message"] + "\n")
         if not outcome["ok"]:
             return outcome["code"]
 
@@ -723,9 +738,9 @@ def main(argv: list[str] | None = None, *, run=subprocess.run) -> int:
     html_path.write_text(page["html"], encoding="utf-8")
     data_path.write_text(json.dumps(page["data"], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     model = page["model"]
-    print(f"已生成 {html_path}")
-    print(f"  开发点 {model['summary']['total']} 个 · 数据缺口 {model['summary']['data_gaps']} 处 · "
-          f"校验问题 {len(model['validate_issues'])} 条 · PR 缓存 {'有' if model['pr_cache']['available'] else '无'}")
+    wf._write_text(sys.stdout, f"已生成 {html_path}\n")
+    wf._write_text(sys.stdout, f"  开发点 {model['summary']['total']} 个 · 数据缺口 {model['summary']['data_gaps']} 处 · "
+                               f"校验问题 {len(model['validate_issues'])} 条 · PR 缓存 {'有' if model['pr_cache']['available'] else '无'}\n")
     return 0
 
 
