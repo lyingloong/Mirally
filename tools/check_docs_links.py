@@ -6,9 +6,13 @@ Run from the repository root:
 
 External URLs and fenced code blocks are ignored. Repository-internal fragments
 (`other.md#heading` and `#heading`) are resolved against GitHub-style heading
-slugs. Upstream kernel and frontend source documentation is not scanned;
-`kernel/dsh/UPSTREAM.md` is an exception because Mirally maintains it and it
-links into product documentation.
+slugs; repeated headings receive GitHub's `-1`, `-2`, ... suffixes in document
+order. A heading is rendered before GitHub slugs it, so headings containing raw
+HTML or inline links/images cannot be reproduced by this approximation: files
+with such headings are only partially verified, and unmatched fragments in them
+are left unreported instead of failing the gate. Upstream kernel and frontend
+source documentation is not scanned; `kernel/dsh/UPSTREAM.md` is an exception
+because Mirally maintains it and it links into product documentation.
 """
 
 from __future__ import annotations
@@ -25,6 +29,8 @@ FORCE_CHECK = {ROOT / "kernel" / "dsh" / "UPSTREAM.md"}
 LINK = re.compile(r"!?\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)")
 FENCE = re.compile(r"```.*?```|~~~.*?~~~", re.DOTALL)
 HEADING = re.compile(r"^#{1,6}\s+(.+?)\s*#*\s*$", re.M)
+# GitHub renders a heading (including inline links/images and HTML) before slugging it.
+HEADING_MARKUP = re.compile(r"<[^>]+>|!?\[[^\]]*\]\([^)]*\)")
 
 
 def slugify(heading: str) -> str:
@@ -33,16 +39,44 @@ def slugify(heading: str) -> str:
     return re.sub(r"\s+", "-", re.sub(r"[^\w\s-]", "", text))
 
 
-def heading_anchors(path: Path) -> set[str]:
-    """Anchors this file offers, ignoring headings inside fenced code."""
+def _scan_headings(path: Path) -> tuple[set[str], bool]:
+    """(anchors, complete); fenced code is ignored.
+
+    Repeated headings get GitHub's numeric suffixes (`-1`, `-2`, ...) in document
+    order, including re-numbering when a suffixed slug is itself already taken.
+    `complete` is False when a heading renders differently than this approximation
+    slugs it (raw HTML, inline links/images), because then the generated anchors and
+    the duplicate numbering they shift are only guesses.
+    """
     text = FENCE.sub("", path.read_text(encoding="utf-8"))
-    return {slugify(match.group(1)) for match in HEADING.finditer(text)}
+    anchors: set[str] = set()
+    duplicates: dict[str, int] = {}
+    complete = True
+    for match in HEADING.finditer(text):
+        heading = match.group(1)
+        base = slugify(heading)
+        if not base:
+            # GitHub's anchor for a heading that renders to nothing is not linkable.
+            continue
+        anchor = base
+        while anchor in anchors:
+            duplicates[base] = duplicates.get(base, 0) + 1
+            anchor = f"{base}-{duplicates[base]}"
+        anchors.add(anchor)
+        if HEADING_MARKUP.search(heading):
+            complete = False
+    return anchors, complete
 
 
-def anchors_for(path: Path, cache: dict[Path, set[str]]) -> set[str]:
+def heading_anchors(path: Path) -> set[str]:
+    """Anchors this file offers (with GitHub's duplicate suffixes), ignoring fenced code."""
+    return _scan_headings(path)[0]
+
+
+def anchors_for(path: Path, cache: dict[Path, tuple[set[str], bool]]) -> tuple[set[str], bool]:
     key = path.resolve()
     if key not in cache:
-        cache[key] = heading_anchors(path)
+        cache[key] = _scan_headings(path)
     return cache[key]
 
 
@@ -70,10 +104,11 @@ def owned_files() -> list[Path]:
     return sorted(set(result))
 
 
-def check(path: Path, *, root: Path = ROOT, anchors: dict[Path, set[str]] | None = None) -> list[str]:
+def check(path: Path, *, root: Path = ROOT,
+          anchors: dict[Path, tuple[set[str], bool]] | None = None) -> list[str]:
     """Relative link and anchor problems in one file; fenced code is ignored."""
     text = FENCE.sub("", path.read_text(encoding="utf-8"))
-    cache: dict[Path, set[str]] = {} if anchors is None else anchors
+    cache: dict[Path, tuple[set[str], bool]] = {} if anchors is None else anchors
     missing: list[str] = []
     for match in LINK.finditer(text):
         target = match.group(1).strip()
@@ -92,7 +127,10 @@ def check(path: Path, *, root: Path = ROOT, anchors: dict[Path, set[str]] | None
             if not fragment:
                 continue
             resolved = path
-        if unquote(fragment) not in anchors_for(resolved, cache):
+        target_anchors, complete = anchors_for(resolved, cache)
+        # An unmatched fragment in a file whose anchors this approximation cannot
+        # reproduce is unknown, not broken: reporting it would fail valid links.
+        if unquote(fragment) not in target_anchors and complete:
             missing.append(f"{path.relative_to(root)} -> {target}")
     return missing
 

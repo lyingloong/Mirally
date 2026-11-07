@@ -48,11 +48,60 @@ class AnchorFailureTests(unittest.TestCase):
             valid = root / "d.md"
             valid.write_text("[x](a.md#甲)\n", encoding="utf-8")
 
-            anchors: dict[Path, set[str]] = {}
+            anchors: dict[Path, tuple[set[str], bool]] = {}
             self.assertEqual(checker.check(cross_file, root=root, anchors=anchors), ["b.md -> a.md#乙"])
             self.assertEqual(checker.check(same_file, root=root, anchors=anchors), ["c.md -> #乙"])
             self.assertEqual(checker.check(target, root=root, anchors=anchors), [])
             self.assertEqual(checker.check(valid, root=root, anchors=anchors), [])
+
+    def test_duplicate_headings_get_github_numeric_anchors(self):
+        checker = load_checker()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            page = root / "a.md"
+            page.write_text(
+                "# Examples\n\n## Examples\n\n## Examples\n\n## Examples 1\n",
+                encoding="utf-8",
+            )
+            # GitHub numbers repeats in document order, and a slug that is already taken
+            # ("examples-1" from the literal "Examples 1" heading) is numbered again.
+            self.assertEqual(checker.heading_anchors(page),
+                             {"examples", "examples-1", "examples-2", "examples-1-1"})
+            links = root / "b.md"
+            links.write_text(
+                "[a](a.md#examples)\n[b](a.md#examples-1)\n"
+                "[c](a.md#examples-2)\n[d](a.md#examples-1-1)\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(checker.check(links, root=root), [])
+
+    def test_duplicate_heading_numbers_that_do_not_exist_are_reported(self):
+        checker = load_checker()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            page = root / "a.md"
+            page.write_text(
+                "## Examples\n\n## Examples\n\n[self](#examples-1)\n[self](#examples-3)\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(checker.check(page, root=root), ["a.md -> #examples-3"])
+            cross = root / "b.md"
+            cross.write_text("[x](a.md#examples-2)\n[y](a.md#examples-3)\n", encoding="utf-8")
+            self.assertEqual(checker.check(cross, root=root),
+                             ["b.md -> a.md#examples-2", "b.md -> a.md#examples-3"])
+
+    def test_unverifiable_headings_are_unknown_not_broken(self):
+        # GitHub renders a heading before slugging it; raw HTML and inline links are not
+        # reproduced here, so this file's anchors (and the numbering they shift) are only
+        # guesses. An unmatched fragment must be left unreported instead of failing.
+        checker = load_checker()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            page = root / "a.md"
+            page.write_text("## <span>Examples</span>\n\n## [Guide](b.md)\n", encoding="utf-8")
+            links = root / "b.md"
+            links.write_text("[x](a.md#examples-1)\n[y](a.md#nope)\n", encoding="utf-8")
+            self.assertEqual(checker.check(links, root=root), [])
 
     def test_fenced_code_links_are_ignored(self):
         checker = load_checker()
