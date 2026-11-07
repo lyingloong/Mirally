@@ -809,7 +809,17 @@ class CLIEncodingTests(unittest.TestCase):
 
 
 class StateLockTests(unittest.TestCase):
-    """Concurrent read-modify-write commands must not silently drop points (dev-0009)."""
+    """Ownership-based state lock: no mtime staleness guessing, no lost updates."""
+
+    HOLDER_SCRIPT = r'''
+import sys, time
+from pathlib import Path
+sys.path.insert(0, {root!r})
+from tools.dev_workflow import agent_workflow as wf
+with wf.state_lock(Path({state!r})):
+    print("locked", flush=True)
+    time.sleep(60)
+'''
 
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
@@ -827,6 +837,30 @@ class StateLockTests(unittest.TestCase):
         return subprocess.run(self.cli_args(state_path or self.state_path, *arguments),
                               cwd=str(ROOT), capture_output=True, text=True)
 
+    def _start_holder(self):
+        """Run a real second process that owns the OS lock until it is killed."""
+        script = self.HOLDER_SCRIPT.format(root=str(ROOT), state=str(self.state_path))
+        holder = subprocess.Popen([sys.executable, "-c", script], cwd=str(ROOT),
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+        def cleanup():
+            if holder.poll() is None:
+                holder.kill()
+            holder.communicate(timeout=10)
+
+        self.addCleanup(cleanup)
+        ready = holder.stdout.readline().strip()
+        if ready != "locked":
+            holder.kill()
+            _, stderr = holder.communicate(timeout=10)
+            self.fail(f"lock holder did not start: {stderr}")
+        return holder
+
+    @staticmethod
+    def _stop(holder):
+        holder.kill()
+        holder.communicate(timeout=10)
+
     def test_concurrent_adds_keep_every_point(self):
         self.assertEqual(self.run_cli("init").returncode, 0)
         processes = [
@@ -842,44 +876,50 @@ class StateLockTests(unittest.TestCase):
         self.assertEqual(len(state["points"]), 6)
         self.assertEqual(len({point["id"] for point in state["points"]}), 6)
         self.assertEqual(state["next_id"], 7)
-        self.assertFalse(self.lock_path.exists())
-        self.assertEqual(sorted(path.name for path in self.directory.iterdir()), ["config.json", "state.json"])
+        self.assertEqual(sorted(path.name for path in self.directory.iterdir()),
+                         ["config.json", "state.json", "state.json.lock"])
+        with wf.state_lock(self.state_path, timeout=1.0):
+            pass  # every writer released the OS lock
 
-    def test_lock_file_is_removed_after_command(self):
+    def test_lock_is_released_after_command_and_remains_usable(self):
         # `init` also has to work when the state directory does not exist yet.
         state_path = self.directory / "nested" / "state.json"
         init = self.run_cli("init", state_path=state_path)
         self.assertEqual(init.returncode, 0, init.stderr)
         lock = state_path.with_name(state_path.name + ".lock")
         with wf.state_lock(state_path):
-            self.assertTrue(lock.exists(), "the lock exists while the command holds it")
-        self.assertFalse(lock.exists(), "the lock is removed on exit")
+            self.assertTrue(lock.exists(), "the lock file exists while the command holds it")
+        with wf.state_lock(state_path, timeout=0.5):
+            pass  # released; the leftover file alone is not ownership
         add = self.run_cli("add", "--source", "user", "--title", "after lock", state_path=state_path)
         self.assertEqual(add.returncode, 0, add.stderr)
         self.assertEqual(len(wf.load_state(state_path)["points"]), 1)
-        self.assertFalse(lock.exists())
 
-    def test_stale_lock_is_recovered(self):
+    def test_old_lock_file_mtime_does_not_grant_ownership(self):
         self.assertEqual(self.run_cli("init").returncode, 0)
-        self.lock_path.write_text("", encoding="utf-8")
-        old = time.time() - wf.STALE_LOCK_SECONDS - 10
+        old = time.time() - 10_000
         os.utime(self.lock_path, (old, old))
-        with redirect_stderr(io.StringIO()) as stderr:
-            with wf.state_lock(self.state_path, timeout=1.0):
-                self.assertTrue(self.lock_path.exists())
-        self.assertFalse(self.lock_path.exists())
-        self.assertIn("stale lock", stderr.getvalue())
+        holder = self._start_holder()
+        with self.assertRaises(wf.WorkflowError):
+            with wf.state_lock(self.state_path, timeout=0.4):
+                self.fail("an old mtime must not be treated as a stale lock")
+        self._stop(holder)
+        with wf.state_lock(self.state_path, timeout=2.0):
+            pass  # the dead owner's OS lock is released; no mtime surgery needed
 
     def test_locked_state_reports_actionable_error(self):
-        self.lock_path.write_text("", encoding="utf-8")  # another process holds a fresh lock
+        holder = self._start_holder()
         with self.assertRaises(wf.WorkflowError) as caught:
-            with wf.state_lock(self.state_path, timeout=0.2):
-                self.fail("a fresh lock must not be taken over")
+            with wf.state_lock(self.state_path, timeout=0.3):
+                self.fail("a live lock must not be taken over")
         message = str(caught.exception)
         self.assertIn("locked by another process", message)
         self.assertIn(self.lock_path.name, message)
         self.assertIn(str(self.lock_path), message)
-        self.assertTrue(self.lock_path.exists(), "a timeout must not delete another process's fresh lock")
+        self.assertTrue(self.lock_path.exists(), "a timeout must not delete another process's lock file")
+        self._stop(holder)
+        with wf.state_lock(self.state_path, timeout=2.0):
+            pass
 
 
 if __name__ == "__main__":

@@ -191,7 +191,6 @@ def validate_config(config: dict[str, Any]) -> None:
 
 LOCK_TIMEOUT = 10.0
 LOCK_POLL_SECONDS = 0.02
-STALE_LOCK_SECONDS = 120.0
 
 
 @contextmanager
@@ -200,51 +199,57 @@ def state_lock(state_path: Path, *, timeout: float = LOCK_TIMEOUT) -> Iterator[N
 
     Commands load the whole state, edit it in memory and write it back, so two
     processes racing there silently drop each other's points. The sibling
-    ``<state>.lock`` is created with O_CREAT|O_EXCL (atomic on local disks) and
-    removed when the command finishes. A lock older than ``STALE_LOCK_SECONDS``
-    is treated as left by a crashed process and removed; otherwise the command
-    waits up to ``timeout`` and reports an actionable error instead of writing
-    over another process's state.
+    ``<state>.lock`` file is locked with the operating system's advisory lock
+    (``msvcrt.locking`` on Windows, ``fcntl.flock`` elsewhere). Ownership is
+    tied to the holding process: exiting or crashing releases the lock, so a
+    lock file left on disk is never evidence that another process still owns
+    it, and mtime is not used to guess staleness. Waiting is bounded by
+    ``timeout``; on timeout the command reports an actionable error and never
+    deletes the lock file.
     """
     lock = state_path.with_name(state_path.name + ".lock")
-    deadline = time.monotonic() + timeout
-    while True:
-        try:
-            handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
-            try:
-                age = time.time() - lock.stat().st_mtime
-            except FileNotFoundError:
-                continue  # the winner released the lock between our calls
-            if age > STALE_LOCK_SECONDS:
-                # A crashed command cannot release its lock; drop it after the
-                # stale threshold instead of blocking every later command.
-                _write_text(sys.stderr, f"warning: removing stale lock {lock} ({age:.0f}s old)\n")
-                try:
-                    lock.unlink()
-                except FileNotFoundError:
-                    pass
-                continue
-            if time.monotonic() >= deadline:
-                raise WorkflowError(
-                    f"state is locked by another process ({lock}); "
-                    "retry after that command finishes, or delete the lock file if it is stale"
-                )
-            time.sleep(LOCK_POLL_SECONDS)
-            continue
-        except FileNotFoundError:
-            # A fresh checkout has no state directory yet (`init` creates it).
-            lock.parent.mkdir(parents=True, exist_ok=True)
-            continue
-        os.close(handle)
-        break
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    handle = lock.open("a+b")
     try:
-        yield
-    finally:
+        handle.seek(0, os.SEEK_END)
+        if handle.tell() == 0:
+            # Windows locks a byte range, so the file must cover it. The content
+            # is irrelevant; the OS lock, not the file's existence, is the state.
+            handle.write(b"0")
+            handle.flush()
+        handle.seek(0)
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                if sys.platform == "win32":
+                    import msvcrt
+
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise WorkflowError(
+                        f"state is locked by another process ({lock}); "
+                        "retry after that command finishes"
+                    ) from None
+                time.sleep(LOCK_POLL_SECONDS)
         try:
-            lock.unlink()
-        except FileNotFoundError:
-            pass
+            yield
+        finally:
+            try:
+                handle.seek(0)
+                if sys.platform == "win32":
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+    finally:
+        handle.close()
 
 
 def load_state(path: Path) -> dict[str, Any]:
