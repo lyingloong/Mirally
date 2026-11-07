@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import importlib.util
+import io
+import os
+import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -119,6 +124,119 @@ class AnchorFailureTests(unittest.TestCase):
             headings = root / "b.md"
             headings.write_text("[x](a.md#围栏里的标题)\n", encoding="utf-8")
             self.assertEqual(checker.check(headings, root=root), ["b.md -> a.md#围栏里的标题"])
+
+
+class RepositoryLinkTests(unittest.TestCase):
+    """GitHub absolute links that point at this repository are checked offline."""
+
+    def setUp(self):
+        self.checker = load_checker()
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+
+    def write(self, relative: str, text: str) -> Path:
+        path = self.root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def problems(self, text: str, repository: str | None = "lyingloong/Mirally") -> list[str]:
+        page = self.write("page.md", text)
+        with mock.patch.object(self.checker, "git_repository", return_value=repository):
+            return self.checker.check(page, root=self.root)
+
+    def test_remote_url_forms(self):
+        self.assertEqual(self.checker._repository_slug("git@github.com:o/r.git"), "o/r")
+        self.assertEqual(self.checker._repository_slug("https://github.com/o/r.git"), "o/r")
+        self.assertEqual(self.checker._repository_slug("ssh://git@github.com/o/r"), "o/r")
+        self.assertIsNone(self.checker._repository_slug("https://gitlab.com/o/r"))
+
+    def test_repository_identifier_comes_from_git_remote(self):
+        clone = self.root / "clone"
+        subprocess.run(["git", "init", "-q", str(clone)], check=True)
+        subprocess.run(["git", "-C", str(clone), "remote", "add", "origin",
+                        "git@github.com:example/Mirally.git"], check=True)
+        with mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": ""}):
+            self.assertEqual(self.checker.git_repository(clone), "example/Mirally")
+
+    def test_github_repository_environment_fallback(self):
+        plain = self.root / "plain"
+        subprocess.run(["git", "init", "-q", str(plain)], check=True)
+        with mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "acme/widgets"}):
+            self.assertEqual(self.checker.git_repository(plain), "acme/widgets")
+
+    def test_repository_paths_are_checked_offline(self):
+        self.write("docs/exists.md", "# ok\n")
+        text = (
+            "[ok](https://github.com/lyingloong/Mirally/blob/main/docs/exists.md)\n"
+            "[line](https://github.com/lyingloong/Mirally/blob/main/docs/exists.md#L3)\n"
+            "[dir](https://github.com/lyingloong/Mirally/tree/main/docs)\n"
+            "[missing](https://github.com/lyingloong/Mirally/blob/main/docs/missing.md)\n"
+            "[missing dir](https://github.com/lyingloong/Mirally/tree/main/nope)\n"
+        )
+        self.assertEqual(self.problems(text), [
+            "page.md -> https://github.com/lyingloong/Mirally/blob/main/docs/missing.md"
+            "（本地不存在：docs/missing.md）",
+            "page.md -> https://github.com/lyingloong/Mirally/tree/main/nope（本地不存在：nope）",
+        ])
+
+    def test_historical_refs_are_shape_checked_only(self):
+        text = (
+            "[old](https://github.com/lyingloong/Mirally/blob/2eeb778a/mirally/removed.py)\n"
+            "[tree](https://github.com/lyingloong/Mirally/tree/2eeb778a/integrations/openclaw)\n"
+            "[escape](https://github.com/lyingloong/Mirally/blob/2eeb778a/../secrets)\n"
+        )
+        self.assertEqual(self.problems(text), [
+            "page.md -> https://github.com/lyingloong/Mirally/blob/2eeb778a/../secrets"
+            "（路径不能包含 '..'：../secrets）",
+        ])
+
+    def test_issue_and_pull_numbers_are_format_checked(self):
+        text = (
+            "[issue](https://github.com/lyingloong/Mirally/issues/12)\n"
+            "[pull](https://github.com/lyingloong/Mirally/pull/34)\n"
+            "[bad pull](https://github.com/lyingloong/Mirally/pull/abc)\n"
+            "[bad issue](https://github.com/lyingloong/Mirally/issues/0)\n"
+        )
+        self.assertEqual(self.problems(text), [
+            "page.md -> https://github.com/lyingloong/Mirally/pull/abc（pull 编号必须是正整数：abc）",
+            "page.md -> https://github.com/lyingloong/Mirally/issues/0（issues 编号必须是正整数：0）",
+        ])
+
+    def test_other_repositories_and_external_urls_are_skipped(self):
+        text = (
+            "[foreign](https://github.com/other/repo/blob/main/nope.py)\n"
+            "[external](https://example.com/nope)\n"
+            "[mail](mailto:someone@example.com)\n"
+            "[site](https://github.com/lyingloong/Mirally-site)\n"
+        )
+        self.assertEqual(self.problems(text), [])
+
+    def test_repository_links_are_skipped_without_a_repository(self):
+        offline = self.root / "offline"
+        subprocess.run(["git", "init", "-q", str(offline)], check=True)
+        page = offline / "page.md"
+        page.write_text("[x](https://github.com/lyingloong/Mirally/blob/main/nope.md)\n",
+                        encoding="utf-8")
+        with mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": ""}):
+            self.assertIsNone(self.checker.git_repository(offline))
+            self.assertEqual(self.checker.check(page, root=offline), [])
+
+    def test_main_reports_skipped_repository_checks(self):
+        offline = self.root / "offline-main"
+        subprocess.run(["git", "init", "-q", str(offline)], check=True)
+        (offline / "README.md").write_text(
+            "[x](https://github.com/lyingloong/Mirally/blob/main/nope.md)\n", encoding="utf-8")
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with mock.patch.object(self.checker, "ROOT", offline), \
+                mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": ""}), \
+                mock.patch.object(self.checker, "git_repository", return_value=None), \
+                redirect_stdout(stdout), redirect_stderr(stderr):
+            code = self.checker.main()
+        self.assertEqual(code, 0)
+        self.assertIn("OK: 1 Markdown files", stdout.getvalue())
+        self.assertIn("skipped GitHub absolute link checks", stderr.getvalue())
 
 
 if __name__ == "__main__":
