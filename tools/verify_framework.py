@@ -1,8 +1,9 @@
 """Offline end-to-end acceptance against the built native Mirally kernel.
 
 Exit codes: 0 = every acceptance check passed; 1 = a real acceptance check failed;
-2 = usage error (for example a non-empty --home); 3 = skipped because prerequisites
-are missing (nothing was started, no port was bound).
+2 = usage or configuration error (a non-empty --home, or MIRALLY_NODE pointing at a
+missing executable exactly as discover_node() rejects it); 3 = skipped because
+prerequisites are missing (nothing was started, no port was bound).
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ import argparse
 import base64
 import io
 import json
+import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import sys
@@ -34,11 +36,25 @@ SETUP_COMMAND = r"run .venv\Scripts\python.exe tools\setup_framework.py first"
 
 
 def node_supported(root: Path) -> tuple[bool, list[str]]:
-    """Read-only Node check with the same version rule and order as discover_node()."""
+    """Read-only Node check with the same rule and order as discover_node().
+
+    A configured Node (``MIRALLY_NODE``) that does not exist is a configuration error,
+    not a missing prerequisite: discover_node raises for it and never falls through to
+    PATH, so the precheck must fail the same way instead of silently walking past the
+    broken setting into a real start.
+    """
     problems = []
+    # This script has no --node option, so discover_node(root) reads exactly one
+    # configured slot: MIRALLY_NODE. Keep the membership test identical to the one in
+    # discover_node() instead of guessing by candidate position.
+    configured = os.environ.get("MIRALLY_NODE")
     for candidate in node_candidates(root):
         path = Path(candidate).expanduser()
         if not path.is_file():
+            # Same split as discover_node(): a missing configured Node is a broken
+            # setting, a missing PATH/artifacts candidate is simply "not installed".
+            if candidate == configured:
+                raise RuntimeError("Configured Node executable does not exist")
             problems.append(f"{path} does not exist")
             continue
         parts = node_version(path)
@@ -396,7 +412,7 @@ def verify(root: Path, home: Path, *, browser_files: bool = False, browser_histo
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__,
-        epilog="exit codes: 0 passed, 1 acceptance failure, 2 usage error, 3 skipped (missing prerequisites)",
+        epilog="exit codes: 0 passed, 1 acceptance failure, 2 usage/configuration error, 3 skipped (missing prerequisites)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--root", type=Path, default=ROOT)
@@ -408,7 +424,12 @@ def main():
         print(f"ERROR: --home must be missing or empty for isolation: {args.home}", file=sys.stderr)
         return EXIT_USAGE
     root = args.root.resolve()
-    missing = missing_prerequisites(root)
+    try:
+        missing = missing_prerequisites(root)
+    except RuntimeError as error:
+        # Mirrors discover_node(): a broken configured Node never falls through to PATH.
+        print(f"ERROR: {error}", file=sys.stderr)
+        return EXIT_USAGE
     if missing:
         print("SKIP: missing prerequisites: " + ", ".join(missing), file=sys.stderr)
         print(SETUP_COMMAND, file=sys.stderr)
