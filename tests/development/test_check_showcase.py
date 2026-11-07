@@ -34,10 +34,10 @@ class ShowcaseAuditTests(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         root = Path(directory.name)
         files = {
-            "showcase/index.html": index,
-            "showcase/src/App.jsx": app,
-            "showcase/src/style.css": style,
-            "showcase/public/CREDITS.md": CREDITS,
+            "website/index.html": index,
+            "website/src/App.jsx": app,
+            "website/src/style.css": style,
+            "website/public/CREDITS.md": CREDITS,
         }
         for name, text in files.items():
             path = root / name
@@ -129,6 +129,22 @@ class ShowcaseAuditTests(unittest.TestCase):
         self.assertEqual(result["problems"], [])
         self.assertEqual(result["notes"], [])
 
+    def test_dynamic_decorative_attributes_do_not_crash_strip(self) -> None:
+        # JSX ``{expression}`` attributes are parsed as None; the decorative
+        # check must degrade to the advisory instead of calling None.strip().
+        app = (
+            'export function App() {\n'
+            '  return <>\n'
+            '    <h1>A</h1>\n'
+            '    <img src="./a.png" alt="" aria-hidden={isHidden} role={role} />\n'
+            '  </>;\n'
+            '}\n'
+        )
+        result = self.audit(self.fixture(app=app))
+        self.assertEqual(result["problems"], [])
+        self.assertEqual(len(result["notes"]), 1, result["notes"])
+        self.assertIn("aria-hidden", result["notes"][0])
+
     def test_external_reference_is_rejected_but_license_files_are_exempt(self) -> None:
         app = 'export function App() {\n  return <><h1>A</h1><img src="https://cdn.example.com/a.png" alt="A" /></>;\n}\n'
         result = self.audit(self.fixture(app=app))
@@ -142,7 +158,7 @@ class ShowcaseAuditTests(unittest.TestCase):
 
     def test_export_html_is_checked_for_offline_self_containment(self) -> None:
         root = self.fixture()
-        export = root / "showcase" / "exports" / "Mirally.html"
+        export = root / "website" / "exports" / "Mirally.html"
         export.parent.mkdir(parents=True)
         export.write_text(
             '<!doctype html><html><head><script src="https://cdn.example.com/app.js"></script></head>\n'
@@ -164,7 +180,7 @@ class ShowcaseAuditTests(unittest.TestCase):
         # An offline page that points at missing local files parses fine but
         # cannot render or run, so presence must be verified, not assumed.
         root = self.fixture()
-        export = root / "showcase" / "exports" / "Mirally.html"
+        export = root / "website" / "exports" / "Mirally.html"
         export.parent.mkdir(parents=True)
         export.write_text(
             '<!doctype html><html><head><link rel="stylesheet" href="missing.css"></head>\n'
@@ -178,7 +194,7 @@ class ShowcaseAuditTests(unittest.TestCase):
 
     def test_export_local_resources_that_exist_are_accepted(self) -> None:
         root = self.fixture()
-        exports = root / "showcase" / "exports"
+        exports = root / "website" / "exports"
         (exports / "assets").mkdir(parents=True)
         (exports / "assets" / "app.js").write_text('var ok = 1;\n', encoding="utf-8")
         (exports / "assets" / "style.css").write_text("body { color: #111; }\n", encoding="utf-8")
@@ -196,7 +212,7 @@ class ShowcaseAuditTests(unittest.TestCase):
 
     def test_export_non_relative_resource_reference_is_reported(self) -> None:
         root = self.fixture()
-        export = root / "showcase" / "exports" / "Mirally.html"
+        export = root / "website" / "exports" / "Mirally.html"
         export.parent.mkdir(parents=True)
         export.write_text(
             '<!doctype html><html><head></head>\n'
@@ -209,11 +225,28 @@ class ShowcaseAuditTests(unittest.TestCase):
             result["problems"],
         )
 
+    def test_export_protocol_relative_script_and_stylesheet_are_external(self) -> None:
+        # ``//cdn…`` loads from the network; it is not evidence of inlining.
+        root = self.fixture()
+        export = root / "website" / "exports" / "Mirally.html"
+        export.parent.mkdir(parents=True)
+        export.write_text(
+            '<!doctype html><html><head>'
+            '<link rel="stylesheet" href="//cdn.example.com/app.css">'
+            '</head>\n<body><script src="//cdn.example.com/app.js"></script></body></html>\n',
+            encoding="utf-8",
+        )
+        result = self.audit(root)
+        joined = "\n".join(result["problems"])
+        self.assertIn("external protocol-relative script //cdn.example.com/app.js", joined)
+        self.assertIn("external protocol-relative stylesheet //cdn.example.com/app.css", joined)
+        self.assertEqual(result["summary"]["exports"], 1)
+
     def test_repository_baseline_is_clean(self) -> None:
         result = check_showcase.audit(ROOT)
         self.assertEqual(result["problems"], [])
-        self.assertGreaterEqual(result["summary"]["files_scanned"], 15)
-        self.assertGreaterEqual(result["summary"]["images"], 11)
+        self.assertGreaterEqual(result["summary"]["files_scanned"], 9)
+        self.assertGreaterEqual(result["summary"]["images"], 6)
         self.assertEqual(result["summary"]["h1"], 1)
         self.assertGreaterEqual(result["summary"]["reduced_motion"], 1)
         self.assertEqual(result["summary"]["exports"], 0)

@@ -5,12 +5,12 @@ Run from the repository root:
     python tools/check_showcase.py            # standard audit
     python tools/check_showcase.py --strict   # also require aria-hidden/role=presentation for alt=""
 
-The audit reads only tracked pages under ``showcase/``: document metadata
+The audit reads only tracked pages under ``website/``: document metadata
 (``lang``, ``<title>``, viewport, exactly one ``<h1>``), external http(s)
 references (upstream license/credits files are exempt through an explicit
 list), per-tag ``<img>`` alt coverage (attributes are matched by complete name,
 so ``data-alt`` does not count as ``alt``), ``prefers-reduced-motion`` support
-and, when ``showcase/exports/*.html`` exists, the offline self-containment of
+and, when ``website/exports/*.html`` exists, the offline self-containment of
 that export: script syntax, and every local script/stylesheet it references must
 already exist next to the page. Nothing is written and nothing is downloaded;
 exit code 0 means clean, 1 means findings, 2 means bad arguments.
@@ -28,14 +28,20 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SHOWCASE = "showcase"
+SHOWCASE = "website"
 PAGE_SUFFIXES = {".html", ".jsx", ".js", ".mjs", ".ts", ".tsx", ".css"}
 # Upstream license/credits files legitimately cite upstream URLs; they are not
 # page resources, so the external-reference check excludes them explicitly.
 EXTERNAL_WHITELIST = (
-    "showcase/public/CREDITS.md",
-    "showcase/public/LICENSES.txt",
-    "showcase/public/fonts/OFL.txt",
+    "website/public/CREDITS.md",
+    "website/public/LICENSES.txt",
+    "website/public/fonts/OFL.txt",
+)
+# Intentional navigation links to the project and personal homepage. They are
+# links, not page resources, and predate the audit's resource focus.
+EXTERNAL_URL_ALLOWLIST = (
+    "https://github.com/lyingloong/Mirally",
+    "https://lyingloong.github.io/",
 )
 HTTP = re.compile(r"https?://[^\s\"'<>)]+")
 IMG_TAG = re.compile(r"<img\b[^>]*>", re.IGNORECASE | re.DOTALL)
@@ -60,7 +66,9 @@ def page_files(root: Path) -> list[Path]:
     files = [base / "index.html"]
     source = base / "src"
     if source.is_dir():
-        files += sorted(p for p in source.rglob("*") if p.is_file() and p.suffix in PAGE_SUFFIXES)
+        # The landing page lives directly in src/. ``src/updates`` is a separate
+        # multi-page app with its own document roots, so it is not audited here.
+        files += sorted(p for p in source.glob("*") if p.is_file() and p.suffix in PAGE_SUFFIXES)
     files += [base / name for name in ("public/CREDITS.md", "public/LICENSES.txt", "public/fonts/OFL.txt")]
     return [path for path in files if path.is_file()]
 
@@ -102,6 +110,8 @@ def check_external(files: list[Path], root: Path) -> tuple[list[str], dict[str, 
         for match in HTTP.finditer(read(path)):
             if name in EXTERNAL_WHITELIST:
                 exempt += 1
+                continue
+            if match.group(0) in EXTERNAL_URL_ALLOWLIST:
                 continue
             problems.append(f"{name}:{line_of(read(path), match.start())}: external reference {match.group(0)}")
     return problems, {"license_links": exempt}
@@ -146,8 +156,10 @@ def check_images(files: list[Path], root: Path, strict: bool) -> tuple[list[str]
                 continue  # dynamic alt={expression}: author intent stated
             if alt.strip():
                 continue  # descriptive alt text
-            if parsed.get("aria-hidden", "").strip().lower() == "true" or (
-                parsed.get("role", "").strip().lower() == "presentation"
+            # Dynamic JSX values (``{expression}``) are parsed as None; the audit
+            # cannot prove them decorative, so they must not crash the .strip().
+            if (parsed.get("aria-hidden") or "").strip().lower() == "true" or (
+                (parsed.get("role") or "").strip().lower() == "presentation"
             ):
                 continue
             message = f'{where}: decorative alt="" without aria-hidden or role=presentation'
@@ -157,7 +169,7 @@ def check_images(files: list[Path], root: Path, strict: bool) -> tuple[list[str]
 
 def check_reduced_motion(files: list[Path]) -> tuple[list[str], dict[str, int]]:
     uses = sum(len(REDUCED_MOTION.findall(read(path))) for path in files if path.suffix in {".css", ".js", ".jsx", ".mjs"})
-    problems = [] if uses else ["showcase: no prefers-reduced-motion handling found in styles or scripts"]
+    problems = [] if uses else ["website: no prefers-reduced-motion handling found in styles or scripts"]
     return problems, {"reduced_motion": uses}
 
 
@@ -174,13 +186,19 @@ def check_export_resources(text: str, page: Path, name: str) -> list[str]:
         if (parsed.get("rel") or "").strip().lower() == "stylesheet" and parsed.get("href"):
             references.append(("stylesheet", parsed["href"] or "", tag.start()))
     for kind, reference, offset in references:
-        if EMBEDDED_URL.match(reference.strip()) or reference.strip().startswith("//"):
-            continue  # already inlined (data:), a fragment, or protocol-relative
+        target = reference.strip()
+        if EMBEDDED_URL.match(target):
+            continue  # already inlined (data:), a fragment, or empty
         where = f"{name}:{line_of(text, offset)}"
-        if re.match(r"^[a-z][a-z0-9+.-]*:", reference.strip(), re.IGNORECASE) or reference.strip().startswith("/"):
+        if target.startswith("//"):
+            # Protocol-relative URLs load from the network. They are external
+            # references, never evidence that the resource was inlined.
+            problems.append(f"{where}: exported page references external protocol-relative {kind} {reference}")
+            continue
+        if re.match(r"^[a-z][a-z0-9+.-]*:", target, re.IGNORECASE) or target.startswith("/"):
             problems.append(f"{where}: exported page references non-relative {kind} {reference}")
             continue
-        local = (page.parent / reference.split("?", 1)[0].split("#", 1)[0]).resolve()
+        local = (page.parent / target.split("?", 1)[0].split("#", 1)[0]).resolve()
         if not local.is_file():
             problems.append(f"{where}: exported page references missing local {kind} {reference}")
     return problems
