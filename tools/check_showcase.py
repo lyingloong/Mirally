@@ -8,7 +8,8 @@ Run from the repository root:
 The audit reads only tracked pages under ``website/``: document metadata
 (``lang``, ``<title>``, viewport, exactly one ``<h1>``), external http(s)
 references (upstream license/credits files are exempt through an explicit
-list), per-tag ``<img>`` alt coverage (attributes are matched by complete name,
+list, and navigation targets through a navigation-only allowlist), per-tag
+``<img>`` alt coverage (attributes are matched by complete name,
 so ``data-alt`` does not count as ``alt``), ``prefers-reduced-motion`` support
 and, when ``website/exports/*.html`` exists, the offline self-containment of
 that export: script syntax, and every local script/stylesheet it references must
@@ -38,12 +39,22 @@ EXTERNAL_WHITELIST = (
     "website/public/fonts/OFL.txt",
 )
 # Intentional navigation links to the project and personal homepage. They are
-# links, not page resources, and predate the audit's resource focus.
+# links, not page resources, so the allowlist applies only where the URL is a
+# navigation target: inside an <a> element, or in a JS/JSX constant the audit
+# can prove is used only as an anchor target. The same URL text used by an
+# img/script/link resource is still an external reference and gets reported.
 EXTERNAL_URL_ALLOWLIST = (
     "https://github.com/lyingloong/Mirally",
     "https://lyingloong.github.io/",
 )
 HTTP = re.compile(r"https?://[^\s\"'<>)]+")
+ANCHOR_TAG = re.compile(r"<a\b[^>]*>", re.IGNORECASE | re.DOTALL)
+DECLARATION_NAME = re.compile(r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)")
+DECLARATION = re.compile(
+    r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*"
+    r"(?:\"([^\"]*)\"|'([^']*)'|`([^`]*)`)",
+    re.DOTALL,
+)
 IMG_TAG = re.compile(r"<img\b[^>]*>", re.IGNORECASE | re.DOTALL)
 # A JSX/HTML attribute: a complete attribute name plus ``=`` and its value.
 # ``data-alt="…"`` must not satisfy the alt requirement, so attributes are
@@ -102,18 +113,102 @@ def check_document(files: list[Path], root: Path) -> tuple[list[str], dict[str, 
     return problems, {"h1": h1_count}
 
 
+def _inside(spans: list[tuple[int, int]], offset: int) -> bool:
+    return any(start <= offset < end for start, end in spans)
+
+
+def _closing_brace(text: str, start: int) -> int | None:
+    """The ``}`` matching the JSX expression that opens at ``start``."""
+    depth = 0
+    for index in range(start, len(text)):
+        if text[index] == "{":
+            depth += 1
+        elif text[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return index
+    return None
+
+
+def anchor_href_spans(text: str) -> list[tuple[int, int]]:
+    """Character spans of ``href`` values on ``<a>`` elements (navigation targets)."""
+    spans: list[tuple[int, int]] = []
+    for tag in ANCHOR_TAG.finditer(text):
+        tag_text = tag.group(0)
+        for match in re.finditer(r"\bhref\s*=\s*", tag_text, re.IGNORECASE):
+            start = tag.start() + match.end()
+            if start >= tag.end():
+                continue
+            opener = text[start]
+            if opener in "\"'":
+                end = text.find(opener, start + 1)
+                if end != -1:
+                    spans.append((start + 1, end))
+            elif opener == "{":
+                end = _closing_brace(text, start)
+                if end is not None:
+                    spans.append((start + 1, end))
+    return spans
+
+
+def declared_identifier(text: str, offset: int) -> str | None:
+    """The ``const``/``let``/``var`` name whose literal value contains ``offset``."""
+    for match in DECLARATION.finditer(text):
+        if any(
+            match.group(group) is not None and match.start(group) <= offset < match.end(group)
+            for group in (2, 3, 4)
+        ):
+            return match.group(1)
+    return None
+
+
+def navigation_constant(text: str, identifier: str, seen: frozenset[str] = frozenset()) -> bool:
+    """Whether every use of ``identifier`` is an anchor href target (aliases included).
+
+    A URL string constant is only navigation if its identifier is never used as
+    a page resource; a template constant that feeds another navigation constant
+    keeps the proof by following that alias.
+    """
+    if identifier in seen:
+        return False
+    name_spans = [match.span(1) for match in DECLARATION_NAME.finditer(text)]
+    targets = anchor_href_spans(text)
+    for match in re.finditer(rf"\b{re.escape(identifier)}\b", text):
+        start = match.start()
+        if _inside(name_spans, start):
+            continue  # the declaration itself is not a use
+        if _inside(targets, start):
+            continue  # rendered as an <a href> target
+        alias = declared_identifier(text, start)
+        if alias is not None and alias != identifier and navigation_constant(text, alias, seen | {identifier}):
+            continue  # feeds another constant that is itself navigation-only
+        return False
+    return True
+
+
+def navigation_target(text: str, offset: int, targets: list[tuple[int, int]]) -> bool:
+    """Whether the URL at ``offset`` is a navigation target, not a page resource."""
+    if _inside(targets, offset):
+        return True
+    identifier = declared_identifier(text, offset)
+    return identifier is not None and navigation_constant(text, identifier)
+
+
 def check_external(files: list[Path], root: Path) -> tuple[list[str], dict[str, int]]:
     problems: list[str] = []
     exempt = 0
     for path in files:
         name = label(path, root)
-        for match in HTTP.finditer(read(path)):
+        text = read(path)
+        targets = anchor_href_spans(text)
+        for match in HTTP.finditer(text):
             if name in EXTERNAL_WHITELIST:
                 exempt += 1
                 continue
-            if match.group(0) in EXTERNAL_URL_ALLOWLIST:
+            url = match.group(0)
+            if url in EXTERNAL_URL_ALLOWLIST and navigation_target(text, match.start(), targets):
                 continue
-            problems.append(f"{name}:{line_of(read(path), match.start())}: external reference {match.group(0)}")
+            problems.append(f"{name}:{line_of(text, match.start())}: external reference {url}")
     return problems, {"license_links": exempt}
 
 

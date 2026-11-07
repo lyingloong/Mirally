@@ -152,6 +152,70 @@ class ShowcaseAuditTests(unittest.TestCase):
         self.assertGreaterEqual(result["summary"]["license_links"], 1)
         self.assertFalse(any("CREDITS.md" in problem for problem in result["problems"]))
 
+    def test_navigation_allowlist_accepts_anchor_links(self) -> None:
+        app = (
+            'export function App() {\n'
+            '  return <><h1>A</h1><a href="https://lyingloong.github.io/">home</a></>;\n'
+            '}\n'
+        )
+        result = self.audit(self.fixture(app=app))
+        self.assertEqual(result["problems"], [], result["problems"])
+
+    def test_navigation_allowlist_does_not_exempt_image_resource(self) -> None:
+        # The same URL text as a page resource is still an external reference.
+        app = (
+            'export function App() {\n'
+            '  return <><h1>A</h1><img src="https://lyingloong.github.io/" alt="remote" /></>;\n'
+            '}\n'
+        )
+        result = self.audit(self.fixture(app=app))
+        self.assertTrue(any("external reference https://lyingloong.github.io/" in problem
+                            for problem in result["problems"]), result["problems"])
+
+    def test_navigation_allowlist_does_not_exempt_script_resource(self) -> None:
+        app = (
+            'export function App() {\n'
+            '  return <><h1>A</h1><script src="https://github.com/lyingloong/Mirally"></script></>;\n'
+            '}\n'
+        )
+        result = self.audit(self.fixture(app=app))
+        self.assertTrue(any("external reference https://github.com/lyingloong/Mirally" in problem
+                            for problem in result["problems"]), result["problems"])
+
+    def test_navigation_constant_is_exempt_only_as_an_anchor_target(self) -> None:
+        navigation = (
+            'const homepage = "https://lyingloong.github.io/";\n'
+            'export function App() {\n  return <><h1>A</h1><a href={homepage}>home</a></>;\n}\n'
+        )
+        result = self.audit(self.fixture(app=navigation))
+        self.assertEqual(result["problems"], [], result["problems"])
+
+        asset = (
+            'const homepage = "https://lyingloong.github.io/";\n'
+            'export function App() {\n  return <><h1>A</h1><img src={homepage} alt="remote" /></>;\n}\n'
+        )
+        result = self.audit(self.fixture(app=asset))
+        self.assertTrue(any("external reference https://lyingloong.github.io/" in problem
+                            for problem in result["problems"]), result["problems"])
+
+    def test_navigation_alias_chain_is_proven_not_assumed(self) -> None:
+        navigation = (
+            'const repository = "https://github.com/lyingloong/Mirally";\n'
+            'const installHref = `${repository}/blob/main/README.md`;\n'
+            'export function App() {\n  return <><h1>A</h1><a href={installHref}>install</a></>;\n}\n'
+        )
+        result = self.audit(self.fixture(app=navigation))
+        self.assertEqual(result["problems"], [], result["problems"])
+
+        asset = (
+            'const repository = "https://github.com/lyingloong/Mirally";\n'
+            'const installHref = `${repository}/blob/main/README.md`;\n'
+            'export function App() {\n  return <><h1>A</h1><img src={installHref} alt="remote" /></>;\n}\n'
+        )
+        result = self.audit(self.fixture(app=asset))
+        self.assertTrue(any("external reference https://github.com/lyingloong/Mirally" in problem
+                            for problem in result["problems"]), result["problems"])
+
     def test_missing_reduced_motion_is_reported(self) -> None:
         result = self.audit(self.fixture(style="body { color: #111; }\n"))
         self.assertTrue(any("prefers-reduced-motion" in problem for problem in result["problems"]), result["problems"])
