@@ -53,11 +53,45 @@ class ConfigTests(unittest.TestCase):
     def test_defaults_match_agreed_workflow(self):
         config = wf.load_config(Path(tempfile.gettempdir()) / "definitely-missing-agent-workflow.json")
         self.assertEqual(config["concurrency"], 3)
+        self.assertEqual(config["max_auto_agent_in_flight"], 2)
+        self.assertEqual(config["max_auto_agent_per_day"], 100)
+        self.assertEqual(config["merge_queue_exempt"], 100)
         self.assertEqual(config["quota"]["retry_after_minutes"], 30)
         self.assertEqual(config["quota"]["backoff_minutes"], [30, 60, 120])
         self.assertEqual(config["quota"]["fallback"]["mode"], "quota_restart_only")
         self.assertEqual(config["quota"]["fallback"]["provider"], "deepseek-account")
         self.assertEqual(config["primary_route"]["provider"], "ustc")
+        self.assertEqual(config["config_version"], 2)
+
+    def test_config_upgrade_is_explicit_and_preserves_custom_values(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            wf.write_json(
+                path,
+                {
+                    "concurrency": 3,
+                    "max_auto_agent_in_flight": 1,
+                    "max_auto_agent_per_day": 5,
+                    "merge_queue_exempt": 1,
+                    "custom": "keep-me",
+                },
+            )
+            dry = wf.upgrade_config(path, apply=False)
+            self.assertIn("merge_queue_exempt", dry["changes"])
+            self.assertEqual(wf.read_json(path)["merge_queue_exempt"], 1)
+            applied = wf.upgrade_config(path, apply=True)
+            self.assertTrue(applied["applied"])
+            raw = wf.read_json(path)
+            self.assertEqual(raw["merge_queue_exempt"], 100)
+            self.assertEqual(raw["max_auto_agent_in_flight"], 2)
+            self.assertEqual(raw["max_auto_agent_per_day"], 5)
+            self.assertEqual(raw["custom"], "keep-me")
+            self.assertEqual(raw["config_version"], 2)
+
+    def test_config_upgrade_requires_existing_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(wf.WorkflowError):
+                wf.upgrade_config(Path(directory) / "missing.json")
 
     def test_invalid_concurrency_is_rejected(self):
         with self.assertRaises(wf.WorkflowError):
@@ -152,7 +186,9 @@ class StateTests(unittest.TestCase):
 class SummaryTests(unittest.TestCase):
     def setUp(self):
         self.state = wf.empty_state()
-        self.config = make_config()
+        # These tests exercise the legacy single-slot/head-only semantics explicitly;
+        # production defaults are 2 AI in flight and all merge-pool PRs exempt.
+        self.config = make_config(max_auto_agent_in_flight=1, merge_queue_exempt=1)
 
     def add_user(self, title="user work"):
         return wf.new_point(self.state, source="user", title=title)
@@ -186,7 +222,9 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(summary["merge_queue"][0]["id"], point["id"])
         self.assertTrue(summary["merge_queue"][0]["exempt"])
         self.assertFalse(summary["merge_queue"][0]["counts_toward_concurrency"])
-        self.assertEqual(summary["action"], "ask_user_merge")
+        # A waiting merge is a notification; with free slots and no other work,
+        # discovery should still be suggested instead of blocking on merge approval.
+        self.assertEqual(summary["action"], "discover_agent")
 
     def test_second_merge_ready_point_counts_toward_concurrency(self):
         first = self.add_user("first")
@@ -271,6 +309,17 @@ class SummaryTests(unittest.TestCase):
         self.assertFalse(summary["should_discover_agent"])
 
 
+    def test_merge_waiting_does_not_block_ready_work(self):
+        waiting = self.add_user("waiting merge")
+        waiting["status"] = "awaiting_merge"
+        waiting["merge_ready_at"] = wf.iso(wf.utcnow())
+        queued = self.add_user("queued user work")
+        summary = wf.build_summary(self.state, self.config)
+        self.assertGreater(summary["free_slots"], 0)
+        self.assertEqual([point["id"] for point in summary["start_user"]], [queued["id"]])
+        self.assertEqual(summary["action"], "start_user")
+
+
 class MergeGateTests(unittest.TestCase):
     def setUp(self):
         self.state = wf.empty_state()
@@ -300,6 +349,60 @@ class MergeGateTests(unittest.TestCase):
         self.assertIsNotNone(first["merged_at"])
         wf.merge_approve(self.state, self.config, second["id"])
         self.assertEqual(second["status"], "merging")
+
+    def test_merge_reconcile_records_non_head_with_audit(self):
+        first = self.prepare("first")
+        second = self.prepare("second")
+        for point, pr in ((first, 101), (second, 102)):
+            point["pr"] = pr
+            point["head_sha"] = f"{pr:040d}"
+        with self.assertRaises(wf.WorkflowError):
+            wf.merge_reconcile(
+                self.state,
+                self.config,
+                second["id"],
+                pr=102,
+                head_sha=second["head_sha"],
+                approved_by="codex",
+                confirm_merged=False,
+            )
+        self.assertEqual(second["status"], "awaiting_merge")
+        with self.assertRaises(wf.WorkflowError):
+            wf.merge_reconcile(
+                self.state,
+                self.config,
+                second["id"],
+                pr=102,
+                head_sha="0" * 40,
+                approved_by="codex",
+                confirm_merged=True,
+            )
+        self.assertEqual(second["status"], "awaiting_merge")
+        point = wf.merge_reconcile(
+            self.state,
+            self.config,
+            second["id"],
+            pr=102,
+            head_sha=second["head_sha"],
+            approved_by="codex",
+            confirm_merged=True,
+            note="merged out of order on GitHub",
+        )
+        self.assertEqual(point["status"], "done")
+        self.assertEqual(first["status"], "awaiting_merge")
+        self.assertEqual(point["merge_reconciled_by"], "codex")
+        self.assertIsNotNone(point["merge_reconciled_at"])
+        self.assertIsNotNone(point["merged_at"])
+        with self.assertRaises(wf.WorkflowError):
+            wf.merge_reconcile(
+                self.state,
+                self.config,
+                second["id"],
+                pr=102,
+                head_sha=second["head_sha"],
+                approved_by="codex",
+                confirm_merged=True,
+            )
 
     def test_merge_reject_returns_to_repair_or_close(self):
         point = self.prepare("one")
@@ -378,7 +481,7 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(first["status"], "specifying")
 
     def test_resume_rechecks_ai_in_flight_cap(self):
-        config = make_config()
+        config = make_config(max_auto_agent_in_flight=1)
         state = wf.empty_state()
         first = wf.new_point(state, source="agent", title="first", risk="low")
         second = wf.new_point(state, source="agent", title="second", risk="low")
@@ -420,7 +523,7 @@ class AdmissionTests(unittest.TestCase):
         self.assertFalse(wf.build_summary(state, config)["paused"])
 
     def test_resume_awaiting_merge_recomputes_queue_load(self):
-        config = make_config(concurrency=1)
+        config = make_config(concurrency=1, merge_queue_exempt=1)
         state = wf.empty_state()
         first = wf.new_point(state, source="user", title="first")
         second = wf.new_point(state, source="user", title="second")
@@ -521,7 +624,7 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(wf.build_summary(state, config)["load"], 2)
 
     def test_merge_reject_parks_on_ai_in_flight_cap(self):
-        config = make_config()
+        config = make_config(max_auto_agent_in_flight=1)
         state = wf.empty_state()
         first = wf.new_point(state, source="agent", title="first", risk="low")
         second = wf.new_point(state, source="agent", title="second", risk="low")

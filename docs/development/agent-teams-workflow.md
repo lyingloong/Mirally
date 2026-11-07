@@ -1,6 +1,6 @@
 # AgentTeams 仓库开发工作流
 
-本文定义 Mirally 的常驻开发工作流：需求师持续产出开发点，工程师在独立 worktree 实现并提 PR，审查师验证和审查，**审查通过后仍需用户批准才能合并**。当前实现范围是流程文档、状态机和状态助手；真实开发循环尚未启动。
+本文定义 Mirally 的常驻开发工作流：需求师持续产出开发点，工程师在独立 worktree 实现并提 PR，审查师验证和审查，**审查通过后仍需用户批准才能合并**。当前已进入持续开发循环；队长运行手册与决策口径见 [AgentTeams 控制核心](workflow-control-core.md)。
 
 ## 为什么不是一次性 DAG
 
@@ -18,7 +18,7 @@ AI 发现 ──┘          │
    需求规格 → 实现 → 验证 → 审查 ──fail──> 修复 → 复审
                      │ pass
                      ▼
-          awaiting_merge（等待用户批准；队首不占并发）
+          awaiting_merge（等待用户批准；池内全部不占并发）
                      │ 用户批准
                      ▼
               集成合并 → 汇报 → done
@@ -32,11 +32,11 @@ AI 发现 ──┘          │
 
 | 成员 | 数量 | 职责 |
 | --- | --- | --- |
-| 需求师 | 1 | 盘点、拆分、写规格；维护 AI 候选点；拆分前读经验库 |
+| 需求师 | 2 | 盘点、拆分、写规格；维护 AI 候选点；可并行产规格；拆分前读经验库 |
 | 工程师 | 3 | 每人在独立 worktree 实现一个开发点，提 PR，按审查意见修复；实现前读经验库 |
 | 审查师 | 1 | 独立验证、代码审查、维护经验库、通过后等待用户批准再合并 |
 
-一个 AgentTeams 成员不能同时持有两个未完成任务，所以并发数 3 需要 3 个工程师。审查默认串行；如果持续排队，可增加第二名审查师。队长不占开发并发。
+一个 AgentTeams 成员不能同时持有两个未完成任务，所以并发数 3 需要 3 个工程师。审查默认串行；如果持续排队，可增加第二名审查师。队长不占开发并发。两个需求师可同时工作，但同一门禁任务仍只由一名成员持有。
 
 需求师拆分、工程师实现/修复、审查师审查前都应阅读 [审查经验库](review-experience.md) 中与任务相关的条目。
 
@@ -64,20 +64,20 @@ queued → specifying → implementing → verifying → reviewing
 ```text
 active_dev     = 正在需求/实现/验证/审查/修复的点数
 merge_waiting  = awaiting_merge 的点数
-exempt         = min(1, merge_waiting)       # 只有队首免占并发
+exempt         = min(merge_queue_exempt, merge_waiting)  # 运行配置默认覆盖全部池内 PR
 load           = active_dev + max(0, merge_waiting - exempt)
 free_slots     = max(0, concurrency - load)
 ```
 
 - 只有 `free_slots > 0` 才启动新开发。
-- 等待用户批准合并的队列里，**只有队首**不占并发；第二个已审查通过的点仍然占一个并发名额，避免 PR 无限堆积。
-- 用户批准后点进入 `merging`，完成后 `done`，队首释放，下一个等待项成为新的免占队首。
+- 等待用户批准合并的 PR **全部不占开发并发**，因此池子可以堆积；合并不由队长负责。
+- 用户批准后点进入 `merging`，完成后 `done`。
 - 配额暂停期间 `free_slots` 不用于启动新开发。
 
-示例（并发 3）：
+示例（并发 3，池内全部免占）：
 
-- 1 个实现中 + 1 个待合并 → `load=1`，可再启动 2 个；
-- 2 个实现中 + 2 个待合并 → `load=3`，不再启动；
+- 1 个实现中 + 5 个待合并 → `load=1`，仍可启动 2 个；
+- 2 个实现中 + 2 个待合并 → `load=2`，仍可启动 1 个；
 - 3 个实现中 → `load=3`，不再启动。
 
 ## 调度优先级与 AI 点
@@ -87,8 +87,8 @@ free_slots     = max(0, concurrency - load)
 3. AI 点满足以下全部条件时，可**不经用户预审直接进入开发**：
    - 没有用户待开发点，也没有用户容量等待项；
    - 有空闲并发槽；
-   - AI 在飞数 < `max_auto_agent_in_flight`（默认 1）；
-   - 当日自动启动数 < `max_auto_agent_per_day`（默认 2）；
+   - AI 在飞数 < `max_auto_agent_in_flight`（运行配置默认 2，留 1 个用户槽）；
+   - 不设每日自动启动上限（运行配置 `max_auto_agent_per_day` 默认覆盖为无实际限制）；
    - 风险为 `low`；
    - 不涉及权限、安全、数据迁移、协议、外部服务或大重构。
 4. 不满足条件时，AI 点进入 `proposed`，由队长汇总后请用户批准或驳回。
@@ -234,9 +234,15 @@ free_slots     = max(0, concurrency - load)
 .\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py review-pass dev-0001
 .\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py review-fail dev-0001 --reason "失败文案不可操作"
 
-# 用户批准合并（只允许队首）；合并完成后记录
+# 用户批准合并：状态助手的 merge-approved 只接受队首；
+# 用户/Codex 也可直接在 GitHub 合并任意已审 PR，非队首用 merge-reconcile 审计记账
 .\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py merge-approved dev-0001
 .\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py merge-done dev-0001
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py merge-reconcile dev-0002 `
+  --pr 6 --head-sha e25180091335c4d3b60a8f21ffc77623b275be8a --approved-by codex --confirm-merged
+
+# 已有环境显式升级 config（默认 dry-run；确认 changes 后加 --apply）
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py config-upgrade --apply
 
 # 用户退回合并
 .\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py merge-rejected dev-0001 --reason "语气不合适"

@@ -34,6 +34,7 @@ Mirally 是面向 Windows 的 personal agent 应用，名称取自 MIRA + ally�
 | 我想了解 | 文档 |
 | --- | --- |
 | 仓库开发工作流、并发与合并闸门 | [AgentTeams 工作流](development/agent-teams-workflow.md) |
+| 队长运行手册与决策口径 | [AgentTeams 控制核心](development/workflow-control-core.md) |
 | 用户需求、候选种子、来源与关联开发点 | [需求与种子池](development/requirements-pool.md) |
 | 审查经验、代码准则和反复出现的问题 | [审查经验库](development/review-experience.md) |
 | 需求规格模板（P0-only、时间盒） | [需求规格模板](development/spec-template.md) |
