@@ -1,38 +1,36 @@
 .day-section {
-  --demo-text: #292e32;
-  --demo-muted: #697177;
-  --demo-accent: #24788b;
-  --demo-line: #e2e7e9;
-  --demo-soft: #f5f8f9;
-  padding: 60px 0 32px;
-  background: #fff;
+  --demo-text: var(--ink);
+  --demo-muted: var(--muted);
+  --demo-accent: var(--accent);
+  --demo-line: var(--line);
+  --demo-soft: var(--surface);
+  padding: 84px 0 88px;
+  background: #f6f7f8;
   color: var(--demo-text);
 }
 .day-container {
   min-width: 0;
 }
 .day-section-heading {
-  margin-bottom: 36px;
-}
-.day-section-heading .eyebrow {
-  margin: 0 0 14px;
+  margin-bottom: 26px;
+  text-align: center;
 }
 .day-section-heading h2 {
   margin: 0;
-  font-size: 30px;
+  font-size: 40px;
   font-weight: 500;
-  line-height: 1.5;
+  line-height: 1.3;
 }
 .day-demo-note {
-  margin: 16px 0 0;
+  margin: 18px 0 0;
   color: var(--demo-muted);
   font-size: 13px;
   line-height: 1.7;
 }
 .day-tabs {
   display: flex;
-  gap: 30px;
-  border-bottom: 1px solid var(--demo-line);
+  justify-content: center;
+  gap: 36px;
 }
 .day-tab {
   position: relative;
@@ -41,7 +39,7 @@
   border: 0;
   background: none;
   font: inherit;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 500;
   color: var(--demo-muted);
   cursor: pointer;
@@ -68,29 +66,21 @@
 .scene-desktop {
   min-width: 0;
 }
-.scene-window-bar {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 24px 0 8px;
-}
-.scene-window-bar strong {
-  font-size: 14px;
-  font-weight: 500;
-}
-.scene-window-bar > span {
-  font-size: 12px;
-  color: var(--demo-muted);
-  white-space: nowrap;
+.day-experience {
+  margin-top: 24px;
+  border: 1px solid var(--demo-line);
+  border-radius: 9px;
+  background: var(--paper);
 }
 .scene-stage {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: start;
   gap: 40px;
-  padding: 24px 0 36px;
-  border-bottom: 1px solid var(--demo-line);
+  min-height: 390px;
+  padding: 40px;
+  border-radius: 9px;
+  background: var(--paper);
 }
 .scene-work-surface,
 .scene-memory-surface,
@@ -115,7 +105,7 @@
 }
 .scene-document p {
   margin: 0;
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.8;
   color: var(--demo-muted);
 }
@@ -129,7 +119,7 @@
   gap: 8px;
   padding: 13px 0;
   border-bottom: 1px solid var(--demo-line);
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.6;
 }
 .scene-task-check {
@@ -142,7 +132,7 @@
 .scene-task small {
   margin-left: auto;
   color: var(--demo-muted);
-  font-size: 12px;
+  font-size: 13px;
   white-space: nowrap;
 }
 .scene-chat {
@@ -165,14 +155,14 @@
   margin-right: auto;
 }
 .scene-chat-top strong {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 550;
 }
 .scene-icon-button {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 0;
   border-radius: 5px;
@@ -194,13 +184,13 @@
   padding: 9px 13px;
   border-radius: 7px;
   background: var(--demo-soft);
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.65;
   overflow-wrap: anywhere;
 }
 .scene-chat-answer {
   min-height: 52px;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.85;
 }
 .scene-chat-answer p {
@@ -223,7 +213,7 @@
   color: var(--demo-muted);
   text-align: left;
   font: inherit;
-  font-size: 13px;
+  font-size: 16px;
   line-height: 1.6;
   cursor: pointer;
 }
@@ -276,7 +266,7 @@
 }
 .scene-timeline-time {
   padding-top: 10px;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
   color: var(--demo-muted);
@@ -337,14 +327,14 @@
 }
 .scene-record-copy h5 {
   margin: 0 0 4px;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
   line-height: 1.5;
 }
 .scene-record-copy p {
   margin: 0;
   color: var(--demo-muted);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.65;
 }
 .scene-timeline-found h5 {
@@ -387,8 +377,9 @@
 }
 .scene-film-shade {
   position: absolute;
-  inset: 50% 0 0;
-  background: linear-gradient(transparent, #12202799);
+  inset: auto 0 0;
+  height: 48px;
+  background: #20202070;
 }
 .scene-player-controls {
   position: absolute;
@@ -399,7 +390,7 @@
   align-items: center;
   gap: 10px;
   color: #fff;
-  font-size: 10px;
+  font-size: 13px;
 }
 .scene-player-progress {
   flex: 1;
@@ -427,7 +418,7 @@
   border-radius: 50%;
   color: var(--demo-muted);
   background: var(--demo-soft);
-  font-size: 14px;
+  font-size: 16px;
 }
 .scene-character-card > div {
   display: grid;
@@ -435,17 +426,17 @@
   min-width: 0;
 }
 .scene-character-card small {
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.5;
   color: var(--demo-muted);
 }
 .scene-character-card strong {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
 }
 .scene-character-card p {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.6;
   color: var(--demo-muted);
 }
@@ -453,7 +444,7 @@
   margin-left: auto;
   align-self: start;
   color: var(--demo-muted);
-  font-size: 11px;
+  font-size: 13px;
   white-space: nowrap;
 }
 .scene-typing {
@@ -466,7 +457,7 @@
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: #8babb5;
+  background: var(--demo-muted);
   animation: scene-typing 1s infinite;
 }
 .scene-typing i:nth-child(2) {
@@ -489,7 +480,6 @@
 .day-experience:focus-visible {
   outline: 2px solid var(--demo-accent);
   outline-offset: 4px;
-  border-radius: 3px;
 }
 @keyframes scene-typing {
   0%,
@@ -505,24 +495,28 @@
 }
 @media (max-width: 740px) {
   .day-section {
-    padding: 28px 0 10px;
+    padding: 60px 0;
   }
   .day-section-heading h2 {
-    font-size: 25px;
+    font-size: 32px;
   }
   .day-section-heading {
     margin-bottom: 24px;
   }
   .day-tabs {
-    gap: 28px;
+    gap: 24px;
   }
   .day-tab {
-    font-size: 14px;
+    font-size: 16px;
+  }
+  .day-experience {
+    margin-top: 20px;
   }
   .scene-stage {
     grid-template-columns: minmax(0, 1fr);
     gap: 28px;
-    padding: 20px 0 28px;
+    min-height: 0;
+    padding: 24px 20px;
   }
   .scene-chat {
     padding: 24px 0 0;
@@ -536,25 +530,14 @@
   .scene-chat-top {
     padding-bottom: 16px;
   }
-  .scene-icon-button {
-    width: 44px;
-    height: 44px;
-  }
   .scene-task small {
-    font-size: 11px;
+    font-size: 13px;
   }
   .scene-film {
     max-width: 430px;
   }
 }
 @media (max-width: 420px) {
-  .scene-window-bar {
-    align-items: start;
-    gap: 12px;
-  }
-  .scene-window-bar strong {
-    font-size: 13px;
-  }
   .scene-timeline-item {
     grid-template-columns: 36px 6px minmax(0, 1fr);
     gap: 8px;
@@ -567,7 +550,7 @@
     gap: 9px;
   }
   .scene-record-copy p {
-    font-size: 12px;
+    font-size: 13px;
   }
   .scene-task {
     gap: 7px;

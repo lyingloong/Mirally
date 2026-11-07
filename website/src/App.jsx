@@ -2,16 +2,22 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowLeft,
-  ArrowRight,
   ArrowUpRight,
+  ChevronDown,
   Expand,
   Github,
+  MessageSquare,
+  FileText,
+  CalendarDays,
+  PanelRight,
+  Sparkles,
   X,
 } from "lucide-react";
 import DayExperience from "./DayExperience.jsx";
 
 const repository = "https://github.com/lyingloong/Mirally";
 const homepage = "https://lyingloong.github.io/";
+const installHref = `${repository}/blob/main/docs/architecture/overview.md#启动与准备`;
 const isOffline = typeof __MIRALLY_OFFLINE__ !== "undefined";
 const updatesHref = isOffline ? null : "./updates/";
 
@@ -53,14 +59,12 @@ function Header() {
           <Brand />
         </a>
         <nav className="main-nav" aria-label="主导航">
+          <a href="#already-here">产品</a>
           <a href="#a-day">演示</a>
           {updatesHref && <a href={updatesHref}>更新</a>}
-          <a href={repository}>
-            GitHub <ArrowUpRight size={13} aria-hidden="true" />
-          </a>
         </nav>
-        <a className="author-link" href={homepage}>
-          <ArrowLeft size={13} aria-hidden="true" /> Hao Wang
+        <a className="header-cta product-header-cta" href={repository}>
+          GitHub <ArrowUpRight size={14} aria-hidden="true" />
         </a>
       </div>
     </header>
@@ -76,26 +80,30 @@ function ProductPreview() {
   };
   return (
     <figure className="product-preview">
-      <button
-        className="product-image-button"
-        ref={trigger}
-        onClick={() => dialog.current?.showModal()}
-        aria-label="放大 Mirally 开发版界面"
-      >
-        <img
-          src="./images/product-desktop.webp"
-          alt="Mirally 开发版的真实界面：左侧为会话和日历、活动、记忆入口，右侧为隔离演示会话与输入区。"
-          width="1280"
-          height="720"
-          fetchPriority="high"
-        />
-        <span className="image-expand">
-          <Expand size={16} aria-hidden="true" />
-        </span>
-      </button>
+      <div className="product-stage">
+        <button
+          className="product-image-button"
+          ref={trigger}
+          onClick={() => dialog.current?.showModal()}
+          aria-label="放大 Mirally 开发版界面"
+        >
+          <img
+            src="./images/product-conversation.webp"
+            alt="Mirally 开发版的真实对话界面节选，展示隔离演示会话与输入区。"
+            width="1020"
+            height="720"
+            fetchPriority="high"
+          />
+          <span className="image-expand">
+            <Expand size={16} aria-hidden="true" />
+          </span>
+        </button>
+      </div>
       <figcaption>
-        <span>一个窗口，连接对话与日常。</span>
-        <span>开发版界面 · 演示数据</span>
+        <span>开发版界面节选 · 演示数据</span>
+        <span>
+          点击查看完整界面 <ArrowUpRight size={13} aria-hidden="true" />
+        </span>
       </figcaption>
       <dialog
         className="product-dialog"
@@ -136,49 +144,51 @@ function Hero() {
       id="top"
       aria-labelledby="hero-title"
     >
-      <div className="intro-copy">
-        <p className="eyebrow">A PERSONAL AGENT, IN THE MAKING</p>
-        <h1 id="hero-title" lang="en">
-          Your everyday <span>ally.</span>
-        </h1>
-        <p className="intro-description">
-          工作时并肩，生活里相伴。
-          <br />
-          一个围绕对话、记忆与行动，持续生长的个人 AI。
-        </p>
-        <div className="intro-actions">
-          <a className="button button-dark" href="#a-day">
-            看看它的日常 <ArrowDown size={15} aria-hidden="true" />
-          </a>
-          <a className="text-link" href={repository}>
-            <Github size={16} aria-hidden="true" /> 探索源码
-          </a>
+      <div className="hero-layout">
+        <div className="intro-copy">
+          <div className="intro-heading">
+            <p className="eyebrow" lang="en">
+              YOUR EVERYDAY ALLY
+            </p>
+            <h1 id="hero-title">
+              工作时并肩，
+              <br />
+              生活里相伴<span className="title-period">。</span>
+            </h1>
+          </div>
+          <div className="intro-detail">
+            <p className="intro-description">
+              一个留在手边的个人
+              AI。带上资料一起讨论，把想法变成行动，也让重要的事有处可寻。
+            </p>
+            <div className="intro-actions">
+              <a className="button button-dark" href="#a-day">
+                体验演示 <ArrowDown size={16} aria-hidden="true" />
+              </a>
+              <a className="text-link" href={repository}>
+                <Github size={17} aria-hidden="true" /> 查看源码
+                <ArrowUpRight size={15} aria-hidden="true" />
+              </a>
+            </div>
+            <p className="project-status">开发中 · Windows · 源码可用</p>
+          </div>
         </div>
-        <p className="project-status">
-          <span aria-hidden="true" /> 开发中 <i aria-hidden="true">/</i> Windows
-          桌面应用
-        </p>
+        <ProductPreview />
       </div>
-      <ProductPreview />
     </section>
   );
 }
 
 const features = [
   {
-    number: "01",
-    title: "留在手边的伙伴",
-    text: "主窗口、侧栏与桌宠，共用同一段对话。需要时展开，专注时退到一旁。",
+    icon: FileText,
+    title: "让讨论，接得上行动。",
+    text: "文件、截图和想法，一起带进对话。梳理内容、整理文件，让讨论落到具体的下一步。",
   },
   {
-    number: "02",
-    title: "从对话到结果",
-    text: "带上资料一起讨论，整理文件、安排提醒，让交流接着往下走。",
-  },
-  {
-    number: "03",
-    title: "记忆由你管理",
-    text: "查看、补充和纠正记忆。活动记录按需开启，留下什么，由你决定。",
+    icon: CalendarDays,
+    title: "把重要的事，留在心上。",
+    text: "查看和纠正记忆，为日程安排提醒。活动记录按需开启，记住什么，由你管理。",
   },
 ];
 
@@ -189,79 +199,162 @@ function Foundations() {
       id="already-here"
       aria-labelledby="foundations-title"
     >
-      <div className="section-heading">
-        <p className="eyebrow">BUILT AROUND YOUR DAY</p>
-        <h2 id="foundations-title">从一段对话，延续到每一天。</h2>
+      <div className="section-heading foundation-heading">
+        <h2 id="foundations-title">
+          从一件小事，
+          <br />
+          开始帮上忙。
+        </h2>
+        <p>
+          从手边的材料，到以后还会用到的记忆。
+          <br />
+          让每次交流，都有可以继续的地方。
+        </p>
       </div>
-      <div className="feature-columns">
-        {features.map(({ number, title, text }) => (
-          <article className="feature-item" key={number}>
-            <span className="feature-number" aria-hidden="true">
-              {number}
-            </span>
+      <div className="feature-list">
+        {features.map(({ icon: Icon, title, text }) => (
+          <article className="feature-item" key={title}>
+            <Icon size={24} strokeWidth={1.4} aria-hidden="true" />
             <h3>{title}</h3>
             <p>{text}</p>
           </article>
         ))}
       </div>
-      <div className="project-foundation">
-        <span>为扩展留出空间</span>
-        <p>支持 Skill、MCP 与可信插件，模型连接自行配置。</p>
-        <a href={`${repository}/blob/main/docs/architecture/overview.md`}>
-          项目架构 <ArrowUpRight size={14} aria-hidden="true" />
+    </section>
+  );
+}
+
+function Companion() {
+  return (
+    <section
+      className="companion-section container"
+      aria-labelledby="companion-title"
+    >
+      <div className="companion-copy">
+        <p className="eyebrow" lang="en">
+          A LITTLE CLOSER
+        </p>
+        <h2 id="companion-title">
+          需要时并肩。
+          <br />
+          专注时退到一旁。
+        </h2>
+        <p>
+          从主窗口到侧栏，再到桌面上的小伙伴。
+          <br className="desktop-break" />
+          对话、草稿与材料跟着你，不必重新开始。
+        </p>
+        <a
+          className="text-link"
+          href={`${repository}/blob/main/docs/architecture/desktop.md`}
+        >
+          了解桌面伙伴 <ArrowUpRight size={15} aria-hidden="true" />
+        </a>
+      </div>
+      <div className="companion-portrait">
+        <div className="companion-art">
+          <img
+            src="./images/mirally-pet-otter.svg"
+            alt="Mirally 的蓝色海獭桌宠，静止默认形态"
+            width="200"
+            height="240"
+            loading="lazy"
+          />
+        </div>
+        <div className="companion-forms" aria-label="三种伙伴形态">
+          <span>
+            <MessageSquare size={16} aria-hidden="true" />
+            主窗口
+          </span>
+          <span>
+            <PanelRight size={16} aria-hidden="true" />
+            侧栏
+          </span>
+          <span>
+            <Sparkles size={16} aria-hidden="true" />
+            桌宠
+          </span>
+        </div>
+      </div>
+      <div className="extension-note" id="extensions">
+        <div>
+          <h3>你的模型，你的工具。</h3>
+          <p>连接自己的模型，通过 Skill、MCP 与可信插件接入更多能力。</p>
+        </div>
+        <a
+          className="text-link"
+          href={`${repository}/blob/main/docs/architecture/extensions.md`}
+        >
+          了解扩展方式 <ArrowUpRight size={16} aria-hidden="true" />
         </a>
       </div>
     </section>
   );
 }
 
-function ProjectNotes() {
+const questions = [
+  {
+    title: "现在可以使用吗？",
+    answer: (
+      <>
+        可以按安装指南从源码运行。目前面向 Windows，需要 Python 3.10+、Node.js
+        24+ 和 WebView2；模型服务需要自行配置。暂未提供独立安装包。
+      </>
+    ),
+  },
+  {
+    title: "网页演示就是真实产品吗？",
+    answer: (
+      <>
+        首页截图来自 Mirally
+        开发版，使用隔离的演示会话。下方交互使用预设资料与回答，不连接模型或个人数据；“生活”场景展示的是未来概念。
+      </>
+    ),
+  },
+  {
+    title: "我的资料会发到哪里？",
+    answer: (
+      <>
+        会话、记忆与配置由本机宿主管理。使用外部模型或工具服务时，处理任务所需的内容可能发送给相应服务。活动采集默认关闭，可在产品中按需开启。
+      </>
+    ),
+  },
+];
+
+function GettingStarted() {
   return (
     <section
-      className="project-notes container"
-      id="vision"
-      aria-labelledby="notes-title"
+      className="getting-started container"
+      id="start"
+      aria-labelledby="start-title"
     >
-      <div className="notes-intro">
-        <p className="eyebrow">A WORK IN PROGRESS</p>
-        <h2 id="notes-title">
-          慢慢成为，
-          <br />
-          更懂你的伙伴。
-        </h2>
-        <p>
-          Mirally
-          正在持续开发。我们关心的下一步，是让记忆、主动协助与日常任务更自然地连接起来。
+      <div className="start-copy">
+        <p className="eyebrow" lang="en">
+          MAKE IT YOURS
         </p>
-        <a
-          className="text-link"
-          href={`${repository}/blob/main/docs/product/vision.md`}
-        >
-          阅读项目思考 <ArrowUpRight size={15} aria-hidden="true" />
+        <h2 id="start-title">
+          下一件事，
+          <br />
+          一起开始。
+        </h2>
+        <p>了解源码，把 Mirally 带到自己的桌面。</p>
+        <a className="button button-dark" href={installHref}>
+          查看安装指南 <ArrowUpRight size={16} aria-hidden="true" />
+        </a>
+        <a className="text-link" href={repository}>
+          <Github size={17} aria-hidden="true" /> GitHub
         </a>
       </div>
-      <div className="notes-links">
-        <h3>继续了解</h3>
-        {updatesHref && (
-          <a href={updatesHref}>
-            <span>
-              开发记录<small>最近的变化与进展</small>
-            </span>
-            <ArrowRight size={18} aria-hidden="true" />
-          </a>
-        )}
-        <a href={repository}>
-          <span>
-            GitHub<small>源码、文档与讨论</small>
-          </span>
-          <ArrowUpRight size={18} aria-hidden="true" />
-        </a>
-        <a href={homepage}>
-          <span>
-            Hao Wang<small>关于作者与其他项目</small>
-          </span>
-          <ArrowUpRight size={18} aria-hidden="true" />
-        </a>
+      <div className="start-questions">
+        {questions.map(({ title, answer }) => (
+          <details key={title}>
+            <summary>
+              {title}
+              <ChevronDown size={18} aria-hidden="true" />
+            </summary>
+            <p>{answer}</p>
+          </details>
+        ))}
       </div>
     </section>
   );
@@ -282,11 +375,25 @@ function Footer() {
   return (
     <>
       <footer className="site-footer">
-        <div className="container footer-inner">
-          <a href="#top" aria-label="返回 Mirally 首页">
-            <Brand />
+        <div className="container footer-main">
+          <div className="footer-brand">
+            <a href="#top" aria-label="返回 Mirally 首页">
+              <Brand />
+            </a>
+            <p>Your everyday ally.</p>
+          </div>
+          <nav className="footer-links" aria-label="项目资源">
+            <a href={repository}>GitHub</a>
+            {updatesHref && <a href={updatesHref}>更新记录</a>}
+            <a href={`${repository}/blob/main/docs/product/vision.md`}>
+              产品思考
+            </a>
+          </nav>
+        </div>
+        <div className="container footer-bottom">
+          <a className="footer-author" href={homepage}>
+            <ArrowLeft size={14} aria-hidden="true" /> Hao Wang
           </a>
-          <p>Your everyday ally.</p>
           <button ref={trigger} onClick={() => setCreditsOpen(true)}>
             关于演示与素材 <ArrowUpRight size={13} aria-hidden="true" />
           </button>
@@ -359,9 +466,10 @@ export default function App() {
       <Header />
       <main id="main">
         <Hero />
-        <Foundations />
         <DayExperience />
-        <ProjectNotes />
+        <Foundations />
+        <Companion />
+        <GettingStarted />
       </main>
       <Footer />
     </>
