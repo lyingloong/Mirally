@@ -4,7 +4,7 @@ mirally-extensions-page, mirally-channels-page { display: block; min-width: 0; w
 .mirally-settings-content, .mirally-settings-content > form { display: flex; flex-direction: column; gap: var(--space-8); }
 .mirally-product-form { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-4); }
 .mirally-product-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: var(--space-4); }
-.mirally-product-field { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; font-size: var(--control-ui-text-sm); }
+.mirally-product-field { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; color: var(--text); font-size: var(--control-ui-text-md); line-height: 1.5; }
 .mirally-product-field input, .mirally-product-field select, .mirally-product-field textarea { width: 100%; max-width: 100%; box-sizing: border-box; }
 .mirally-product-field textarea { min-height: 96px; resize: vertical; }
 textarea.settings-input.mirally-prose-input { font-family: var(--font-body); font-size: var(--control-ui-input-text-size); line-height: 1.6; }
@@ -12,11 +12,36 @@ textarea.settings-input.mirally-prose-input { font-family: var(--font-body); fon
 .mirally-product-item { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4); overflow-wrap: anywhere; }
 .mirally-product-item + .mirally-product-item { border-top: 1px solid var(--border); }
 .mirally-product-item h3, .mirally-product-item p { margin: 0; }
+.mirally-product-item h3 { color: var(--text-strong); font-size: var(--control-ui-text-lg); font-weight: 600; line-height: 1.5; }
 .mirally-product-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--control-ui-text-md); line-height: 1.65; }
 .mirally-product-notice { padding: var(--space-3) var(--space-4); margin: 0; overflow-wrap: anywhere; }
 .mirally-product-notice[data-error] { color: var(--danger, #c33); }
 .mirally-product-empty { padding: var(--space-5) var(--space-4); color: var(--muted); }
-.mirally-product-meta { color: var(--muted); font-size: var(--control-ui-text-sm); }
+.mirally-product-meta { color: var(--muted); font-size: var(--control-ui-text-sm); line-height: 1.5; }
+.mirally-product-check, .mirally-product-checkbox { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--settings-control-height, 32px); color: var(--text); font-size: var(--control-ui-text-md); line-height: 1.5; cursor: pointer; }
+.mirally-product-check input, mirally-settings-page .mirally-product-checkbox input { flex: 0 0 auto; width: 18px; height: 18px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.mirally-product-check input:focus-visible, .mirally-product-checkbox input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.mirally-product-refresh { min-width: 5.5em; }
+.mirally-message-item { position: relative; gap: var(--space-3); padding: var(--space-5); }
+.mirally-message-item[data-unread="true"] h3::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-inline-end: var(--space-2); margin-block-end: 2px; border-radius: 50%; background: var(--accent); }
+.mirally-message-item .mirally-product-actions { gap: var(--space-2); }
+.mirally-message-item .btn { min-height: var(--settings-control-height, 32px); }
+.mirally-model-connection-picker { width: 100%; gap: var(--space-2); }
+.mirally-model-connection-picker select { flex: 1 1 160px; width: auto; min-width: 0; }
+mirally-settings-page .settings-input:is([type="url"], [type="text"], [type="password"], textarea) { text-align: start; }
+.mirally-product-disclosure { min-width: 0; border-block: 1px solid var(--border); }
+.mirally-product-disclosure > summary { padding: var(--space-3) var(--space-4); color: var(--text); font-size: var(--control-ui-text-md); font-weight: 600; line-height: 1.5; cursor: pointer; border-radius: var(--radius-md, 8px); }
+.mirally-product-disclosure > summary:hover { background: var(--bg-hover); }
+.mirally-product-disclosure > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mirally-product-disclosure[open] > summary { margin-bottom: var(--space-3); }
+.mirally-product-disclosure > .settings-section { margin-bottom: var(--space-4); }
+@media (max-width: 680px) {
+  .mirally-message-item { padding: var(--space-4); }
+  .mirally-model-connection-picker { justify-content: flex-start; }
+}
+@media (pointer: coarse) {
+  .mirally-product-check, .mirally-product-checkbox, .mirally-product-disclosure > summary { min-height: 44px; }
+}
 .mirally-product-debug { max-width: 100%; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 .mirally-product-memory .memory-page__panel { min-width: 0; }
 .mirally-product-memory .mirally-memory { width: 100%; margin: 0; }

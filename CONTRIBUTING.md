@@ -21,11 +21,23 @@ git status --short --branch
 
 将示例分支和目录替换为任务专属名称。不同工作目录可共享 Git 历史，但不共享未提交的文件；不要让多个 Agent 同时修改同一工作目录。已有分支只能在一个 worktree 中检出。
 
-每个新工作目录都需要按 [README](README.md) 安装自己的 `.venv`、Node 依赖并构建；这些忽略文件不会随 worktree 自动复制。`kernel/dsh/` 是同仓源码；`UFO/` 是只读子模块，不是默认产品链路的前置依赖，涉及其既有维护适配时再按需准备。
+每个新工作目录都需要按 [README](README.md) 安装自己的 `.venv`、Node 依赖并构建；这些忽略文件不会随 worktree 自动复制。`kernel/dsh/` 是同仓源码；UFO 子模块与其专用测试依赖已移除，默认产品链路不需要 UFO 源码，`mirally/runtime/ufo/` 适配保留作参考。
 
 ## 隔离运行与数据
 
 默认产品数据位于 `%LOCALAPPDATA%\Mirally\framework`，会被不同工作目录共用。测试运行前设置独立的 `MIRALLY_HOME` 或显式 `--home`，并使用未被占用的端口和测试账号；不要复用或停止用户正在使用的宿主、微信连接和私有配置。不要提交凭据、个人数据或调试产物。真实服务调用和桌面操作遵守 [AGENTS.md](AGENTS.md) 的授权与验证要求，GUI 验证顺序进行。
+
+## 临时产物
+
+验证和调试产生的临时文件统一写到 `output/tmp/<工具或开发点>/<运行标识>/`。`output/` 与根目录 `/tmp/` 已被忽略，写在这里不会污染 `git status`，也不会被误提交。
+
+不要在仓库根目录散放 `tmp*` 文件和目录：它们会让每次 `git status` 都多出噪声，掩盖真正的改动。用一条只读命令自查（只报告，不写盘、不删除、不改 `.gitignore`）：
+
+```powershell
+.\.venv\Scripts\python.exe tools\check_local_artifacts.py
+```
+
+退出码 `0` 表示根目录没有未被忽略的 `tmp*` 条目，`1` 表示有（脚本会列出名字），`2` 表示当前目录不是仓库根。看到报告后由人决定是移动还是删除；仓库不会自动清理。
 
 ## 提交与合并
 

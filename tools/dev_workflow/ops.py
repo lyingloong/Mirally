@@ -184,31 +184,33 @@ def command_pending(args: argparse.Namespace) -> int:
 
 def command_spec_path(args: argparse.Namespace) -> int:
     state_path = Path(args.state)
-    state = wf.load_state(state_path)
-    point = set_spec_path(state, args.id, args.path)
-    wf.save_state(state_path, state)
+    with wf.state_lock(state_path):
+        state = wf.load_state(state_path)
+        point = set_spec_path(state, args.id, args.path)
+        wf.save_state(state_path, state)
     print_json_safe(point)
     return 0
 
 
 def command_record(args: argparse.Namespace) -> int:
     state_path = Path(args.state)
-    state = wf.load_state(state_path)
-    config = wf.load_config(Path(args.config))
-    point = record_point(
-        state,
-        config,
-        args.id,
-        status=args.status,
-        branch=args.branch,
-        worktree=args.worktree,
-        pr=args.pr,
-        head_sha=args.head_sha,
-        task_assignments=args.task,
-        note=args.note,
-        force=args.force,
-    )
-    wf.save_state(state_path, state)
+    with wf.state_lock(state_path):
+        state = wf.load_state(state_path)
+        config = wf.load_config(Path(args.config))
+        point = record_point(
+            state,
+            config,
+            args.id,
+            status=args.status,
+            branch=args.branch,
+            worktree=args.worktree,
+            pr=args.pr,
+            head_sha=args.head_sha,
+            task_assignments=args.task,
+            note=args.note,
+            force=args.force,
+        )
+        wf.save_state(state_path, state)
     print_json_safe(point)
     return 0
 

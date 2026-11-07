@@ -3410,7 +3410,7 @@ html[dir="rtl"] .chat-attachment-loading > span {
 }
 
 .agent-chat__welcome h2 {
-  font-size: 24px;
+  font-size: var(--control-ui-text-title);
   font-weight: 600;
   margin: 0;
   color: var(--text);
@@ -3465,7 +3465,7 @@ html[dir="rtl"] .chat-attachment-loading > span {
   }
 
   .agent-chat__welcome h2 {
-    font-size: 20px;
+    font-size: var(--control-ui-text-title);
   }
 
   .agent-chat__welcome-avatar {
@@ -3497,14 +3497,6 @@ html[dir="rtl"] .chat-attachment-loading > span {
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   width: 100%;
-  opacity: 1;
-  filter: blur(0);
-  transform: translateY(0);
-  transition:
-    grid-template-rows 300ms var(--ease-out),
-    opacity 240ms 40ms var(--ease-out),
-    filter 240ms 40ms var(--ease-out),
-    transform 240ms 40ms var(--ease-out);
 }
 
 .agent-chat__welcome-secondary-inner {
@@ -3513,25 +3505,6 @@ html[dir="rtl"] .chat-attachment-loading > span {
   flex-direction: column;
   align-items: center;
   overflow: hidden;
-}
-
-.agent-chat__welcome-secondary--hidden {
-  grid-template-rows: minmax(0, 0fr);
-  opacity: 0;
-  filter: blur(6px);
-  pointer-events: none;
-  transform: translateY(4px);
-  transition:
-    grid-template-rows 360ms 160ms var(--ease-out),
-    opacity 280ms var(--ease-out),
-    filter 280ms var(--ease-out),
-    transform 280ms var(--ease-out);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .agent-chat__welcome-secondary {
-    transition: none;
-  }
 }
 
 .agent-chat__recents {
@@ -3544,10 +3517,8 @@ html[dir="rtl"] .chat-attachment-loading > span {
 }
 
 .agent-chat__recents-title {
-  font-size: 12px;
+  font-size: var(--control-ui-text-sm);
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: var(--muted);
   margin: 0 0 2px 12px;
 }
@@ -3562,7 +3533,7 @@ html[dir="rtl"] .chat-attachment-loading > span {
   border: none;
   background: transparent;
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--control-ui-text-md);
   text-align: left;
   transition: background 0.15s;
 }
@@ -3581,7 +3552,7 @@ html[dir="rtl"] .chat-attachment-loading > span {
 
 .agent-chat__recent-sub {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--control-ui-text-sm);
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -3591,12 +3562,12 @@ html[dir="rtl"] .chat-attachment-loading > span {
 .agent-chat__recent-time {
   margin-left: auto;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--control-ui-text-sm);
   white-space: nowrap;
 }
 
 .agent-chat__hint {
-  font-size: 13px;
+  font-size: var(--control-ui-text-md);
   color: var(--muted);
   margin: 0;
 }
@@ -3604,7 +3575,7 @@ html[dir="rtl"] .chat-attachment-loading > span {
 .agent-chat__hint kbd {
   display: inline-block;
   padding: 1px 6px;
-  font-size: 12px; /* was 11px */
+  font-size: var(--control-ui-text-sm);
   font-family: var(--mono);
   background: var(--panel-strong);
   border: 1px solid var(--border);
@@ -3621,12 +3592,12 @@ html[dir="rtl"] .chat-attachment-loading > span {
 
 .agent-chat__suggestion {
   min-height: 40px;
-  font-size: 13px;
+  font-size: var(--control-ui-text-md);
   line-height: 1.4;
   padding: 10px 16px;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--panel);
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--text);
   /* Localized labels wrap to multiple lines; balance keeps the split even and
      break-word stops long words from pushing past the chip border. */
@@ -3637,6 +3608,11 @@ html[dir="rtl"] .chat-attachment-loading > span {
     border-color 0.15s;
 }
 
+.agent-chat__suggestion:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .agent-chat__suggestion:hover {
   background: var(--panel-strong);
   border-color: var(--accent);
@@ -3644,7 +3620,7 @@ html[dir="rtl"] .chat-attachment-loading > span {
 
 /* Must stay after the base suggestion rules: equal specificity, so source
    order is what lets the phone layout win over the two-column default. */
-@media (max-width: 768px) {
+@media (max-width: 480px) {
   .agent-chat__suggestions {
     grid-template-columns: minmax(0, 1fr);
     width: min(100%, 360px);

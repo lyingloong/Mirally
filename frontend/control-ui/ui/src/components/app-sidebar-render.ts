@@ -216,21 +216,23 @@ export function renderAppSidebarBrand(
             : nothing
         }
         ${
-          host.sidebarAgentsMode === "roster"
-            ? teamNewSession
-            : renderNewSessionLink({
-                basePath: host.basePath,
-                agentId: host.expandedAgentId(),
-                className:
-                  "sidebar-brand__icon sidebar-brand__header-control sidebar-brand__new-thread",
-                label: t("agentChip.newConversation"),
-                showShortcut: true,
-                disabledReason: newSessionAccess.allowed ? undefined : newSessionAccess.reason,
-                onOpen: (agentId, target) => host.requestOpenNewSession(agentId, target),
-              })
+          host.sidebarAgentsMode === "roster" ? teamNewSession : nothing
         }
       </div>
     </div>
+    ${host.sidebarAgentsMode !== "roster" ? html`
+      <div class="sidebar-primary-action">
+        ${renderNewSessionLink({
+          basePath: host.basePath,
+          agentId: host.expandedAgentId(),
+          className: "sidebar-new-conversation",
+          label: mirallyNavigationText("新对话", "New conversation"),
+          showLabel: true,
+          showShortcut: true,
+          disabledReason: newSessionAccess.allowed ? undefined : newSessionAccess.reason,
+          onOpen: (agentId, target) => host.requestOpenNewSession(agentId, target),
+        })}
+      </div>` : nothing}
   `;
 }
 

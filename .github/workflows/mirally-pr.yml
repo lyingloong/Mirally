@@ -17,6 +17,9 @@ concurrency:
 jobs:
   windows-core:
     name: Windows core and frontend
+    needs: workflow-tooling
+    # Only a successful, explicit repository-only classification can skip this job.
+    if: ${{ !cancelled() && (needs.workflow-tooling.result != 'success' || needs.workflow-tooling.outputs.product != 'false') }}
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -30,11 +33,35 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+          cache: pip
+          cache-dependency-path: requirements-framework.txt
 
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            tools/testing/package-lock.json
+            frontend/control-ui/package-lock.json
+
+      - name: Locate pinned pnpm package store
+        id: pnpm-store
+        working-directory: kernel/dsh
+        run: |
+          $manager = (Get-Content package.json -Raw | ConvertFrom-Json).packageManager
+          $store = npm exec --yes "--package=$manager" -- pnpm store path
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "path=$store" >> $env:GITHUB_OUTPUT
+          "manager=$manager" >> $env:GITHUB_OUTPUT
+
+      - name: Cache pnpm downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-${{ runner.arch }}-node24-${{ steps.pnpm-store.outputs.manager }}-${{ hashFiles('kernel/dsh/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-node24-${{ steps.pnpm-store.outputs.manager }}-
 
       - name: Install independent test tools
         run: npm --prefix tools/testing ci --ignore-scripts --no-audit --no-fund
@@ -58,13 +85,21 @@ jobs:
             'tests.test_framework_entry',
             'tests.test_desktop_surface',
             'tests.test_framework_lifecycle',
+            'tests.test_framework_workers',
             'tests.test_framework_activity_views',
             'tests.test_framework_product',
             'tests.test_framework_channels',
             'tests.test_framework_calendar',
+            'tests.test_framework_capabilities',
+            'tests.test_framework_model_connections',
+            'tests.test_framework_materials',
+            'tests.test_framework_conversation_resolve',
             'tests.test_framework_weixin_assistant_security',
             'tests.test_framework_conversation_metadata',
-            'tests.test_framework_recaps'
+            'tests.test_framework_recaps',
+            'tests.test_memory_store',
+            'tests.test_memory_recall',
+            'tests.test_memory_synthesis'
           )
           .\.venv\Scripts\python.exe -m unittest @tests -v
 
@@ -74,6 +109,10 @@ jobs:
             'tests/test_test_dependencies.cjs',
             'tests/test_framework_native_bridge.mjs',
             'tests/test_framework_ui_races.mjs',
+            'tests/test_framework_model_onboarding_ui.mjs',
+            'tests/test_framework_model_validation_ui.mjs',
+            'tests/test_framework_capabilities_settings_ui.mjs',
+            'tests/test_framework_messages_ui.mjs',
             'tests/test_framework_without_ufo.mjs',
             'tests/test_control_ui_activity.cjs',
             'tests/test_control_ui_files.cjs',
@@ -94,20 +133,32 @@ jobs:
     name: Development workflow tooling
     runs-on: windows-latest
     timeout-minutes: 10
+    outputs:
+      product: ${{ steps.scope.outputs.product }}
     steps:
       - name: Check out source
         uses: actions/checkout@v4
         with:
           persist-credentials: false
           submodules: false
+          # PR merge + parents; normal main merge + previous main. If a push's
+          # before SHA is older than this shallow history, classification runs full.
+          fetch-depth: 2
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Test workflow state manager and repository hygiene
-        run: python -m unittest tests.development.test_agent_workflow tests.development.test_repo_hygiene -v
+      - name: Select checks for the changed files
+        id: scope
+        run: python tools/check_ci_scope.py
 
-      - name: Test workflow captain operations
-        run: python -m unittest tests.development.test_workflow_ops -v
+      - name: Test development workflow tooling
+        run: python -m unittest discover -s tests/development -t . -v
+
+      - name: Check sources for conflict markers and Python syntax
+        run: python tools/check_sources.py
+
+      - name: Check documentation links
+        run: python tools/check_docs_links.py

@@ -1,0 +1,91 @@
+name: Website checks and Pages
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scope:
+    name: Website change scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      website: ${{ steps.scope.outputs.website }}
+      website_changed: ${{ steps.scope.outputs.website_changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: false
+          # Full Git diff avoids GitHub path-filter limits and retains the
+          # before SHA for multi-commit pushes and both sides of moved files.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Select website checks
+        id: scope
+        run: python tools/check_ci_scope.py
+
+  build:
+    name: Website build
+    needs: scope
+    if: ${{ !cancelled() && (needs.scope.result != 'success' || needs.scope.outputs.website != 'false') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Unrelated main pushes skip this job and cannot displace a pending website
+    # build. Deployments have their own queue below.
+    concurrency:
+      group: website-build-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - name: Install website dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build website
+        run: npm run build
+      - name: Upload Pages artifact
+        if: ${{ github.ref == 'refs/heads/main' && ((github.event_name == 'push' && needs.scope.outputs.website_changed == 'true') || github.event_name == 'workflow_dispatch') }}
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: website/dist
+
+  deploy:
+    name: Publish website
+    needs: [scope, build]
+    if: ${{ github.ref == 'refs/heads/main' && needs.scope.result == 'success' && ((github.event_name == 'push' && needs.scope.outputs.website_changed == 'true') || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: website-pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

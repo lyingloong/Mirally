@@ -1,6 +1,6 @@
 # 验证与未覆盖边界
 
-更新：2026-11-01，Asia/Shanghai。状态：现行。本文只保留稳定的验证范围、复现命令和未覆盖边界；各阶段具体测试数量、临时 home 和截图记录属于当次环境，可在 Git 历史中追溯。
+更新：2026-11-06，Asia/Shanghai。状态：现行。本文只保留稳定的验证范围、复现命令和未覆盖边界；各阶段具体测试数量、临时 home 和截图记录属于当次环境，可在 Git 历史中追溯。
 
 ## 原则
 
@@ -11,6 +11,31 @@
 
 ## 离线验证
 
+### GitHub Actions 检查范围
+
+[PR 工作流](../../.github/workflows/mirally-pr.yml)在 PR、`main` push 和手动运行时保留开发工具测试、源码与文档链接检查。只有改动完全属于[范围选择器](../../tools/check_ci_scope.py)列出的文档、开发工具和网站路径时，才跳过 Windows 产品依赖安装、内核/前端构建及产品测试；产品代码及依赖、产品或共享 CI 配置、选择器本身和未知路径仍运行原有完整离线子集（包含记忆测试）。检查名称保持不变，跳过的产品 job 显示 `skipped`。
+
+PR 比较事件的 base 与 GitHub 合并预览提交，`main` push 比较事件的 before/after；删除和重命名也计入。浅历史缺少比较基线、分类失败、空 diff 或开发工具检查失败时运行完整产品检查。手动 `workflow_dispatch` 始终运行完整检查，可用于复核或排查。代码 Draft PR 与正式 PR 使用相同规则，合并后的产品集成验证继续保留。
+
+pip、npm 和 pnpm 缓存只复用包下载；每次仍安装依赖并重新构建，不复用 `.venv`、`node_modules` 或构建产物。缓存未命中时照常安装。CI 的离线子集不替代受影响领域的本地验证或实际页面验收。
+
+### 网站独立验证
+
+网站使用 `website/package-lock.json`，不需要 Python、产品配置或模型凭据。在仓库根目录运行：
+
+```powershell
+npm --prefix website ci --no-audit --no-fund
+npm --prefix website run build
+npm --prefix website run export:html
+npm --prefix website run preview
+```
+
+`dist/` 和单文件 `exports/Mirally.html` 均位于 `website/`，属于可重新生成的忽略产物。[网站工作流](../../.github/workflows/website.yml)在网站相关 PR 中独立构建；`main` push 确认存在网站变更后发布 Pages，手动运行仅允许从 `main` 发布。网站检查不替代产品检查，混合改动分别验证。
+
+发布目标为 `https://lyingloong.github.io/Mirally/`。先验证新站首页、`/updates/` 和日期深链接、图片/字体及窄窗口/键盘操作，再将旧站切为保留路径、query 与 hash 的跳转，并核对跳转后的实际页面。构建成功不等于线上部署或重定向已生效；每次发布以工作流结果和实际访问为准。[历史验收记录](../../website/VERIFICATION.md)保留迁移前证据，不代表本次合仓或新地址验收。
+
+### 本地命令
+
 DOM 与浏览器验收使用独立的[测试工具依赖](../../tools/testing/README.md)，每个新 worktree 在仓库根目录准备一次：
 
 ```powershell
@@ -18,15 +43,8 @@ npm --prefix tools/testing ci --ignore-scripts --no-audit --no-fund
 node --test tests/test_test_dependencies.cjs
 ```
 
-完整 Python 套件包含保留的 UFO 参考适配测试，需额外准备只读子模块和可选依赖；这不会在默认产品中启用 UFO：
-
 ```powershell
-git submodule update --init UFO
-.\.venv\Scripts\python.exe -m pip install -r requirements-ufo.txt
-```
-
-```powershell
-# 产品 Python 测试
+# 产品 Python 测试（不需要 UFO 子模块或额外依赖）
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 
 # Node/产品链路测试
@@ -43,6 +61,16 @@ npm --prefix frontend/control-ui run build
 ```
 
 `tools/verify_framework.py` 不访问外部 API；它验证会话、工具、停止、重启、Skill、脚本产物、MCP 协议、原生插件、微信回环和主动入箱等链路。浏览器验收使用本机 Edge，独立 `playwright-core` 包不下载浏览器；可通过 `MIRALLY_PLAYWRIGHT` 显式选择模块或路径。相对路径基于仓库根目录，与执行时工作目录无关。
+
+完整 Python 套件依赖可写的临时目录；同一 `TEMP` 目录残留旧数据时，个别记忆/观察分页用例可能报与本改动无关的失败。重跑前换用新的可写临时目录（例如 `$env:TEMP` 指向仓库内 gitignored 的空目录）即可复现全绿；CI runner 使用真实 Temp，不需要此覆盖。
+
+验证产物统一写到 `output/tmp/<工具或开发点>/<运行标识>/`（`output/` 已忽略）。仓库根出现未被忽略的 `tmp*` 条目会让 `git status` 长期带噪声，用只读检查确认：
+
+```powershell
+.\.venv\Scripts\python.exe tools\check_local_artifacts.py
+```
+
+它只报告、不写盘、不删除、不改 `.gitignore`：退出码 `0` 干净，`1` 有未忽略的根级 `tmp*` 条目（逐个列出），`2` 不是仓库根。清理是显式的人工动作——把需要的文件挪进 `output/tmp/`，其余自行删除；仓库不提供自动清理，也不替你判断哪些还能用。
 
 ```powershell
 # 对显式 --test-mode --home 的隔离宿主，GUI 顺序运行

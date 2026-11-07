@@ -1,6 +1,6 @@
 # 前端页面与导航
 
-更新：2026-10-31，Asia/Shanghai。状态：现行。相关实现：`frontend/control-ui/`、`mirally/framework_ui/`。
+更新：2026-11-06，Asia/Shanghai。状态：现行。相关实现：`frontend/control-ui/`、`mirally/framework_ui/`。
 
 前端以固定 OpenClaw Control UI `2026.9.6` 源码为组件和视觉基础，沿用原 Mirally 的布局、主题、动画与伙伴体验，导航和页面内容按 Mirally 自有产品组织。源码、许可证和固定提交见[前端来源](../../frontend/control-ui/UPSTREAM.md)。
 
@@ -19,6 +19,18 @@
 | 手机 `/mobile` | 独立受限页面，默认显示会话；见[消息渠道](channels.md) |
 
 内部保留少量原路由 ID 以兼容已有壳和组件，例如 `custodian` 对应消息、`cron` 对应提醒、`settings` 对应通用。产品 URL 和可见名称使用 Mirally 语义。原 OpenClaw 渠道、Gateway、节点和账号管理入口不在默认导航中；未映射的旧操作明确返回不支持，不用空列表或虚假成功冒充已实现。
+
+## 高频操作与页面层级
+
+- 侧栏以文字显示“新对话”，沿用现有导航、快捷键与权限准入；新对话仍使用链接语义。设置通过底部“我的 Mirally”菜单进入，不再独立占用侧栏一行。
+- 默认 Mirally 明暗主题以统一中性色阶组织画布、侧栏、菜单、文字与边界，去除背景纹理；明亮主题用白色与浅灰区分层次，暗色主题使用对应深灰层次，蓝色用于交互重点。普通对话输入区使用不透明表面，普通用户消息气泡使用中性色；显式发送者身份 tint、录音与焦点等状态、系统强制颜色模式及其他可选主题保留。
+- 桌面对话输入使用 14px 正文级字号，随文字大小设置缩放，触屏最低 16px。
+- 欢迎页的建议只在草稿为空时填入输入框并聚焦，不自动发送；点击时读取最新草稿，已有输入（包括空白）不被覆盖。输入过程中保留建议区，不再用折叠动画改变输入框位置。
+- 模型连接先呈现服务、模型与凭据等连接信息，模型参数通过原生折叠区展开；保存连接、分配用途和检查连接分别保留入口。编辑模型列表中的草稿时禁用会替换该草稿的连接切换和编辑操作。
+- 网页研究与工作区文字写入使用复选框，与授权目录和网页连接一同保存；勾选表示待保存选择。首次读取失败时提供重试，不显示未确认的可编辑权限；保存后的重新读取也成功才显示保存反馈。
+- 消息与提醒列表刷新期间继续显示上次成功读取的内容，失败或返回不完整数据时保留该份内容并显示错误；首次加载、读取失败、空列表与没有未读消息分别呈现。列表按消息投递或提醒标识复用行；切换页面清除旧页面内容，过期响应不能回填。
+
+排版和控件继续使用[视觉基线](../standards/ui-visual-system.md)及既有主题、品牌和伙伴资源；这些行为改动不代表全界面已完成体验验收。
 
 ## 实现接缝
 
@@ -54,9 +66,11 @@ npm --prefix frontend/control-ui run build
 ```powershell
 npm --prefix frontend/control-ui run verify:source
 npm --prefix frontend/control-ui run build
+node --test tests/test_framework_model_onboarding_ui.mjs tests/test_framework_model_validation_ui.mjs tests/test_framework_capabilities_settings_ui.mjs tests/test_framework_messages_ui.mjs
 # 对显式 --test-mode --home 的隔离宿主，GUI 顺序运行：
 node tools/verify_framework_browser.mjs <隔离home/runtime.json>
 node tools/verify_framework_experience.mjs <隔离home/runtime.json>
+node tools/verify_framework_messages.mjs <隔离home/runtime.json>
 node tools/verify_framework_product_pages.mjs <隔离home/runtime.json>
 node tools/verify_framework_mobile_browser.mjs <隔离home/runtime.json>
 ```
