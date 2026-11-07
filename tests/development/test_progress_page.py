@@ -8,6 +8,7 @@ user home, credentials or ``.agent-teams/``.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -62,6 +63,10 @@ class ProgressPageTests(unittest.TestCase):
 
     def verification(self, name, body):
         (self.workdir / "verification" / f"{name}.md").write_text(body, encoding="utf-8")
+
+    def pr_cache(self, pulls):
+        (self.workdir / pp.PR_CACHE_NAME).write_text(
+            json.dumps({"generated_at": FIXED_NOW, "pulls": pulls}, ensure_ascii=False), encoding="utf-8")
 
     def build(self, **kwargs):
         return pp.build_page(workdir=self.workdir, root=ROOT, now=FIXED_NOW,
@@ -176,6 +181,25 @@ class ProgressPageTests(unittest.TestCase):
         model = self.build()["model"]
         self.assertEqual(next(self.cards(model))["verification"]["verdict"], "PASS")
 
+    def test_rework_fail_is_not_hidden_by_older_pass_or_filename_order(self):
+        self.write_state([_point("dev-0001", status="verifying"),
+                          _point("dev-0002", status="verifying")])
+        # dev-0001: the unsuffixed first-round PASS sorts AFTER "-r2" by filename.
+        self.verification("dev-0001", "- 结论：**PASS**；首轮通过\n")
+        self.verification("dev-0001-r2", "- 结论：**FAIL**；返工仍有关闭不了的 F-1\n")
+        # dev-0002: lexicographic order would keep "-r2" and never see "-r10".
+        self.verification("dev-0002-r2", "- 结论：**PASS**；第二轮通过\n")
+        self.verification("dev-0002-r10", "- 结论：**FAIL**；第十轮返工仍失败\n")
+        # The round number is authoritative; write time only breaks same-round ties,
+        # so the older r10 file must still win over the newer r2 file.
+        os.utime(self.workdir / "verification" / "dev-0002-r10.md", (1_000_000, 1_000_000))
+        os.utime(self.workdir / "verification" / "dev-0002-r2.md", (2_000_000, 2_000_000))
+        by_id = {c["id"]: c for c in self.cards(self.build()["model"])}
+        self.assertEqual(by_id["dev-0001"]["verification"]["verdict"], "FAIL")
+        self.assertEqual(by_id["dev-0001"]["verification"]["file"], "verification/dev-0001-r2.md")
+        self.assertEqual(by_id["dev-0002"]["verification"]["verdict"], "FAIL")
+        self.assertEqual(by_id["dev-0002"]["verification"]["file"], "verification/dev-0002-r10.md")
+
     # -- 6. pending-decision derivation ---------------------------------
     def test_pending_decision_priority_and_spec_decision_count(self):
         points = [
@@ -220,6 +244,37 @@ class ProgressPageTests(unittest.TestCase):
         self.assertEqual(len(card["decisions"]), 2)
         self.assertTrue(all(any(k in d for k in ("遗留", "未覆盖", "TODO")) for d in card["decisions"]))
 
+    def test_merge_state_splits_codex_merge_from_user_decision(self):
+        self.write_state([
+            _point("dev-0001", status="awaiting_merge", pr=7),
+            _point("dev-0002", status="awaiting_merge", pr=8),
+            _point("dev-0003", status="awaiting_merge", pr=9),
+            _point("dev-0004", status="awaiting_merge", pr=10),
+            _point("dev-0005", status="done"),
+        ])
+        self.pr_cache([
+            {"number": 7, "title": "可合并", "headRefName": "b1", "state": "OPEN", "mergeable": "MERGEABLE",
+             "url": "u7", "files": [], "statusCheckRollup": [{"conclusion": "SUCCESS"}, {"conclusion": "SKIPPED"}]},
+            {"number": 8, "title": "检查未绿", "headRefName": "b2", "state": "OPEN", "mergeable": "MERGEABLE",
+             "url": "u8", "files": [], "statusCheckRollup": [{"conclusion": "SUCCESS"}, {"conclusion": "FAILURE"}]},
+            {"number": 9, "title": "冲突", "headRefName": "b3", "state": "OPEN", "mergeable": "CONFLICTING",
+             "url": "u9", "files": [], "statusCheckRollup": [{"conclusion": "SUCCESS"}]},
+        ])
+        page = self.build()
+        by_id = {c["id"]: c for c in self.cards(page["model"])}
+        self.assertEqual(by_id["dev-0001"]["merge"]["state"], "codex")
+        self.assertIn("可交 Codex 合并 PR #7", by_id["dev-0001"]["decisions"][0])
+        self.assertEqual(by_id["dev-0002"]["merge"]["state"], "user")
+        self.assertIn("检查未全绿", by_id["dev-0002"]["decisions"][0])
+        self.assertEqual(by_id["dev-0003"]["merge"]["state"], "user")
+        self.assertIn("PR 不可合并", by_id["dev-0003"]["decisions"][0])
+        # A PR missing from the cache is a user decision, not a silent Codex merge.
+        self.assertEqual(by_id["dev-0004"]["merge"]["state"], "user")
+        self.assertIn("PR 不在缓存中", by_id["dev-0004"]["decisions"][0])
+        self.assertIsNone(by_id["dev-0005"]["merge"]["state"])
+        self.assertIn('<span class="badge ok">可交 Codex 合并</span>', page["html"])
+        self.assertIn('<span class="badge warn">待用户决定</span>', page["html"])
+
     # -- 7. offline / --refresh-pr --------------------------------------
     def test_missing_pr_cache_is_not_fatal(self):
         self.write_state([_point("dev-0001", status="awaiting_merge", pr=7)])
@@ -257,6 +312,27 @@ class ProgressPageTests(unittest.TestCase):
         self.assertEqual(card["verification"]["ci"], {"pass": 1, "pending": 1, "fail": 1})
         self.assertEqual(card["pr_url"], "https://github.com/x/y/pull/7")
 
+    def test_change_summary_shows_pr_title_and_largest_paths(self):
+        self.write_state([_point("dev-0001", status="awaiting_merge", pr=7)])
+        self.pr_cache([{
+            "number": 7, "title": "进度页：修复 P1/P2 & <标记>", "headRefName": "b", "state": "OPEN",
+            "mergeable": "MERGEABLE", "url": "u",
+            "files": [{"path": "tools/a.py", "additions": 1, "deletions": 0},
+                      {"path": "tests/b.py", "additions": 30, "deletions": 2},
+                      {"path": "docs/c.md", "additions": 5, "deletions": 5},
+                      {"path": "docs/d.md", "additions": 2, "deletions": 0}],
+            "statusCheckRollup": [{"conclusion": "SUCCESS"}],
+        }])
+        page = self.build()
+        card = next(self.cards(page["model"]))
+        changes = card["changes"]
+        self.assertEqual(changes["title"], "进度页：修复 P1/P2 & <标记>")
+        self.assertEqual(changes["paths"], ["tests/b.py", "docs/c.md", "docs/d.md"])
+        self.assertIn("进度页：修复 P1/P2", page["html"])
+        self.assertIn("主要文件 tests/b.py、docs/c.md、docs/d.md", page["html"])
+        self.assertNotIn("<标记>", page["html"])
+        self.assertIn("&lt;标记&gt;", page["html"])
+
     def test_refresh_pr_writes_cache_from_gh_json(self):
         self.write_state([_point("dev-0001")])
         payload = json.dumps([{"number": 9, "title": "t", "headRefName": "b", "state": "OPEN",
@@ -283,6 +359,64 @@ class ProgressPageTests(unittest.TestCase):
         self.assertEqual(code, 0)
         cache = json.loads((self.workdir / pp.PR_CACHE_NAME).read_text(encoding="utf-8"))
         self.assertEqual(cache["pulls"][0]["number"], 9)
+
+    def test_refresh_pr_decodes_chinese_gh_json_as_utf8(self):
+        self.write_state([_point("dev-0001")])
+        recorded = {}
+        snapshot = json.dumps([{"number": 9, "title": "进度页：中文标题 ✅", "headRefName": "b",
+                                "state": "OPEN", "mergeable": "MERGEABLE", "url": "u",
+                                "files": [], "statusCheckRollup": []}], ensure_ascii=False).encode("utf-8")
+
+        class Completed:
+            returncode = 0
+            stderr = ""
+
+            @property
+            def stdout(self):
+                # Mimic subprocess.run(text=True): the child bytes are decoded with
+                # exactly the encoding/errors the caller asked for.
+                return snapshot.decode(recorded.get("encoding") or "ascii",
+                                       recorded.get("errors") or "strict")
+
+        def fake_run(*args, **kwargs):
+            recorded.update(kwargs)
+            return Completed()
+
+        with mock.patch.object(pp.shutil, "which", return_value="gh"):
+            outcome = pp.refresh_pr_cache(self.workdir, run=fake_run)
+        self.assertTrue(outcome["ok"])
+        self.assertEqual(recorded.get("encoding"), "utf-8")
+        self.assertEqual(recorded.get("errors"), "replace")
+        cache = json.loads((self.workdir / pp.PR_CACHE_NAME).read_text(encoding="utf-8"))
+        self.assertIn("中文标题 ✅", cache["pulls"][0]["title"])
+
+    def test_refresh_pr_keeps_cache_when_gh_output_is_gbk(self):
+        self.write_state([_point("dev-0001")])
+        recorded = {}
+        # A piped child on a Chinese Windows box can still emit its ANSI code page
+        # (GBK) despite gh's UTF-8 output; one bad byte must not discard the cache.
+        snapshot = json.dumps([{"number": 10, "title": "进度页 GBK 标题", "headRefName": "b",
+                                "state": "OPEN", "mergeable": "MERGEABLE", "url": "u",
+                                "files": [], "statusCheckRollup": []}], ensure_ascii=False).encode("gbk")
+
+        class Completed:
+            returncode = 0
+            stderr = ""
+
+            def __init__(self):
+                self.stdout = snapshot.decode(recorded.get("encoding") or "ascii",
+                                              recorded.get("errors") or "strict")
+
+        def fake_run(*args, **kwargs):
+            recorded.update(kwargs)
+            return Completed()
+
+        with mock.patch.object(pp.shutil, "which", return_value="gh"):
+            outcome = pp.refresh_pr_cache(self.workdir, run=fake_run)
+        self.assertTrue(outcome["ok"])
+        self.assertEqual(outcome["message"], "已刷新 1 个 PR")
+        cache = json.loads((self.workdir / pp.PR_CACHE_NAME).read_text(encoding="utf-8"))
+        self.assertEqual(cache["pulls"][0]["number"], 10)
 
     # -- 8. --workdir boundary ------------------------------------------
     def test_workdir_outside_repository_is_rejected(self):

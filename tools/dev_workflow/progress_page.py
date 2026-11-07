@@ -232,24 +232,48 @@ def count_pending_decisions(path: Path) -> int:
     return len(re.findall(r"^\s*(?:\d+\.|[-*])\s+\S", match.group(1), re.M))
 
 
+_VERSION_SUFFIX = re.compile(r"-r(\d+)$")
+
+
+def _latest_record(paths: list[Path]) -> Path | None:
+    """Newest verification/review record by round then write time, not by name.
+
+    Names such as ``dev-0033.md``, ``dev-0033-r2.md`` and ``dev-0033-r10.md`` sort
+    lexicographically as ``r10 < r2``, so a plain ``sorted()`` would keep showing a
+    stale PASS after a rework FAIL. Rounds are compared numerically first (an
+    unsuffixed file counts as round 1) and the freshest write breaks ties, so a
+    re-run that reuses a name still wins.
+    """
+    if not paths:
+        return None
+
+    def key(path: Path) -> tuple[int, float, str]:
+        match = _VERSION_SUFFIX.search(path.stem)
+        try:
+            written = path.stat().st_mtime
+        except OSError:
+            written = 0.0
+        return (int(match.group(1)) if match else 1, written, path.name)
+
+    return max(paths, key=key)
+
+
 def collect_verification(workdir: Path, point_id: str) -> dict[str, Any]:
     directory = workdir / "verification"
     if not directory.is_dir():
         return {"available": False, "verdict": None, "file": None}
-    candidates = sorted(directory.glob(f"{point_id}*.md"))
-    if not candidates:
+    latest = _latest_record(list(directory.glob(f"{point_id}*.md")))
+    if latest is None:
         return {"available": False, "verdict": None, "file": None}
-    latest = candidates[-1]
     text = _first_lines(latest, 20)
     return {"available": True, "verdict": _verdict_of(text),
             "file": f"verification/{latest.name}", "note": None}
 
 
 def collect_review(workdir: Path, point_id: str) -> dict[str, Any]:
-    candidates = sorted(workdir.glob(f"review-{point_id}*.md"))
-    if not candidates:
+    latest = _latest_record(list(workdir.glob(f"review-{point_id}*.md")))
+    if latest is None:
         return {"available": False, "verdict": None, "file": None, "line": None}
-    latest = candidates[-1]
     text = _first_lines(latest, 20)
     line = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
     return {"available": True, "verdict": _verdict_of(text), "file": latest.name,
@@ -259,9 +283,11 @@ def collect_review(workdir: Path, point_id: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Model
 # ---------------------------------------------------------------------------
-def _change_summary(files: list[dict]) -> dict[str, Any]:
+def _change_summary(files: list[dict], title: str | None = None) -> dict[str, Any]:
+    """What the PR actually changed: totals, busiest paths and, when known, its title."""
     if not files:
-        return {"files": 0, "additions": 0, "deletions": 0, "top_paths": [], "missing": True}
+        return {"files": 0, "additions": 0, "deletions": 0, "top_paths": [], "paths": [],
+                "title": _clip(title) if title else None, "missing": True}
     additions = sum(int(f.get("additions") or 0) for f in files)
     deletions = sum(int(f.get("deletions") or 0) for f in files)
     grouped: dict[str, list[int]] = {}
@@ -272,12 +298,44 @@ def _change_summary(files: list[dict]) -> dict[str, Any]:
         bucket[0] += int(item.get("additions") or 0)
         bucket[1] += int(item.get("deletions") or 0)
     tops = sorted(grouped.items(), key=lambda kv: (-kv[1][0], kv[0]))[:3]
+    ranked = sorted(files, key=lambda f: (-(int(f.get("additions") or 0) + int(f.get("deletions") or 0)),
+                                          str(f.get("path") or "")))
     return {"files": len(files), "additions": additions, "deletions": deletions,
             "top_paths": [{"path": name, "additions": add, "deletions": dele} for name, (add, dele) in tops],
+            "paths": [str(f.get("path")) for f in ranked[:3] if f.get("path")],
+            "title": _clip(title) if title else None,
             "missing": False}
 
 
-def derive_decisions(point: dict, spec: dict, review: dict, tasks: dict, manual: list[str]) -> list[str]:
+def merge_state(point: dict, pr_entry: dict | None) -> dict[str, Any]:
+    """Classify an ``awaiting_merge`` point as Codex-mergeable or user-blocked.
+
+    Merging is not a single decision. ``codex`` means the PR is open, GitHub says
+    ``MERGEABLE`` and every check has passed, so the Codex merge gate can pick it
+    up without a new user decision. ``user`` means the user still has to decide:
+    the PR is missing from the cache, not mergeable, or has failing/pending checks.
+    ``None`` applies to every other status (the card then shows nothing extra).
+    """
+    if point.get("status") != "awaiting_merge":
+        return {"state": None, "reason": None}
+    pr = point.get("pr")
+    if not pr:
+        return {"state": "user", "reason": "未关联 PR"}
+    if not pr_entry:
+        return {"state": "user", "reason": "PR 不在缓存中"}
+    checks = pr_entry.get("checks") or {}
+    failing = int(checks.get("fail") or 0) + int(checks.get("pending") or 0)
+    if failing:
+        parts = [f'fail {checks.get("fail", 0)}' if checks.get("fail") else "",
+                 f'pending {checks.get("pending", 0)}' if checks.get("pending") else ""]
+        return {"state": "user", "reason": "检查未全绿：" + "/".join(p for p in parts if p)}
+    if str(pr_entry.get("mergeable") or "").upper() != "MERGEABLE":
+        return {"state": "user", "reason": f'PR 不可合并：{pr_entry.get("mergeable") or "未知"}'}
+    return {"state": "codex", "reason": "可交给 Codex 合并（检查全绿、PR mergeable）"}
+
+
+def derive_decisions(point: dict, spec: dict, review: dict, tasks: dict, manual: list[str],
+                     merge: dict | None = None) -> list[str]:
     """Spec §4.4 priority order; the first hit wins, manual decisions are appended."""
     status = point.get("status")
     out: list[str] = []
@@ -288,7 +346,14 @@ def derive_decisions(point: dict, spec: dict, review: dict, tasks: dict, manual:
         detail = f"quota 重试 {point.get('quota_retries', 0)} 次" if reason == "quota" else str(reason)
         out.append(_clip(f"阻塞：{detail}"))
     elif status == "awaiting_merge":
-        out.append(f"等待用户批准合并 PR #{point.get('pr')}" if point.get("pr") else "等待用户批准合并")
+        merge = merge or {"state": "user", "reason": None}
+        target = f" PR #{point.get('pr')}" if point.get("pr") else ""
+        if merge.get("state") == "codex":
+            out.append(_clip(f"已审查通过，可交 Codex 合并{target}"))
+        elif merge.get("reason"):
+            out.append(_clip(f"等待用户批准合并{target}（{merge['reason']}）"))
+        else:
+            out.append(f"等待用户批准合并{target}")
     elif status == "reviewing" and review.get("verdict") == "FAIL":
         out.append(_clip(f"审查未通过：{review.get('line') or '见审查记录'}"))
     elif spec.get("decisions"):
@@ -312,9 +377,10 @@ def build_model(*, state: dict, config: dict, summary: dict, issues: list[str], 
         verification = collect_verification(workdir, point_id)
         review = collect_review(workdir, point_id)
         pr_entry = pr["pulls"].get(str(point.get("pr"))) if point.get("pr") else None
-        changes = _change_summary((pr_entry or {}).get("files") or [])
+        changes = _change_summary((pr_entry or {}).get("files") or [], (pr_entry or {}).get("title"))
         manual = decisions.get(point_id) or []
-        derived = derive_decisions(point, spec, review, tasks, manual)
+        merge = merge_state(point, pr_entry)
+        derived = derive_decisions(point, spec, review, tasks, manual, merge)
         task_map = point.get("task_ids") or {}
         assignment = tasks.get(point_id) if isinstance(tasks.get(point_id), dict) else {}
         card = {
@@ -335,6 +401,7 @@ def build_model(*, state: dict, config: dict, summary: dict, issues: list[str], 
                 "ci": (pr_entry or {}).get("checks"),
             },
             "decisions": derived,
+            "merge": merge,
             "pr": point.get("pr"),
             "pr_url": (pr_entry or {}).get("url"),
             "mergeable": (pr_entry or {}).get("mergeable"),
@@ -348,7 +415,7 @@ def build_model(*, state: dict, config: dict, summary: dict, issues: list[str], 
         }
         for field in ("purpose", "changes", "verification", "owner", "task"):
             value = card[field]
-            if value in (None, "", {}, {"files": 0, "additions": 0, "deletions": 0, "top_paths": [], "missing": True}):
+            if value in (None, "", {}) or (field == "changes" and value.get("missing")):
                 gaps += 1
         if not verification.get("available"):
             gaps += 1
@@ -453,7 +520,18 @@ def _render_card(card: dict) -> str:
         change_text = "—"
     else:
         tops = "；".join(f'{t["path"]} +{t["additions"]}/−{t["deletions"]}' for t in changes["top_paths"])
+        paths = "、".join(changes.get("paths") or [])
         change_text = f'{changes["files"]} 个文件 +{changes["additions"]}/−{changes["deletions"]}' + (f"（{tops}）" if tops else "")
+        if changes.get("title"):
+            change_text += f" · {changes['title']}"
+        if paths:
+            change_text += f" · 主要文件 {paths}"
+    merge_html = ""
+    merge_state_value = (card.get("merge") or {}).get("state")
+    if merge_state_value == "codex":
+        merge_html = ' <span class="badge ok">可交 Codex 合并</span>'
+    elif merge_state_value == "user":
+        merge_html = ' <span class="badge warn">待用户决定</span>'
     decisions = card["decisions"]
     decision_html = "<br>".join(_esc(d) for d in decisions) if decisions else "—"
     pr_html = "—"
@@ -465,7 +543,7 @@ def _render_card(card: dict) -> str:
     tasks = ", ".join(f"{k}={v}" for k, v in (card["task_ids"] or {}).items()) or "—"
     badges = [f'<span class="badge">{_esc("用户点" if card["source"] == "user" else "AI 点")}</span>',
               f'<span class="badge">{_esc(card["risk"])}</span>',
-              f'<span class="badge {"warn" if card["decisions"] else ""}">{_esc(card["status_label"])}</span>']
+              f'<span class="badge {"warn" if card["decisions"] else ""}">{_esc(card["status_label"])}</span>{merge_html}']
     if card["auto_started"]:
         badges.append('<span class="badge">auto-start</span>')
     return (
@@ -545,7 +623,11 @@ def refresh_pr_cache(workdir: Path, *, run=subprocess.run) -> dict[str, Any]:
         return {"ok": False, "code": 2, "message": "gh CLI 不可用：保留旧缓存（如有）"}
     command = [gh, "pr", "list", "--state", "all", "--limit", "100", "--json", GH_FIELDS]
     try:
-        completed = run(command, capture_output=True, text=True, timeout=120, check=False)
+        # gh prints UTF-8 JSON; on Windows a piped child defaults to the ANSI code
+        # page (cp936/GBK, cp1252), which mangles Chinese PR titles or raises on
+        # decode. Force UTF-8 and never let one bad byte discard the whole cache.
+        completed = run(command, capture_output=True, text=True, encoding="utf-8",
+                        errors="replace", timeout=120, check=False)
     except (OSError, subprocess.SubprocessError) as error:
         return {"ok": False, "code": 2, "message": f"gh 调用失败：{type(error).__name__}"}
     if completed.returncode != 0:
@@ -564,7 +646,8 @@ def refresh_pr_cache(workdir: Path, *, run=subprocess.run) -> dict[str, Any]:
 def _git_head(root: Path, *, run=subprocess.run) -> str | None:
     try:
         completed = run(["git", "-C", str(root), "rev-parse", "--short", "HEAD"],
-                        capture_output=True, text=True, timeout=20, check=False)
+                        capture_output=True, text=True, encoding="utf-8", errors="replace",
+                        timeout=20, check=False)
     except (OSError, subprocess.SubprocessError):
         return None
     return completed.stdout.strip() or None if completed.returncode == 0 else None
