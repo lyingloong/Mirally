@@ -6,6 +6,7 @@ from contextlib import redirect_stdout
 import io
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -211,6 +212,60 @@ class CiScopeTests(unittest.TestCase):
                     self.assertEqual(ci_scope.main(), 0)
                 actual = dict(line.split("=", 1) for line in (root / "output.txt").read_text(encoding="utf-8").splitlines())
                 self.assertEqual(actual, {"product": product, "website": website, "website_changed": website})
+
+
+WORKFLOW = ROOT / ".github/workflows/mirally-pr.yml"
+
+# Added by dev-0039: pure-offline product modules that must stay in the CI subset.
+OFFLINE_MODULES = (
+    "tests.test_activity_projection",
+    "tests.test_conversation",
+    "tests.test_delivery_invalidation",
+    "tests.test_execution_contract",
+    "tests.test_framework_memory_replay",
+    "tests.test_semantic_pipeline",
+)
+
+
+def python_product_subset() -> list[str]:
+    """Return the product-core module list without requiring a YAML parser."""
+    text = WORKFLOW.read_text(encoding="utf-8")
+    marker = "Test Python product core"
+    if marker not in text:
+        raise AssertionError(f"{WORKFLOW} lost its {marker!r} step")
+    block = re.search(r"\$tests = @\((.*?)^\s*\)", text[text.index(marker):], re.MULTILINE | re.DOTALL)
+    if block is None:
+        raise AssertionError(f"{marker!r} no longer declares a $tests = @( ... ) list")
+    return re.findall(r"'([^']+)'", block.group(1))
+
+
+class CiProductSubsetTests(unittest.TestCase):
+    """Keep the offline product subset canonical so appends stay idempotent."""
+
+    def test_offline_modules_are_in_the_subset(self) -> None:
+        modules = python_product_subset()
+        self.assertEqual(
+            [module for module in OFFLINE_MODULES if module not in modules], [],
+            "dev-0039 offline modules must stay in the CI product subset",
+        )
+
+    def test_read_dedupe_union_alphabetical_write_back_is_idempotent(self) -> None:
+        modules = python_product_subset()
+        self.assertEqual(len(modules), len(set(modules)), "the CI subset must not repeat a module")
+        self.assertEqual(modules, sorted(modules), "the CI subset must be written back in alphabetical order")
+        self.assertEqual(modules, sorted(set(modules) | set(OFFLINE_MODULES)),
+                         "re-applying the dev-0039 append rule must be a no-op")
+
+    def test_every_listed_module_is_a_real_test_file(self) -> None:
+        for module in python_product_subset():
+            path = ROOT / (module.replace(".", "/") + ".py")
+            self.assertTrue(path.is_file(), f"{module} is listed in CI but {path} does not exist")
+
+    def test_product_core_step_still_runs_the_declared_list(self) -> None:
+        text = WORKFLOW.read_text(encoding="utf-8")
+        marker = "Test Python product core"
+        step = text[text.index(marker):]
+        self.assertIn("python.exe -m unittest @tests -v", step)
 
 
 if __name__ == "__main__":
