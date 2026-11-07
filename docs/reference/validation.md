@@ -15,6 +15,8 @@
 
 [PR 工作流](../../.github/workflows/mirally-pr.yml)在 PR、`main` push 和手动运行时保留开发工具测试、源码与文档链接检查。只有改动完全属于[范围选择器](../../tools/check_ci_scope.py)列出的文档、开发工具和网站路径时，才跳过 Windows 产品依赖安装、内核/前端构建及产品测试；产品代码及依赖、产品或共享 CI 配置、选择器本身和未知路径仍运行原有完整离线子集（包含记忆测试）。检查名称保持不变，跳过的产品 job 显示 `skipped`。
 
+`windows-core` 的 Python 子集是纯离线、秒级的产品核心回归保护，清单位于「Test Python product core」步骤的 `$tests`。新增纯离线测试模块默认在同一 PR 加入该子集，或显式注明为什么暂不入：没有被 CI 执行的回归保护合并后只靠人工重跑。清单按模块名唯一、字母序排列，追加时按“读取现有清单 → 去重 → 与目标模块取并集 → 字母序写回”执行，重复运行不产生重复条目；[`tests/development/test_ci_scope.py`](../../tests/development/test_ci_scope.py) 校验清单唯一、有序且对应测试文件存在。
+
 PR 比较事件的 base 与 GitHub 合并预览提交，`main` push 比较事件的 before/after；删除和重命名也计入。浅历史缺少比较基线、分类失败、空 diff 或开发工具检查失败时运行完整产品检查。手动 `workflow_dispatch` 始终运行完整检查，可用于复核或排查。代码 Draft PR 与正式 PR 使用相同规则，合并后的产品集成验证继续保留。
 
 pip、npm 和 pnpm 缓存只复用包下载；每次仍安装依赖并重新构建，不复用 `.venv`、`node_modules` 或构建产物。缓存未命中时照常安装。CI 的离线子集不替代受影响领域的本地验证或实际页面验收。
