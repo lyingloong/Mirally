@@ -36,6 +36,11 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-framework.txt
 
+      - name: Check documentation links and anchors
+        run: |
+          python tools/check_docs_links.py
+          python -m unittest tests.development.test_check_docs_links -v
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
