@@ -10,14 +10,26 @@ slugs; repeated headings receive GitHub's `-1`, `-2`, ... suffixes in document
 order. A heading is rendered before GitHub slugs it, so headings containing raw
 HTML or inline links/images cannot be reproduced by this approximation: files
 with such headings are only partially verified, and unmatched fragments in them
-are left unreported instead of failing the gate. Upstream kernel and frontend
-source documentation is not scanned; `kernel/dsh/UPSTREAM.md` is an exception
-because Mirally maintains it and it links into product documentation.
+are left unreported instead of failing the gate.
+
+GitHub absolute links that point at this very repository (`blob`/`tree`/
+`issues`/`pull`) are checked offline as well. The repository identifier is read
+from the `origin` git remote (or `GITHUB_REPOSITORY`), never hard-coded; links to
+other repositories stay skipped. For `main`/`master`/`HEAD` refs the target path
+must exist in this checkout, historical refs are only shape-checked, and issue
+and pull numbers must be positive integers. Without a repository identifier these
+checks are skipped and the reason is printed once.
+
+Upstream kernel and frontend source documentation is not scanned;
+`kernel/dsh/UPSTREAM.md` is an exception because Mirally maintains it and it
+links into product documentation.
 """
 
 from __future__ import annotations
 
+import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import unquote
@@ -31,6 +43,54 @@ FENCE = re.compile(r"```.*?```|~~~.*?~~~", re.DOTALL)
 HEADING = re.compile(r"^#{1,6}\s+(.+?)\s*#*\s*$", re.M)
 # GitHub renders a heading (including inline links/images and HTML) before slugging it.
 HEADING_MARKUP = re.compile(r"<[^>]+>|!?\[[^\]]*\]\([^)]*\)")
+GITHUB_LINK = re.compile(
+    r"https?://(?:www\.)?github\.com/(?P<owner>[^/\s]+)/(?P<repo>[^/\s#?]+)/"
+    r"(?P<kind>blob|tree|issues|pull)(?:/(?P<rest>[^\s#?]*))?"
+)
+GITHUB_REMOTE = re.compile(r"github\.com[:/](?P<owner>[^/\s]+)/(?P<repo>[^/\s]+?)(?:\.git)?/?$")
+REPOSITORY_ARGUMENT = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
+LOCAL_REFS = {"main", "master", "HEAD"}
+# GitHub pages under /issues and /pull that carry no issue/pull number to validate.
+NON_NUMBER_PAGES = {"issues": {"", "new"}, "pull": {""}}
+NUMBER = re.compile(r"\d+")
+PULL_PATCH = re.compile(r"\d+\.(?:diff|patch)")
+
+
+def _repository_slug(value: str) -> str | None:
+    """``owner/repo`` from a git remote URL or a `GITHUB_REPOSITORY` value."""
+    value = value.strip()
+    match = GITHUB_REMOTE.search(value)
+    if match:
+        return f"{match.group('owner')}/{match.group('repo')}"
+    if REPOSITORY_ARGUMENT.fullmatch(value):
+        return value
+    return None
+
+
+def _discover_repository(root: Path) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "remote", "get-url", "origin"],
+            capture_output=True, text=True, timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        result = None
+    if result is not None and result.returncode == 0:
+        slug = _repository_slug(result.stdout)
+        if slug:
+            return slug
+    return _repository_slug(os.environ.get("GITHUB_REPOSITORY", ""))
+
+
+_REPOSITORIES: dict[Path, str | None] = {}
+
+
+def git_repository(root: Path = ROOT) -> str | None:
+    """This checkout's ``owner/repo`` from git, or None when it cannot be derived."""
+    key = Path(root).resolve()
+    if key not in _REPOSITORIES:
+        _REPOSITORIES[key] = _discover_repository(key)
+    return _REPOSITORIES[key]
 
 
 def slugify(heading: str) -> str:
@@ -103,15 +163,74 @@ def owned_files() -> list[Path]:
     return sorted(set(result))
 
 
+def repository_links(target: str, repository: str | None, root: Path = ROOT) -> list[str]:
+    """Offline findings for a GitHub link that may point at this repository.
+
+    Empty when the target is not one of GitHub's `blob`/`tree`/`issues`/`pull`
+    links, points at another repository, or the repository identifier is unknown
+    (then the whole group is skipped and `main()` prints the reason once). Never
+    touches the network: `main`/`master`/`HEAD` refs must exist in `root`, every
+    other ref is only shape-checked so historical links keep working. For issues
+    and pulls only a pure-number rest is validated; numbered sub-pages
+    (`/pull/34/files`, `/pull/34.diff`, ...) and number-less pages (`/issues`,
+    `/issues/new`) are allowed instead of reported.
+    """
+    if repository is None:
+        return []
+    url = target.split("#", 1)[0].split("?", 1)[0]
+    match = GITHUB_LINK.fullmatch(url)
+    if not match:
+        return []
+    if f"{match.group('owner')}/{match.group('repo')}".lower() != repository.lower():
+        return []
+    kind = match.group("kind")
+    rest = (match.group("rest") or "").strip("/")
+    if kind in {"issues", "pull"}:
+        number, _, suffix = rest.partition("/")
+        if NUMBER.fullmatch(number):
+            # /<n>, /<n>/files, /<n>/commits/<sha>, ...: only the number is checkable.
+            return [] if int(number) else [f"（{kind} 编号必须是正整数：{rest}）"]
+        if not suffix and number in NON_NUMBER_PAGES[kind]:
+            return []  # /issues (list), /issues/new, /pull (list)
+        if kind == "pull" and PULL_PATCH.fullmatch(rest):
+            return []  # /pull/<n>.diff and /pull/<n>.patch
+        return [f"（{kind} 编号必须是正整数：{rest or '空'}）"]
+    rest = unquote(rest).strip("/")
+    if ".." in rest.split("/"):
+        # The ref is part of `rest`: reject parent segments there and in the path.
+        return [f"（ref/path 不能包含 '..'：{rest}）"]
+    ref, _, path = rest.partition("/")
+    if not ref:
+        return [f"（{kind} 缺少 ref）"]
+    path = path.strip("/")
+    if not path:
+        # `/tree/<ref>` is the repository root; `/blob/<ref>` must name a file.
+        return [] if kind == "tree" else ["（blob 链接缺少文件路径）"]
+    if ref not in LOCAL_REFS:
+        return []
+    if not (root / path).exists():
+        return [f"（本地不存在：{path}）"]
+    return []
+
+
 def check(path: Path, *, root: Path = ROOT,
           anchors: dict[Path, tuple[set[str], bool]] | None = None) -> list[str]:
     """Relative link and anchor problems in one file; fenced code is ignored."""
     text = FENCE.sub("", path.read_text(encoding="utf-8"))
     cache: dict[Path, tuple[set[str], bool]] = {} if anchors is None else anchors
+    repository = git_repository(root)
     missing: list[str] = []
     for match in LINK.finditer(text):
         target = match.group(1).strip()
-        if not target or target.startswith(("http://", "https://", "mailto:", "tel:", "data:")):
+        if not target:
+            continue
+        if target.startswith(("http://", "https://")):
+            # Traffic to other hosts and repositories stays skipped (offline check);
+            # only GitHub links to this very repository are verifiable here.
+            for detail in repository_links(target, repository, root):
+                missing.append(f"{path.relative_to(root)} -> {target}{detail}")
+            continue
+        if target.startswith(("mailto:", "tel:", "data:")):
             continue
         relative, _, fragment = target.partition("#")
         relative = unquote(relative.replace("\\", "/"))
@@ -138,13 +257,19 @@ def collect_problems() -> tuple[list[str], int]:
     """(problems, scanned file count); the running check and the tests share this."""
     problems: list[str] = []
     files = owned_files()
-    anchors: dict[Path, set[str]] = {}
+    anchors: dict[Path, tuple[set[str], bool]] = {}
     for path in files:
         problems.extend(check(path, anchors=anchors))
     return problems, len(files)
 
 
 def main() -> int:
+    if git_repository(ROOT) is None:
+        print(
+            "note: skipped GitHub absolute link checks for this repository: "
+            "no git remote origin and no GITHUB_REPOSITORY.",
+            file=sys.stderr,
+        )
     problems, files = collect_problems()
     if problems:
         print(f"{len(problems)} broken relative link(s) or anchor(s):")
