@@ -51,7 +51,16 @@ GITHUB_REMOTE = re.compile(r"github\.com[:/](?P<owner>[^/\s]+)/(?P<repo>[^/\s]+?
 REPOSITORY_ARGUMENT = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 LOCAL_REFS = {"main", "master", "HEAD"}
 # GitHub pages under /issues and /pull that carry no issue/pull number to validate.
-NON_NUMBER_PAGES = {"issues": {"", "new"}, "pull": {""}}
+# First segments: the list view, the new-issue form, and the number-less list views
+# (assigned/mentions/...). Longer entries: sub-pages whose whole rest is number-less
+# (the template chooser, the per-user lists). Any other first segment must be a number.
+NON_NUMBER_PAGES = {
+    "issues": {
+        "", "new", "assigned", "mentions", "created_by", "subscribed",
+        "new/choose", "assigned/*", "mentions/*", "created_by/*", "subscribed/*",
+    },
+    "pull": {""},
+}
 NUMBER = re.compile(r"\d+")
 PULL_PATCH = re.compile(r"\d+\.(?:diff|patch)")
 
@@ -171,9 +180,10 @@ def repository_links(target: str, repository: str | None, root: Path = ROOT) -> 
     (then the whole group is skipped and `main()` prints the reason once). Never
     touches the network: `main`/`master`/`HEAD` refs must exist in `root`, every
     other ref is only shape-checked so historical links keep working. For issues
-    and pulls only a pure-number rest is validated; numbered sub-pages
-    (`/pull/34/files`, `/pull/34.diff`, ...) and number-less pages (`/issues`,
-    `/issues/new`) are allowed instead of reported.
+    and pulls only a pure-number first segment is validated; numbered sub-pages
+    (`/pull/34/files`, `/pull/34.diff`, ...) and GitHub's number-less issue pages
+    (`/issues`, `/issues/new`, `/issues/new/choose`, `/issues/assigned/<user>`,
+    ...) are allowed instead of reported.
     """
     if repository is None:
         return []
@@ -190,8 +200,13 @@ def repository_links(target: str, repository: str | None, root: Path = ROOT) -> 
         if NUMBER.fullmatch(number):
             # /<n>, /<n>/files, /<n>/commits/<sha>, ...: only the number is checkable.
             return [] if int(number) else [f"（{kind} 编号必须是正整数：{rest}）"]
-        if not suffix and number in NON_NUMBER_PAGES[kind]:
-            return []  # /issues (list), /issues/new, /pull (list)
+        pages = NON_NUMBER_PAGES[kind]
+        if (not suffix and number in pages) or rest in pages:
+            # /issues (list), /issues/new, /issues/new/choose, /pull (list).
+            return []
+        if suffix and (f"{number}/*" in pages or f"{number}/{suffix}" in pages):
+            # /issues/assigned/<user>, /issues/mentions/<user>: no number to check.
+            return []
         if kind == "pull" and PULL_PATCH.fullmatch(rest):
             return []  # /pull/<n>.diff and /pull/<n>.patch
         return [f"（{kind} 编号必须是正整数：{rest or '空'}）"]

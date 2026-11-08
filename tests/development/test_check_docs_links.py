@@ -225,16 +225,33 @@ class RepositoryLinkTests(unittest.TestCase):
         )
         self.assertEqual(self.problems(text), [])
 
+    def test_issue_sub_pages_without_a_number_are_not_reported(self):
+        # GitHub's number-less issue pages must not be mistaken for issue numbers.
+        text = (
+            "[chooser](https://github.com/lyingloong/Mirally/issues/new/choose)\n"
+            "[template](https://github.com/lyingloong/Mirally/issues/new?template=bug.md)\n"
+            "[assigned](https://github.com/lyingloong/Mirally/issues/assigned/lyingloong)\n"
+            "[mentions](https://github.com/lyingloong/Mirally/issues/mentions)\n"
+            "[created](https://github.com/lyingloong/Mirally/issues/created_by/lyingloong)\n"
+            "[subscribed](https://github.com/lyingloong/Mirally/issues/subscribed)\n"
+            "[query](https://github.com/lyingloong/Mirally/issues/new/choose?labels=bug)\n"
+        )
+        self.assertEqual(self.problems(text), [])
+
     def test_issue_and_pull_numbers_are_format_checked(self):
         text = (
             "[issue](https://github.com/lyingloong/Mirally/issues/12)\n"
+            "[comment](https://github.com/lyingloong/Mirally/issues/12#issuecomment-1)\n"
             "[pull](https://github.com/lyingloong/Mirally/pull/34)\n"
             "[bad pull](https://github.com/lyingloong/Mirally/pull/abc)\n"
             "[bad issue](https://github.com/lyingloong/Mirally/issues/0)\n"
+            "[bad issue page](https://github.com/lyingloong/Mirally/issues/unknown/choose)\n"
         )
         self.assertEqual(self.problems(text), [
             "page.md -> https://github.com/lyingloong/Mirally/pull/abc（pull 编号必须是正整数：abc）",
             "page.md -> https://github.com/lyingloong/Mirally/issues/0（issues 编号必须是正整数：0）",
+            "page.md -> https://github.com/lyingloong/Mirally/issues/unknown/choose"
+            "（issues 编号必须是正整数：unknown/choose）",
         ])
 
     def test_other_repositories_and_external_urls_are_skipped(self):
