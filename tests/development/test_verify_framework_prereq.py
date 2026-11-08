@@ -3,6 +3,23 @@
 Offline and standard-library only: every case runs either the real script as a
 subprocess or its ``main()`` against a temporary root, so no kernel build, Node
 download, Host process or port is required.
+
+Node stand-in executability
+---------------------------
+The fake Node is a real ``.cmd`` wrapper, and the tests that matter *run* it
+(``node --version``), under several console code pages, from Chinese directories
+and with a Chinese interpreter path. Writing the wrapper is never the assertion.
+
+Known uncovered boundary: ``cmd.exe`` decodes a ``.cmd`` with the active ANSI
+code page, so the wrapper must embed an ASCII interpreter path and relies on the
+8.3 short name. On a volume with 8.3 name generation disabled,
+``GetShortPathNameW`` returns the original Unicode path; ``_wrapper_executable``
+now fails loudly there instead of emitting a wrapper that silently cannot run
+(``test_wrapper_executable_refuses_an_unshortenable_unicode_path`` covers that
+decision). ``test_node_fixture_runs_with_a_chinese_interpreter_path`` skips
+itself on such a volume because the condition cannot be produced on the CI/dev
+machines available to this repo; a machine that can create an 8.3-disabled
+volume should turn that subtest into the primary regression.
 """
 
 from __future__ import annotations
@@ -37,15 +54,15 @@ if sys.argv[1:] == ["--version"]:
 """
 
 
-def _wrapper_executable(path: str) -> str:
-    """Return an ASCII-safe interpreter path for the Windows batch wrapper.
+def _short_path(path: str) -> str | None:
+    """The 8.3 short path for ``path``, or ``None`` when the volume cannot give one.
 
-    ``cmd.exe`` reads ``.cmd`` files with the active ANSI code page, so UTF-8
-    wrapper text breaks when an absolute path contains non-ASCII characters.
-    The 8.3 short path is ASCII and refers to the same file.
+    ``GetShortPathNameW`` succeeds but returns the *original* Unicode path on
+    volumes with 8.3 name generation disabled; callers must treat that as "no
+    short path" instead of assuming an ASCII result.
     """
     if sys.platform != "win32":
-        return path
+        return None
     try:
         import ctypes
 
@@ -55,7 +72,41 @@ def _wrapper_executable(path: str) -> str:
             return buffer.value
     except (AttributeError, OSError):
         pass
-    return path
+    return None
+
+
+def _is_ascii(text: str) -> bool:
+    try:
+        text.encode("ascii")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
+def _wrapper_executable(path: str) -> str:
+    """Return an ASCII-safe interpreter path for the Windows batch wrapper.
+
+    ``cmd.exe`` reads ``.cmd`` files with the active ANSI code page, so UTF-8
+    wrapper text breaks when an absolute path contains non-ASCII characters.
+    The 8.3 short path is ASCII and refers to the same file. When the volume
+    refuses to shorten (8.3 generation disabled), the short path is still the
+    original Unicode path -- embedding it would produce a wrapper that cannot
+    run under a non-UTF-8 code page, so callers get an explicit failure instead
+    of a silently broken fixture.
+    """
+    if sys.platform != "win32":
+        return path
+    short = _short_path(path)
+    if short is None or not _is_ascii(short):
+        if _is_ascii(path):
+            return path
+        raise RuntimeError(
+            "no ASCII-safe interpreter path: GetShortPathNameW returned "
+            f"{short!r} for {path!r}. This volume has 8.3 name generation "
+            "disabled, so the batch wrapper cannot embed a runnable "
+            "interpreter path under a legacy code page."
+        )
+    return short
 
 
 def fake_node(directory: Path, version: str) -> Path:
@@ -76,6 +127,40 @@ def fake_node(directory: Path, version: str) -> Path:
                         encoding="utf-8")
         path.chmod(0o755)
     return path
+
+
+def copy_runnable_interpreter(destination: Path) -> Path:
+    """Copy an interpreter that can actually run from ``destination``.
+
+    ``shutil.copy2(sys.executable, ...)`` copies the venv *shim*, which exits 106
+    ("No pyvenv.cfg file") once it is outside its own ``Scripts`` directory, so a
+    fixture built on it proves nothing about execution. Copy the base interpreter
+    the shim points at (``sys.base_prefix``) together with the DLLs it needs.
+    """
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    base = Path(sys.base_prefix) / Path(sys.executable).name
+    source = base if base.is_file() else Path(sys.executable)
+    shutil.copy2(source, destination)
+    if sys.platform == "win32":
+        # A relocated python.exe needs its runtime next to it.
+        for dll in Path(sys.base_prefix).glob("python*.dll"):
+            shutil.copy2(dll, destination.parent / dll.name)
+    return destination
+
+
+def run_node(path: Path, *arguments: str, code_page: str | None = None) -> subprocess.CompletedProcess:
+    """Run a node stand-in for real, optionally under a specific console code page.
+
+    Windows resolves ``.cmd`` through ``cmd.exe`` with the *active* ANSI code
+    page, which is the whole reason the wrapper embeds an ASCII path. Passing
+    ``code_page`` reproduces that decode step (936=GBK, 437=US-ASCII, 65001=UTF-8)
+    without changing the machine-wide setting.
+    """
+    command = [str(path), *arguments]
+    if code_page and sys.platform == "win32":
+        command = ["cmd", "/c", "chcp", code_page, "&&", *command]
+    return subprocess.run(command, capture_output=True, text=True, encoding="utf-8",
+                          errors="replace", timeout=60)
 
 
 def not_node() -> Path:
@@ -172,8 +257,7 @@ class VerifyFrameworkPrereqProcessTests(TempRootTestCase):
         # Regression guard for the Windows fixture: batch text written into a file named
         # node.exe is not executable, so every "supported Node" case used to take the
         # "not Node" branch. The stand-in must really answer node --version.
-        result = subprocess.run([str(self.node), "--version"], capture_output=True, text=True,
-                                timeout=30)
+        result = run_node(self.node, "--version")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), "v22.19.0")
 
@@ -182,8 +266,7 @@ class VerifyFrameworkPrereqProcessTests(TempRootTestCase):
         # TEMP contained Chinese characters, before any test body could run.
         chinese_temp = self.base / "中文临时目录"
         node = fake_node(chinese_temp / "node-中文", "v22.19.0")
-        result = subprocess.run([str(node), "--version"], capture_output=True, text=True,
-                                timeout=30)
+        result = run_node(node, "--version")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), "v22.19.0")
 
@@ -197,6 +280,50 @@ class VerifyFrameworkPrereqProcessTests(TempRootTestCase):
             node = fake_node(self.base / "node-chinese-python", "v22.19.0")
         self.assertTrue(node.is_file())
         self.assertIn("node_version.py", node.read_text(encoding="utf-8"))
+
+    def test_node_fixture_runs_with_a_chinese_interpreter_path(self):
+        # Writing the wrapper is not enough: it must actually run. A Chinese path
+        # that the volume shortens (8.3) yields an ASCII interpreter in the batch
+        # text, so the wrapper executes under every legacy code page.
+        chinese_python = self.base / "中文解释器 with spaces" / "python.exe"
+        copy_runnable_interpreter(chinese_python)
+        short = _short_path(str(chinese_python))
+        if short is None or not _is_ascii(short):
+            self.skipTest(
+                f"volume cannot shorten {chinese_python} to an ASCII 8.3 name "
+                f"(GetShortPathNameW -> {short!r}); see the runnable-fixture "
+                "limitation documented in the test module docstring"
+            )
+        with mock.patch.object(sys, "executable", str(chinese_python)):
+            node = fake_node(self.base / "node-chinese-interpreter", "v22.19.0")
+        # The embedded path is the short form, never the Unicode one.
+        self.assertNotIn("中文", node.read_text(encoding="utf-8"))
+        for code_page in (None, "936", "437", "65001"):
+            with self.subTest(code_page=code_page):
+                result = run_node(node, "--version", code_page=code_page)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("v22.19.0", result.stdout)
+
+    def test_wrapper_executable_refuses_an_unshortenable_unicode_path(self):
+        # The regression that kept this thread open: GetShortPathNameW returns the
+        # *original* Unicode path when 8.3 generation is off, and returning it as
+        # though it were a short path produced a wrapper that cannot run under a
+        # non-UTF-8 code page. Simulate that volume by making the lookup yield the
+        # Unicode input, and require an explicit failure instead of a bad path.
+        unicode_path = str(self.base / "中文解释器 with spaces" / "python.exe")
+        module = sys.modules[__name__]
+        with mock.patch.object(module, "_short_path", return_value=unicode_path):
+            with self.assertRaises(RuntimeError) as raised:
+                _wrapper_executable(unicode_path)
+        self.assertIn("name generation disabled", str(raised.exception))
+
+    def test_wrapper_executable_keeps_an_ascii_path_when_shortening_fails(self):
+        # An ASCII interpreter needs no short name: the lookup failing must not
+        # turn a perfectly runnable fixture into an error.
+        ascii_path = str(self.base / "plain-python" / "python.exe")
+        module = sys.modules[__name__]
+        with mock.patch.object(module, "_short_path", return_value=None):
+            self.assertEqual(_wrapper_executable(ascii_path), ascii_path)
 
     def test_outdated_node_skips(self):
         # The real v20 stand-in is actually run by the script (no mocking), so this also
