@@ -1,6 +1,7 @@
 import { consume } from '@lit/context';
 import { html, nothing, type PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
+import { repeat } from 'lit/directives/repeat.js';
 import { applicationContext, type ApplicationContext } from '../../app/context.ts';
 import { renderSettingsPage, renderSettingsPageHeader, renderSettingsSection } from '../../components/settings-ui.ts';
 import { renderSettingsWorkspace } from '../../components/settings-workspace.ts';
@@ -29,9 +30,11 @@ class MirallyMessagesPage extends OpenClawLightDomElement {
   @property() page: 'inbox'|'reminders' = 'inbox';
   @state() private items: Item[] = [];
   @state() private loading = true;
+  @state() private hasLoaded = false;
   @state() private busy = false;
   @state() private notice = '';
   @state() private failure = '';
+  @state() private failureDetail = '';
   @state() private reminderTitle = String(readDraft().title||'').slice(0,512);
   @state() private time = String(readDraft().time||'').slice(0,32);
   @state() private unreadOnly = false;
@@ -49,33 +52,41 @@ class MirallyMessagesPage extends OpenClawLightDomElement {
     if ((event as CustomEvent).detail?.type === 'inbox' && this.page === 'inbox' && !this.busy) void this.refresh();
   };
   override connectedCallback() { super.connectedCallback(); window.addEventListener('mirally-product-event', this.onProductEvent); }
-  override disconnectedCallback() { ++this.epoch;++this.view; window.removeEventListener('mirally-product-event', this.onProductEvent); super.disconnectedCallback(); }
-  protected override updated(changed: PropertyValues) { if (changed.has('page')) { ++this.view;this.busy=false;this.items=[]; this.failure=''; this.notice=''; void this.refresh(); } }
+  override disconnectedCallback() { ++this.epoch;++this.view;this.failureDetail=''; window.removeEventListener('mirally-product-event', this.onProductEvent); super.disconnectedCallback(); }
+  protected override updated(changed: PropertyValues) { if (changed.has('page')) { ++this.view;this.busy=false;this.items=[];this.hasLoaded=false;this.deliveries=[];this.recurrences=[]; this.failure='';this.failureDetail=''; this.notice=''; void this.refresh(); } }
   private async refresh() {
-    const epoch=++this.epoch, page=this.page; this.loading=true;
+    const epoch=++this.epoch, page=this.page; this.loading=true;this.failure='';this.failureDetail='';
     try { const [result,calendar,desktop,weixin,recurrences]=await Promise.all([rpcProduct<Item>(page==='inbox'?'inbox.list':'commitment.list'),
       rpcProduct<{time_zone:string|null;confirmed:boolean}>('calendar.settings.get'),
       page==='reminders'?rpcProduct<{deliveries:Item[]}>('calendar.delivery.list',{channel:'desktop',include_terminal:true}):Promise.resolve({deliveries:[]}),
       page==='reminders'?rpcProduct<{deliveries:Item[]}>('calendar.delivery.list',{channel:'weixin',include_terminal:true}):Promise.resolve({deliveries:[]}),
       page==='reminders'?rpcProduct<{recurrences:Item[]}>('calendar.recurrence.list'):Promise.resolve({recurrences:[]})]);
       if (!this.isConnected || epoch!==this.epoch) return;
+      const items=page==='inbox'?result.items:result.commitments;
+      if (!Array.isArray(items)) throw new Error('服务没有返回有效列表，请刷新重试。');
+      if (!calendar || typeof calendar.confirmed!=='boolean' || (calendar.time_zone!==null && typeof calendar.time_zone!=='string')
+        || !Array.isArray(desktop?.deliveries) || !Array.isArray(weixin?.deliveries) || !Array.isArray(recurrences?.recurrences)) {
+        throw new Error('服务返回的日历状态不完整，请刷新重试。');
+      }
       this.timeZone=calendar.time_zone || ''; this.timeZoneConfirmed=calendar.confirmed;
       this.deliveries=[...desktop.deliveries,...weixin.deliveries];
       this.recurrences=recurrences.recurrences;
-      this.items=page==='inbox'?result.items:result.commitments; this.failure='';
-      if (!Array.isArray(this.items)) throw new Error('服务没有返回有效列表，请刷新重试。');
-    } catch(error) { if (this.isConnected && epoch===this.epoch) { this.failure=errorMessage(error); this.items=[]; } }
+      this.items=items; this.hasLoaded=true; this.failure='';this.failureDetail='';
+    } catch(error) { if (this.isConnected && epoch===this.epoch) {
+      this.failure=this.hasLoaded?'刷新失败，保留上次读取的内容，请刷新重试。':'读取失败，请刷新重试。';
+      this.failureDetail=errorMessage(error);
+    } }
     finally { if (this.isConnected && epoch===this.epoch) this.loading=false; }
   }
   private async mutate(action:()=>Promise<unknown>, success: string) {
-    if(this.busy)return;this.busy=true;this.failure='';this.notice='';
+    if(this.busy)return;this.busy=true;this.failure='';this.failureDetail='';this.notice='';
     const view=this.view;
     try { await action(); if(this.isConnected&&this.view===view) {this.notice=success;await this.refresh();} }
-    catch(error){if(this.isConnected&&this.view===view)this.failure=errorMessage(error);}
+    catch(error){if(this.isConnected&&this.view===view){this.failure=errorMessage(error);this.failureDetail='';}}
     finally{if(this.isConnected&&this.view===view)this.busy=false;}
   }
   private async create(event: SubmitEvent) {
-    event.preventDefault(); const title=this.reminderTitle.trim();
+    event.preventDefault();this.failureDetail=''; const title=this.reminderTitle.trim();
     const content=JSON.stringify({title,time:this.time,timeZone:this.timeZone});
     if (!title || !this.time || !this.timeZoneConfirmed) { this.failure='请填写提醒内容和时间，并先确认时区。'; return; }
     const retry=Boolean(this.requestId && content===this.requestContent);
@@ -107,14 +118,16 @@ class MirallyMessagesPage extends OpenClawLightDomElement {
       if (!list.some(item=>item.id===series.current_commitment_id)) list.push({id:series.current_commitment_id,title:series.title,body:series.body,status:'pending',due_at:series.next_due_at_utc_ms});
     }
     const seriesByCommitment = new Map(this.recurrences.map(item=>[item.current_commitment_id,item]));
-    const notice=html`${this.failure?html`<p role="alert" class="mirally-product-notice" data-error>${this.failure}</p>`:nothing}${this.notice?html`<p role="status" class="mirally-product-notice">${this.notice}</p>`:nothing}`;
-    return html`${renderSettingsPageHeader({title:reminders?'日历':'消息'})}${renderSettingsWorkspace(renderSettingsPage(html`
+    const notice=html`${this.failure?html`<p role="alert" class="mirally-product-notice" data-error>${this.failure}</p>`:nothing}${this.failure&&this.failureDetail?html`<details class="mirally-product-notice"><summary>错误详情</summary><pre class="mirally-product-body">${this.failureDetail}</pre></details>`:nothing}${this.notice?html`<p role="status" class="mirally-product-notice">${this.notice}</p>`:nothing}`;
+    const refresh=html`<button class="btn mirally-product-refresh" @click=${()=>this.refresh()} ?disabled=${this.loading||this.busy}>${this.loading&&this.hasLoaded?'刷新中…':'刷新'}</button>`;
+    const inboxControls=html`<label class="mirally-product-check"><input type="checkbox" data-testid="mirally-inbox-unread" .checked=${this.unreadOnly} @change=${(e:Event)=>this.unreadOnly=(e.target as HTMLInputElement).checked}>只看未读</label>${refresh}`;
+    return html`${renderSettingsPageHeader({title:reminders?'日历':'消息',actions:reminders?nothing:inboxControls})}${renderSettingsWorkspace(renderSettingsPage(html`
       ${reminders?html`<div class="mirally-product-actions"><button class=${this.calendarView?'btn primary':'btn'} aria-pressed=${String(this.calendarView)} @click=${()=>this.calendarView=true}>日程</button><button class=${this.calendarView?'btn':'btn primary'} aria-pressed=${String(!this.calendarView)} @click=${()=>this.calendarView=false}>提醒</button></div>`:nothing}
       ${reminders && this.calendarView?html`<mirally-calendar-panel></mirally-calendar-panel>`:html`${notice}${reminders?this.reminderForm():nothing}
-      ${renderSettingsSection({title:reminders?'我的提醒':'Mirally 发来的消息',description:reminders?'提醒独立于一般主动联系开关。':'到期提醒与获准的主动联系会保存在这里。打开页面不会自动标记已读。',actions:html`<button class="btn" @click=${()=>this.refresh()} ?disabled=${this.loading||this.busy}>刷新</button>`},html`
-        ${!reminders?html`<div class="mirally-product-item"><label><input type="checkbox" data-testid="mirally-inbox-unread" .checked=${this.unreadOnly} @change=${(e:Event)=>this.unreadOnly=(e.target as HTMLInputElement).checked}>只看未读</label></div>`:nothing}
-        ${this.loading?html`<p role="status" class="mirally-product-empty">正在读取…</p>`:!list.length?html`<p class="mirally-product-empty">${this.failure?'读取失败，刷新后重试。':reminders?'还没有提醒。':'这里暂时没有消息。'}</p>`:list.map(item=>html`
-          <article class="mirally-product-item" data-testid=${reminders?'mirally-reminder-item':'mirally-inbox-item'}>
+      ${renderSettingsSection({title:reminders?'我的提醒':undefined,description:reminders?'提醒独立于一般主动联系开关。':undefined,actions:reminders?refresh:undefined},html`
+        <div aria-busy=${String(this.loading)}>
+        ${this.loading&&!this.hasLoaded?html`<p role="status" class="mirally-product-empty">正在读取…</p>`:this.failure&&!this.hasLoaded?nothing:!list.length?html`<p class="mirally-product-empty">${reminders?'还没有提醒。':this.unreadOnly?'没有未读消息。':'这里暂时没有消息。'}</p>`:repeat(list,item=>reminders?item.id:item.delivery_id??item.id,item=>html`
+          <article class="mirally-product-item mirally-message-item" data-unread=${String(!reminders&&item.state==='unread')} data-testid=${reminders?'mirally-reminder-item':'mirally-inbox-item'}>
             <h3>${item.title}</h3>${item.body&&item.body!==item.title?html`<p class="mirally-product-body">${item.body}</p>`:nothing}
             <p class="mirally-product-meta">${statuses[reminders?item.status:item.state]||'状态待核对'} · ${date(reminders?item.due_at:item.updated_at,this.timeZone)}${reminders&&seriesByCommitment.has(item.id)?` · ${repeatLabel(seriesByCommitment.get(item.id)!)}`:''}</p>
             ${reminders&&this.deliveries.some(delivery=>delivery.commitment_id===item.id)?html`<p class="mirally-product-meta">${this.deliveries.filter(delivery=>delivery.commitment_id===item.id).map(delivery=>`${delivery.channel==='desktop'?'桌面':'微信'}：${deliveryStates[delivery.status]||'状态待核对'}`).join(' · ')}</p>`:nothing}
@@ -124,6 +137,7 @@ class MirallyMessagesPage extends OpenClawLightDomElement {
               ${!reminders&&item.conversation_id&&!item.withdrawn?html`<button class="btn" @click=${()=>this.openConversation(item)}>接着聊</button>`:nothing}
             </div>
           </article>`)}
+        </div>
       `)}`}
     `))}`;
   }

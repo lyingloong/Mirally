@@ -1,36 +1,73 @@
 /* Mirally presentation only. Native layout, state and semantics remain intact.
-   Default light/dark families become sky blue; other native themes stay selectable. */
+   Default light/dark families use neutral surfaces and blue accents. */
 :root[data-mirally][data-theme="light"] {
-  --bg:#f7f9fc; --bg-content:#f7f9fc; --bg-accent:#edf5fb; --bg-elevated:#fff;
-  --bg-hover:#edf3f9; --bg-muted:#edf3f9; --card:#fff; --card-foreground:#192b3a;
-  --popover:#fff; --popover-foreground:#192b3a; --panel:#fff; --panel-strong:#f2f6fb;
-  --panel-hover:#edf5fb; --chrome:#fffffff5; --chrome-strong:#fffffffa;
-  --text:#192b3a; --text-strong:#14293c; --chat-text:#192b3a;
-  --muted:#627387; --muted-strong:#4f6579; --muted-foreground:#627387;
-  --border:#e1e8ef; --border-strong:#cddae5; --border-hover:#a6c3d8; --input:#e1e8ef;
+  --bg:#f7f7f8; --bg-content:#fff; --bg-accent:#f3f3f5; --bg-elevated:#fff;
+  --bg-hover:#eeeef0; --bg-muted:#f3f3f5; --card:#fff; --card-foreground:#27272a;
+  --popover:#fff; --popover-foreground:#27272a; --panel:#fff; --panel-strong:#f3f3f5;
+  --panel-hover:#eeeef0; --chrome:#f7f7f8; --chrome-strong:#fff;
+  --text:#27272a; --text-strong:#18181b; --chat-text:#27272a;
+  --muted:#65656f; --muted-strong:#52525b; --muted-foreground:#65656f;
+  --border:#e4e4e7; --border-strong:#d4d4d8; --border-hover:#a1a1aa; --input:#e4e4e7;
   --accent:#0878b2; --accent-hover:#086b9d; --accent-muted:#199fe6;
   --accent-subtle:#edf5fb; --accent-foreground:#fff; --accent-glow:#199fe629;
   --primary:#0878b2; --primary-hover:#086b9d; --primary-foreground:#fff;
-  --secondary:#edf5fb; --secondary-foreground:#192b3a;
-  --ring:#199fe6; --focus:#199fe629; --grid-line:#91b8d514;
-  --brand-logo-chip-bg:#fff; --shadow-sm:0 1px 3px #1539540a;
-  --shadow-md:0 6px 22px #1539540b; --shadow-lg:0 14px 40px #15395412;
-  --shadow-xl:0 24px 60px #1539541a; --overlay-shadow:0 8px 30px #15395414;
+  --secondary:#f3f3f5; --secondary-foreground:#27272a;
+  --ring:#199fe6; --focus:#199fe629; --grid-line:#18181b0a;
+  --brand-logo-chip-bg:#fff; --shadow-sm:0 1px 3px #0000000a;
+  --shadow-md:0 6px 22px #0000000b; --shadow-lg:0 14px 40px #00000012;
+  --shadow-xl:0 24px 60px #0000001a; --overlay-shadow:0 8px 30px #00000014;
   --selection-bg:#0878b2; --selection-fg:#fff;
+  --mirally-current-surface:#e8e8eb; --mirally-user-bubble:#f3f3f5;
+  --app-background-image:none;
 }
 :root[data-mirally][data-theme="dark"] {
-  --bg:#111923; --bg-content:#111923; --bg-accent:#172332; --bg-elevated:#1b2938;
-  --bg-hover:#203044; --bg-muted:#1b2938; --card:#172331; --card-foreground:#e5f0f9;
-  --popover:#1b2938; --popover-foreground:#e5f0f9; --panel:#141f2c; --panel-strong:#1b2938;
-  --panel-hover:#203044; --chrome:#141f2cf5; --chrome-strong:#141f2cfa;
-  --text:#d5e3ef; --text-strong:#f0f7fd; --chat-text:#d5e3ef;
-  --muted:#8fa6bc; --muted-strong:#aac0d3; --muted-foreground:#8fa6bc;
-  --border:#293b4e; --border-strong:#37516a; --border-hover:#517694; --input:#293b4e;
+  --bg:#202023; --bg-content:#18181b; --bg-accent:#27272a; --bg-elevated:#27272a;
+  --bg-hover:#303034; --bg-muted:#27272a; --card:#202023; --card-foreground:#e4e4e7;
+  --popover:#27272a; --popover-foreground:#e4e4e7; --panel:#202023; --panel-strong:#27272a;
+  --panel-hover:#303034; --chrome:#202023; --chrome-strong:#27272a;
+  --text:#e4e4e7; --text-strong:#fafafa; --chat-text:#e4e4e7;
+  --muted:#a1a1aa; --muted-strong:#d4d4d8; --muted-foreground:#a1a1aa;
+  --border:#3f3f46; --border-strong:#52525b; --border-hover:#71717a; --input:#3f3f46;
   --accent:#62c5fa; --accent-hover:#91d6fc; --accent-muted:#62c5fa;
   --accent-subtle:#62c5fa16; --accent-foreground:#102132; --accent-glow:#39b8ff24;
   --primary:#62c5fa; --primary-hover:#91d6fc; --primary-foreground:#102132;
-  --secondary:#203044; --secondary-foreground:#d5e3ef; --ring:#62c5fa; --focus:#62c5fa24;
-  --grid-line:#8cb5d70a; --brand-logo-chip-bg:#172331;
+  --secondary:#303034; --secondary-foreground:#e4e4e7; --ring:#62c5fa; --focus:#62c5fa24;
+  --grid-line:#fafafa0a; --brand-logo-chip-bg:#202023;
+  --mirally-current-surface:#36363b; --mirally-user-bubble:#303034;
+  --app-background-image:none;
+}
+/* Default palettes share solid surfaces. Keep alternate themes, sender identity
+   tints, media-only bubble shells and forced-color treatments intact. */
+:root[data-mirally]:is([data-theme="light"], [data-theme="dark"]) .sidebar {
+  --sidebar-bg:var(--bg);
+}
+:root[data-mirally]:is([data-theme="light"], [data-theme="dark"]) .sidebar-new-conversation {
+  background:var(--bg-muted);
+}
+:root[data-mirally]:is([data-theme="light"], [data-theme="dark"]) .sidebar-new-conversation:hover:not([aria-disabled="true"]) {
+  background:var(--bg-hover);
+}
+:root[data-mirally]:is([data-theme="light"], [data-theme="dark"]) :is(.nav-item.active, .nav-item--active) {
+  background:var(--mirally-current-surface);
+  border-color:transparent;
+}
+:root[data-mirally]:is([data-theme="light"], [data-theme="dark"]) .sidebar-recent-session--active:not(.sidebar-recent-session--selected) {
+  --session-row-bg:var(--mirally-current-surface);
+  border-color:transparent;
+}
+:root[data-mirally]:is([data-theme="light"], [data-theme="dark"]) .chat-group.user:not(.chat-group--sender-tint) .chat-bubble {
+  --chat-bubble-background:var(--mirally-user-bubble);
+}
+@media (forced-colors: none) and (prefers-contrast: no-preference) {
+  :root[data-mirally]:is([data-theme="light"], [data-theme="dark"]) .agent-chat__input:not(.agent-chat__input--dictating, .agent-chat__input--prefill-attention) {
+    background:var(--chat-composer-surface);
+    border-color:var(--border);
+    box-shadow:0 2px 8px #0000000a;
+  }
+  :root[data-mirally]:is([data-theme="light"], [data-theme="dark"]) .agent-chat__input:not(.agent-chat__input--dictating, .agent-chat__input--prefill-attention):has(.agent-chat__composer-combobox > :is(textarea, input):focus) {
+    border-color:var(--accent);
+    box-shadow:none;
+  }
 }
 /* Promotion occupies the history rail; remove its slot rather than leave a gap.
    Discord as an actual configured channel remains fully available. */
@@ -42,11 +79,11 @@
 [data-mirally] .sidebar-brand { --brand-logo-chip-bg:transparent; }
 :root[data-mirally][data-theme-mode] .settings-theme-card--claw,
 :root[data-mirally][data-theme-mode] .settings-accent-theme--claw {
-  --theme-chip-bg:#f7f9fc; --theme-chip-accent:#0878b2; --theme-chip-accent-2:#199fe6;
+  --theme-chip-bg:#fff; --theme-chip-accent:#0878b2; --theme-chip-accent-2:#199fe6;
 }
 :root[data-mirally][data-theme-mode="dark"] .settings-theme-card--claw,
 :root[data-mirally][data-theme-mode="dark"] .settings-accent-theme--claw {
-  --theme-chip-bg:#111923; --theme-chip-accent:#62c5fa; --theme-chip-accent-2:#199fe6;
+  --theme-chip-bg:#18181b; --theme-chip-accent:#62c5fa; --theme-chip-accent-2:#199fe6;
 }
 /* Keep the native mascot's target, motion and interactions; reskin its image. */
 [data-mirally] svg:has(#lob-g),

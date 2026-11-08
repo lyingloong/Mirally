@@ -7,7 +7,8 @@ not call GitHub or the AgentTeams API.
 
 State and local config live under ``output/agent-workflow/`` by default (the
 directory is gitignored). The tracked process definition is
-``docs/development/agent-teams-workflow.md``.
+``docs/development/agent-teams-workflow.md``. A lock file beside the state
+serializes read-modify-write commands across processes.
 """
 from __future__ import annotations
 
@@ -17,9 +18,11 @@ import json
 import os
 import sys
 import tempfile
+import time
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_STATE_PATH = REPO_ROOT / "output" / "agent-workflow" / "state.json"
@@ -184,6 +187,69 @@ def validate_config(config: dict[str, Any]) -> None:
             raise WorkflowError("config.quota.fallback.mode currently supports only quota_restart_only")
         if not fallback.get("provider") or not fallback.get("model"):
             raise WorkflowError("fallback requires both provider and model")
+
+
+LOCK_TIMEOUT = 10.0
+LOCK_POLL_SECONDS = 0.02
+
+
+@contextmanager
+def state_lock(state_path: Path, *, timeout: float = LOCK_TIMEOUT) -> Iterator[None]:
+    """Serialize read-modify-write commands that share one state file.
+
+    Commands load the whole state, edit it in memory and write it back, so two
+    processes racing there silently drop each other's points. The sibling
+    ``<state>.lock`` file is locked with the operating system's advisory lock
+    (``msvcrt.locking`` on Windows, ``fcntl.flock`` elsewhere). Ownership is
+    tied to the holding process: exiting or crashing releases the lock, so a
+    lock file left on disk is never evidence that another process still owns
+    it, and mtime is not used to guess staleness. Waiting is bounded by
+    ``timeout``; on timeout the command reports an actionable error and never
+    deletes the lock file.
+    """
+    lock = state_path.with_name(state_path.name + ".lock")
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    handle = lock.open("a+b")
+    try:
+        handle.seek(0, os.SEEK_END)
+        if handle.tell() == 0:
+            # Windows locks a byte range, so the file must cover it. The content
+            # is irrelevant; the OS lock, not the file's existence, is the state.
+            handle.write(b"0")
+            handle.flush()
+        handle.seek(0)
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                if sys.platform == "win32":
+                    import msvcrt
+
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise WorkflowError(
+                        f"state is locked by another process ({lock}); "
+                        "retry after that command finishes"
+                    ) from None
+                time.sleep(LOCK_POLL_SECONDS)
+        try:
+            yield
+        finally:
+            try:
+                handle.seek(0)
+                if sys.platform == "win32":
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+    finally:
+        handle.close()
 
 
 def load_state(path: Path) -> dict[str, Any]:
@@ -1286,7 +1352,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
-        return COMMANDS[args.command](args)
+        with state_lock(Path(args.state)):
+            return COMMANDS[args.command](args)
     except WorkflowError as error:
         _write_text(sys.stderr, f"error: {error}\n")
         return 2
