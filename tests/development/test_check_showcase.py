@@ -216,6 +216,38 @@ class ShowcaseAuditTests(unittest.TestCase):
         self.assertTrue(any("external reference https://github.com/lyingloong/Mirally" in problem
                             for problem in result["problems"]), result["problems"])
 
+    def test_navigation_constant_with_dollar_name_is_an_anchor_only(self) -> None:
+        # ``$`` is a valid JS identifier character but not a regex word
+        # character: ``\b\$homepage\b`` never matched, so a ``$`` constant used
+        # as an image source was wrongly exempted as navigation.
+        navigation = (
+            'const $homepage = "https://lyingloong.github.io/";\n'
+            'export function App() {\n  return <><h1>A</h1><a href={$homepage}>home</a></>;\n}\n'
+        )
+        result = self.audit(self.fixture(app=navigation))
+        self.assertEqual(result["problems"], [], result["problems"])
+
+        asset = (
+            'const $homepage = "https://lyingloong.github.io/";\n'
+            'export function App() {\n  return <><h1>A</h1><img src={$homepage} alt="remote" /></>;\n}\n'
+        )
+        result = self.audit(self.fixture(app=asset))
+        self.assertTrue(any("external reference https://lyingloong.github.io/" in problem
+                            for problem in result["problems"]), result["problems"])
+
+    def test_navigation_constant_does_not_leak_into_longer_identifiers(self) -> None:
+        # The whole-identifier boundary must not treat ``homepageAsset`` as a use
+        # of ``homepage``, and vice versa.
+        app = (
+            'const homepage = "https://lyingloong.github.io/";\n'
+            'const homepageAsset = homepage;\n'
+            'export function App() {\n  return <><h1>A</h1><a href={homepage}>home</a>'
+            '<img src={homepageAsset} alt="remote" /></>;\n}\n'
+        )
+        result = self.audit(self.fixture(app=app))
+        self.assertTrue(any("external reference https://lyingloong.github.io/" in problem
+                            for problem in result["problems"]), result["problems"])
+
     def test_missing_reduced_motion_is_reported(self) -> None:
         result = self.audit(self.fixture(style="body { color: #111; }\n"))
         self.assertTrue(any("prefers-reduced-motion" in problem for problem in result["problems"]), result["problems"])

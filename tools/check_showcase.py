@@ -162,6 +162,16 @@ def declared_identifier(text: str, offset: int) -> str | None:
     return None
 
 
+def identifier_pattern(identifier: str) -> re.Pattern[str]:
+    """Match whole JavaScript identifier uses, including ``$`` and ``_`` names.
+
+    ``\\b`` treats ``$`` as a non-word character, so ``\\b\\$homepage\\b`` never
+    matches ``$homepage``; the boundaries are spelled out from the identifier
+    characters allowed by ``DECLARATION_NAME`` instead.
+    """
+    return re.compile(rf"(?<![A-Za-z0-9_$]){re.escape(identifier)}(?![A-Za-z0-9_$])")
+
+
 def navigation_constant(text: str, identifier: str, seen: frozenset[str] = frozenset()) -> bool:
     """Whether every use of ``identifier`` is an anchor href target (aliases included).
 
@@ -173,7 +183,7 @@ def navigation_constant(text: str, identifier: str, seen: frozenset[str] = froze
         return False
     name_spans = [match.span(1) for match in DECLARATION_NAME.finditer(text)]
     targets = anchor_href_spans(text)
-    for match in re.finditer(rf"\b{re.escape(identifier)}\b", text):
+    for match in identifier_pattern(identifier).finditer(text):
         start = match.start()
         if _inside(name_spans, start):
             continue  # the declaration itself is not a use
