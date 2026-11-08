@@ -1,6 +1,6 @@
 # AgentTeams 仓库开发工作流
 
-本文定义 Mirally 的常驻开发工作流：需求师持续产出开发点，工程师在独立 worktree 实现并提 PR，审查师验证和审查，**审查通过后仍需用户批准才能合并**。当前已进入持续开发循环；队长运行手册与决策口径见 [AgentTeams 控制核心](workflow-control-core.md)。
+本文定义 Mirally 的常驻开发工作流：需求师持续产出开发点，工程师在独立 worktree 实现并提 PR，审查师验证和审查，**合并在审查通过后由用户或已获授权的 Codex 执行，队长与成员绝不自行 merge**。当前已进入持续开发循环；队长运行手册与决策口径见 [AgentTeams 控制核心](workflow-control-core.md)。
 
 ## 为什么不是一次性 DAG
 
@@ -18,8 +18,8 @@ AI 发现 ──┘          │
    需求规格 → 实现 → 验证 → 审查 ──fail──> 修复 → 复审
                      │ pass
                      ▼
-          awaiting_merge（等待用户批准；池内全部不占并发）
-                     │ 用户批准
+          awaiting_merge（等待用户或 Codex 决定；池内全部不占并发）
+                     │ 用户/Codex 批准
                      ▼
               集成合并 → 汇报 → done
 ```
@@ -34,7 +34,7 @@ AI 发现 ──┘          │
 | --- | --- | --- |
 | 需求师 | 2 | 盘点、拆分、写规格；维护 AI 候选点；可并行产规格；拆分前读经验库 |
 | 工程师 | 3 | 每人在独立 worktree 实现一个开发点，提 PR，按审查意见修复；实现前读经验库 |
-| 审查师 | 1 | 独立验证、代码审查、维护经验库、通过后等待用户批准再合并 |
+| 审查师 | 1 | 独立验证、代码审查、维护经验库、通过后不自行合并，由用户或已授权的 Codex 决定 |
 
 一个 AgentTeams 成员不能同时持有两个未完成任务，所以并发数 3 需要 3 个工程师。审查默认串行；如果持续排队，可增加第二名审查师。队长不占开发并发。两个需求师可同时工作，但同一门禁任务仍只由一名成员持有。
 
@@ -51,13 +51,13 @@ queued → specifying → implementing → verifying → reviewing
                                                 │ pass
                                                 ▼
                                          awaiting_merge
-                                                │ 用户批准
+                                                │ 用户/Codex 批准
                                                 ▼
                                              merging → done
 ```
 
 另有 `proposed`（AI 点待用户审核）、`rejected`、`cancelled`、`blocked`。
-`awaiting_merge` 表示审查已通过，但**不允许合并**，必须等用户批准。
+`awaiting_merge` 表示审查已通过，但**成员不允许合并**，由用户或已获授权的 Codex 决定合并。
 
 ## 并发规则
 
@@ -83,7 +83,8 @@ free_slots     = max(0, concurrency - load)
 ## 调度优先级与 AI 点
 
 1. **用户点优先**。用户提供的点直接进入 `queued`，先占开发槽；如果用户点会占满所有空槽，`start` 会拒绝启动 AI 点，把空槽留给用户点。因容量不足等待返工的用户点（`blocked` / `blocked_reason=capacity`）也属于用户优先：槽位释放后队长先 `resume_capacity`，AI 自动发现和启动不能抢先占槽。
-   状态助手 `build_summary` 的 `action` 依次为：配额暂停 `wait_quota` → 用户待开发点 `start_user` → 用户容量返工 `resume_capacity` → AI 队列 `start_agent` → AI 自动启动 `promote_agent` → 需求师发现 `discover_agent` → 容量返工恢复 `resume_capacity`（有空槽且存在 `capacity_blocked` 点时优先于合并队列提醒）→ 新合并队首 `ask_user_merge`（同一批待合并点已经展示过、用户尚未答复时为 `wait_merge_approval`，只在报告里继续列出，不重复索取决定）。
+   状态助手 `build_summary` 的 `action` 依次为：配额暂停 `wait_quota` → 用户待开发点 `start_user` → 用户容量返工 `resume_capacity` → AI 队列 `start_agent` → AI 自动启动 `promote_agent` → 需求师发现 `discover_agent`（有新的合并队首要交付、或有空槽的容量返工待恢复时让位）→ 容量返工恢复 `resume_capacity`（有空槽且存在 `capacity_blocked` 点时优先于合并队列提醒）→ 新合并队首 `ask_user_merge`（默认 `merge_queue_exempt=100` 全池免占时同样可达）→ 已展示的同一池 `wait_merge_approval`（只在报告里继续列出，不重复索取决定）。
+   “已展示”是**显式持久化状态**：只有真正向用户交付队首的命令才记录它——`agent_workflow.py next --deliver` 写出 `merge_queue_asked`（待合并 id 列表、队首、时间），普通 `next`/`status`/`set-status` 等命令只读不写，未交付的询问不会被写盘命令静默消费；队列为空时该记录在下次交付中清除，新队列不会看起来“已答复”。
 2. 用户待开发点为 0、仍有空槽时，需求师可以自行发现新的 AI 点。
 3. AI 点满足以下全部条件时，可**不经用户预审直接进入开发**：
    - 没有用户待开发点，也没有用户容量等待项；
@@ -116,8 +117,9 @@ free_slots     = max(0, concurrency - load)
   回复：合并 dev-0007 / 退回 dev-0007 <理由>
 ```
 
-- 用户批准后，队长才创建 integration 任务；审查师执行普通 merge（`gh pr merge --merge`，不用 squash/rebase），确认 `origin/main` 包含合并提交。
-- **合并语义**：合并决定由**用户或 Codex** 做出，两者都可以直接在 GitHub 合并任意已审 PR（不限于队首）；队长和 AgentTeams 成员绝不自行 merge。状态助手的 `merge-approved` 只接受队首；用户/Codex 在 GitHub 合并非队首 PR 后，队长用 `merge-reconcile <id> --pr <n> --head-sha <sha> --approved-by user|codex --confirm-merged` 审计记账（要求显式确认、PR/head 与 state 一致，重复执行或 PR/head 不符会拒绝）。细节见 [AgentTeams 控制核心](workflow-control-core.md)。
+- 用户或 Codex 批准后，队长创建 integration 任务；审查师执行普通 merge（`gh pr merge --merge`，不用 squash/rebase），确认 `origin/main` 包含合并提交。
+- **合并职责**：按用户现行授权，**Codex 可直接合并常规已审 PR**（在 GitHub 上完成），与用户亲自合并等价；合并决定由用户或 Codex 做出，两者都可以合并任意已审 PR（不限于队首）。队长与 AgentTeams 成员绝不自行 merge；它们只负责报告队首、按用户/Codex 的决定推进状态。用户不在场时，合并由 Codex 按用户授权决定，不需要额外的人工批准停顿。
+- 状态助手只记账：`merge-approved` 只接受队首；非队首被合并后，用 `merge-reconcile <id> --pr <n> --head-sha <sha> --approved-by user|codex --confirm-merged` 审计记账（要求显式确认、PR/head 与 state 一致，重复执行或 PR/head 不符会拒绝）。细节见 [AgentTeams 控制核心](workflow-control-core.md)。
 - 用户退回：进入 `repairing`；如果决定不做，标记 `rejected` 并关闭 PR。
 - 退回或返工若会增加调度负载（例如唯一待合并队首退回 `repairing`，而其他槽位已满），不强行增加负载：点登记为 `blocked` / `blocked_reason=capacity`，槽位释放后再 `resume`，返工意图不会丢失。
 - 合并冲突：integration 先把 `origin/main` 合入分支并解决冲突；如果冲突解决改变了语义，重新验证/审查后再请用户批准。
@@ -270,7 +272,7 @@ free_slots     = max(0, concurrency - load)
 4. 有用户待开发点 → 按 free_slots 创建需求/实现任务并 start
 5. 用户队列为空且有空槽 → 让需求师发现；低风险则 promote --auto 并标注
 6. 审查 pass → review-pass，生成待批准队列；fail → review-fail + 修复/复审
-7. 用户批准 → merge-approved + integration 任务；merge-done 后汇报
+7. 用户或 Codex 批准 → merge-approved + integration 任务；merge-done 后汇报
 8. 无工作 → 让需求师补充候选，或等待用户
 ```
 
@@ -306,4 +308,4 @@ requirements → implementation → verification → review
 - 配额 fallback 只在退避重启期间使用；正常调度和新建团队默认 ustc。
 - 审查师是单点瓶颈；并发提高或审查排队时增加第二名审查师。
 - 自动启动的 AI 点仍可能低价值；用每日上限、标签、合并闸门和用户随时叫停控制。
-- 用户批准合并是最后一道人工闸门；任何自动任务都不能绕过。
+- 合并不是 AgentTeams 自动流程的一步（用户或已获授权的 Codex 执行）；任何自动任务都不能越过他们自行合并。

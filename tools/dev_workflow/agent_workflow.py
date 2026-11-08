@@ -474,14 +474,33 @@ def _brief(point: dict[str, Any]) -> dict[str, Any]:
 
 
 def _state_digest(points: list[dict[str, Any]]) -> str:
-    """Stable fingerprint of the backlog's ids and statuses.
-
-    ``build_summary`` stores it when the captain reports an awaiting_merge
-    head, so the same pool is not re-asked on every loop; any status change
-    (a new review pass, a merge, a rejection) yields a new digest.
-    """
+    """Stable fingerprint of the backlog's ids and statuses."""
     payload = [[point.get("id"), point.get("status")] for point in points]
     return hashlib.sha1(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+
+
+def deliver_merge_ask(state: dict[str, Any]) -> dict[str, Any] | None:
+    """Record that the current merge head was delivered, and to whom.
+
+    Called only by the command that actually prints the ask for the user
+    (``next --deliver``), never while merely computing a report: an ask that
+    has not reached the user must not be marked as shown by an unrelated write
+    command. Returns the recorded entry, or None when the queue is empty.
+    """
+    queue = _merge_queue(state)
+    if not queue:
+        # Nothing is waiting: a stale "already asked" record must not survive
+        # and make a future queue look answered.
+        state.pop("merge_queue_asked", None)
+        return None
+    entry = {
+        "ids": [point["id"] for point in queue],
+        "head": queue[0]["id"],
+        "digest": _state_digest(state["points"]),
+        "asked_at": iso(utcnow()),
+    }
+    state["merge_queue_asked"] = entry
+    return entry
 
 
 def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
@@ -492,17 +511,17 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
     merging = [point for point in points if point["status"] == "merging"]
     exempt = min(int(config.get("merge_queue_exempt", 1)), len(merge_waiting))
     load = len(active) + max(0, len(merge_waiting) - exempt)
-    if load < concurrency:
-        digest = _state_digest(points)
-        if state.get("merge_queue_digest") == digest:
-            # The user answered about exactly this pool: re-asking describes
-            # the same items, so keep the head reported but do not ask again.
-            merge_queue_state = "answered"
-        else:
-            merge_queue_state = "new"
-            state["merge_queue_digest"] = digest
-    else:
+    # "Already shown" is explicit persisted state (``merge_queue_asked``), never a
+    # side effect of computing a report: plain ``next`` does not write, and a
+    # write command must not swallow an ask the captain has not delivered yet.
+    # A non-empty queue stays "new" until ``next --deliver`` records delivery.
+    asked = state.get("merge_queue_asked")
+    if not merge_waiting:
         merge_queue_state = "none"
+    elif asked and asked.get("ids") == [point["id"] for point in merge_waiting]:
+        merge_queue_state = "answered"
+    else:
+        merge_queue_state = "new"
     free = max(0, concurrency - load)
 
     user_pending = [
@@ -596,7 +615,15 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
         action = "start_agent"
     elif can_auto_start_agent:
         action = "promote_agent"
-    elif should_discover_agent:
+    elif (should_discover_agent
+          and not (capacity_blocked and free > 0)
+          and merge_queue_state != "new"
+          and not (merge_waiting and merge_queue_state == "answered"
+                   and not (capacity_blocked and free > 0))):
+        # Discovery is a fill-the-gap action: it must not shadow the next free
+        # slot (capacity rework) nor a merge decision still waiting for the user
+        # — whether it is fresh ("new") or already delivered ("answered"). With
+        # the default fully exempt pool this branch would otherwise always win.
         action = "discover_agent"
     elif capacity_blocked and free > 0:
         # A slot is free and this rework is waiting for it: resuming an explicit
@@ -606,9 +633,11 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
     elif merge_waiting and merge_queue_state == "new":
         # Merge approval is a notification, not a reason to leave free slots idle.
         action = "ask_user_merge"
-    elif merge_waiting and merge_queue_state == "answered":
+    elif (merge_waiting and merge_queue_state == "answered"
+          and not (capacity_blocked and free > 0)):
         # The same unanswered pool was already shown: keep it in the report,
-        # but do not demand the decision again on every loop.
+        # but do not demand the decision again on every loop. Capacity rework
+        # that owns a free slot still resumes first (handled above).
         action = "wait_merge_approval"
 
     return {
@@ -640,6 +669,8 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
             for index, point in enumerate(merge_waiting)
         ],
         "merge_head": _brief(merge_waiting[0]) if merge_waiting else None,
+        "merge_queue_state": merge_queue_state,
+        "merge_queue_asked": copy.deepcopy(asked) if merge_queue_state == "answered" else None,
         "merging": [_brief(point) for point in merging],
         "quota_blocked": [_brief(point) for point in quota_blocked],
         "capacity_blocked": [_brief(point) for point in capacity_blocked],
@@ -1104,6 +1135,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     next_cmd = sub.add_parser("next", help="show the next scheduling decision as JSON")
     next_cmd.add_argument("--json", action="store_true", default=True)
+    next_cmd.add_argument(
+        "--deliver",
+        action="store_true",
+        help="record that the current merge head was delivered to the user; "
+             "only this flag marks a merge ask as shown",
+    )
 
     promote = sub.add_parser("promote", help="move an AI proposal into the development queue")
     promote.add_argument("id")
@@ -1229,9 +1266,17 @@ def command_status(args: argparse.Namespace) -> int:
 
 
 def command_next(args: argparse.Namespace) -> int:
-    state = load_state(Path(args.state))
+    state_path = Path(args.state)
+    state = load_state(state_path)
     config = load_config(Path(args.config))
-    print_json(build_summary(state, config))
+    summary = build_summary(state, config)
+    if getattr(args, "deliver", False):
+        # Only the command that prints the ask to the user records "already shown".
+        entry = deliver_merge_ask(state)
+        if entry is not None:
+            save_state(state_path, state)
+            summary = build_summary(state, config)
+    print_json(summary)
     return 0
 
 

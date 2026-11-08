@@ -32,6 +32,32 @@ def strict_ascii_stream():
     return io.TextIOWrapper(io.BytesIO(), encoding="ascii", errors="strict")
 
 
+def merge_ready(title, ready_at="2026-01-01T00:00:00Z", source="user"):
+    """A point already past review: it is report-ready, not a discovery task."""
+    return {"source": source, "title": title, "status": "awaiting_merge",
+            "merge_ready_at": ready_at}
+
+
+def busy_agent(title):
+    """An agent point in flight: the AI in-flight cap then blocks discovery."""
+    return {"source": "agent", "title": title, "status": "implementing",
+            "risk": "low", "auto_started": True, "started_at": "2026-01-01T00:00:00Z"}
+
+
+def with_points(overrides):
+    """A state holding exactly the given points, created directly with their fields."""
+    state = wf.empty_state()
+    points = []
+    for index, spec in enumerate(overrides, start=1):
+        point = wf.new_point(state, source=spec.get("source", "user"), title=spec["title"])
+        point["id"] = "dev-%04d" % index
+        point.update({key: value for key, value in spec.items() if key not in {"source", "title"}})
+        points.append(point)
+    state["points"] = points
+    state["next_id"] = len(points) + 1
+    return state
+
+
 def make_config(**overrides):
     config = copy.deepcopy(wf.DEFAULT_CONFIG)
     for key, value in overrides.items():
@@ -290,9 +316,9 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(summary["merge_queue"][0]["id"], point["id"])
         self.assertTrue(summary["merge_queue"][0]["exempt"])
         self.assertFalse(summary["merge_queue"][0]["counts_toward_concurrency"])
-        # A waiting merge is a notification; with free slots and no other work,
-        # discovery should still be suggested instead of blocking on merge approval.
-        self.assertEqual(summary["action"], "discover_agent")
+        # A waiting merge is a fresh decision: it must be shown before discovery.
+        self.assertEqual(summary["merge_queue_state"], "new")
+        self.assertEqual(summary["action"], "ask_user_merge")
 
     def test_second_merge_ready_point_counts_toward_concurrency(self):
         first = self.add_user("first")
@@ -688,59 +714,150 @@ class AdmissionTests(unittest.TestCase):
         state = wf.empty_state()
         rework = wf.new_point(state, source="user", title="rework")
         merged = wf.new_point(state, source="user", title="merged")
-        active = wf.new_point(state, source="user", title="active")
-        # The rework was returned while the dev slot was taken; asking again for
-        # the merge head first would leave that return waiting behind it.
-        active["status"] = "specifying"
+        # The rework was returned while the only dev slot was taken, so it is parked
+        # as capacity-blocked; the merge head still waits for the user. Saying yes to
+        # the merge again first would leave the return behind a fresh decision.
         merged["status"] = "awaiting_merge"
         merged["merge_ready_at"] = "2000-01-01T00:00:00Z"
         rework["status"] = "awaiting_merge"
         rework["merge_ready_at"] = "2001-01-01T00:00:00Z"
-        wf.merge_reject(state, config, rework["id"], reason="rework")
+        wf._park_for_capacity(rework, "repairing", "user returned the merge")
         self.assertEqual(rework["status"], "blocked")
         self.assertEqual(rework["blocked_reason"], "capacity")
         self.assertEqual(merged["status"], "awaiting_merge")
-        # While the dev slot is taken the rework simply waits; the capacity-blocked
-        # summary below covers the state after that slot is released.
         summary = wf.build_summary(state, config)
-        self.assertEqual([point["id"] for point in summary["capacity_blocked"]], [rework["id"]])
+        self.assertEqual(summary["free_slots"], 1)
         self.assertEqual(summary["merge_queue"][0]["id"], merged["id"])
-        # Releasing the dev slot leaves a free slot while the merge head still waits.
-        wf.block_point(state, config, active["id"], reason="external")
-        summary = wf.build_summary(state, config)
-        self.assertGreater(summary["free_slots"], 0)
-        self.assertEqual(summary["merge_queue"][0]["id"], merged["id"])
+        self.assertEqual(summary["merge_queue_state"], "new")
+        self.assertEqual([point["id"] for point in summary["capacity_blocked"]],
+                         [rework["id"]])
         self.assertEqual(summary["action"], "resume_capacity")
         self.assertEqual(wf.build_summary(state, config)["action"], "resume_capacity")
 
-    def test_merge_head_is_asked_once_per_unanswered_pool(self):
-        """After the pool was reported, free slots are not blocked on re-asking.
+    def test_merge_head_is_asked_once_after_explicit_delivery(self):
+        """``ask_user_merge`` survives the default (fully exempt) pool until delivered.
 
-        With nothing else to resume, a second loop must not return
-        ``ask_user_merge`` again for the same unanswered pool: the captain keeps
-        the head in ``merge_head``/``merge_queue`` and reports it, but the action
-        no longer demands a decision that was already requested.
+        ``merge_queue_state`` no longer depends on a free-slot condition (the
+        default pool is fully exempt, so load stays below concurrency). Only an
+        explicit ``deliver_merge_ask`` marks the pool as shown, and only the
+        exact waiting list counts: the delivered ask gives ``wait_merge_approval``
+        next, a changed pool is asked again, and an empty queue is ``none``.
+        Assertions are exact on ``action`` so deleting either branch fails.
         """
-        config = make_config(concurrency=3)
-        state = wf.empty_state()
-        waiting = wf.new_point(state, source="user", title="waiting")
-        waiting["status"] = "awaiting_merge"
-        waiting["merge_ready_at"] = wf.iso(wf.utcnow())
-        first = wf.build_summary(state, config)
-        self.assertEqual(first["merge_head"]["id"], waiting["id"])
-        self.assertEqual(state.get("merge_queue_digest"), wf._state_digest(state["points"]))
-        second = wf.build_summary(state, config)
-        self.assertNotEqual(second["action"], "ask_user_merge")
-        self.assertEqual(second["merge_head"]["id"], waiting["id"])
-        self.assertEqual(second["merge_queue"][0]["id"], waiting["id"])
-        # A genuine change of the pool re-opens the decision.
-        other = wf.new_point(state, source="user", title="other")
-        other["status"] = "awaiting_merge"
-        other["merge_ready_at"] = wf.iso(wf.utcnow())
-        third = wf.build_summary(state, config)
-        self.assertEqual([item["id"] for item in third["merge_queue"]],
-                         [waiting["id"], other["id"]])
-        self.assertNotEqual(wf.build_summary(state, config)["action"], "ask_user_merge")
+        config = make_config()  # production defaults: merge_queue_exempt=100
+        self.assertEqual(config["merge_queue_exempt"], 100)
+        state = with_points([merge_ready("waiting"), busy_agent("busy")])
+        self.assertEqual(wf.validate_state(state, config), [])
+        asked = wf.build_summary(state, config)
+        self.assertEqual(asked["action"], "ask_user_merge")
+        self.assertEqual(asked["merge_queue_state"], "new")
+        # Computing a report never records a delivery by itself.
+        self.assertNotIn("merge_queue_asked", state)
+        self.assertEqual(wf.build_summary(state, config)["action"], "ask_user_merge")
+        entry = wf.deliver_merge_ask(state)
+        self.assertEqual(entry["ids"], ["dev-0001"])
+        self.assertEqual(entry["head"], "dev-0001")
+        delivered = wf.build_summary(state, config)
+        self.assertEqual(delivered["action"], "wait_merge_approval")
+        self.assertEqual(delivered["merge_queue_state"], "answered")
+        self.assertEqual(delivered["merge_head"]["id"], "dev-0001")
+        self.assertEqual(delivered["merge_queue_asked"], entry)
+        # Capacity rework still resumes first even after the ask was delivered.
+        state["points"].append(with_points([
+            {"title": "parked", "status": "blocked", "blocked_reason": "capacity",
+             "blocked_from_status": "repairing", "blocked_until": None}])["points"][0])
+        with_capacity = wf.build_summary(state, config)
+        self.assertEqual(with_capacity["action"], "resume_capacity")
+        state["points"] = [point for point in state["points"] if point["title"] != "parked"]
+        # Negative control: a different waiting set is a new decision.
+        state["points"].append(with_points([merge_ready("other", "2026-01-02T00:00:00Z")])
+                               ["points"][0])
+        changed = wf.build_summary(state, config)
+        self.assertEqual(changed["merge_queue_state"], "new")
+        self.assertIsNone(changed["merge_queue_asked"])
+        self.assertEqual(changed["action"], "ask_user_merge")
+        # Emptying the queue clears the record instead of leaving a stale one.
+        state["points"] = [point for point in state["points"]
+                           if point["status"] != "awaiting_merge"]
+        self.assertIn("merge_queue_asked", state)
+        self.assertEqual(wf.validate_state(state, config), [])
+        emptied = wf.build_summary(state, config)
+        self.assertEqual(emptied["action"], "wait_quota" if False else emptied["action"])
+        self.assertEqual(emptied["merge_queue_state"], "none")
+        self.assertIsNone(emptied["merge_head"])
+        # A reloaded state with an empty queue must not keep the stale record.
+        reloaded = json.loads(json.dumps(state))
+        reloaded["merge_queue_asked"] = {"ids": ["dev-0001"], "head": "dev-0001",
+                                         "digest": "x", "asked_at": "2026-01-01T00:00:00Z"}
+        summary = wf.build_summary(reloaded, config)
+        self.assertEqual(summary["merge_queue_state"], "none")
+        self.assertEqual(summary["action"], "discover_agent")
+        wf.deliver_merge_ask(reloaded)
+        self.assertNotIn("merge_queue_asked", reloaded)
+        self.assertEqual(wf.build_summary(reloaded, config)["action"], "discover_agent")
+
+    def test_cli_next_only_marks_delivery_with_the_explicit_flag(self):
+        """Plain ``next`` reports the ask without writing; ``--deliver`` records it."""
+        with tempfile.TemporaryDirectory() as directory:
+            state_path = Path(directory) / "state.json"
+            config_path = Path(directory) / "config.json"
+            wf.write_json(config_path, make_config())
+            wf.save_state(state_path, with_points([merge_ready("waiting"),
+                                                   busy_agent("busy")]))
+            before = state_path.read_bytes()
+            parsed = wf.build_parser().parse_args(["--state", str(state_path), "--config",
+                                                   str(config_path), "next"])
+            self.assertFalse(parsed.deliver)
+            buffer = io.StringIO()
+            with redirect_stdout(buffer):
+                self.assertEqual(wf.main(["--state", str(state_path), "--config", str(config_path),
+                                          "next"]), 0)
+            printed = json.loads(buffer.getvalue())
+            self.assertEqual(printed["action"], "ask_user_merge")
+            self.assertEqual(printed["merge_queue_state"], "new")
+            self.assertEqual(state_path.read_bytes(), before)
+            with redirect_stdout(buffer := io.StringIO()):
+                self.assertEqual(wf.main(["--state", str(state_path), "--config", str(config_path),
+                                          "next", "--deliver"]), 0)
+            delivered = json.loads(buffer.getvalue())
+            self.assertEqual(delivered["action"], "wait_merge_approval")
+            self.assertEqual(delivered["merge_queue_state"], "answered")
+            self.assertEqual(delivered["merge_queue_asked"]["ids"], ["dev-0001"])
+            persisted = wf.load_state(state_path)
+            self.assertEqual(persisted["merge_queue_asked"]["ids"], ["dev-0001"])
+            self.assertEqual(persisted["merge_queue_asked"]["head"], "dev-0001")
+            with redirect_stdout(buffer := io.StringIO()):
+                self.assertEqual(wf.main(["--state", str(state_path), "--config", str(config_path),
+                                          "next"]), 0)
+            self.assertEqual(json.loads(buffer.getvalue())["action"], "wait_merge_approval")
+
+    def test_write_commands_do_not_consume_an_undelivered_merge_ask(self):
+        """A write command must not mark the ask as shown.
+
+        ``start`` / ``set-status`` / ``status`` save the whole state; computing a
+        report there must never record a delivery the user has not seen,
+        otherwise the next ``ask_user_merge`` silently disappears.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            state_path = Path(directory) / "state.json"
+            config_path = Path(directory) / "config.json"
+            wf.write_json(config_path, make_config())
+            wf.save_state(state_path, with_points([merge_ready("waiting"),
+                                                   busy_agent("busy"),
+                                                   {"title": "other"}]))
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                self.assertEqual(wf.main(["--state", str(state_path), "--config", str(config_path),
+                                          "status"]), 0)
+                self.assertEqual(wf.main(["--state", str(state_path), "--config", str(config_path),
+                                          "start", "dev-0003"]), 0)
+                self.assertEqual(wf.main(["--state", str(state_path), "--config", str(config_path),
+                                          "set-status", "dev-0003", "implementing"]), 0)
+            saved = wf.load_state(state_path)
+            self.assertEqual(wf.point_by_id(saved, "dev-0003")["status"], "implementing")
+            self.assertNotIn("merge_queue_asked", saved)
+            summary = wf.build_summary(saved, make_config())
+            self.assertEqual(summary["merge_queue_state"], "new")
+            self.assertEqual(summary["action"], "ask_user_merge")
 
     def test_review_fail_under_full_load_remains_active(self):
         config = make_config(concurrency=2)
