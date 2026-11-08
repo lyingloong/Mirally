@@ -93,6 +93,74 @@ class ConfigTests(unittest.TestCase):
             with self.assertRaises(wf.WorkflowError):
                 wf.upgrade_config(Path(directory) / "missing.json")
 
+    def test_config_upgrade_is_idempotent_at_the_current_version(self):
+        """A current file is never rewritten, even if a value looks legacy.
+
+        Without the version check, a user who deliberately set
+        ``max_auto_agent_in_flight`` back to 1 after upgrading would have it
+        silently reset by the next ``config-upgrade --apply``.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            current = {
+                "config_version": 2,
+                "concurrency": 3,
+                "max_auto_agent_in_flight": 1,
+                "max_auto_agent_per_day": 2,
+                "merge_queue_exempt": 1,
+                "custom": {"keep": True},
+            }
+            wf.write_json(path, current)
+            before = path.read_bytes()
+            dry = wf.upgrade_config(path, apply=False)
+            self.assertEqual(dry["changes"], {})
+            self.assertFalse(dry["applied"])
+            applied = wf.upgrade_config(path, apply=True)
+            self.assertFalse(applied["applied"])
+            self.assertEqual(path.read_bytes(), before)
+            self.assertEqual(wf.read_json(path), current)
+
+    def test_config_upgrade_rejects_a_future_version(self):
+        """A file from a newer tool must fail loudly, not be downgraded."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            future = {"config_version": 3, "max_auto_agent_in_flight": 1, "custom": "keep"}
+            wf.write_json(path, future)
+            before = path.read_bytes()
+            with self.assertRaises(wf.WorkflowError) as raised:
+                wf.upgrade_config(path, apply=True)
+            self.assertIn("3", str(raised.exception))
+            self.assertEqual(path.read_bytes(), before)
+
+    def test_config_upgrade_rejects_a_non_integer_version(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            for value in ("2", 2.0, True):
+                with self.subTest(config_version=value):
+                    wf.write_json(path, {"config_version": value, "custom": "keep"})
+                    with self.assertRaises(wf.WorkflowError):
+                        wf.upgrade_config(path, apply=True)
+
+    def test_config_upgrade_treats_a_versionless_file_as_legacy_v1(self):
+        """Files written before versioning carry version 1 defaults."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            wf.write_json(path, {
+                "concurrency": 3,
+                "max_auto_agent_in_flight": 1,
+                "max_auto_agent_per_day": 2,
+                "merge_queue_exempt": 1,
+                "custom": "keep-me",
+            })
+            pruned = wf.upgrade_config(path, apply=True)
+            self.assertEqual(pruned["changes"]["config_version"]["from"], 1)
+            raw = wf.read_json(path)
+            self.assertEqual(raw["config_version"], wf.CURRENT_CONFIG_VERSION)
+            self.assertEqual(raw["max_auto_agent_in_flight"], 2)
+            self.assertEqual(raw["max_auto_agent_per_day"], 100)
+            self.assertEqual(raw["merge_queue_exempt"], 100)
+            self.assertEqual(raw["custom"], "keep-me")
+
     def test_invalid_concurrency_is_rejected(self):
         with self.assertRaises(wf.WorkflowError):
             wf.validate_config(make_config(concurrency=0))
@@ -608,6 +676,71 @@ class AdmissionTests(unittest.TestCase):
             state = wf.load_state(state_path)
             self.assertEqual(wf.point_by_id(state, "dev-0001")["status"], "blocked")
             self.assertEqual(wf.point_by_id(state, "dev-0001")["blocked_reason"], "capacity")
+
+    def test_capacity_resume_wins_over_a_waiting_merge_head(self):
+        """A free slot with rework waiting is resumed before the merge head is shown.
+
+        Both are blocked on the user: resuming an already-approved restoration
+        needs nothing new, while a merge head is a fresh decision. Asking for
+        the merge first would leave the returned rework waiting behind it.
+        """
+        config = make_config(concurrency=1)
+        state = wf.empty_state()
+        rework = wf.new_point(state, source="user", title="rework")
+        merged = wf.new_point(state, source="user", title="merged")
+        active = wf.new_point(state, source="user", title="active")
+        # The rework was returned while the dev slot was taken; asking again for
+        # the merge head first would leave that return waiting behind it.
+        active["status"] = "specifying"
+        merged["status"] = "awaiting_merge"
+        merged["merge_ready_at"] = "2000-01-01T00:00:00Z"
+        rework["status"] = "awaiting_merge"
+        rework["merge_ready_at"] = "2001-01-01T00:00:00Z"
+        wf.merge_reject(state, config, rework["id"], reason="rework")
+        self.assertEqual(rework["status"], "blocked")
+        self.assertEqual(rework["blocked_reason"], "capacity")
+        self.assertEqual(merged["status"], "awaiting_merge")
+        # While the dev slot is taken the rework simply waits; the capacity-blocked
+        # summary below covers the state after that slot is released.
+        summary = wf.build_summary(state, config)
+        self.assertEqual([point["id"] for point in summary["capacity_blocked"]], [rework["id"]])
+        self.assertEqual(summary["merge_queue"][0]["id"], merged["id"])
+        # Releasing the dev slot leaves a free slot while the merge head still waits.
+        wf.block_point(state, config, active["id"], reason="external")
+        summary = wf.build_summary(state, config)
+        self.assertGreater(summary["free_slots"], 0)
+        self.assertEqual(summary["merge_queue"][0]["id"], merged["id"])
+        self.assertEqual(summary["action"], "resume_capacity")
+        self.assertEqual(wf.build_summary(state, config)["action"], "resume_capacity")
+
+    def test_merge_head_is_asked_once_per_unanswered_pool(self):
+        """After the pool was reported, free slots are not blocked on re-asking.
+
+        With nothing else to resume, a second loop must not return
+        ``ask_user_merge`` again for the same unanswered pool: the captain keeps
+        the head in ``merge_head``/``merge_queue`` and reports it, but the action
+        no longer demands a decision that was already requested.
+        """
+        config = make_config(concurrency=3)
+        state = wf.empty_state()
+        waiting = wf.new_point(state, source="user", title="waiting")
+        waiting["status"] = "awaiting_merge"
+        waiting["merge_ready_at"] = wf.iso(wf.utcnow())
+        first = wf.build_summary(state, config)
+        self.assertEqual(first["merge_head"]["id"], waiting["id"])
+        self.assertEqual(state.get("merge_queue_digest"), wf._state_digest(state["points"]))
+        second = wf.build_summary(state, config)
+        self.assertNotEqual(second["action"], "ask_user_merge")
+        self.assertEqual(second["merge_head"]["id"], waiting["id"])
+        self.assertEqual(second["merge_queue"][0]["id"], waiting["id"])
+        # A genuine change of the pool re-opens the decision.
+        other = wf.new_point(state, source="user", title="other")
+        other["status"] = "awaiting_merge"
+        other["merge_ready_at"] = wf.iso(wf.utcnow())
+        third = wf.build_summary(state, config)
+        self.assertEqual([item["id"] for item in third["merge_queue"]],
+                         [waiting["id"], other["id"]])
+        self.assertNotEqual(wf.build_summary(state, config)["action"], "ask_user_merge")
 
     def test_review_fail_under_full_load_remains_active(self):
         config = make_config(concurrency=2)

@@ -83,6 +83,7 @@ free_slots     = max(0, concurrency - load)
 ## 调度优先级与 AI 点
 
 1. **用户点优先**。用户提供的点直接进入 `queued`，先占开发槽；如果用户点会占满所有空槽，`start` 会拒绝启动 AI 点，把空槽留给用户点。因容量不足等待返工的用户点（`blocked` / `blocked_reason=capacity`）也属于用户优先：槽位释放后队长先 `resume_capacity`，AI 自动发现和启动不能抢先占槽。
+   状态助手 `build_summary` 的 `action` 依次为：配额暂停 `wait_quota` → 用户待开发点 `start_user` → 用户容量返工 `resume_capacity` → AI 队列 `start_agent` → AI 自动启动 `promote_agent` → 需求师发现 `discover_agent` → 容量返工恢复 `resume_capacity`（有空槽且存在 `capacity_blocked` 点时优先于合并队列提醒）→ 新合并队首 `ask_user_merge`（同一批待合并点已经展示过、用户尚未答复时为 `wait_merge_approval`，只在报告里继续列出，不重复索取决定）。
 2. 用户待开发点为 0、仍有空槽时，需求师可以自行发现新的 AI 点。
 3. AI 点满足以下全部条件时，可**不经用户预审直接进入开发**：
    - 没有用户待开发点，也没有用户容量等待项；
@@ -116,6 +117,7 @@ free_slots     = max(0, concurrency - load)
 ```
 
 - 用户批准后，队长才创建 integration 任务；审查师执行普通 merge（`gh pr merge --merge`，不用 squash/rebase），确认 `origin/main` 包含合并提交。
+- **合并语义**：合并决定由**用户或 Codex** 做出，两者都可以直接在 GitHub 合并任意已审 PR（不限于队首）；队长和 AgentTeams 成员绝不自行 merge。状态助手的 `merge-approved` 只接受队首；用户/Codex 在 GitHub 合并非队首 PR 后，队长用 `merge-reconcile <id> --pr <n> --head-sha <sha> --approved-by user|codex --confirm-merged` 审计记账（要求显式确认、PR/head 与 state 一致，重复执行或 PR/head 不符会拒绝）。细节见 [AgentTeams 控制核心](workflow-control-core.md)。
 - 用户退回：进入 `repairing`；如果决定不做，标记 `rejected` 并关闭 PR。
 - 退回或返工若会增加调度负载（例如唯一待合并队首退回 `repairing`，而其他槽位已满），不强行增加负载：点登记为 `blocked` / `blocked_reason=capacity`，槽位释放后再 `resume`，返工意图不会丢失。
 - 合并冲突：integration 先把 `origin/main` 合入分支并解决冲突；如果冲突解决改变了语义，重新验证/审查后再请用户批准。
@@ -242,6 +244,8 @@ free_slots     = max(0, concurrency - load)
   --pr 6 --head-sha e25180091335c4d3b60a8f21ffc77623b275be8a --approved-by codex --confirm-merged
 
 # 已有环境显式升级 config（默认 dry-run；确认 changes 后加 --apply）
+# 只升级明确支持的旧版本（config_version=1 或无该字段）；当前版本为幂等空操作，
+# 未来版本或非整数版本会被拒绝，不会降级覆盖
 .\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py config-upgrade --apply
 
 # 用户退回合并

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
 import os
 import sys
@@ -163,29 +164,54 @@ LEGACY_CONFIG_UPGRADES: dict[str, tuple[int, int]] = {
     "max_auto_agent_per_day": (2, 100),
     "merge_queue_exempt": (1, 100),
 }
+# Only files written by an understood older schema are upgraded. Version 1 is
+# the legacy default (one AI slot, per-day cap 2, head-only merge exemption);
+# a file without ``config_version`` predates versioning and is treated as 1.
+CURRENT_CONFIG_VERSION = int(DEFAULT_CONFIG["config_version"])
+UPGRADABLE_CONFIG_VERSIONS = frozenset({1})
 
 
 def upgrade_config(path: Path, *, apply: bool = False) -> dict[str, Any]:
-    """Explicitly migrate only known legacy workflow defaults; never on load."""
+    """Explicitly migrate only known legacy workflow defaults; never on load.
+
+    ``config_version`` decides whether anything is migrated:
+
+    * current version: idempotent no-op, so one more ``--apply`` never rewrites
+      a file the user has since customised back to a legacy-looking value;
+    * a known older version (1, or no version at all): only values still equal
+      to that version's defaults are replaced, custom values are kept, and the
+      file is stamped with the current version;
+    * anything else (a future schema, or a non-integer version): rejected with
+      ``WorkflowError`` instead of silently downgrading the file.
+    """
     if not path.exists():
         raise WorkflowError(f"config does not exist: {path}")
     raw = read_json(path)
     if not isinstance(raw, dict):
         raise WorkflowError(f"{path} top-level value must be an object")
+    recorded = raw.get("config_version", 1)
+    if not isinstance(recorded, int) or isinstance(recorded, bool):
+        raise WorkflowError(
+            f"config_version must be an integer, got {recorded!r} in {path}")
+    if recorded == CURRENT_CONFIG_VERSION:
+        return {"path": str(path), "applied": False, "changes": {},
+                "config_version": {"from": recorded, "to": recorded}}
+    if recorded not in UPGRADABLE_CONFIG_VERSIONS:
+        supported = ", ".join(str(item) for item in sorted(UPGRADABLE_CONFIG_VERSIONS))
+        raise WorkflowError(
+            f"config_version {recorded} in {path} is not upgradable by this tool "
+            f"(supported older versions: {supported}; current: {CURRENT_CONFIG_VERSION})")
     changes: dict[str, dict[str, int]] = {}
     for key, (legacy, replacement) in LEGACY_CONFIG_UPGRADES.items():
         if raw.get(key) == legacy:
             changes[key] = {"from": legacy, "to": replacement}
             raw[key] = replacement
-    if raw.get("config_version") != DEFAULT_CONFIG["config_version"]:
-        changes["config_version"] = {
-            "from": raw.get("config_version"),
-            "to": DEFAULT_CONFIG["config_version"],
-        }
-        raw["config_version"] = DEFAULT_CONFIG["config_version"]
-    if apply and changes:
+    changes["config_version"] = {"from": recorded, "to": CURRENT_CONFIG_VERSION}
+    raw["config_version"] = CURRENT_CONFIG_VERSION
+    if apply:
         write_json(path, raw)
-    return {"path": str(path), "applied": bool(apply and changes), "changes": changes}
+    return {"path": str(path), "applied": bool(apply), "changes": changes,
+            "config_version": {"from": recorded, "to": CURRENT_CONFIG_VERSION}}
 
 
 def validate_config(config: dict[str, Any]) -> None:
@@ -447,6 +473,17 @@ def _brief(point: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _state_digest(points: list[dict[str, Any]]) -> str:
+    """Stable fingerprint of the backlog's ids and statuses.
+
+    ``build_summary`` stores it when the captain reports an awaiting_merge
+    head, so the same pool is not re-asked on every loop; any status change
+    (a new review pass, a merge, a rejection) yields a new digest.
+    """
+    payload = [[point.get("id"), point.get("status")] for point in points]
+    return hashlib.sha1(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+
+
 def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
     points = state["points"]
     concurrency = int(config["concurrency"])
@@ -455,6 +492,17 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
     merging = [point for point in points if point["status"] == "merging"]
     exempt = min(int(config.get("merge_queue_exempt", 1)), len(merge_waiting))
     load = len(active) + max(0, len(merge_waiting) - exempt)
+    if load < concurrency:
+        digest = _state_digest(points)
+        if state.get("merge_queue_digest") == digest:
+            # The user answered about exactly this pool: re-asking describes
+            # the same items, so keep the head reported but do not ask again.
+            merge_queue_state = "answered"
+        else:
+            merge_queue_state = "new"
+            state["merge_queue_digest"] = digest
+    else:
+        merge_queue_state = "none"
     free = max(0, concurrency - load)
 
     user_pending = [
@@ -550,11 +598,18 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
         action = "promote_agent"
     elif should_discover_agent:
         action = "discover_agent"
-    elif merge_waiting:
+    elif capacity_blocked and free > 0:
+        # A slot is free and this rework is waiting for it: resuming an explicit
+        # return needs nothing new, while a merge head is a fresh decision.
+        # Resume first so the returned rework never starves behind the queue.
+        action = "resume_capacity"
+    elif merge_waiting and merge_queue_state == "new":
         # Merge approval is a notification, not a reason to leave free slots idle.
         action = "ask_user_merge"
-    elif capacity_blocked and free > 0:
-        action = "resume_capacity"
+    elif merge_waiting and merge_queue_state == "answered":
+        # The same unanswered pool was already shown: keep it in the report,
+        # but do not demand the decision again on every loop.
+        action = "wait_merge_approval"
 
     return {
         "concurrency": concurrency,
