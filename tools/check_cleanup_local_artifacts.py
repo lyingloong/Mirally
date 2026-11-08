@@ -25,11 +25,14 @@ Scope is deliberately narrow:
     python tools/check_cleanup_local_artifacts.py --root <dir>  # only if inside a repo
 
 Exit codes: 0 clean or successful run, 1 refused / unsafe input, 2 bad arguments.
+``--days`` must be finite and >= 0: ``nan``/``inf`` would otherwise make every
+comparison False and silently disable the age floor.
 """
 
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import shutil
 import stat
@@ -55,6 +58,17 @@ class Entry:
     age_days: float
     eligible: bool
     reason: str
+
+
+def valid_days(days: float) -> bool:
+    """True when ``days`` is usable as an age floor.
+
+    ``argparse``'s ``float`` accepts ``nan``/``inf``. With ``nan``,
+    ``nan < 0`` is False and ``age < nan`` is always False, so every directory
+    would be "past" the threshold; ``inf`` would keep everything forever. Both
+    are configuration mistakes, not thresholds.
+    """
+    return math.isfinite(days) and days >= 0
 
 
 def temporary_root(repo_root: Path) -> Path:
@@ -277,6 +291,8 @@ def run(*, repo_root: Path | None = None, days: float = DEFAULT_DAYS, apply: boo
     between it and the temporary root may be a symlink/junction.
     """
     base = (repo_root or ROOT).resolve()
+    if not valid_days(days):
+        return 2, f"拒绝：--days 必须是有限且 >= 0 的数，收到 {days!r}。"
     trusted = git_worktree_root(base)
     if trusted is None or trusted != base:
         return 1, f"拒绝：{base} 不是可信的 Git 工作树根；output/tmp 清理仅限 Git 仓库。"
@@ -339,8 +355,8 @@ def main(argv: list[str] | None = None, *, now: float | None = None,
                         help=f"目录需超过的天数，默认 {DEFAULT_DAYS}")
     parser.add_argument("--root", default=None, help="临时根（默认仓库内 output/tmp，须位于其中）")
     args = parser.parse_args(argv)
-    if args.days < 0:
-        print("--days 必须 >= 0", file=sys.stderr)
+    if not valid_days(args.days):
+        print("--days 必须是有限且 >= 0 的数", file=sys.stderr)
         return 2
     root = None
     trusted_root = Path(repo_root).absolute() if repo_root is not None else None

@@ -385,6 +385,60 @@ class CleanupLocalArtifactsTests(unittest.TestCase):
         self.assertEqual(cleanup.main(["--root", str(self.tmp), "--days", "-1"],
                                       repo_root=self.repo), 2)
 
+    def test_cli_rejects_non_finite_days(self):
+        """``--days nan``/``inf`` must fail instead of silently disabling the floor.
+
+        ``nan < 0`` is False and ``age < nan`` is always False, so the old check
+        let ``--days nan`` mark every directory stale (and ``inf`` keep them all
+        forever). Neither is a threshold; both are bad arguments (exit 2).
+        """
+        fresh = self.scratch("run-fresh", age_days=0.5)
+        for value in ("nan", "NaN", "inf", "Infinity"):
+            with self.subTest(days=value):
+                code = cleanup.main(["--root", str(self.tmp), "--apply", "--days", value],
+                                    now=NOW, repo_root=self.repo)
+                self.assertEqual(code, 2)
+                # Nothing may be planned or deleted while the threshold is invalid.
+                self.assertTrue(fresh.is_dir())
+        # A separated "-inf" is rejected by argparse itself (negatives look like
+        # options); the "=" form reaches main() and the guard returns 2 there.
+        with self.assertRaises(SystemExit) as raised:
+            cleanup.main(["--root", str(self.tmp), "--apply", "--days", "-inf"],
+                         now=NOW, repo_root=self.repo)
+        self.assertEqual(raised.exception.code, 2)
+        self.assertTrue(fresh.is_dir())
+        for argv in (["--days=-inf"], ["--days=-nan"]):
+            with self.subTest(argv=argv):
+                code = cleanup.main(["--root", str(self.tmp), "--apply", *argv],
+                                    now=NOW, repo_root=self.repo)
+                self.assertEqual(code, 2)
+                self.assertTrue(fresh.is_dir())
+        self.assertTrue(fresh.is_dir())
+
+    def test_run_rejects_non_finite_days_directly(self):
+        """The guard belongs to ``run()`` too: its ``days`` is part of the contract."""
+        fresh = self.scratch("run-fresh", age_days=0.5)
+        for days in (float("nan"), float("inf"), float("-inf"), -0.5):
+            with self.subTest(days=days):
+                code, report = cleanup.run(repo_root=self.repo, now=NOW, apply=True,
+                                           days=days)
+                self.assertEqual(code, 2, report)
+                self.assertIn("--days", report)
+                self.assertTrue(fresh.is_dir())
+
+    def test_days_normal_values_are_still_accepted(self):
+        """The guard must not reject valid thresholds, including 0 and fractions."""
+        fresh = self.scratch("run-fresh", age_days=0.5)
+        for days in (0, 0.25, 7, 365.0):
+            with self.subTest(days=days):
+                self.assertTrue(cleanup.valid_days(days))
+                code, _ = self.run_cleanup(days=days, apply=False)
+                self.assertEqual(code, 0)
+        self.assertFalse(cleanup.valid_days(float("nan")))
+        self.assertFalse(cleanup.valid_days(float("inf")))
+        self.assertFalse(cleanup.valid_days(-1))
+        self.assertTrue(fresh.is_dir())
+
     def test_tool_is_read_only_until_apply(self):
         """The default path must not modify mtimes anywhere in the tree."""
         self.scratch("run-old", age_days=30)
