@@ -1,6 +1,6 @@
 # 多账号开发工作流：目标架构与 DSH 插件规格
 
-> 状态：Draft（2026-11-02，Asia/Shanghai）
+> 状态：Draft r2（2026-11-02 初稿；2026-11-08 按 Codex 审查 P1/P2 修订：§4.3 可信决策、§5.2 决策/提交顺序、§4.4 attempt fencing、§7 审查证据绑定）
 > 目的：把当前 AgentTeams 工作流中“符合我们想法”的部分抽出来，设计成 Mirally 自己的 DSH 插件；不再受 AgentTeams 的成员数、角色模型和调度语义限制。
 > 本文是实现规格，不是已完成能力。
 
@@ -179,7 +179,7 @@ Seed（种子）
 
 `pending → claimed → in_progress → completed | failed | cancelled`
 
-- attempt_id 是能力凭证；重派后旧 attempt 失效。
+- attempt_id 是能力凭证；重派后旧 attempt 失效（接口层拒绝），但**接口拒绝不等于停止外部副作用** —— 重派必须配合 §4.4 的单写者 fencing。
 - 每个 task 必须有 subject；quality task 必须有契约。
 - `needs_revision` / `reject` 必须 failed 并带 findings。
 
@@ -209,6 +209,39 @@ inbox → proposed → queued → specifying → implementing → verifying → 
 5. 审查最多 3 轮自动返工；超过后 escalated 给用户，不无限循环。
 6. 只有 Codex 按授权合并；插件只同步 GitHub 的实际合并结果，不创建 merge 任务、不执行 merge。
 7. 任何状态转换写事件日志；恢复时以事件 + 投影重建。
+8. 批准只能来自可信主体（§4.3）；重派必须终止旧 attempt 并完成单写者交接（§4.4）；审查结论只对已审 head/base 成立（§7.1）。
+
+### 4.3 可信决策主体（decision / approve 谁能写）
+
+**问题**：`workflow.proposal.decision` 若对模型可调用，等权于"模型自己批准"。规格必须把"谁可信"写死在接口层。
+
+| 主体 | 判定方式 | 允许动作 |
+| --- | --- | --- |
+| 用户 | 插件宿主（DSH）授予的人工操作通道：桌面/网页上的确认操作，携带宿主签名的一次性 `decision_token`（不暴露给模型上下文） | approve / reject / 修改 Q 处置 |
+| Codex | GitHub 上的 `APPROVED` review 或 repository owner 账号的 PR comment 指令，由插件通过 GitHub API 读取（`author_association ∈ {OWNER, MEMBER}` 且账号在 `trustedActors` 白名单） | approve / reject |
+| 队长 | 只能 `decision.request`（登记待批 + 通知用户/Codex） | 不能 approve |
+| 需求师/工程师/审查师/任何模型调用 | 无批准通道 | 只能提交 Q 与证据 |
+
+规则：
+
+1. `decision.approve|reject` 从工具面**不出现在模型可见的 tool list** 中；只在宿主内部 RPC 里注册，调用方必须携带 `decision_token`（一次性、绑定 `proposal_id + commit + 主体`、5 分钟过期）。
+2. 插件每次写入 decision 都记录 `actor_type ∈ {user, codex}`、`actor_identity`、`commit`、`evidence`（用户通道：宿主操作回执；Codex 通道：review id 或 comment id + author_association）。
+3. 未认证调用 → `FORBIDDEN unauthenticated_decision`，并写 `decision_rejected` 事件；模型借工具自行批准在接口上不可达。
+4. 只有 `mergePolicy=codex-only` 是默认；若用户另行开启队长代批（`captainDecisionAllowed`），也必须走用户通道签发 token，并全程记录。
+5. 验收用例 A1–A4（§11 Phase 0.5）覆盖：模型直接调用被拒、token 过期被拒、Codex 非白名单账号被拒、token 跨 proposal/commit 复用被拒。
+
+### 4.4 重派单写者 fencing 与工作树终止（P1）
+
+**问题**：重派后旧 attempt 只在插件接口层失效；失联 agent 仍可能继续写工作树、commit、push 或开 PR。同一分支两次 attempt 并发的后果是外部副作用不可回收。
+
+规则：
+
+1. **一个 task 一个 worktree、一个分支（一写者）**。重派默认**换新 worktree + 新分支**（`agent/<point>-<slug>-a2`），不复用旧目录；旧 worktree 标记 `orphaned`，由清理任务在确认无进程后再删。
+2. attempt 表记录 `pid`、`host`、`token`、`worktree_path`、`branch`。重派流程必须按顺序：`terminate(attempt, 'reassigned')` → 确认进程退出或标记 `unconfirmed` → 创建新 attempt。`terminate` 写 `terminated_at/terminate_reason`，并向插件管理的执行者发送停止信号（DSH 侧 kill 或 sandbox 撤销）。
+3. **Git 侧 fencing（防旧 attempt push）**：新 attempt 的分支由 `GitAdapter` 以 `--force-with-lease=<branch>:<old_sha>` 保护——旧 attempt 只有在它已知的 `old_sha` 仍是远端现态时才能 push；新 attempt 第一次 push 后远端前进，旧 attempt 的 push 被拒。插件在 `pr.sync` 中比对 `prs.head_sha` 与当前 attempt 的 `last_pushed_sha`，发现外部提交即把点置 `repairing` 并记录 `external_head` 事件。
+4. **进程无法确认退出时**：该 task 进入 `blocked(attempt_unconfirmed)`，不派新 attempt，先等清理任务验证工作树无新写入（对 `worktree_path` 做文件 mtime/hash 快照比对，静默 N 分钟）或由用户/Codex 确认终止；确认后 `resume`。
+5. 旧 attempt 迟到恢复（同一 attempt 重新连上）：接口层因 attempt_id 失效拒绝一切写入；若它已改文件，插件用第 4 条的快照发现并记录，不改写旧分支。
+6. 验收用例 A5–A8：旧 attempt 迟到 push 被拒、重派后新旧 attempt 目录不共享、未确认终止时新 attempt 不派发、孤儿 worktree 在确认后才清理。
 
 ---
 
@@ -230,9 +263,14 @@ inbox → proposed → queued → specifying → implementing → verifying → 
 - 只写 `docs/development/proposals/<id>.md`，不写实现。
 - 问题用 PR comment `Q1..Qn`。
 - Decision gate 必须同时满足：
-  - 用户/Codex 对当前 proposal commit 明确批准；
+  - 用户/Codex 对当前 proposal commit 明确批准，且批准由 §4.3 的可信主体认证；
   - 影响实施的 Q 已 resolved 或明确延后；
-  - 队长把决定写回文档并提交。
+  - 批准记录所指向的 commit 与 `proposal.head_sha` 一致（见下方提交顺序）。
+- **批准与提交的先后顺序（P2）**：
+  1. 队长先把 Q 的处置写回文档并提交，得到 `proposal.head_sha = H1`；
+  2. 用户/Codex 的批准必须显式引用 `H1`（`decision.approve(proposal_id, commit=H1)`）；
+  3. 批准后只允许产生**不改变决定的后继提交**：`decision.record` 写入决策块时，新提交的父必须是 `H1`，且 diff 只能落在 `docs/development/proposals/<id>.md` 的决策块（`## 决策记录` 段落）内；插件记录 `approval_commit=H1`、`record_commit=H2`，并断言 `H1` 是 `H2` 的祖先。
+  4. 任何落在决策块之外、或无法从 `H1` 到达的新提交都会使批准失效，必须重新批准（`proposal:approved-stale`）。
 - 标签 `proposal:accepted` 只是可视标记，不能单独批准。
 - 未批准不创建 Implementation PR。
 - 被拒绝/撤回用 `cancel`，不进入 rejected/proposed 死循环。
@@ -269,11 +307,21 @@ inbox → proposed → queued → specifying → implementing → verifying → 
 
 - 验证/审查必须在独立 worktree 检出 PR head。
 - 必须报告：head、base、范围、复跑命令、真实结果、未覆盖。
+- **证据绑定不可变 head/base（P2）**：每条 verification/review 记录必须同时写入 `reviewed_head_sha`、`reviewed_base_sha`、`merge_base_sha`、`checks_snapshot` 与 `worktree_path`。verdict 只对这三元组成立；任一项缺失即视为无效记录，不能进入 `awaiting_merge`（见 §7.1）。
 - 审查 verdict：`pass` / `needs_revision` / `reject`。
 - `needs_revision` 必须带 findings（id/severity/problem/requiredFix/file/line）。
 - 修复后重跑验证 + 审查；不覆盖旧证据。
 - 审查师不能只读实现者报告；至少独立跑关键负控制/判别力探针。
 - 高风险点跨组审查（A 的实现由 B/C 审查）优先。
+
+### 7.1 审查/验证证据与不可变 head/base 绑定（P2）
+
+- 每条 review/verification 记录写入 `reviewed_head_sha`、`reviewed_base_sha`、`merge_base_sha`、`checks_snapshot`、`worktree_path`；缺失任一项即 `invalid`，不参与质量门。
+- `pr.sync` 每次更新 `prs.head_sha`/`prs.base_sha` 时，对已有 review 计算有效性：`reviewed_head_sha == prs.head_sha` 且 `reviewed_base_sha == prs.base_sha` 且 `merge_base_sha` 仍是 `base..head` 的 merge-base，否则把该 review 标记 `stale`（**保留历史，不改写 verdict**）。
+- `reviewing → awaiting_merge` 要求**存在一条 active（非 stale、非 invalid）的 `pass`**；只有 stale 的 pass 时点回到 `reviewing` 并记录 `review_stale(head_old, head_new)`。
+- base 变化（`origin/main` 前进或目标分支变化）同样使 base 字段失配 → 重跑验证与审查，不沿用旧结论。
+- 进度页只显示 active 结论，并列出 stale 数量与原因；不得把 stale pass 显示成当前结论。
+- 验收用例 A9–A12：审查后 push 新提交 → 旧 pass 变 stale 且不得推进 awaiting_merge；base 前进 → 同上；并发两次 sync → 幂等且不复活 stale；缺失证据字段的记录被拒绝。
 
 ---
 
@@ -338,7 +386,9 @@ workflow.point.create|promote|start|block|resume|cancel|status
 workflow.task.create|claim|update|complete|fail
 workflow.task.next(role)
 workflow.review.submit(task_id, verdict, findings)
-workflow.proposal.create|decision
+workflow.proposal.create
+workflow.decision.request(proposal_id, commit)   # 只登记待批；不写批准结果
+workflow.decision.approve|reject(proposal_id, commit, actor, evidence)   # 由可信主体调用（§4.3）
 workflow.pr.sync(number)   # 只读取 GitHub 状态；不执行 merge
 workflow.progress.render()
 ```
@@ -375,8 +425,12 @@ while running:
 ```sql
 points(id, title, source, risk, status, spec_path, pr, head_sha, labels_json, notes, timestamps)
 tasks(id, point_id, kind, status, assignee, role, provider, attempt_id, objective, acceptance_json, verify_json, in_scope_json, dependencies_json, reviewed_task_id, timestamps)
-attempts(id, task_id, member, provider, status, started_at, ended_at, error)
-reviews(id, task_id, verdict, findings_json, evidence_path, created_at)
+attempts(id, task_id, member, provider, status, started_at, ended_at, error,
+         worktree_path, branch, pid, token, terminated_at, terminate_reason)
+reviews(id, task_id, verdict, findings_json, evidence_path, created_at,
+        reviewed_head_sha, reviewed_base_sha, merge_base_sha, checks_json, worktree_path)
+decisions(id, proposal_id, actor_type, actor_identity, action, commit, record_commit,
+          evidence, created_at)
 prs(number, point_id, head_sha, base_sha, state, mergeable, checks_json, updated_at)
 seeds(id, source_type, source_ref, quote, status, requirement_ids)
 proposals(id, point_id, path, status, decisions_json)
@@ -428,6 +482,7 @@ events(id, type, entity, payload_json, created_at)
 
 ## 11. 新会话实现任务（建议顺序）
 
+0.5 **可信边界先行**（本规格 §4.3/§4.4/§7.1 的验收场景 A1–A12）：decision token 通道、attempt fencing、review 绑定；这些用例先于调度器实现，避免后期返工。
 1. 插件骨架 + 配置/单实例锁 + SQLite schema + `workflow.status/roster`。
 2. Scheduler（9 角色、provider 健康、用户优先、空闲补位）+ 模拟测试。
 3. Task/attempt/quality gate 状态机 + verify/review/repair ceiling。
@@ -443,7 +498,20 @@ events(id, type, entity, payload_json, created_at)
 - 无任务时不伪造；种子→规格→点→PR 全链路可恢复；
 - 插件从不自动 merge；
 - 重启后状态/attempt/PR 不丢；
-- 进度页可离线打开。
+- 进度页可离线打开；
+- 模型无法自行批准 decision（§4.3 用例 A1–A4 通过）；
+- 重派后旧 attempt 的 push 被拒、工作树不共享（§4.4 用例 A5–A8 通过）；
+- 审查后新提交或 base 变化使旧 pass 变 stale 且不推进 awaiting_merge（§7.1 用例 A9–A12 通过）。
+
+## 11.1 与其他在途实现的替代关系（2026-11-08 核对）
+
+| 对象 | 状态 | 与本文的关系 |
+| --- | --- | --- |
+| AgentTeams 常驻团队 + `tools/dev_workflow/agent_workflow.py` | main 已有，仍在用 | 本文是它的**替代/升级**目标：一旦插件落地，`state.json` 与状态助手退役（§10 迁移步骤）。在此之前本文不声称已实现。 |
+| PR #25 进度页（`tools/dev_workflow/progress_page.py`） | 在途 | 本文 §8 的进度页要求与之同源；插件版本落地后由插件接管生成。 |
+| PR #23 Proposal 流程 / PR #15 控制核心 | 在途 | 本文吸收其"Proposal 决策门 / 不自动合并"语义，规则以本文 §5.2/§6.3 为准。 |
+| 节点图 / auto-dev 工作流文档（`docs/development/team-workflow.md`，属另一开发环境） | **本仓库 main 与各 open PR 中均不存在** | 无法在本仓库核对其实现；本文不宣称被它取代。若该环境已实现插件，请在合并本文前补充替代说明。 |
+
 
 ---
 
@@ -466,3 +534,5 @@ events(id, type, entity, payload_json, created_at)
 5. 审查循环上限 3 轮是否合适？
 6. fallback 是否允许需求师临时做评估任务（不越权实现）？
 7. 进度页是否需要常驻 Web 服务，还是只生成 HTML？
+8. `trustedActors` 白名单是否只含 repository owner，还是允许指定协作者账号代行 Codex 批准？
+9. 重派时旧 worktree 保留多久（便于取证）再自动清理？
