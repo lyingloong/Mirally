@@ -1,6 +1,6 @@
 # 方案提案（Proposal PR）模板
 
-> 用于**需要用户/Codex 做产品或技术决策**、不能直接进入实现的高风险点。  
+> 用于**需要用户/Codex 做产品或技术决策**、不能直接进入实现的高风险点。
 > Proposal PR 只写方案，不写实现代码；决策完成后再开 Implementation PR。
 
 ## 1. 何时使用
@@ -130,7 +130,9 @@ Q1（范围）：记忆是否只保留“值得长期记住”的内容，还是
 
 - Proposal 对应点状态仍是 `specifying`（或 `blocked` 等用户决策）
 - Proposal 通过后，点进入 `implementing`，创建 implementation 任务
-- Proposal 被拒绝或撤回：用 `cancel-point <id> --reason <原因>` 直接进入 `cancelled`，不要把状态写成 `rejected`/`proposed`。`specifying` 和 `blocked` 都支持；`blocked` 不需要先 `resume`，因此满容量时也能取消并释放记录。`merging` 和终态不能取消；`merging` 只能等合并结果或转 `repairing`。提案记录保留在文档/Git 历史，PR 关闭，不进入待合并池
+- Proposal 被拒绝或撤回：用 `cancel-point <id> --reason <原因>` 直接进入 `cancelled`，不要把状态写成 `rejected`/`proposed`。可取消的范围就是状态机里允许 `cancelled` 的那些状态（`inbox`/`proposed`/`queued`/`specifying`/`implementing`/`verifying`/`reviewing`/`repairing`/`awaiting_merge`），以及由其中某个状态 `blocked` 的点；`blocked` 不需要先 `resume`，因此满容量时也能取消并释放记录。终态不能取消。提案记录保留在文档/Git 历史，PR 关闭，不进入待合并池
+- 合并进行中（`merging`）不可取消，也不能先 `block` 再取消：`block`、`resume`、`cancel-point` 都拒绝处于 `merging` 或 `blocked_from_status=merging` 的点，`--force` 也不能造出这种记录（`blocked -> repairing` 之外的强制转换同样被拒绝）。否则 GitHub 合并返回时 `merge-done` 无法从 `cancelled`/`blocked` 登记实际结果，工作流状态会与仓库事实分离。此时只能等合并结果（`merge-done` 或 `merge-reject`），或转 `repairing`
+- 已存在的 `blocked_from_status=merging` 记录（旧版本遗留）同样不可取消、不可 `resume`；`validate` 会把它报成 `cannot be resumed`。用 `set-status <id> repairing --force`（等价于 `merge-reject`）恢复后按正常流程返回修复
 - Proposal PR 本身不进入待合并池；它是决策载体，不是产品实现
 
 ## 6. 不作为
