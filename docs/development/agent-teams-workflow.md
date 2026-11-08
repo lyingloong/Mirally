@@ -255,6 +255,8 @@ free_slots     = max(0, concurrency - load)
 
 `tools/dev_workflow/progress_page.py` 把 `state.json` 渲染成一张**只读**的 HTML 进度页，供用户和队长在一个页面里看到全部开发点、待合并池和数据缺口。它只读状态、不写状态：页面上的任何操作都不会改变调度，也不会触发合并。
 
+> **依赖**：生成器由 PR #25（`feat/dev-0023-html-progress`，SPEC dev-0023）引入，合并顺序为 **#25 → 本文**。本 PR 分支的基线不含 `tools/dev_workflow/progress_page.py`；#25 合并前本节的命令不可执行，#26 先合会让文档指向不存在的工具。
+
 ```powershell
 # 离线生成（默认，只读缓存的 PR 数据）
 .\.venv\Scripts\python.exe tools\dev_workflow\progress_page.py
@@ -263,10 +265,17 @@ free_slots     = max(0, concurrency - load)
 .\.venv\Scripts\python.exe tools\dev_workflow\progress_page.py --refresh-pr
 ```
 
-- **输出**：默认写到 `output/agent-workflow/progress.html`，同目录再落一份 `progress.data.json`（页面用的同一份数据，便于脚本或后续点复用）。可用 `--out` / `--data` 改路径；`--workdir` 指定状态目录（默认 `output/agent-workflow`），指向仓库外会被拒绝并返回退出码 `2`。
+- **输出**：默认写到 `output/agent-workflow/progress.html`，同目录再落一份 `progress.data.json`（页面用的同一份数据，便于脚本或后续点复用）。可用 `--out` / `--data` 改路径；`--workdir` 指定状态目录（默认 `output/agent-workflow`，相对路径按当前目录解析）。
+- **参数**：`--offline` 表示只用缓存里的 PR 数据、不联网，也是不给 `--refresh-pr` 时的默认行为，显式写上只是把默认意图写在命令行里；`--refresh-pr` 用 gh 刷新缓存后再生成，是唯一联网步骤，两者都不给时的效果等于 `--offline`。`--now` 注入页头与 `progress.data.json` 里的生成时间，只用于确定性测试和复现，日常生成不需要。
 - **触发时机**：由队长在状态变化后手动生成，通常紧接 `status` / `validate` 之后——派任务、审查通过、批准合并、合并完成、配额阻塞或恢复各一次；也可以用来自查。页面是**快照**，不订阅事件，打开不会自动刷新；页头注明生成时间，与 `state.json` 或 GitHub 不一致时以二者为准。
 - **定位**：**页面由 workflow 维护**。它不是第二个事实源：`state.json` 是唯一真相，页面只做呈现；不要手改 `progress.html`（下次生成会被覆盖），也不要把它当状态输入。未运行生成器时，页面停留在上次的快照。
-- **数据**：卡片字段全部来自 `state.json` 与 `output/agent-workflow/` 下的本地文件（如 `verification/<id>.md` 的结论）。缺失的数据显示 `—` 并计入页面的数据缺口，不用推测值填充。PR 信息来自缓存；没有缓存且未加 `--refresh-pr` 时只提示缓存缺失，退出码仍为 `0`，不把“没联网”当成失败。
+- **数据**：卡片字段来自 `state.json` 与 `output/agent-workflow/` 下的本地文件：
+  - `verification/<id>*.md` 与 `review-<id>*.md` 的结论（多轮文件按轮次选最新）；`state.json` 中 `spec_path` 指向的 spec 给出目的（取标题或“一句话目标”的摘要）和待决策条数。
+  - `page-tasks.json`（队长维护）按开发点 id 提供「负责人」和「任务」两项；`page-decisions.md`（队长手写）里 `dev-NNNN: 文本` 的行追加到该点的「待决定问题」；缺这两个文件时该字段留空。
+  - `pr-cache.json` 提供 PR 标题、状态、mergeable 与 CI 计数，并据此给出「主要改动」；它只由 `--refresh-pr` 写入，生成器自己从不联网。
+  - 缺什么就显示 `—` 并计入页面的「数据缺口」，不用推测值填充。没有 `pr-cache.json` 或未加 `--refresh-pr` 时页头只提示缓存缺失，退出码仍为 `0`，不把“没联网”当成失败。
+- **版面**：开发点按「待你决定 / 进行中 / 已完成 / 已关闭」分组，每组再分用户点和 AI 点。阻塞、AI 提案、待批准合并以及任何有「待决定问题」的点进入「待你决定」；排队/收件箱随「进行中」显示；「已完成」「已关闭」默认折叠（点标题展开），已完成按合并时间倒序。**待合并池没有独立区段**：只在页头的「待合并」统计和待批准合并卡片的「待决定问题」（含可交 Codex 合并或等待用户批准的原因）里出现；页头另有容量、负载、空闲槽位、AI 在飞、阻塞和数据缺口统计，以及可折叠的状态校验和外部 PR 列表。
+- **退出码**：`0` 为生成成功（包括缓存缺失的离线生成）；`2` 表示拒绝生成——`--workdir` 指向仓库外、`--workdir` 不存在，或 `--refresh-pr` 时 gh 不可用 / 调用失败 / 返回非零 / 输出无法解析。后一种情况保留旧缓存、不写页面，修好 gh 后重试。
 
 ## 队长的循环
 
