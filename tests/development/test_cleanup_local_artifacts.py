@@ -11,8 +11,10 @@ import shutil
 import sys
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -26,6 +28,14 @@ NOW = 1_800_000_000.0
 def _age(path: Path, days: float) -> None:
     stamp = NOW - days * DAY
     os.utime(path, (stamp, stamp))
+
+
+def _age_second(path: Path, seconds: float) -> None:
+    """Stamp a whole tree ``seconds`` before the wall clock the re-check reads."""
+    stamp = time.time() - seconds
+    for item in [path, *sorted(path.rglob("*"))]:
+        if not item.is_symlink():
+            os.utime(item, (stamp, stamp))
 
 
 def _age_tree(path: Path, days: float) -> None:
@@ -438,6 +448,102 @@ class CleanupLocalArtifactsTests(unittest.TestCase):
         self.assertFalse(cleanup.valid_days(float("inf")))
         self.assertFalse(cleanup.valid_days(-1))
         self.assertTrue(fresh.is_dir())
+
+    def test_apply_keeps_run_created_after_the_audit(self):
+        """audit() eligible → new run/tool/active.log → remove() keeps it, exit 0.
+
+        The audit only sees the tree it scanned. A run written after it - the
+        exact race Codex reproduced - must survive ``--apply``. Fixtures are
+        stamped relative to the wall clock and the injected re-check clock
+        matches it, because ``now=`` pins only the audit clock.
+        """
+        tool = self.scratch("old-tool", age_days=30, files=1)
+        clock = time.time()
+        _age_second(tool, seconds=30 * DAY)
+        real_audit = cleanup.audit
+
+        def audit_then_new_run(root, **kwargs):
+            entries = real_audit(root, **kwargs)
+            self.assertTrue(any(e.name == "old-tool" and e.eligible for e in entries))
+            run = tool / "run-new"
+            run.mkdir()
+            (run / "active.log").write_text("still running", encoding="utf-8")
+            return entries
+
+        with mock.patch.object(cleanup, "audit", side_effect=audit_then_new_run):
+            code, report = cleanup.run(repo_root=self.repo, now=clock, apply=True, days=7,
+                                       recheck_now=lambda: clock)
+        self.assertEqual(code, 0, report)
+        self.assertTrue((tool / "run-new" / "active.log").is_file())
+        self.assertTrue((tool / "f0.log").is_file())
+        self.assertIn("删除前复核", report)
+        self.assertIn("实际已删除 0 个", report)
+
+    def test_apply_keeps_run_written_after_the_audit(self):
+        """A stale run that receives a fresh file after audit() is not deleted."""
+        run = self.scratch("run-old", age_days=30, files=1)
+        clock = time.time()
+        _age_second(run, seconds=30 * DAY)
+        real_audit = cleanup.audit
+
+        def audit_then_touch(root, **kwargs):
+            entries = real_audit(root, **kwargs)
+            self.assertTrue(any(e.name == "run-old" and e.eligible for e in entries))
+            fresh = time.time()
+            os.utime(run / "f0.log", (fresh, fresh))
+            return entries
+
+        with mock.patch.object(cleanup, "audit", side_effect=audit_then_touch):
+            code, report = cleanup.run(repo_root=self.repo, now=clock, apply=True, days=7,
+                                       recheck_now=lambda: time.time())
+        self.assertEqual(code, 0, report)
+        self.assertTrue((run / "f0.log").is_file())
+        self.assertIn("删除前复核", report)
+
+    def test_apply_still_removes_a_tree_old_against_the_wall_clock(self):
+        """Protection must not become "never delete": really old trees still go."""
+        tool = self.tmp / "old-tool"
+        run = tool / "run-old"
+        run.mkdir(parents=True)
+        (run / "work.log").write_text("stale", encoding="utf-8")
+        clock = time.time()
+        _age_second(tool, seconds=30 * DAY)
+        code, report = cleanup.run(repo_root=self.repo, now=clock, apply=True, days=7,
+                                   recheck_now=lambda: time.time())
+        self.assertEqual(code, 0, report)
+        self.assertFalse(tool.exists())
+        self.assertNotIn("删除前复核", report)
+
+    def test_remove_rechecks_age_and_refuses_newly_active_run(self):
+        """The guard lives in remove() too, for callers that delete a stale Entry."""
+        run = self.scratch("run-old", age_days=30, files=1)
+        clock = time.time()
+        _age_second(run, seconds=30 * DAY)
+        [entry] = cleanup.audit(self.tmp, days=7, now=clock, repo_root=self.repo)
+        self.assertTrue(entry.eligible)
+        fresh = time.time()
+        os.utime(run / "f0.log", (fresh, fresh))
+        with self.assertRaises(ValueError):
+            cleanup.remove(entry, root=self.tmp, repo_root=self.repo, days=7, now=time.time())
+        self.assertTrue((run / "f0.log").is_file())
+
+    def test_apply_treats_a_vanished_candidate_as_nothing_to_delete(self):
+        """A candidate removed after the audit is skipped, not reported as failure."""
+        tool = self.scratch("run-vanish", age_days=30, files=1)
+        clock = time.time()
+        _age_second(tool, seconds=30 * DAY)
+        real_audit = cleanup.audit
+
+        def audit_then_remove(root, **kwargs):
+            entries = real_audit(root, **kwargs)
+            shutil.rmtree(tool)
+            return entries
+
+        with mock.patch.object(cleanup, "audit", side_effect=audit_then_remove):
+            code, report = cleanup.run(repo_root=self.repo, now=clock, apply=True, days=7,
+                                       recheck_now=lambda: time.time())
+        self.assertEqual(code, 0, report)
+        self.assertFalse(tool.exists())
 
     def test_tool_is_read_only_until_apply(self):
         """The default path must not modify mtimes anywhere in the tree."""

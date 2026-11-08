@@ -12,6 +12,10 @@ Scope is deliberately narrow:
 * a directory younger than ``--days`` (default 7) is kept; age is the newest
   mtime in the whole run directory, so an old tool directory holding a fresh
   run is not treated as stale;
+* eligibility is re-checked per run directory immediately before each deletion:
+  a tool directory that only just became active (a new run, or a fresh entry in
+  an existing one, written after the audit) is skipped instead of removed, so
+  the delete step never relies on the audit-time snapshot alone;
 * symlinks are never followed or deleted - they are reported and skipped, so a
   link cannot be used to reach outside the temporary root;
 * ``output/tmp`` and every ancestor up to the Git root must be real
@@ -41,6 +45,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 ROOT = Path(__file__).resolve().parents[1]
 TMP_RELATIVE = Path("output") / "tmp"
@@ -241,14 +246,30 @@ def audit(root: Path, *, days: float = DEFAULT_DAYS, now: float | None = None,
     return entries
 
 
-def remove(entry: Entry, *, root: Path, repo_root: Path | None = None) -> None:
-    """Delete one eligible directory, re-checking the boundary right before acting."""
+def _recheck_age(entry: Entry, *, days: float, now: float | None) -> float:
+    """Age of ``entry``'s run tree right now, for the pre-delete re-check.
+
+    The audit is only a snapshot: a tool directory that was stale when scanned
+    can receive a fresh run between the audit and the delete. Re-reading the
+    newest mtime here closes that window. ``now`` must be the *delete-time*
+    clock: reusing the audit's frozen ``now`` would compare a fresh mtime
+    against a stale "now" and still look old.
+    """
+    newest = _newest_mtime(entry.path)
+    return ((time.time() if now is None else now) - newest) / DAY_SECONDS
+
+
+def remove(entry: Entry, *, root: Path, repo_root: Path | None = None,
+           days: float = DEFAULT_DAYS, now: float | None = None) -> None:
+    """Delete one eligible directory, re-checking boundary *and* age right before acting."""
     base = (repo_root or ROOT).resolve()
     if not entry.eligible or entry.kind != "dir":
         raise ValueError(f"refusing to remove ineligible entry {entry.name}")
     if (_is_link(entry.path) or _reparse_components(base, entry.path)
             or not _inside(entry.path, base / TMP_RELATIVE)):
         raise ValueError(f"refusing to remove {entry.name}: outside output/tmp")
+    if _recheck_age(entry, days=days, now=now) < days:
+        raise ValueError(f"refusing to remove {entry.name}: became active after the audit")
     shutil.rmtree(entry.path)
 
 
@@ -256,7 +277,8 @@ def _human_age(age: float) -> str:
     return f"{age:.1f} 天" if age >= 0 else "时间戳在未来"
 
 
-def format_report(entries: list[Entry], *, days: float, applied: bool, removed: int) -> str:
+def format_report(entries: list[Entry], *, days: float, applied: bool, removed: int,
+                  rechecked: int = 0) -> str:
     lines: list[str] = []
     candidates = [entry for entry in entries if entry.eligible]
     files = [entry for entry in entries if entry.kind == "file"]
@@ -268,6 +290,8 @@ def format_report(entries: list[Entry], *, days: float, applied: bool, removed: 
     lines.append(f"{mode}：{len(candidates)} 个目录" + (f"，实际已删除 {removed} 个" if applied else ""))
     for entry in candidates:
         lines.append(f"  - {entry.name}/  ({_human_age(entry.age_days)}，{entry.reason})")
+    if rechecked:
+        lines.append(f"删除前复核：{rechecked} 个目录在审计后变为活跃或已消失，未删除。")
     if files:
         lines.append(f"保留（散落文件，只报告）：{len(files)} 个")
         for entry in files:
@@ -281,7 +305,8 @@ def format_report(entries: list[Entry], *, days: float, applied: bool, removed: 
 
 def run(*, repo_root: Path | None = None, days: float = DEFAULT_DAYS, apply: bool = False,
         now: float | None = None, root: Path | None = None,
-        require_default_root: bool = True) -> tuple[int, str]:
+        require_default_root: bool = True,
+        recheck_now: Callable[[], float] | None = None) -> tuple[int, str]:
     """Audit (and optionally delete) stale scratch directories. Returns (exit code, report).
 
     ``root`` may point at any directory for tests, but the boundary check always
@@ -310,16 +335,35 @@ def run(*, repo_root: Path | None = None, days: float = DEFAULT_DAYS, apply: boo
                    "不跟随、不删除。")
     entries = audit(target, days=days, now=now, repo_root=base)
     removed = 0
+    rechecked = 0
     if apply:
+        # Tests pin the audit clock with ``now``; the delete step still has to
+        # look at the tree *now*, so it defaults to the real clock unless a
+        # caller injects its own.
+        clock = recheck_now or (lambda: time.time() if now is None else now)
         for entry in entries:
             if not entry.eligible:
                 continue
+            # The audit is a snapshot: a fresh run (or a fresh file inside an
+            # existing run) can land before this rmtree. Re-check age against the
+            # delete-time clock and keep the directory instead of deleting an
+            # active run. A candidate that disappeared in the meantime is
+            # nothing to delete, not an error.
             try:
-                remove(entry, root=target, repo_root=base)
+                age = _recheck_age(entry, days=days, now=clock())
+            except OSError:
+                rechecked += 1
+                continue
+            if age < days:
+                rechecked += 1
+                continue
+            try:
+                remove(entry, root=target, repo_root=base, days=days, now=clock())
                 removed += 1
             except (OSError, ValueError) as error:
                 return 1, f"删除 {entry.name} 失败：{type(error).__name__}: {error}"
-    return 0, format_report(entries, days=days, applied=apply, removed=removed)
+    return 0, format_report(entries, days=days, applied=apply, removed=removed,
+                            rechecked=rechecked)
 
 
 def _console_safe() -> None:
