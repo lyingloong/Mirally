@@ -238,7 +238,10 @@ class ProgressPageConsoleTests(unittest.TestCase):
     def test_merge_state_treats_zero_checks_as_a_user_decision(self):
         point = {"status": "awaiting_merge", "pr": 12}
         cached = {"state": "OPEN", "mergeable": "MERGEABLE", "checks": {"pass": 0, "pending": 0, "fail": 0}}
-        self.assertEqual(pp.merge_state(point, cached), {"state": "user", "reason": "无 CI 检查"})
+        # No checks is a user decision that only the engineer can unblock by wiring
+        # CI up, so merge_state reports owner=engineer alongside state=user.
+        self.assertEqual(pp.merge_state(point, cached),
+                         {"state": "user", "owner": "engineer", "reason": "无 CI 检查"})
         # The same PR with at least one green check is the Codex-mergeable boundary.
         self.assertEqual(
             pp.merge_state(point, {"state": "OPEN", "mergeable": "MERGEABLE",
