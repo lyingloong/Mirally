@@ -12,9 +12,13 @@ claim tokens, channel destinations or the absolute home path, and it reads
 ``product.sqlite3`` through one SQLite read (the online backup API), which
 sees rows an active writer has not checkpointed yet and cannot mix two moments
 together even while a writer checkpoints the journal. The backup is written to
-a private directory created under ``--scratch`` for this call only, so neither
-the product home nor the caller's scratch directory is ever modified; the
-empty WAL side files SQLite creates for that read-only open are removed again.
+a private directory created under ``--scratch`` for this call only, so the
+caller's scratch directory is never used for the copy and no product data is
+written. A read-only WAL open may leave an empty ``-wal`` and a ``-shm`` side
+file beside the store; they belong to SQLite and the product writer and are
+never deleted by the snapshot, because a size check taken before an unlink can
+race a writer that commits and exits in between (its committed rows live in
+that journal).
 """
 
 from __future__ import annotations
@@ -40,7 +44,6 @@ INITIATIVE_STATUSES = ("pending", "queued", "expired", "dismissed")
 # never mistake them for an SLA or a quality score.
 PENDING_STALE_MS = 3_600_000
 SENDING_STALE_MS = 600_000
-WAL_MARKERS = ("-wal", "-shm")
 
 
 class SnapshotError(RuntimeError):
@@ -74,67 +77,28 @@ def _snapshot_copy(database: Path, work: Path) -> Path:
     the private work directory; the backup writes that state into it, so a
     read-only reader sees the whole snapshot even after the writer moves on.
 
-    The store is only opened read-only (``mode=ro``) for that one read.
-    Read-only WAL access still creates an empty ``-wal`` and a ``-shm`` side
-    file when they are missing, so those are removed again afterwards; files
-    that existed before the read (a live writer owns them) are never touched.
+    The store is only opened read-only (``mode=ro``) for that one read. Such an
+    open may create an empty ``-wal`` and a ``-shm`` side file when they are
+    missing (SQLite needs them for the WAL index). They are deliberately left in
+    place: deciding to delete them means comparing a size read a moment earlier,
+    and a writer can commit and ``os._exit(0)`` inside that window, leaving a
+    journal whose committed rows must survive the next open. SQLite and the
+    product writer own these side files; an empty journal is harmless.
     """
     work.mkdir(parents=True, exist_ok=True)
     target = work / database.name
-    markers = [Path(str(database) + suffix) for suffix in WAL_MARKERS]
-    created = [marker for marker in markers if not marker.exists()]
+    source = sqlite3.connect(
+        database.resolve().as_uri() + "?mode=ro", uri=True, timeout=5)
     try:
-        source = sqlite3.connect(
-            database.resolve().as_uri() + "?mode=ro", uri=True, timeout=5)
+        source.execute("PRAGMA busy_timeout=5000")
+        destination = sqlite3.connect(str(target))
         try:
-            source.execute("PRAGMA busy_timeout=5000")
-            destination = sqlite3.connect(str(target))
-            try:
-                source.backup(destination)
-            finally:
-                destination.close()
+            source.backup(destination)
         finally:
-            source.close()
+            destination.close()
     finally:
-        _remove_created_sidecars(database, created)
+        source.close()
     return target
-
-
-def _remove_created_sidecars(database: Path, created: list[Path]) -> None:
-    """Remove the ``-wal``/``-shm`` files this snapshot's read-only open made.
-
-    A read-only WAL open needs a shared-memory index, so SQLite creates an
-    empty ``-wal`` and a 32 KiB ``-shm`` next to the store when they are
-    missing. They hold no product data; removing them leaves the home as the
-    writer left it. A ``-wal`` that became non-empty while the snapshot ran
-    belongs to a writer that started meanwhile, so nothing is removed in that
-    case. Windows refuses to delete a file another connection still has
-    mapped, and the short retry only covers antivirus/indexer latency.
-    """
-    if not created:
-        return
-    journal = Path(str(database) + "-wal")
-    for _ in range(30):
-        retry = False
-        for marker in created:
-            try:
-                size = marker.stat().st_size
-            except FileNotFoundError:
-                continue
-            except OSError:
-                retry = True
-                continue
-            if marker == journal and size:
-                return      # a writer took the journal over: leave it alone
-            try:
-                marker.unlink()
-            except FileNotFoundError:
-                pass
-            except OSError:
-                retry = True
-        if not retry:
-            return
-        time.sleep(0.01)
 
 
 def _count(connection: sqlite3.Connection, sql: str, params: tuple = ()) -> int:

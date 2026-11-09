@@ -12,6 +12,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import textwrap
 import threading
 import unittest
 from unittest.mock import patch
@@ -25,6 +26,23 @@ class DeliveryHealthSnapshotTests(unittest.TestCase):
     """Read-only delivery snapshot (SPEC-1): counts only, no content, no writes."""
 
     MARKER = "MARKER_DELIVERY_BODY"
+    CRASH_WRITER = textwrap.dedent(
+        """
+        import os
+        import sqlite3
+        import sys
+
+        connection = sqlite3.connect(sys.argv[1])
+        connection.execute(
+            "INSERT INTO deliveries (id, kind, reference_id, channel, status,"
+            " claim_token, receipt_json, sources_json, created_at, updated_at)"
+            " VALUES (?,?,?,?,?,NULL,NULL,'[]',?,?)",
+            ("crash-writer-1", "commitment", "crash-writer-ref", "weixin",
+             "pending", 1000000000000, 1000000000000))
+        connection.commit()
+        # No close and no checkpoint: the committed row lives only in -wal.
+        os._exit(0)
+        """).strip()
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -116,6 +134,19 @@ class DeliveryHealthSnapshotTests(unittest.TestCase):
             return connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
         finally:
             connection.close()
+
+    def crash_writer_commit(self) -> None:
+        """A real second process commits a pending delivery and dies via ``os._exit``.
+
+        Closing a connection normally checkpoints ``-wal`` into the main file;
+        dying without closing leaves the committed row only in the journal. That
+        is the state the snapshot must never delete from stale metadata.
+        """
+        result = subprocess.run(
+            [sys.executable, "-c", self.CRASH_WRITER, str(self.database)],
+            capture_output=True, text=True)
+        if result.returncode != 0:
+            self.fail(f"crash writer failed ({result.returncode}): {result.stderr}")
 
     def test_empty_home_reports_zeros_without_errors(self):
         report = self.report()
@@ -224,13 +255,77 @@ class DeliveryHealthSnapshotTests(unittest.TestCase):
         self.report()
         self.assertEqual(self.database.read_bytes(), before)
         self.assertEqual(self.database.stat().st_mtime_ns, mtime)
-        # Opening a WAL database read-only creates -wal/-shm side files even
-        # when the store is static. The snapshot removes the ones it created:
-        # nothing new may appear beside the source, and the caller's work
-        # directory must be left empty.
-        self.assertEqual(entries_before, sorted(path.name for path in self.database.parent.iterdir()))
+        # A read-only WAL open leaves SQLite's own empty -wal/-shm beside a
+        # static store. The snapshot must not remove them from a size it read
+        # earlier: a writer can commit inside that window and its committed
+        # rows live in the journal. Only those two SQLite side files may
+        # appear; the main database and the caller's work dir stay untouched.
+        entries_after = sorted(path.name for path in self.database.parent.iterdir())
+        self.assertLessEqual(set(entries_after) - set(entries_before),
+                             {"product.sqlite3-wal", "product.sqlite3-shm"})
+        self.assertEqual(self.database.read_bytes(), before)
         self.assertEqual(sorted(self.scratch.iterdir()), [])
         self.assertEqual(self.report(), self.report())
+
+    def test_writer_commit_and_crash_never_loses_the_journal(self):
+        """P1: side files are never deleted from a size read taken earlier.
+
+        Codex repro: the snapshot inspects an empty ``-wal``, a real writer then
+        commits and calls ``os._exit(0)`` (no close, no checkpoint), and the
+        cleanup unlinks the now non-empty journal. Reopening silently loses the
+        committed row. The fixed snapshot only reads and never unlinks the
+        product's ``-wal``/``-shm``, so the crashed writer's commit survives for
+        the next open.
+        """
+        service = self.service()
+        service.commitment_create(title="before", due_at_utc_ms=self.now,
+                                  request_id="crash-before", channel="weixin")
+        service.delivery_tick()
+        service.close()
+        self.services.clear()
+        journal = Path(str(self.database) + "-wal")
+        shared_memory = Path(str(self.database) + "-shm")
+        self.assertFalse(journal.exists(), "a quiesced writer leaves no journal")
+        crash = {"ran": False}
+
+        real_stat = Path.stat
+
+        def crash_after_the_size_check(path, *args, **kwargs):
+            """Inject the writer in the exact window the old cleanup unlinked.
+
+            The removed implementation read ``st_size`` and then unlinked the
+            journal. A real commit that lands between those steps used to be
+            deleted with it; the fixed snapshot never inspects the side files,
+            so this hook only fires on the old code.
+            """
+            result = real_stat(path, *args, **kwargs)
+            if path == journal and not crash["ran"]:
+                crash["ran"] = True
+                self.crash_writer_commit()
+            return result
+
+        with patch.object(Path, "stat", crash_after_the_size_check):
+            report = self.report()
+        if not crash["ran"]:
+            # No source side file is inspected/unlinked any more: sequence the
+            # same crash commit immediately after the snapshot's read.
+            self.crash_writer_commit()
+        self.assertEqual(report["database"], "present")
+        self.assertFalse(crash["ran"], "the snapshot must not inspect product side files")
+        self.assertTrue(journal.is_file(), "the committed -wal must not be deleted")
+        self.assertGreater(journal.stat().st_size, 0)
+        self.assertTrue(shared_memory.is_file(), "the writer's -shm must not be deleted")
+        # The snapshot itself still sees the WAL-carried commit.
+        self.assertEqual(self.report()["counts"]["pending"], 2)
+        # Reopening the product database must see the committed row.
+        connection = sqlite3.connect(str(self.database))
+        try:
+            committed = connection.execute(
+                "SELECT COUNT(*) FROM deliveries WHERE reference_id='crash-writer-ref'"
+            ).fetchone()[0]
+        finally:
+            connection.close()
+        self.assertEqual(committed, 1, "reopening the product database must see the commit")
 
     def test_unreadable_database_discloses_errors_instead_of_zeros(self):
         self.database.parent.mkdir(parents=True)
@@ -350,7 +445,8 @@ class DeliveryHealthSnapshotTests(unittest.TestCase):
 
         This is the home SQLite would find after a crash: the journal holds
         committed rows but no shared-memory file exists. The snapshot must
-        recover those rows and create no lasting side files of its own.
+        recover those rows and must never delete the journal; the read-only
+        open may add its own ``-shm``, which SQLite manages from then on.
         """
         self.pending_delivery_in_wal()
         framework = self.base / "crashed home" / "framework"
@@ -360,11 +456,20 @@ class DeliveryHealthSnapshotTests(unittest.TestCase):
         self.close_services()               # the writer is gone; the pair is all that is left
         before = sorted(path.name for path in framework.iterdir())
         self.assertEqual(before, ["product.sqlite3", "product.sqlite3-wal"])
+        journal = framework / "product.sqlite3-wal"
+        journal_size = journal.stat().st_size
+        self.assertGreater(journal_size, 0)
         report = self.report(self.base / "crashed home")
         self.assertEqual(report["database"], "present")
         self.assertEqual(report["counts"]["pending"], 1, report["counts"])
         self.assertEqual(report["errors"], [])
-        self.assertEqual(sorted(path.name for path in framework.iterdir()), before)
+        # The crashed writer's journal keeps the committed rows; only SQLite's
+        # own shared-memory file may be added, and no source file is removed.
+        after = sorted(path.name for path in framework.iterdir())
+        self.assertLessEqual(set(after), {"product.sqlite3", "product.sqlite3-wal",
+                                          "product.sqlite3-shm"})
+        self.assertIn("product.sqlite3-wal", after)
+        self.assertEqual(journal.stat().st_size, journal_size)
 
     def test_scratch_parent_files_are_never_used_or_removed(self):
         """P1: a caller's own product.sqlite3 inside --scratch must survive."""
@@ -420,8 +525,14 @@ class DeliveryHealthSnapshotTests(unittest.TestCase):
                                      "--scratch", str(self.database.parent)])
         self.assertIn(code, (0, 1))
         self.assertEqual(self.database.read_bytes(), before)
-        self.assertEqual(sorted(path.name for path in self.database.parent.iterdir()),
-                         ["product.sqlite3"])
+        # SQLite's own side files may remain after the read-only open; the
+        # product database itself and any work subdirectory are not left over.
+        entries = sorted(path.name for path in self.database.parent.iterdir())
+        self.assertIn("product.sqlite3", entries)
+        self.assertLessEqual(set(entries) - {"product.sqlite3"},
+                             {"product.sqlite3-wal", "product.sqlite3-shm"})
+        self.assertFalse([name for name in entries if name.startswith("delivery-health-")],
+                         "the private work subdirectory must be removed")
 
 
 class FrameworkProductTests(unittest.TestCase):
