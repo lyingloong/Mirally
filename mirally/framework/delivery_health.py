@@ -9,10 +9,12 @@ product, a model, a channel or any credential.
 The snapshot only emits counts and status enums. It never selects
 ``reference_id``, ``title``, ``body``, ``receipt_json``, ``sources_json``,
 claim tokens, channel destinations or the absolute home path, and it reads
-``product.sqlite3`` through SQLite's online backup API, which sees rows an
-active writer has not checkpointed yet. The backup is written to a private
-directory created under ``--scratch`` for this call only, so neither the
-product home nor the caller's scratch directory is ever modified.
+``product.sqlite3`` through one SQLite read (the online backup API), which
+sees rows an active writer has not checkpointed yet and cannot mix two moments
+together even while a writer checkpoints the journal. The backup is written to
+a private directory created under ``--scratch`` for this call only, so neither
+the product home nor the caller's scratch directory is ever modified; the
+empty WAL side files SQLite creates for that read-only open are removed again.
 """
 
 from __future__ import annotations
@@ -57,32 +59,82 @@ def _iso(value: int | None) -> str:
 
 
 def _snapshot_copy(database: Path, work: Path) -> Path:
-    """Consistent copy of a WAL database, main file and ``-wal`` together.
+    """Consistent snapshot of a WAL database built from one SQLite read.
 
-    The pair must be copied as one unit: copying the main file alone silently
-    returns an older history (measured with a live writer: 1 row instead of 2).
+    Copying the main file and the ``-wal`` file as two separate steps is not a
+    snapshot: a writer that runs ``wal_checkpoint(TRUNCATE)`` between the two
+    copies empties the journal first, and the stale main-file copy then
+    silently reports an older history (measured: the pending row disappears,
+    so ``pending`` reads as 0 with no error at all).
 
-    The copy is then opened read-write *once* -- on a throwaway file, never the
-    store -- so SQLite runs its own WAL recovery and folds the journal into the
-    main file. After that close the copy is a self-contained rollback-journal
-    database that any read-only reader sees in full.
+    ``sqlite3.Connection.backup`` reads the main file and the live ``-wal``
+    through a single read transaction, so a copy is always one committed
+    database state: an active writer or an interleaved checkpoint can neither
+    hide a committed row nor mix two moments. The target is a fresh file in
+    the private work directory; the backup writes that state into it, so a
+    read-only reader sees the whole snapshot even after the writer moves on.
 
-    The source is only ever read (``shutil.copy2``), so nothing is created,
-    locked or migrated next to it.
+    The store is only opened read-only (``mode=ro``) for that one read.
+    Read-only WAL access still creates an empty ``-wal`` and a ``-shm`` side
+    file when they are missing, so those are removed again afterwards; files
+    that existed before the read (a live writer owns them) are never touched.
     """
     work.mkdir(parents=True, exist_ok=True)
     target = work / database.name
-    shutil.copy2(database, target)
-    journal = Path(str(database) + "-wal")
-    if journal.is_file():
-        shutil.copy2(journal, Path(str(target) + "-wal"))
-    recovered = sqlite3.connect(str(target))
+    markers = [Path(str(database) + suffix) for suffix in WAL_MARKERS]
+    created = [marker for marker in markers if not marker.exists()]
     try:
-        # Replays -wal into the copy and drops the journal when it closes.
-        recovered.execute("SELECT count(*) FROM sqlite_master").fetchone()
+        source = sqlite3.connect(
+            database.resolve().as_uri() + "?mode=ro", uri=True, timeout=5)
+        try:
+            source.execute("PRAGMA busy_timeout=5000")
+            destination = sqlite3.connect(str(target))
+            try:
+                source.backup(destination)
+            finally:
+                destination.close()
+        finally:
+            source.close()
     finally:
-        recovered.close()
+        _remove_created_sidecars(database, created)
     return target
+
+
+def _remove_created_sidecars(database: Path, created: list[Path]) -> None:
+    """Remove the ``-wal``/``-shm`` files this snapshot's read-only open made.
+
+    A read-only WAL open needs a shared-memory index, so SQLite creates an
+    empty ``-wal`` and a 32 KiB ``-shm`` next to the store when they are
+    missing. They hold no product data; removing them leaves the home as the
+    writer left it. A ``-wal`` that became non-empty while the snapshot ran
+    belongs to a writer that started meanwhile, so nothing is removed in that
+    case. Windows refuses to delete a file another connection still has
+    mapped, and the short retry only covers antivirus/indexer latency.
+    """
+    if not created:
+        return
+    journal = Path(str(database) + "-wal")
+    for _ in range(30):
+        retry = False
+        for marker in created:
+            try:
+                size = marker.stat().st_size
+            except FileNotFoundError:
+                continue
+            except OSError:
+                retry = True
+                continue
+            if marker == journal and size:
+                return      # a writer took the journal over: leave it alone
+            try:
+                marker.unlink()
+            except FileNotFoundError:
+                pass
+            except OSError:
+                retry = True
+        if not retry:
+            return
+        time.sleep(0.01)
 
 
 def _count(connection: sqlite3.Connection, sql: str, params: tuple = ()) -> int:

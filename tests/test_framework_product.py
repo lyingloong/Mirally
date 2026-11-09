@@ -7,10 +7,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import sqlite3
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -34,12 +36,46 @@ class DeliveryHealthSnapshotTests(unittest.TestCase):
         self.now = 1_000_000_000_000
         self.database = self.home / "framework" / "product.sqlite3"
         self.services = []
+        # Connections used by the checkpoint tests; SQLite is thread-bound, so
+        # the checkpoint thread owns and closes its own, and tearDown joins it
+        # before closing anything else.
+        self.side_connections: list[sqlite3.Connection] = []
+        self.thread_connections: list[sqlite3.Connection] = []
+        self.side_stop = threading.Event()
+        self.side_writer: threading.Thread | None = None
 
     def tearDown(self):
+        self.stop_side_work()
         for service in self.services:
             service.close()
         self.services.clear()
         self.temp.cleanup()
+
+    def side_connection(self, **kwargs) -> sqlite3.Connection:
+        connection = sqlite3.connect(str(self.database), **kwargs)
+        self.side_connections.append(connection)
+        return connection
+
+    def checkpoint_connection(self) -> sqlite3.Connection:
+        """A connection owned by whoever thread runs the checkpoint loop."""
+        connection = sqlite3.connect(str(self.database), check_same_thread=False, timeout=10)
+        self.thread_connections.append(connection)
+        return connection
+
+    def stop_side_work(self) -> None:
+        self.side_stop.set()
+        worker = self.side_writer
+        if worker is not None:
+            worker.join(timeout=30)
+            self.assertFalse(worker.is_alive(), "the checkpoint thread did not stop")
+        self.side_writer = None
+        for connection in (*self.side_connections, *self.thread_connections):
+            try:
+                connection.close()
+            except sqlite3.Error:
+                pass
+        self.side_connections.clear()
+        self.thread_connections.clear()
 
     def service(self):
         service = FrameworkService(self.base, self.home, clock=lambda: self.now)
@@ -56,6 +92,30 @@ class DeliveryHealthSnapshotTests(unittest.TestCase):
 
     def report(self, home=None):
         return delivery_health.build(home or self.home, work=self.scratch, now_ms=lambda: self.now)
+
+    def pending_delivery_in_wal(self) -> None:
+        """One checkpointed row plus a pending row that lives only in ``-wal``."""
+        seeded = self.service()
+        seeded.commitment_create(title="checked in", due_at_utc_ms=self.now, request_id="seed")
+        seeded.delivery_tick()              # an inbox reminder, delivered immediately
+        seeded.close()                      # schema and that row are checkpointed
+        self.services.clear()
+        journal = Path(str(self.database) + "-wal")
+        self.assertFalse(journal.exists() and journal.stat().st_size)
+        # Keep the live writer alive for the whole test: it owns the row.
+        live = self.service()
+        self.now += 100_000
+        live.commitment_create(title="still in wal", due_at_utc_ms=self.now,
+                               request_id="wal", channel="weixin")
+        live.delivery_tick()                # weixin is never sent offline: stays pending
+        self.assertGreater(journal.stat().st_size, 0)
+
+    def checkpoint_truncate(self) -> list[tuple[int, int, int]]:
+        connection = self.side_connection(timeout=10)
+        try:
+            return connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
+        finally:
+            connection.close()
 
     def test_empty_home_reports_zeros_without_errors(self):
         report = self.report()
@@ -164,9 +224,10 @@ class DeliveryHealthSnapshotTests(unittest.TestCase):
         self.report()
         self.assertEqual(self.database.read_bytes(), before)
         self.assertEqual(self.database.stat().st_mtime_ns, mtime)
-        # Opening a WAL database read-only still creates -wal/-shm, so the
-        # snapshot must read a copy: nothing new may appear beside the source,
-        # and the caller's work directory must be left empty.
+        # Opening a WAL database read-only creates -wal/-shm side files even
+        # when the store is static. The snapshot removes the ones it created:
+        # nothing new may appear beside the source, and the caller's work
+        # directory must be left empty.
         self.assertEqual(entries_before, sorted(path.name for path in self.database.parent.iterdir()))
         self.assertEqual(sorted(self.scratch.iterdir()), [])
         self.assertEqual(self.report(), self.report())
@@ -206,6 +267,104 @@ class DeliveryHealthSnapshotTests(unittest.TestCase):
         self.assertNotIn("deliveries", [error["section"] for error in report["errors"]])
         # The source is left exactly as the writer had it.
         self.assertEqual(before, sorted(path.name for path in self.database.parent.iterdir()))
+
+    def test_concurrent_checkpoint_cannot_hide_wal_rows(self):
+        """P1: a live writer's TRUNCATE checkpoint must not empty the snapshot.
+
+        The removed implementation copied the main file and then ``-wal`` as
+        two steps; a checkpoint between them emptied the journal first and the
+        stale copy silently reported pending=0 with no error at all.
+        """
+        self.pending_delivery_in_wal()
+
+        def checkpoint_loop():
+            while not self.side_stop.is_set():
+                connection = self.checkpoint_connection()
+                try:
+                    connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
+                finally:
+                    connection.close()
+
+        self.side_writer = threading.Thread(target=checkpoint_loop, daemon=True)
+        self.side_writer.start()
+        try:
+            reports = [self.report() for _ in range(10)]
+        finally:
+            self.stop_side_work()
+        for report in reports:
+            self.assertEqual(report["database"], "present")
+            self.assertEqual(report["counts"]["pending"], 1, report["counts"])
+            self.assertEqual(report["commitments"]["queued"], 1)
+            self.assertEqual(report["errors"], [])
+
+    def test_checkpoint_between_two_file_copies_cannot_hide_wal_rows(self):
+        """P1, deterministically: a checkpoint right after the main-file copy.
+
+        Every separate copy of the main file is followed by a writer
+        ``wal_checkpoint(TRUNCATE)`` before a second file copy could happen.
+        A two-step copy reads pending=0 here; one SQLite backup read cannot be
+        split that way.
+        """
+        self.pending_delivery_in_wal()
+        real_copy2 = shutil.copy2
+
+        def copy_then_checkpoint(source, destination, *args, **kwargs):
+            result = real_copy2(source, destination, *args, **kwargs)
+            if Path(source) == self.database:
+                self.assertEqual(self.checkpoint_truncate()[0][0], 0)
+            return result
+
+        with patch.object(delivery_health.shutil, "copy2", copy_then_checkpoint):
+            report = self.report()
+        self.assertEqual(report["database"], "present")
+        self.assertEqual(report["counts"]["pending"], 1, report["counts"])
+        self.assertEqual(report["commitments"]["queued"], 1)
+        self.assertEqual(report["errors"], [])
+
+    def test_checkpoint_after_the_snapshot_is_neither_blocked_nor_lost(self):
+        """The snapshot releases the store before a checkpoint is attempted.
+
+        A writer that truncates the journal while the report is being read
+        from the scratch copy cannot change what the snapshot already read,
+        and the audit must not hold a read transaction that blocks it.
+        """
+        self.pending_delivery_in_wal()
+        real_snapshot = delivery_health._snapshot_copy
+        checkpoints = []
+
+        def snapshot_then_checkpoint(database, work):
+            target = real_snapshot(database, work)
+            if not checkpoints:
+                checkpoints.append(self.checkpoint_truncate())
+            return target
+
+        with patch.object(delivery_health, "_snapshot_copy", snapshot_then_checkpoint):
+            report = self.report()
+        self.assertEqual(len(checkpoints), 1)
+        self.assertEqual(checkpoints[0][0][0], 0, "the checkpoint must not be blocked")
+        self.assertEqual(report["counts"]["pending"], 1, report["counts"])
+        self.assertEqual(report["commitments"]["queued"], 1)
+
+    def test_hot_wal_without_shm_is_read_and_left_alone(self):
+        """A ``-wal`` left by a crashed writer (no ``-shm``) is still read.
+
+        This is the home SQLite would find after a crash: the journal holds
+        committed rows but no shared-memory file exists. The snapshot must
+        recover those rows and create no lasting side files of its own.
+        """
+        self.pending_delivery_in_wal()
+        framework = self.base / "crashed home" / "framework"
+        framework.mkdir(parents=True)
+        shutil.copy2(self.database, framework / "product.sqlite3")
+        shutil.copy2(Path(str(self.database) + "-wal"), framework / "product.sqlite3-wal")
+        self.close_services()               # the writer is gone; the pair is all that is left
+        before = sorted(path.name for path in framework.iterdir())
+        self.assertEqual(before, ["product.sqlite3", "product.sqlite3-wal"])
+        report = self.report(self.base / "crashed home")
+        self.assertEqual(report["database"], "present")
+        self.assertEqual(report["counts"]["pending"], 1, report["counts"])
+        self.assertEqual(report["errors"], [])
+        self.assertEqual(sorted(path.name for path in framework.iterdir()), before)
 
     def test_scratch_parent_files_are_never_used_or_removed(self):
         """P1: a caller's own product.sqlite3 inside --scratch must survive."""
