@@ -7,7 +7,8 @@ not call GitHub or the AgentTeams API.
 
 State and local config live under ``output/agent-workflow/`` by default (the
 directory is gitignored). The tracked process definition is
-``docs/development/agent-teams-workflow.md``.
+``docs/development/agent-teams-workflow.md``. A lock file beside the state
+serializes read-modify-write commands across processes.
 """
 from __future__ import annotations
 
@@ -18,9 +19,11 @@ import json
 import os
 import sys
 import tempfile
+import time
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_STATE_PATH = REPO_ROOT / "output" / "agent-workflow" / "state.json"
@@ -85,6 +88,23 @@ ALLOWED_TRANSITIONS: dict[str, set[str]] = {
     "done": set(),
     "rejected": set(),
     "cancelled": set(),
+}
+
+# A merge in flight (``merging``, or ``blocked`` with this origin) may only leave through
+# its merge-result transitions. Parking it would leave merge_done unable to record the
+# GitHub result, so the workflow state would diverge from the repository.
+MERGE_IN_FLIGHT = "merging"
+
+# Parking is the only ``blocked`` writer, and it is not an ``edge`` in
+# ``ALLOWED_TRANSITIONS``. Declaring why an origin cannot be restored keeps
+# ``block_point``, capacity parking and ``resume_point`` from disagreeing.
+_BLOCK_ORIGIN_REFUSALS: dict[str, str] = {
+    "blocked": "a blocked point cannot be blocked again",
+    MERGE_IN_FLIGHT: (
+        "wait for the merge result (merge-done / merge-reject) or repair instead "
+        "of blocking or cancelling"
+    ),
+    **{status: "a terminal point cannot be resumed" for status in TERMINAL_STATUSES},
 }
 
 META_FIELDS = ("branch", "worktree", "pr", "head_sha", "spec_path")
@@ -243,6 +263,69 @@ def validate_config(config: dict[str, Any]) -> None:
             raise WorkflowError("fallback requires both provider and model")
 
 
+LOCK_TIMEOUT = 10.0
+LOCK_POLL_SECONDS = 0.02
+
+
+@contextmanager
+def state_lock(state_path: Path, *, timeout: float = LOCK_TIMEOUT) -> Iterator[None]:
+    """Serialize read-modify-write commands that share one state file.
+
+    Commands load the whole state, edit it in memory and write it back, so two
+    processes racing there silently drop each other's points. The sibling
+    ``<state>.lock`` file is locked with the operating system's advisory lock
+    (``msvcrt.locking`` on Windows, ``fcntl.flock`` elsewhere). Ownership is
+    tied to the holding process: exiting or crashing releases the lock, so a
+    lock file left on disk is never evidence that another process still owns
+    it, and mtime is not used to guess staleness. Waiting is bounded by
+    ``timeout``; on timeout the command reports an actionable error and never
+    deletes the lock file.
+    """
+    lock = state_path.with_name(state_path.name + ".lock")
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    handle = lock.open("a+b")
+    try:
+        handle.seek(0, os.SEEK_END)
+        if handle.tell() == 0:
+            # Windows locks a byte range, so the file must cover it. The content
+            # is irrelevant; the OS lock, not the file's existence, is the state.
+            handle.write(b"0")
+            handle.flush()
+        handle.seek(0)
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                if sys.platform == "win32":
+                    import msvcrt
+
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise WorkflowError(
+                        f"state is locked by another process ({lock}); "
+                        "retry after that command finishes"
+                    ) from None
+                time.sleep(LOCK_POLL_SECONDS)
+        try:
+            yield
+        finally:
+            try:
+                handle.seek(0)
+                if sys.platform == "win32":
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+    finally:
+        handle.close()
+
+
 def load_state(path: Path) -> dict[str, Any]:
     raw = read_json(path)
     if raw is None:
@@ -286,6 +369,52 @@ def touch(point: dict[str, Any]) -> None:
     point["updated_at"] = iso(utcnow())
 
 
+def merge_in_flight(point: dict[str, Any]) -> bool:
+    """True when the point is merging, or parked in ``blocked`` from ``merging``."""
+    if point["status"] == MERGE_IN_FLIGHT:
+        return True
+    return point["status"] == "blocked" and point.get("blocked_from_status") == MERGE_IN_FLIGHT
+
+
+def restored_status(point: dict[str, Any]) -> str:
+    """The status ``resume_point`` would re-enter, after checking the record is restorable."""
+    origin = point.get("blocked_from_status")
+    if origin not in STATUSES:
+        raise WorkflowError(f"{point['id']} has no valid previous status: {origin}")
+    return origin
+
+
+def refuses_blocked_from(origin: str | None) -> str | None:
+    """Why ``origin`` must never be the source of a ``blocked`` record, if it must not.
+
+    ``blocked`` has no edge in ``ALLOWED_TRANSITIONS``; it is left through ``resume_point``,
+    which restores ``blocked_from_status``. An origin that resume would refuse has no way
+    back, so parking it would hide work the state machine can no longer advance.
+    """
+    if origin is None:
+        return None
+    if origin not in STATUSES:
+        return "it is not a workflow status resume can restore"
+    return _BLOCK_ORIGIN_REFUSALS.get(origin)
+
+
+def admit_blocked_from(point: dict[str, Any], origin: str | None = None) -> None:
+    """Refuse a ``blocked`` record whose origin the state machine could not restore.
+
+    Only parked records are judged here: ``merging`` itself is a live status whose
+    merge-result transition must stay usable.
+    """
+    parked = point["status"] == "blocked" or origin is not None
+    if not parked:
+        raise WorkflowError(f"{point['id']} is not blocked")
+    origin = point.get("blocked_from_status") if origin is None else origin
+    if origin not in STATUSES:
+        raise WorkflowError(f"{point['id']} has no valid previous status: {origin}")
+    reason = refuses_blocked_from(origin)
+    if reason:
+        raise WorkflowError(f"cannot block {point['id']} from {origin}: {reason}")
+
+
 def transition(
     state: dict[str, Any],
     config: dict[str, Any],
@@ -311,7 +440,20 @@ def transition(
             raise WorkflowError("proposed -> queued must use promote_point")
         if not _admit_transition(state, config, point, status, note):
             return
+    # --force skips the edges but not the parking invariant: a point recovered out of a
+    # legacy stranded park must land somewhere resume_point could park it from again if
+    # the queue fills. Ordinary forced recovery (no park on record) is untouched.
+    if force and point.get("blocked_from_status") is not None:
+        if status in TERMINAL_STATUSES or status == "merging":
+            raise WorkflowError(
+                f"cannot recover {point['id']} from a stranded merge into {status}; "
+                "recover into repairing (or a working status) instead"
+            )
     point["status"] = status
+    if status != "blocked":
+        # A status write is the end of the park; a record outside ``blocked`` must not keep
+        # a stale origin resume/validate would keep judging.
+        point["blocked_from_status"] = None
     if status == "awaiting_merge":
         point["merge_ready_at"] = iso(utcnow())
     elif status == "merging":
@@ -869,6 +1011,47 @@ def reject_point(
     return point
 
 
+def cancel_point(
+    state: dict[str, Any],
+    point_id: str,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    """Cancel a non-terminal point without requiring a free active slot.
+
+    Used for proposals/blocked points that must be closed while the queue is full;
+    unlike resume, this does not need to re-enter an active status.
+    """
+    point = point_by_id(state, point_id)
+    if point["status"] in TERMINAL_STATUSES:
+        raise WorkflowError(f"{point_id} is already terminal and cannot be cancelled")
+    if not reason:
+        raise WorkflowError("cancel-point requires a reason")
+    # Cancellation is exactly the ``cancelled`` edge of ALLOWED_TRANSITIONS, so there is no
+    # second status list to drift. A ``blocked`` point is judged by its origin, which is
+    # the status resume_point would restore (and which the invariants keep resumable);
+    # ``merging`` is refused there before anything is written.
+    current = point["status"]
+    origin = restored_status(point) if current == "blocked" else current
+    if "cancelled" not in ALLOWED_TRANSITIONS.get(origin, set()):
+        parked = f"{current} from {origin}" if current == "blocked" else current
+        if origin == MERGE_IN_FLIGHT:
+            raise WorkflowError(
+                f"cannot cancel {point_id} ({parked}): wait for the merge result "
+                "(merge-done / merge-reject) or repair instead of cancelling"
+            )
+        raise WorkflowError(f"cancel {point_id} from {parked} is not an allowed transition")
+    # Written directly rather than through transition(): the transition would re-admit
+    # the point and park it in ``blocked`` when the queue is full, which is exactly the
+    # deadlock this entry point exists to avoid. The edge itself was checked above.
+    point["status"] = "cancelled"
+    point["blocked_until"] = None
+    point["blocked_from_status"] = None
+    point["blocked_reason"] = None
+    append_note(point, reason)
+    touch(point)
+    return point
+
+
 def block_point(
     state: dict[str, Any],
     config: dict[str, Any],
@@ -885,7 +1068,9 @@ def block_point(
         raise WorkflowError(f"{point_id} is already blocked")
     if reason not in {"quota", "external", "other"}:
         raise WorkflowError("reason must be quota, external or other")
-
+    # Parking writes ``blocked`` directly, so refuse an origin resume_point could not
+    # restore (merging, terminal, blocked) before any block metadata is written.
+    admit_blocked_from(point, point["status"])
     previous = point["status"]
     quota = config["quota"]
     attempt = int(point.get("quota_retries") or 0)
@@ -925,9 +1110,10 @@ def resume_point(state: dict[str, Any], config: dict[str, Any], point_id: str) -
     point = point_by_id(state, point_id)
     if point["status"] != "blocked":
         raise WorkflowError(f"{point_id} is not blocked")
-    previous = point.get("blocked_from_status")
-    if previous not in STATUSES or previous == "blocked":
-        raise WorkflowError(f"{point_id} has no valid previous status")
+    previous = restored_status(point)
+    # Restoring is a status write outside ALLOWED_TRANSITIONS, so it must land somewhere
+    # a parked point may be resumed into (never merging or another blocked state).
+    admit_blocked_from(point, previous)
     if previous in ACTIVE_STATUSES or previous == "awaiting_merge":
         summary = build_summary(state, config)
         projected = _projected_load(summary, config, previous)
@@ -989,6 +1175,13 @@ def validate_state(state: dict[str, Any], config: dict[str, Any]) -> list[str]:
         if point.get("status") == "blocked":
             if not point.get("blocked_from_status"):
                 issues.append(f"{label} blocked point is missing blocked_from_status")
+            else:
+                refusal = refuses_blocked_from(point.get("blocked_from_status"))
+                if refusal:
+                    issues.append(
+                        f"{label} blocked point cannot be resumed from "
+                        f"{point.get('blocked_from_status')}: {refusal}"
+                    )
             if point.get("blocked_reason") != "capacity" and not point.get("blocked_until"):
                 issues.append(f"{label} blocked point is missing blocked_until")
         if point.get("status") == "awaiting_merge" and not point.get("merge_ready_at"):
@@ -1060,8 +1253,12 @@ def format_point(point: dict[str, Any]) -> str:
         bits.append(f"PR #{point['pr']}")
     if point.get("auto_started"):
         bits.append("auto-started")
-    if point.get("blocked_until"):
-        bits.append(f"blocked until {point['blocked_until']}")
+    if point.get("blocked_until") and point.get("blocked_from_status") not in STATUSES:
+        bits.append(f"blocked until {point['blocked_until']} (origin lost; use set-status --force)")
+    elif point.get("blocked_until"):
+        bits.append(f"blocked from {point['blocked_from_status']} until {point['blocked_until']}")
+    elif point.get("blocked_from_status"):
+        bits.append(f"blocked from {point['blocked_from_status']} (waiting for a slot)")
     return " | ".join(bits)
 
 
@@ -1189,6 +1386,13 @@ def build_parser() -> argparse.ArgumentParser:
     reject = sub.add_parser("reject-point", help="reject a proposed/queued point")
     reject.add_argument("id")
     reject.add_argument("--reason")
+
+    cancel = sub.add_parser(
+        "cancel-point",
+        help="cancel a non-terminal point without requiring a free active slot",
+    )
+    cancel.add_argument("id")
+    cancel.add_argument("--reason", required=True)
 
     block = sub.add_parser("block", help="block a point due to quota or external state")
     block.add_argument("id")
@@ -1425,6 +1629,15 @@ def command_reject_point(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_cancel_point(args: argparse.Namespace) -> int:
+    state_path = Path(args.state)
+    state = load_state(state_path)
+    point = cancel_point(state, args.id, args.reason)
+    save_state(state_path, state)
+    print_json(point)
+    return 0
+
+
 def command_block(args: argparse.Namespace) -> int:
     state_path = Path(args.state)
     state = load_state(state_path)
@@ -1488,6 +1701,7 @@ COMMANDS = {
     "merge-rejected": command_merge_rejected,
     "merge-reconcile": command_merge_reconcile,
     "reject-point": command_reject_point,
+    "cancel-point": command_cancel_point,
     "block": command_block,
     "resume": command_resume,
     "validate": command_validate,
@@ -1500,7 +1714,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
-        return COMMANDS[args.command](args)
+        with state_lock(Path(args.state)):
+            return COMMANDS[args.command](args)
     except WorkflowError as error:
         _write_text(sys.stderr, f"error: {error}\n")
         return 2

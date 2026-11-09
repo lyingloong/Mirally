@@ -52,6 +52,7 @@ try{
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   const test=id=>page.getByTestId('mirally-settings-'+id);
   const ready=()=>page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected' && document.querySelector('[data-testid="mirally-settings-model-id"]') && document.querySelector('[data-testid="mirally-settings-model"]')?.getAttribute('aria-busy')==='false');
+  const openParameters=async()=>{const advanced=test('model-advanced');if(!await advanced.evaluate(element=>element.open))await advanced.locator('summary').click();};
   const settings=()=>page.evaluate(()=>window.__mirallyHost.rpc('settings.get'));
   const save=async()=>{await test('model-save').click();await test('notice').filter({hasText:'模型连接已保存'}).waitFor();await ready();};
   await page.goto(runtime.url+'/settings/model-providers#token='+runtime.token);await ready();
@@ -61,7 +62,15 @@ try{
   assert.deepEqual((await settings()).model,initial.model,'preset does not silently save');
   assert.equal(await test('model-discover').isDisabled(),true);
   await test('model-base-url').fill(base);await test('model-id').fill('fixture-vision');await test('model-format').selectOption('openai-chat');
-  await test('model-key').fill('disposable-fixture-key');await test('model-context-window').fill('1000000');await test('model-reasoning').selectOption('low');
+  await test('model-key').fill('disposable-fixture-key');await openParameters();await test('model-context-window').fill('1000000');await test('model-reasoning').selectOption('low');
+  const validOutput=await test('model-max-tokens').inputValue();
+  await test('model-max-tokens').fill('-1');await test('model-advanced').locator('summary').click();
+  await test('model-save').click();
+  assert.equal(await test('model-advanced').evaluate(element=>element.open),true,'invalid collapsed parameter is revealed');
+  assert.equal(await test('model-max-tokens').evaluate(element=>document.activeElement===element),true,'native validation focuses the revealed parameter');
+  assert.deepEqual((await settings()).model,initial.model,'invalid form must not save');
+  await test('model-max-tokens').fill(validOutput);
+  findings.push('Saving a collapsed invalid model parameter reveals and focuses it without submitting the form.');
   await save();assert.equal(await test('model-key').inputValue(),'');
   assert.equal((await settings()).model.reasoning_effort,'low');assert.equal(JSON.stringify(await settings()).includes('disposable-fixture-key'),false);
   findings.push('Preset remains unsaved until submit; real settings owner stores explicit effort/context without returning key.');
@@ -111,7 +120,7 @@ try{
   failDiscovery=true;await test('model-discover').click();await test('error').filter({hasText:'HTTP 401'}).waitFor();await ready();failDiscovery=false;
   findings.push('Text test reaches real product/LLM HTTP transport; provider failure is visible, previous success clears; listing auth failure is actionable.');
   for(const effort of ['default','off','low']){
-    await test('model-reasoning').selectOption(effort);await save();await page.reload();await ready();
+    await openParameters();await test('model-reasoning').selectOption(effort);await save();await page.reload();await ready();
     assert.equal(await test('model-reasoning').inputValue(),effort);assert.equal((await settings()).model.reasoning_effort,effort);
   }
   await test('connection-new').click();

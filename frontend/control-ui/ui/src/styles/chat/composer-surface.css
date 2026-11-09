@@ -182,12 +182,8 @@
   --chat-composer-editor-inset-inline: 14px;
   --chat-composer-editor-inset-block: 6px;
   --chat-attachment-hit-slop: calc(var(--chat-composer-editor-inset-block) * 2);
-  /* The editor is a reading and writing surface, not a compact form field, so it
-     owns a 16px base instead of the shared control token, whose 14px base only
-     reaches 16px through an iOS zoom floor — text that size by accident does not
-     follow the operator's text scale until the scale passes 1.15, and it drops
-     the moment that floor moves. The max() keeps 16px as a hard floor. */
-  --chat-composer-editor-size: max(16px, calc(16px * var(--control-ui-text-scale)));
+  /* Match the conversation reading size and preserve the user's text scale. */
+  --chat-composer-editor-size: var(--control-ui-text-lg);
   /* One editor line. The single-line box centres a line of exactly this height,
      and the multiline editor never gets shorter than one of them. Derived, so a
      scaled-up editor keeps its leading instead of crowding its own descenders. */
@@ -220,6 +216,14 @@
   transition:
     border-color var(--duration-fast) ease,
     box-shadow var(--duration-fast) ease;
+}
+
+/* Keep the editor, placeholder and line geometry aligned with the touch input
+   floor in base.css, which avoids automatic zoom in mobile browsers. */
+@media (pointer: coarse) {
+  .agent-chat__input {
+    --chat-composer-editor-size: max(16px, var(--control-ui-text-lg));
+  }
 }
 
 :root[data-theme-mode="dark"] :is(.chat-footer, .agent-chat__composer-shell, .agent-chat__input) {

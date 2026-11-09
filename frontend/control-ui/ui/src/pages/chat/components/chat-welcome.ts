@@ -37,21 +37,22 @@ type ChatWelcomeProps = {
   assistantName: string;
   assistantAvatar: string | null;
   assistantAvatarUrl?: string | null;
-  /** Hero hint override; defaults to the chat slash-command hint. */
+  /** Optional context required by a specialized start flow. */
   hint?: unknown;
   /** Rendered between the hero and the recents (the new-session draft composer). */
   composer?: unknown;
   /** Hide recents and suggestions when the surrounding flow must stay ephemeral. */
   hideSecondaryContent?: boolean;
-  /** Visually retire secondary content while the new-session draft is active. */
-  fadeSecondaryContent?: boolean;
+  draft?: string;
+  /** Read the current owner draft so a delayed suggestion click cannot replace newer input. */
+  getDraft?: () => string;
+  onFocusComposer?: () => void;
   sessions?: SessionsListResult | null;
   sessionKey?: string;
   sessionHost?: UiSessionDefaultsHost | null;
   modelSetupRequired?: boolean;
   onModelSetup?: () => void;
   onDraftChange: (next: string) => void;
-  onSend: () => void;
   onOpenSession?: (sessionKey: string) => void;
 };
 
@@ -149,7 +150,7 @@ function renderWelcomeRecentSessions(
   `;
 }
 
-function renderWelcomeSuggestions(props: Pick<ChatWelcomeProps, "onDraftChange" | "onSend">) {
+function renderWelcomeSuggestions(props: Pick<ChatWelcomeProps, "draft" | "getDraft" | "onDraftChange" | "onFocusComposer">) {
   return html`
     <div class="agent-chat__suggestions">
       ${WELCOME_SUGGESTION_KEYS.map((key) => {
@@ -159,8 +160,10 @@ function renderWelcomeSuggestions(props: Pick<ChatWelcomeProps, "onDraftChange" 
             type="button"
             class="agent-chat__suggestion"
             @click=${() => {
-              props.onDraftChange(text);
-              props.onSend();
+              if (!(props.getDraft?.() ?? props.draft ?? "").length) {
+                props.onDraftChange(text);
+              }
+              props.onFocusComposer?.();
             }}
           >
             ${text}
@@ -187,7 +190,7 @@ function renderWelcomeHero(
       </span>
       <div class="agent-chat__welcome-identity-copy">
         <h2>${name}</h2>
-        <p class="agent-chat__hint">${props.hint}</p>
+        ${props.hint ? html`<p class="agent-chat__hint">${props.hint}</p>` : nothing}
       </div>
     </div>
   `;
@@ -220,23 +223,13 @@ export function renderWelcomeState(props: ChatWelcomeProps) {
         assistantName: props.assistantName,
         assistantAvatar: props.assistantAvatar,
         assistantAvatarUrl: props.assistantAvatarUrl,
-        hint:
-          props.hint ??
-          html`${t("chat.welcome.hintBeforeShortcut")} <kbd>/</kbd> ${t(
-              "chat.welcome.hintAfterShortcut",
-            )}`,
+        hint: props.hint,
       })}
       ${props.composer ?? nothing}
       ${
         props.hideSecondaryContent
           ? nothing
-          : html`<div
-              class="agent-chat__welcome-secondary ${
-                props.fadeSecondaryContent ? "agent-chat__welcome-secondary--hidden" : ""
-              }"
-              aria-hidden=${props.fadeSecondaryContent ? "true" : "false"}
-              ?inert=${props.fadeSecondaryContent}
-            >
+          : html`<div class="agent-chat__welcome-secondary">
               <div class="agent-chat__welcome-secondary-inner">
                 ${
                   recentSessions.length > 0

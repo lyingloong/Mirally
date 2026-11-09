@@ -104,6 +104,17 @@ free_slots     = max(0, concurrency - load)
 7. 需求师发现新点时要去重：检查 open PR、最近合并、backlog、已有分支；优先小范围、低风险、可验证的改进。
 8. 需求师开始调研前先读[需求与种子池](requirements-pool.md)。种子可作为方向参考，但不是授权；新规格必须写“需求来源”，引用用户原话或种子 ID，并说明选择理由。不要把种子自动 promote/start。
 
+## 需要决策的点：Proposal PR → Implementation PR
+
+需要用户/Codex 做产品取舍、数据/权限/协议决策，或删除类高风险改动时，先走 Proposal，不直接写实现：
+
+1. **Proposal PR**：分支 `proposal/<dev-id>-<slug>`，只改 `docs/development/proposals/<dev-id>.md`，用[方案提案模板](proposal-template.md)。标题 `[Proposal] <dev-id> ...`，不写产品代码。
+2. **问题在 PR comment**：用 `Q1/Q2` 编号提问；用户/Codex 直接回复。队长把回复摘要写回文档，并在评论确认已记录。
+3. **Decision gate**：用户/Codex 必须针对当前 proposal commit/方案明确回复 `proposal approved`/“同意按推荐方案”，且影响实施的 Q 已解决或明确延后，才创建 implementation 任务和实现 PR；`proposal:accepted` 标签只是可视标记，不能单独作为批准依据。
+4. **Implementation PR**：引用 Proposal PR 和已确认决策，正常走实现 → 验证 → 审查 → 待合并池；实现中若需改方案，回 Proposal 重新确认。
+
+Proposal PR 是决策载体，不进入待合并池；低风险纯文档点不需要 Proposal。
+
 ## 审查与合并闸门
 
 - 审查 fail：审查师在 PR 留 comment 和具体 findings，点回到 `repairing`；修复后重新审查，不需要用户介入。
@@ -172,12 +183,30 @@ free_slots     = max(0, concurrency - load)
 
 ## 团队生命周期
 
-1. 队长创建常驻团队：1 名需求师、3 名工程师、1 名审查师。
+1. 队长创建常驻团队；当前按 provider 分组：hwang 队长、ustc-dhsun 3 工程师、ustc-qhwang 2 需求师 + 2 审查师。roster 可随额度和角色变化调整。
 2. 首次只审批一次工作流规则和一个 bootstrap 任务；后续每个开发点的任务由队长动态创建，不再逐点审批计划。
 3. 队长在成员报告、用户消息或提醒到期时推进状态；成员不自行合并。
 4. 所有开发点结束、用户暂停或删除团队时归档。
 
 > AgentTeams 不是后台守护进程。工作流依赖 DSH 会话和团队存活；关闭后暂停，状态文件用于恢复。
+
+## Provider 分组与额度目标
+
+目标是按额度分摊、避免单 key 先撞窗口；比例是软目标，不是硬保证。
+
+| 分组 | 角色 | 额度目标 | 说明 |
+| --- | --- | --- | --- |
+| `ustc`（hwang 个人） | 队长 | ~20% | 只做调度/恢复，不跑代码；减少全量 status 和重复探测 |
+| `ustc-dhsun` | 3 工程师 | ~40% | 工程实现/返工最重，集中放这里 |
+| `ustc-qhwang` | 2 需求师 + 2 审查师 | ~40% | 规格与审查分摊；审查重时再拆到其他 key |
+
+规则：
+
+- 每次巡检从 `agent_teams_status` 读当前 roster，不把上面的角色数写死。
+- 某一组额度先耗尽时：降低该组并发、把可迁移角色换到仍有额度的 provider，或暂停该组；不自动轮换 key 规避额度。
+- 三条 key 都不可用时：暂停，不启用 deepseek-account 子代理；主会话的恢复能力单独保留。
+- 队长调用保持最低：短摘要、批量状态更新、无代码/测试、不反复做预算探测。
+- provider/成员变化时，更新本节和实际 roster；工作流文档与仓库一起维护。
 
 ## 状态与配置
 

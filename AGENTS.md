@@ -62,8 +62,19 @@
 - 使用根目录 `.venv/Scripts/python.exe`。按改动运行相关测试；修改 UFO 导入或初始化适配时，按现行测试与隔离进程验证可导入/降级路径——真实 UFO 子模块链路测试已随子模块移除。兼容补丁必须限定作用域并在异常时恢复。
 - 用户可见功能、修复或安装配置变化，适当更新 `CHANGELOG.md` 的 `[Unreleased]` 及相关文档。交接说明改动、验证和未覆盖边界，不把规划或 mock 测试当作已实现能力；适时 commit/push。
 
-产品层完整测试（仓库根目录 PowerShell）：
+产品层测试分两层，按改动选择（仓库根目录 PowerShell）：
 
 ```powershell
+# 按改动运行目标域测试，例如渠道或开发工作流状态
+.\.venv\Scripts\python.exe -m unittest tests.test_framework_channels -v
+```
+
+全量套件还包含保留的 UFO 参考适配测试，需先准备只读子模块与可选依赖（默认产品不启用 UFO）。未准备时的整批失败属预期，不要判为本次回归：
+
+```powershell
+git submodule update --init UFO
+.\.venv\Scripts\python.exe -m pip install -r requirements-ufo.txt
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
+
+PR 门禁以目标域测试加 CI 的离线子集判定，CI 不等同全量 discover；出现整批失败时按 [验证](docs/reference/validation.md) 的分层命令与失败 id 差分归因，不把预期失败记为回归。

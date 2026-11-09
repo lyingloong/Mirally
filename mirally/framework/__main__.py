@@ -11,6 +11,15 @@ from pathlib import Path
 from .service import FrameworkError, FrameworkService
 
 
+class WorkerLockBusy(Exception):
+    """A live worker already owns this home, so a second one must not start."""
+
+
+def worker_lock_message(home: Path) -> str:
+    lock = home.resolve() / "framework" / "worker.lock"
+    return f"mirally: another worker already holds {lock}; only one worker per home is allowed"
+
+
 @contextmanager
 def worker_lock(home: Path):
     """Do not let a second worker mark a live sender unknown on startup."""
@@ -22,12 +31,15 @@ def worker_lock(home: Path):
             handle.write(b"0")
             handle.flush()
         handle.seek(0)
-        if sys.platform == "win32":
-            import msvcrt
-            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-        else:
-            import fcntl
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            if sys.platform == "win32":
+                import msvcrt
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (BlockingIOError, PermissionError) as error:
+            raise WorkerLockBusy(worker_lock_message(home)) from error
         try:
             yield
         finally:
@@ -53,32 +65,36 @@ def main() -> int:
     if args.workers:
         from mirally.framework_workers import WorkerSupervisor
         controller = WorkerSupervisor(args.root, args.home, args.bridge_url, args.bridge_token)
-    with worker_lock(args.home), FrameworkService(args.root, args.home, controller=controller) as service:
-        while True:
-            line = sys.stdin.readline(1_048_577)
-            if not line:
-                break
-            identity = None
-            try:
-                if len(line) > 1_048_576 or not line.endswith("\n"):
-                    raise FrameworkError("INVALID_REQUEST", "request must be a newline-terminated JSON object under 1 MiB")
-                request = json.loads(line)
-                if not isinstance(request, dict):
-                    raise FrameworkError("INVALID_REQUEST", "request must be an object")
-                identity = request.get("id")
-                if not isinstance(identity, (str, int)) or isinstance(identity, bool):
-                    raise FrameworkError("INVALID_REQUEST", "id must be a string or integer")
-                result = service.call(request.get("method"), request.get("params", {}))
-                response = {"id": identity, "result": result}
-            except (json.JSONDecodeError, UnicodeError):
-                response = {"id": identity, "error": {"code": "INVALID_REQUEST", "message": "invalid JSON"}}
-            except FrameworkError as error:
-                response = {"id": identity, "error": {"code": error.code, "message": str(error)}}
-            except Exception as error:
-                # Never echo request payloads or credentials into an HTTP error.
-                print(f"framework RPC failed: {type(error).__name__}", file=sys.stderr, flush=True)
-                response = {"id": identity, "error": {"code": "INTERNAL_ERROR", "message": "product operation failed"}}
-            print(json.dumps(response, ensure_ascii=False, allow_nan=False), flush=True)
+    try:
+        with worker_lock(args.home), FrameworkService(args.root, args.home, controller=controller) as service:
+            while True:
+                line = sys.stdin.readline(1_048_577)
+                if not line:
+                    break
+                identity = None
+                try:
+                    if len(line) > 1_048_576 or not line.endswith("\n"):
+                        raise FrameworkError("INVALID_REQUEST", "request must be a newline-terminated JSON object under 1 MiB")
+                    request = json.loads(line)
+                    if not isinstance(request, dict):
+                        raise FrameworkError("INVALID_REQUEST", "request must be an object")
+                    identity = request.get("id")
+                    if not isinstance(identity, (str, int)) or isinstance(identity, bool):
+                        raise FrameworkError("INVALID_REQUEST", "id must be a string or integer")
+                    result = service.call(request.get("method"), request.get("params", {}))
+                    response = {"id": identity, "result": result}
+                except (json.JSONDecodeError, UnicodeError):
+                    response = {"id": identity, "error": {"code": "INVALID_REQUEST", "message": "invalid JSON"}}
+                except FrameworkError as error:
+                    response = {"id": identity, "error": {"code": error.code, "message": str(error)}}
+                except Exception as error:
+                    # Never echo request payloads or credentials into an HTTP error.
+                    print(f"framework RPC failed: {type(error).__name__}", file=sys.stderr, flush=True)
+                    response = {"id": identity, "error": {"code": "INTERNAL_ERROR", "message": "product operation failed"}}
+                print(json.dumps(response, ensure_ascii=False, allow_nan=False), flush=True)
+    except WorkerLockBusy as error:
+        print(error, file=sys.stderr, flush=True)
+        return 1
     return 0
 
 
