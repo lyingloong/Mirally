@@ -501,7 +501,22 @@ class ProgressPageTests(unittest.TestCase):
             "第一点；第二点")
         self.assertEqual(pp.extract_summary("## 目的\n\n> 引用式摘要\n\n## 验证\n\n- 通过\n"),
                          "引用式摘要")
+        # A fenced block is removed wholesale: its code, tables, rules and even
+        # heading-like lines never become the summary or end the section early.
         self.assertEqual(pp.extract_summary("## 目的\n\n```\ncode\n```\n## 其他\n"), None)
+        self.assertEqual(
+            pp.extract_summary("## 目的\n\n```md\n## 伪标题\n| 表 | 格 |\n---\ncode\n```\n真实摘要。\n"),
+            "真实摘要。")
+        self.assertEqual(
+            pp.extract_summary("```\n实现摘要：围栏里的假摘要\n```\n## 目的\n\n真的摘要。\n"),
+            "真的摘要。")
+        # Outside fences, table rows and --- rules are blocks, never prose.
+        self.assertEqual(
+            pp.extract_summary("## 目的\n\n| 项 | 值 |\n| --- | --- |\n表格后的摘要。\n"),
+            "表格后的摘要。")
+        self.assertIsNone(pp.extract_summary("## 目的\n\n| 项 | 值 |\n| --- | --- |\n"))
+        self.assertEqual(pp.extract_summary("## 目的\n\n---\n\n分隔线后的摘要。\n"),
+                         "分隔线后的摘要。")
         self.assertIn("标题在前", pp.extract_summary("## 摘要\n\n标题在前 <b>的</b> 摘要\n\n正文\n"))
 
     def test_refresh_pr_requests_the_pr_body_field(self):
@@ -614,8 +629,16 @@ class ProgressPageTests(unittest.TestCase):
 
     # -- 8. --workdir boundary ------------------------------------------
     def test_workdir_outside_repository_is_rejected(self):
-        outside = Path(tempfile.gettempdir()).resolve()
-        self.assertNotEqual(outside, ROOT)
+        # Resolve both sides: the boundary check compares real paths, so the test
+        # must too. mkdtemp creates the workdir instead of guessing a temp path
+        # (TEMP can point inside the repository, e.g. after a sandboxed fallback).
+        try:
+            outside = Path(tempfile.mkdtemp(prefix="pp-outside-")).resolve()
+        except OSError as error:
+            self.skipTest(f"默认 TEMP 不可写，无法构造仓外 workdir：{error}")
+        self.addCleanup(shutil.rmtree, outside, ignore_errors=True)
+        if outside.is_relative_to(ROOT.resolve()):
+            self.skipTest(f"默认 TEMP 位于仓库内（{outside}），无法构造仓外 workdir")
         self.assertEqual(pp.main(["--workdir", str(outside)]), 2)
 
     def test_missing_workdir_is_rejected(self):

@@ -308,6 +308,26 @@ SUMMARY_HEADING = re.compile(
     r"|变更内容|改动内容|做了什么|summary|what\s+changed|what\s+this\s+does|overview)\s*[:：]?\s*$",
     re.I)
 SUMMARY_BULLETS = 2
+CODE_FENCE = re.compile(r"^\s*(?:`{3,}|~{3,})")
+TABLE_OR_RULE = re.compile(r"^(?:\||-{3,}$)")
+
+
+def _strip_fenced_blocks(text: str) -> str:
+    """Drop fenced code blocks entirely, including an unterminated final fence.
+
+    Markdown fences are toggled line by line. Removing the whole block (rather
+    than just the fence lines) keeps code, headings, tables and ``---`` rules
+    inside it from ever reaching the summary parser.
+    """
+    kept: list[str] = []
+    fenced = False
+    for line in text.splitlines():
+        if CODE_FENCE.match(line):
+            fenced = not fenced
+            continue
+        if not fenced:
+            kept.append(line)
+    return "\n".join(kept)
 
 
 def extract_summary(body: str | None) -> str | None:
@@ -315,13 +335,15 @@ def extract_summary(body: str | None) -> str | None:
 
     Reads, in order: an explicit ``实现摘要：…`` line, then the first prose
     paragraph under a ``## 目的/摘要/实现摘要/…`` heading. Bullets are kept as
-    "；"-joined fragments (at most two). Headings also stop at ``##``, code
-    fences, tables, badges and ``---`` rules are skipped, and nothing is
-    invented: a body without such a section yields ``None``.
+    "；"-joined fragments (at most two). Fenced code blocks are stripped before
+    parsing, so their contents (code, headings, tables, ``---``) never become
+    the summary; outside fences, table rows and ``---`` rules are skipped and a
+    heading stops the section. Nothing is invented: a body without such a
+    section yields ``None``.
     """
     if not body:
         return None
-    text = str(body).replace("\r\n", "\n")
+    text = _strip_fenced_blocks(str(body).replace("\r\n", "\n"))
     inline = re.search(r"^\s*(?:[-*]\s*)?(?:\*\*)?实现摘要(?:\*\*)?\s*[：:]\s*(.+)$", text, re.M)
     if inline:
         return _clip(_clean_inline(inline.group(1)))
@@ -336,9 +358,7 @@ def extract_summary(body: str | None) -> str | None:
             continue
         if not inside:
             continue
-        if stripped.startswith("```") or stripped.startswith("|") or stripped == "---":
-            if section:
-                break
+        if TABLE_OR_RULE.match(stripped):
             continue
         if not stripped or stripped.startswith(("[!", "<")):
             if section:
@@ -837,9 +857,11 @@ def main(argv: list[str] | None = None, *, run=subprocess.run) -> int:
     root = ROOT.resolve()
     # Explicit boundary: the generator only writes inside the repository (or the
     # configured fixture root, which exists solely so sandboxed checkouts can run
-    # the tests).
+    # the tests). Both sides are fully resolved before comparing: a lexical prefix
+    # check misclassifies the repository root itself, a sibling that shares the
+    # prefix (e.g. <repo>-tmp), or a temp root reached through a junction/symlink.
     allowed = [root, fixture_root(root)]
-    inside = any(workdir == base or base in workdir.parents for base in allowed)
+    inside = any(workdir.is_relative_to(base) for base in allowed)
     if not inside:
         wf._write_text(sys.stderr, f"--workdir 必须位于仓库内：{workdir}\n")
         return 2
