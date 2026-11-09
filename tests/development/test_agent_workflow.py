@@ -1063,9 +1063,11 @@ class AdmissionTests(unittest.TestCase):
         ``merge_queue_state`` no longer depends on a free-slot condition (the
         default pool is fully exempt, so load stays below concurrency). Only an
         explicit ``deliver_merge_ask`` marks the pool as shown, and only the
-        exact waiting list counts: the delivered ask gives ``wait_merge_approval``
-        next, a changed pool is asked again, and an empty queue is ``none``.
-        Assertions are exact on ``action`` so deleting either branch fails.
+        exact waiting lifecycle counts: a changed or reworked pool is asked
+        again, and an empty queue is ``none``. A delivered pool is report state
+        only: discovery proceeds while it waits, and ``wait_merge_approval`` is
+        reserved for when discovery cannot run. Assertions are exact on
+        ``action`` so deleting either branch fails.
         """
         config = make_config()  # production defaults: merge_queue_exempt=100
         self.assertEqual(config["merge_queue_exempt"], 100)
@@ -1081,10 +1083,12 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(entry["ids"], ["dev-0001"])
         self.assertEqual(entry["head"], "dev-0001")
         delivered = wf.build_summary(state, config)
-        self.assertEqual(delivered["action"], "wait_merge_approval")
         self.assertEqual(delivered["merge_queue_state"], "answered")
         self.assertEqual(delivered["merge_head"]["id"], "dev-0001")
         self.assertEqual(delivered["merge_queue_asked"], entry)
+        # The delivered pool no longer shadows a free slot: discovery continues.
+        self.assertTrue(delivered["should_discover_agent"])
+        self.assertEqual(delivered["action"], "discover_agent")
         # Capacity rework still resumes first even after the ask was delivered.
         state["points"].append(with_points([
             {"title": "parked", "status": "blocked", "blocked_reason": "capacity",
@@ -1092,6 +1096,16 @@ class AdmissionTests(unittest.TestCase):
         with_capacity = wf.build_summary(state, config)
         self.assertEqual(with_capacity["action"], "resume_capacity")
         state["points"] = [point for point in state["points"] if point["title"] != "parked"]
+        # ``wait_merge_approval`` remains the report state when discovery is
+        # genuinely not admissible (here: an undiscovered normal proposal).
+        state["points"].append(with_points([
+            {"title": "normal proposal", "source": "agent", "risk": "normal",
+             "status": "proposed"}])["points"][0])
+        deciding = wf.build_summary(state, config)
+        self.assertFalse(deciding["should_discover_agent"])
+        self.assertEqual(deciding["action"], "wait_merge_approval")
+        state["points"] = [point for point in state["points"]
+                           if point["title"] != "normal proposal"]
         # Negative control: a different waiting set is a new decision.
         state["points"].append(with_points([merge_ready("other", "2026-01-02T00:00:00Z")])
                                ["points"][0])
@@ -1119,6 +1133,69 @@ class AdmissionTests(unittest.TestCase):
         self.assertNotIn("merge_queue_asked", reloaded)
         self.assertEqual(wf.build_summary(reloaded, config)["action"], "discover_agent")
 
+    def test_delivered_merge_pool_does_not_block_discovery(self):
+        """A delivered merge ask must not freeze requirement discovery.
+
+        Codex repro (default config, no busy agent): one ``awaiting_merge``
+        point, empty slots. The captain delivers the ask once; every later
+        ``next`` used to return ``wait_merge_approval`` even though
+        ``should_discover_agent`` was true, so a large PR pool stopped new
+        requirements. After delivery the pool stays in the report but the action
+        is ``discover_agent``; capacity rework still wins a free slot.
+        """
+        config = make_config()  # production defaults
+        self.assertEqual(config["merge_queue_exempt"], 100)
+        state = with_points([merge_ready("waiting")])
+        self.assertEqual(wf.validate_state(state, config), [])
+        fresh = wf.build_summary(state, config)
+        self.assertEqual(fresh["free_slots"], 3)
+        self.assertTrue(fresh["should_discover_agent"])
+        self.assertEqual(fresh["merge_queue_state"], "new")
+        self.assertEqual(fresh["action"], "ask_user_merge")
+        wf.deliver_merge_ask(state)
+        delivered = wf.build_summary(state, config)
+        self.assertEqual(delivered["merge_queue_state"], "answered")
+        self.assertEqual(delivered["merge_head"]["id"], "dev-0001")
+        self.assertEqual(delivered["action"], "discover_agent")
+        self.assertEqual(wf.build_summary(state, config)["action"], "discover_agent")
+        # Capacity rework keeps its slot priority over both discovery and the
+        # already-delivered merge pool.
+        state["points"].append(with_points([
+            {"title": "parked", "status": "blocked", "blocked_reason": "capacity",
+             "blocked_from_status": "repairing", "blocked_until": None}])["points"][0])
+        capacity = wf.build_summary(state, config)
+        self.assertEqual(capacity["action"], "resume_capacity")
+        self.assertEqual(capacity["merge_queue_state"], "answered")
+
+    def test_reworked_point_is_asked_again_after_repair(self):
+        """Rework invalidates the delivered ask for the same point.
+
+        Codex lifecycle case: notify the pool once, return the point for
+        rework, then pass review again. The new ``awaiting_merge`` lifecycle
+        must reach the user again instead of looking already answered.
+        """
+        config = make_config()
+        state = wf.empty_state()
+        point = wf.new_point(state, source="user", title="rework cycle")
+        advance_to_reviewing(state, config, point["id"])
+        wf.review_pass(state, config, point["id"])
+        self.assertIsNotNone(wf.deliver_merge_ask(state))
+        self.assertEqual(wf.build_summary(state, config)["merge_queue_state"], "answered")
+        wf.review_fail(state, config, point["id"], reason="failed verification")
+        self.assertEqual(point["status"], "repairing")
+        self.assertNotIn("merge_queue_asked", state)
+        self.assertEqual(wf.build_summary(state, config)["merge_queue_state"], "none")
+        for status in ("verifying", "reviewing"):
+            wf.transition(state, config, point, status)
+        wf.review_pass(state, config, point["id"])
+        self.assertEqual(point["status"], "awaiting_merge")
+        summary = wf.build_summary(state, config)
+        self.assertEqual(summary["merge_queue_state"], "new")
+        self.assertEqual(summary["action"], "ask_user_merge")
+        # Control: once delivered, the new lifecycle is answered exactly once.
+        self.assertIsNotNone(wf.deliver_merge_ask(state))
+        self.assertEqual(wf.build_summary(state, config)["merge_queue_state"], "answered")
+
     def test_cli_next_only_marks_delivery_with_the_explicit_flag(self):
         """Plain ``next`` reports the ask without writing; ``--deliver`` records it."""
         with tempfile.TemporaryDirectory() as directory:
@@ -1143,16 +1220,17 @@ class AdmissionTests(unittest.TestCase):
                 self.assertEqual(wf.main(["--state", str(state_path), "--config", str(config_path),
                                           "next", "--deliver"]), 0)
             delivered = json.loads(buffer.getvalue())
-            self.assertEqual(delivered["action"], "wait_merge_approval")
             self.assertEqual(delivered["merge_queue_state"], "answered")
             self.assertEqual(delivered["merge_queue_asked"]["ids"], ["dev-0001"])
+            # Delivery does not stop discovery while the PR waits to be merged.
+            self.assertEqual(delivered["action"], "discover_agent")
             persisted = wf.load_state(state_path)
             self.assertEqual(persisted["merge_queue_asked"]["ids"], ["dev-0001"])
             self.assertEqual(persisted["merge_queue_asked"]["head"], "dev-0001")
             with redirect_stdout(buffer := io.StringIO()):
                 self.assertEqual(wf.main(["--state", str(state_path), "--config", str(config_path),
                                           "next"]), 0)
-            self.assertEqual(json.loads(buffer.getvalue())["action"], "wait_merge_approval")
+            self.assertEqual(json.loads(buffer.getvalue())["action"], "discover_agent")
 
     def test_write_commands_do_not_consume_an_undelivered_merge_ask(self):
         """A write command must not mark the ask as shown.
@@ -1324,6 +1402,61 @@ class AdmissionTests(unittest.TestCase):
                 )
             state = wf.load_state(state_path)
             self.assertEqual(wf.point_by_id(state, "dev-0001")["status"], "proposed")
+
+
+class MergeNotificationLifecycleCLITests(unittest.TestCase):
+    """Cross-process notification lifecycle: clear on empty queue, re-ask after rework.
+
+    Codex reproduced the bug with real CLI invocations, where an in-memory state
+    object could hide a missing disk write. Each step below is its own process,
+    so the persisted ``merge_queue_asked`` record is what the next step sees.
+    """
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.directory = Path(directory.name)
+        self.state_path = self.directory / "state.json"
+        self.config_path = self.directory / "config.json"
+        wf.write_json(self.config_path, make_config())
+        wf.save_state(self.state_path, with_points([merge_ready("waiting")]))
+
+    def run_cli(self, *arguments):
+        return subprocess.run(
+            [sys.executable, str(AGENT_WORKFLOW), "--state", str(self.state_path),
+             "--config", str(self.config_path), *arguments],
+            cwd=str(ROOT), capture_output=True, text=True,
+        )
+
+    def next_summary(self, *extra):
+        result = self.run_cli("next", *extra)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def test_empty_queue_clear_is_persisted_and_rework_reasks(self):
+        fresh = self.next_summary()
+        self.assertEqual(fresh["merge_queue_state"], "new")
+        self.assertEqual(fresh["action"], "ask_user_merge")
+        delivered = self.next_summary("--deliver")
+        self.assertEqual(delivered["merge_queue_state"], "answered")
+        self.assertEqual(delivered["action"], "discover_agent")
+        # Rework empties the waiting pool: the next explicit delivery clears the
+        # old record, and that clear must reach the disk (not just the summary).
+        self.assertEqual(self.run_cli("review-fail", "dev-0001", "--reason", "tests failed").returncode, 0)
+        emptied = self.next_summary("--deliver")
+        self.assertEqual(emptied["merge_queue_state"], "none")
+        self.assertIsNone(emptied["merge_head"])
+        self.assertNotIn("merge_queue_asked", wf.load_state(self.state_path))
+        # Complete the rework -> review cycle. The same point now starts a new
+        # merge lifecycle and must be delivered again, not judged "answered".
+        for status in ("verifying", "reviewing"):
+            result = self.run_cli("set-status", "dev-0001", status)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.run_cli("review-pass", "dev-0001").returncode, 0)
+        reasked = self.next_summary()
+        self.assertEqual(reasked["merge_queue_state"], "new")
+        self.assertEqual(reasked["action"], "ask_user_merge")
+        self.assertEqual(reasked["merge_head"]["id"], "dev-0001")
 
 
 class ValidationTests(unittest.TestCase):

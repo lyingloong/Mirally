@@ -415,6 +415,16 @@ def admit_blocked_from(point: dict[str, Any], origin: str | None = None) -> None
         raise WorkflowError(f"cannot block {point['id']} from {origin}: {reason}")
 
 
+def invalidate_merge_ask(state: dict[str, Any]) -> None:
+    """Drop the delivered-ask record: the exact waiting pool it described is gone.
+
+    Any write that changes which points wait in ``awaiting_merge`` (entry, exit,
+    rework, merge approval, reconciliation) invalidates the previous delivery, so
+    a later pool must reach the user again instead of looking already answered.
+    """
+    state.pop("merge_queue_asked", None)
+
+
 def transition(
     state: dict[str, Any],
     config: dict[str, Any],
@@ -454,6 +464,10 @@ def transition(
         # A status write is the end of the park; a record outside ``blocked`` must not keep
         # a stale origin resume/validate would keep judging.
         point["blocked_from_status"] = None
+    if current == "awaiting_merge" or status == "awaiting_merge":
+        # A point entering or leaving the pool changes the decision that was
+        # delivered; the old notification must not hide the new pool.
+        invalidate_merge_ask(state)
     if status == "awaiting_merge":
         point["merge_ready_at"] = iso(utcnow())
     elif status == "merging":
@@ -627,13 +641,14 @@ def deliver_merge_ask(state: dict[str, Any]) -> dict[str, Any] | None:
     Called only by the command that actually prints the ask for the user
     (``next --deliver``), never while merely computing a report: an ask that
     has not reached the user must not be marked as shown by an unrelated write
-    command. Returns the recorded entry, or None when the queue is empty.
+    command. Returns the recorded entry, or None when the queue is empty; the
+    caller must persist the ``None`` case too, because it clears a stale record.
     """
     queue = _merge_queue(state)
     if not queue:
         # Nothing is waiting: a stale "already asked" record must not survive
         # and make a future queue look answered.
-        state.pop("merge_queue_asked", None)
+        invalidate_merge_ask(state)
         return None
     entry = {
         "ids": [point["id"] for point in queue],
@@ -656,7 +671,9 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
     # "Already shown" is explicit persisted state (``merge_queue_asked``), never a
     # side effect of computing a report: plain ``next`` does not write, and a
     # write command must not swallow an ask the captain has not delivered yet.
-    # A non-empty queue stays "new" until ``next --deliver`` records delivery.
+    # A non-empty queue stays "new" until ``next --deliver`` records delivery;
+    # any later change to the waiting pool invalidates that record, so the same
+    # point after rework is a new decision rather than an old answer.
     asked = state.get("merge_queue_asked")
     if not merge_waiting:
         merge_queue_state = "none"
@@ -759,13 +776,12 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
         action = "promote_agent"
     elif (should_discover_agent
           and not (capacity_blocked and free > 0)
-          and merge_queue_state != "new"
-          and not (merge_waiting and merge_queue_state == "answered"
-                   and not (capacity_blocked and free > 0))):
+          and merge_queue_state != "new"):
         # Discovery is a fill-the-gap action: it must not shadow the next free
-        # slot (capacity rework) nor a merge decision still waiting for the user
-        # — whether it is fresh ("new") or already delivered ("answered"). With
-        # the default fully exempt pool this branch would otherwise always win.
+        # slot (capacity rework) nor a merge decision that has not been delivered
+        # yet ("new"). An already delivered ("answered") pool is report state
+        # only: keeping PRs waiting must not stop new requirements from being
+        # discovered while slots are free.
         action = "discover_agent"
     elif capacity_blocked and free > 0:
         # A slot is free and this rework is waiting for it: resuming an explicit
@@ -896,7 +912,7 @@ def review_pass(state: dict[str, Any], config: dict[str, Any], point_id: str) ->
         config,
         point,
         "awaiting_merge",
-        note="review passed; waiting for user merge approval",
+        note="review passed; waiting for user/Codex merge decision",
     )
     return point
 
@@ -925,7 +941,7 @@ def merge_approve(state: dict[str, Any], config: dict[str, Any], point_id: str) 
     queue = _merge_queue(state)
     if queue and queue[0]["id"] != point_id:
         raise WorkflowError(f"{point_id} is not the merge queue head (head is {queue[0]['id']})")
-    transition(state, config, point, "merging", note="user approved merge")
+    transition(state, config, point, "merging", note="user/Codex approved merge")
     return point
 
 
@@ -964,6 +980,9 @@ def merge_reconcile(
         raise WorkflowError(f"{point_id} head mismatch: state has {point.get('head_sha')}, got {head_sha}")
     now = iso(utcnow())
     point["status"] = "done"
+    # A reconciled point left the waiting pool: the delivered ask described a
+    # pool that no longer exists.
+    invalidate_merge_ask(state)
     point["merge_approved_at"] = point.get("merge_approved_at") or now
     point["merged_at"] = now
     point["merge_reconciled_at"] = now
@@ -1047,6 +1066,8 @@ def cancel_point(
     point["blocked_until"] = None
     point["blocked_from_status"] = None
     point["blocked_reason"] = None
+    if current == "awaiting_merge":
+        invalidate_merge_ask(state)
     append_note(point, reason)
     touch(point)
     return point
@@ -1086,6 +1107,10 @@ def block_point(
     point["blocked_reason"] = reason
     point["blocked_until"] = iso(utcnow() + timedelta(minutes=wait_minutes))
     point["status"] = "blocked"
+    if previous == "awaiting_merge":
+        # The point left the waiting pool; a delivered ask for the old pool
+        # no longer describes what needs a decision.
+        invalidate_merge_ask(state)
     fallback = None
     fallback_config = quota.get("fallback") or {}
     if reason == "quota" and quota.get("enabled") and fallback_config.get("enabled"):
@@ -1134,6 +1159,10 @@ def resume_point(state: dict[str, Any], config: dict[str, Any], point_id: str) -
     point["blocked_until"] = None
     point["blocked_from_status"] = None
     point["blocked_reason"] = None
+    if previous == "awaiting_merge":
+        # Back in the waiting pool: its earlier delivery (if any) was invalidated
+        # when the point was parked; never resurrect a stale "answered" state.
+        invalidate_merge_ask(state)
     if point.get("fallback"):
         point["fallback"] = None
         append_note(point, "restored USTC primary route")
@@ -1274,7 +1303,7 @@ def print_status(summary: dict[str, Any]) -> None:
         for point in summary["active"]:
             _write_text(sys.stdout, "  " + format_point(point) + "\n")
     if summary["merge_queue"]:
-        _write_text(sys.stdout, "waiting for user merge approval (only the head is exempt):\n")
+        _write_text(sys.stdout, "waiting for user/Codex merge decision (only the head is exempt):\n")
         for point in summary["merge_queue"]:
             marker = "head/exempt" if point["exempt"] else "queued/counts toward concurrency"
             _write_text(sys.stdout, f"  {format_point(point)} ({marker})\n")
@@ -1363,7 +1392,7 @@ def build_parser() -> argparse.ArgumentParser:
     review_fail_cmd.add_argument("id")
     review_fail_cmd.add_argument("--reason")
 
-    merge_approved = sub.add_parser("merge-approved", help="record user approval; only the head")
+    merge_approved = sub.add_parser("merge-approved", help="record user/Codex merge approval; only the head")
     merge_approved.add_argument("id")
     merge_done = sub.add_parser("merge-done", help="record the PR as merged")
     merge_done.add_argument("id")
@@ -1476,8 +1505,12 @@ def command_next(args: argparse.Namespace) -> int:
     summary = build_summary(state, config)
     if getattr(args, "deliver", False):
         # Only the command that prints the ask to the user records "already shown".
+        # Emptying the queue clears the record too, so that clear must be persisted:
+        # saving only non-empty deliveries leaves a stale "answered" record on disk
+        # and makes a later, reworked pool skip its own notification.
+        had_record = "merge_queue_asked" in state
         entry = deliver_merge_ask(state)
-        if entry is not None:
+        if entry is not None or had_record:
             save_state(state_path, state)
             summary = build_summary(state, config)
     print_json(summary)

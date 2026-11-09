@@ -130,7 +130,7 @@ CI runner 使用真实 Temp，不需要此覆盖。
 3. 记录 PR/head/branch/worktree/task ids。
 4. 创建下一环任务（verify/review/repair），检查依赖和不重复。
 5. 检查是否有空闲槽位/ready 规格；按第 4 节补位。
-6. 不自动 merge；不创建 integration 除非用户批准。
+6. 不自动 merge，也不创建或执行合并任务；常规 PR 由 Codex 按现行授权审查并合并，团队只维护开发进展并核对 GitHub 合并结果；只有具体产品取舍或风险未决事项才请用户决定。
 7. 用户点的 PR 必须保留“用户原始需求”一节：可整理为通顺语句，但不得改变原意，并与改动逐项对应；AI 提议点不得冒充用户需求。
 
 外部 PR 评论也是报告：Codex/用户在 GitHub 上提的 P0/P1/P2、request changes、CI 失败，不能被“AgentTeams 审查 pass”掩盖；必须主动转成 repair 任务或明确记录为什么非阻塞。
