@@ -60,6 +60,17 @@ STAGE_BY_STATUS = {
     "repairing": "修复", "awaiting_merge": "待批准", "merging": "合并",
 }
 PENDING_GROUP, ACTIVE_GROUP, DONE_GROUP, CLOSED_GROUP = "待你决定", "进行中", "已完成", "已关闭"
+# Who owns a card's next step when merge_state is ``user``: only a real product
+# decision (authorization, PR missing from the cache, PR no longer open) asks the
+# user; a running check waits on CI and a failing one waits on the engineer. The
+# page shows the owner and keeps those cards with the work that is already moving
+# instead of filing them under "待你决定".
+OWNER_USER, OWNER_CI, OWNER_ENGINEER = "user", "ci", "engineer"
+OWNER_LABELS = {OWNER_USER: "待用户决定", OWNER_CI: "等待 CI", OWNER_ENGINEER: "待工程修复"}
+# A card whose status is ``awaiting_merge`` but whose next step nobody else can
+# take (Codex mergeable or user approval) shows this instead of "待批准合并".
+MERGE_STATUS_LABELS = {OWNER_USER: "待批准合并", OWNER_CI: "CI 未完成",
+                       OWNER_ENGINEER: "CI 未通过"}
 ACTIVE_STATUSES = ("specifying", "implementing", "verifying", "reviewing", "repairing", "merging")
 OPEN_VERDICT = {"PASS": "PASS", "FAIL": "FAIL", "待定": "待定"}
 CI_KEYS = ("pass", "pending", "fail")
@@ -148,6 +159,10 @@ def collect_pr(workdir: Path) -> dict[str, Any]:
             "state": item.get("state"),
             "mergeable": item.get("mergeable"),
             "url": item.get("url"),
+            # Kept so the card can show the owner-maintained "what this PR does"
+            # note; a cache written before the body field simply omits it.
+            "body": item.get("body"),
+            "implementation_summary": item.get("implementation_summary"),
             "files": [{"path": f.get("path"), "additions": f.get("additions", 0), "deletions": f.get("deletions", 0)} for f in files],
             "checks": checks,
         }
@@ -285,11 +300,72 @@ def collect_review(workdir: Path, point_id: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Model
 # ---------------------------------------------------------------------------
-def _change_summary(files: list[dict], title: str | None = None) -> dict[str, Any]:
-    """What the PR actually changed: totals, busiest paths and, when known, its title."""
+# Headings whose prose is the owner-maintained "what this PR does" note, checked
+# most specific first. Order matters: "## 目的" is the normal PR body opener and
+# must not be shadowed by a generic "## 摘要".
+SUMMARY_HEADING = re.compile(
+    r"^(?:目的|变更目的|目标|摘要|概述|实现摘要|变更说明|变更摘要|改动摘要|实现说明"
+    r"|变更内容|改动内容|做了什么|summary|what\s+changed|what\s+this\s+does|overview)\s*[:：]?\s*$",
+    re.I)
+SUMMARY_BULLETS = 2
+
+
+def extract_summary(body: str | None) -> str | None:
+    """The owner-maintained one-liner from a PR body, or ``None``.
+
+    Reads, in order: an explicit ``实现摘要：…`` line, then the first prose
+    paragraph under a ``## 目的/摘要/实现摘要/…`` heading. Bullets are kept as
+    "；"-joined fragments (at most two). Headings also stop at ``##``, code
+    fences, tables, badges and ``---`` rules are skipped, and nothing is
+    invented: a body without such a section yields ``None``.
+    """
+    if not body:
+        return None
+    text = str(body).replace("\r\n", "\n")
+    inline = re.search(r"^\s*(?:[-*]\s*)?(?:\*\*)?实现摘要(?:\*\*)?\s*[：:]\s*(.+)$", text, re.M)
+    if inline:
+        return _clip(_clean_inline(inline.group(1)))
+    section: list[str] = []
+    inside = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if re.match(r"^#{1,6}\s", stripped):
+            if inside:
+                break
+            inside = bool(SUMMARY_HEADING.match(re.sub(r"^#{1,6}\s*", "", stripped)))
+            continue
+        if not inside:
+            continue
+        if stripped.startswith("```") or stripped.startswith("|") or stripped == "---":
+            if section:
+                break
+            continue
+        if not stripped or stripped.startswith(("[!", "<")):
+            if section:
+                break
+            continue
+        blockquote = stripped.lstrip(">").strip()
+        bullet = re.match(r"^(?:\d+\.|[-*])\s+(.+)$", blockquote)
+        section.append(_clean_inline(bullet.group(1) if bullet else blockquote))
+    if not section:
+        return None
+    return _clip("；".join(section[:SUMMARY_BULLETS]))
+
+
+def _change_summary(files: list[dict], title: str | None = None, body: str | None = None,
+                    implementation_summary: str | None = None) -> dict[str, Any]:
+    """What the PR actually changed: its owner-written summary plus size and paths.
+
+    ``summary`` comes from an explicit ``implementation_summary`` entry first (an
+    owner-maintained override), else the PR body via :func:`extract_summary`. When
+    neither exists ``summary`` is ``None`` and ``summary_missing`` stays true so the
+    page says "待补" instead of pretending the title is the summary.
+    """
+    summary = _clip(implementation_summary) if implementation_summary else extract_summary(body)
     if not files:
         return {"files": 0, "additions": 0, "deletions": 0, "top_paths": [], "paths": [],
-                "title": _clip(title) if title else None, "missing": True}
+                "title": _clip(title) if title else None, "summary": summary,
+                "summary_missing": summary is None, "missing": True}
     additions = sum(int(f.get("additions") or 0) for f in files)
     deletions = sum(int(f.get("deletions") or 0) for f in files)
     grouped: dict[str, list[int]] = {}
@@ -305,46 +381,52 @@ def _change_summary(files: list[dict], title: str | None = None) -> dict[str, An
     return {"files": len(files), "additions": additions, "deletions": deletions,
             "top_paths": [{"path": name, "additions": add, "deletions": dele} for name, (add, dele) in tops],
             "paths": [str(f.get("path")) for f in ranked[:3] if f.get("path")],
-            "title": _clip(title) if title else None,
-            "missing": False}
+            "title": _clip(title) if title else None, "summary": summary,
+            "summary_missing": summary is None, "missing": False}
 
 
 def merge_state(point: dict, pr_entry: dict | None) -> dict[str, Any]:
-    """Classify an ``awaiting_merge`` point as Codex-mergeable or user-blocked.
+    """Classify an ``awaiting_merge`` point as Codex-mergeable or still blocked.
 
     Merging is not a single decision. ``codex`` means the PR is open (cache state
     ``OPEN``), GitHub says ``MERGEABLE``, CI reported at least one check and all of
     them passed, so the Codex merge gate can pick it up without a new user decision.
-    ``user`` means the user still has to decide: the PR is missing from the cache,
-    is already CLOSED/MERGED, not mergeable, has failing/pending checks, or has no
-    CI checks at all (a green mergeable bit alone is not evidence). ``None`` applies
-    to every other status (the card then shows nothing extra).
+    ``user`` means the merge cannot happen yet, and ``owner`` says who has to act
+    next: ``user`` for a product decision (PR missing from the cache, not linked),
+    ``ci`` while checks are still running, and ``engineer`` for a red check, no
+    CI checks at all, a non-mergeable PR or a PR already CLOSED/MERGED. ``None``
+    applies to every other status (the card then shows nothing extra).
     """
     if point.get("status") != "awaiting_merge":
-        return {"state": None, "reason": None}
+        return {"state": None, "owner": None, "reason": None}
     pr = point.get("pr")
     if not pr:
-        return {"state": "user", "reason": "未关联 PR"}
+        return {"state": "user", "owner": OWNER_USER, "reason": "未关联 PR"}
     if not pr_entry:
-        return {"state": "user", "reason": "PR 不在缓存中"}
+        return {"state": "user", "owner": OWNER_USER, "reason": "PR 不在缓存中"}
     pr_state = str(pr_entry.get("state") or "").upper()
     if pr_state != "OPEN":
         # A stale cache can still carry green checks from when the PR was open.
-        return {"state": "user", "reason": f"PR 状态 {pr_state or '未知'}，不可合并"}
+        return {"state": "user", "owner": OWNER_USER, "reason": f"PR 状态 {pr_state or '未知'}，不可合并"}
     checks = pr_entry.get("checks") or {}
     total = sum(int(checks.get(key) or 0) for key in CI_KEYS)
     if total == 0:
         # No checks means nobody has proved the head is safe to merge; a green
-        # "mergeable" bit alone is not a substitute for CI.
-        return {"state": "user", "reason": "无 CI 检查"}
+        # "mergeable" bit alone is not a substitute for CI, and the engineer has
+        # to wire CI up before anyone can.
+        return {"state": "user", "owner": OWNER_ENGINEER, "reason": "无 CI 检查"}
     failing = int(checks.get("fail") or 0) + int(checks.get("pending") or 0)
     if failing:
+        # Running checks are CI's next step, red ones the engineer's; neither is
+        # a product decision for the user.
+        owner = OWNER_CI if not int(checks.get("fail") or 0) else OWNER_ENGINEER
         parts = [f'fail {checks.get("fail", 0)}' if checks.get("fail") else "",
                  f'pending {checks.get("pending", 0)}' if checks.get("pending") else ""]
-        return {"state": "user", "reason": "检查未全绿：" + "/".join(p for p in parts if p)}
+        return {"state": "user", "owner": owner, "reason": "检查未全绿：" + "/".join(p for p in parts if p)}
     if str(pr_entry.get("mergeable") or "").upper() != "MERGEABLE":
-        return {"state": "user", "reason": f'PR 不可合并：{pr_entry.get("mergeable") or "未知"}'}
-    return {"state": "codex", "reason": "可交给 Codex 合并（检查全绿、PR mergeable）"}
+        return {"state": "user", "owner": OWNER_ENGINEER,
+                "reason": f'PR 不可合并：{pr_entry.get("mergeable") or "未知"}'}
+    return {"state": "codex", "owner": None, "reason": "可交给 Codex 合并（检查全绿、PR mergeable）"}
 
 
 def derive_decisions(point: dict, spec: dict, review: dict, tasks: dict, manual: list[str],
@@ -359,12 +441,18 @@ def derive_decisions(point: dict, spec: dict, review: dict, tasks: dict, manual:
         detail = f"quota 重试 {point.get('quota_retries', 0)} 次" if reason == "quota" else str(reason)
         out.append(_clip(f"阻塞：{detail}"))
     elif status == "awaiting_merge":
-        merge = merge or {"state": "user", "reason": None}
+        merge = merge or {"state": "user", "owner": OWNER_USER, "reason": None}
         target = f" PR #{point.get('pr')}" if point.get("pr") else ""
+        owner = merge.get("owner") if merge.get("state") == "user" else None
+        reason = f"（{merge['reason']}）" if merge.get("reason") else ""
         if merge.get("state") == "codex":
             out.append(_clip(f"已审查通过，可交 Codex 合并{target}"))
+        elif owner == OWNER_CI:
+            out.append(_clip(f"等待 CI 完成{target}{reason}，无需用户操作"))
+        elif owner == OWNER_ENGINEER:
+            out.append(_clip(f"待工程修复后重新审查合并{target}{reason}"))
         elif merge.get("reason"):
-            out.append(_clip(f"等待用户批准合并{target}（{merge['reason']}）"))
+            out.append(_clip(f"等待用户批准合并{target}{reason}"))
         else:
             out.append(f"等待用户批准合并{target}")
     elif status == "reviewing" and review.get("verdict") == "FAIL":
@@ -390,10 +478,17 @@ def build_model(*, state: dict, config: dict, summary: dict, issues: list[str], 
         verification = collect_verification(workdir, point_id)
         review = collect_review(workdir, point_id)
         pr_entry = pr["pulls"].get(str(point.get("pr"))) if point.get("pr") else None
-        changes = _change_summary((pr_entry or {}).get("files") or [], (pr_entry or {}).get("title"))
-        manual = decisions.get(point_id) or []
         merge = merge_state(point, pr_entry)
+        changes = _change_summary((pr_entry or {}).get("files") or [], (pr_entry or {}).get("title"),
+                                  (pr_entry or {}).get("body"),
+                                  (pr_entry or {}).get("implementation_summary"))
+        manual = decisions.get(point_id) or []
         derived = derive_decisions(point, spec, review, tasks, manual, merge)
+        status_label = STATUS_LABELS.get(point.get("status"), str(point.get("status")))
+        if point.get("status") == "awaiting_merge" and merge.get("state") == "codex":
+            status_label = "可交 Codex 合并"
+        elif point.get("status") == "awaiting_merge" and merge.get("owner") in MERGE_STATUS_LABELS:
+            status_label = MERGE_STATUS_LABELS[merge["owner"]]
         task_map = point.get("task_ids") or {}
         assignment = tasks.get(point_id) if isinstance(tasks.get(point_id), dict) else {}
         card = {
@@ -403,7 +498,7 @@ def build_model(*, state: dict, config: dict, summary: dict, issues: list[str], 
             "risk": point.get("risk"),
             "auto_started": bool(point.get("auto_started")),
             "status": point.get("status"),
-            "status_label": STATUS_LABELS.get(point.get("status"), str(point.get("status"))),
+            "status_label": status_label,
             "stage": STAGE_BY_STATUS.get(str(point.get("status"))),
             "purpose": spec.get("goal") or spec.get("title"),
             "spec_path": spec.get("path"),
@@ -430,6 +525,10 @@ def build_model(*, state: dict, config: dict, summary: dict, issues: list[str], 
             value = card[field]
             if value in (None, "", {}) or (field == "changes" and value.get("missing")):
                 gaps += 1
+        if changes.get("missing") or changes.get("summary_missing"):
+            # An empty "what changed" line is a real gap even when the PR cache
+            # supplied files but no owner-maintained summary.
+            gaps += 1
         if not verification.get("available"):
             gaps += 1
         points.append(card)
@@ -453,6 +552,14 @@ def build_model(*, state: dict, config: dict, summary: dict, issues: list[str], 
         else:
             # queued / inbox are waiting for a slot: surface them with the work
             # that is already moving rather than silently dropping them.
+            target = ACTIVE_GROUP
+        if status == "awaiting_merge" and card["merge"].get("state") == "codex":
+            # Reviewed and green with a mergeable PR: the Codex gate owns the next
+            # step, so the card must not sit under "待你决定".
+            target = ACTIVE_GROUP
+        elif status == "awaiting_merge" and card["merge"].get("owner") in (OWNER_CI, OWNER_ENGINEER):
+            # Waiting on a running check or on an engineer repair is not a product
+            # decision either; only user-owned merge cards stay in the pending group.
             target = ACTIVE_GROUP
         groups[target]["user" if card["source"] == "user" else "agent"].append(card)
     groups[DONE_GROUP]["user"].sort(key=lambda c: c.get("merged_at") or "", reverse=True)
@@ -539,12 +646,19 @@ def _render_card(card: dict) -> str:
             change_text += f" · {changes['title']}"
         if paths:
             change_text += f" · 主要文件 {paths}"
+    # The owner-maintained summary leads: "what changed" before "how big it is".
+    summary = changes.get("summary")
+    summary_html = _esc(summary) if summary else (
+        '<span class="badge warn">实现摘要待补</span>' if changes.get("title") else "—")
     merge_html = ""
-    merge_state_value = (card.get("merge") or {}).get("state")
+    merge = card.get("merge") or {}
+    merge_state_value = merge.get("state")
     if merge_state_value == "codex":
         merge_html = ' <span class="badge ok">可交 Codex 合并</span>'
     elif merge_state_value == "user":
-        merge_html = ' <span class="badge warn">待用户决定</span>'
+        owner = merge.get("owner") or OWNER_USER
+        css = "badge warn" if owner == OWNER_USER else "badge"
+        merge_html = f' <span class="{css}">{_esc(OWNER_LABELS[owner])}</span>'
     decisions = card["decisions"]
     decision_html = "<br>".join(_esc(d) for d in decisions) if decisions else "—"
     pr_html = "—"
@@ -563,7 +677,7 @@ def _render_card(card: dict) -> str:
         f'<div class="card"><h3>{_esc(card["id"])} · {_esc(card["title"])}{"".join(badges)}</h3><dl>'
         f'<dt>目的</dt><dd>{_esc(card["purpose"] or "—")}</dd>'
         f'<dt>当前进度</dt><dd>{_esc(card["status_label"])}{"（" + _esc(card["stage"]) + "）" if card["stage"] else ""} · 起于 {_esc(card["updated_at"] or "—")}</dd>'
-        f'<dt>主要改动</dt><dd>{_esc(change_text)}</dd>'
+        f'<dt>主要改动</dt><dd>{summary_html}<br>{_esc(change_text)}</dd>'
         f'<dt>验证情况</dt><dd>{verdict_html} · CI {_esc(ci)}</dd>'
         f'<dt>待决定问题</dt><dd>{decision_html}</dd>'
         f'<dt>PR / 分支</dt><dd>{pr_html} · <code>{_esc(card["branch"] or "—")}</code> · head <code>{_esc(card["head_sha"] or "—")}</code></dd>'
@@ -627,7 +741,7 @@ def render_html(model: dict) -> str:
 # ---------------------------------------------------------------------------
 # PR cache refresh (the only networked step, explicit opt-in)
 # ---------------------------------------------------------------------------
-GH_FIELDS = "number,title,headRefName,state,mergeable,url,files,statusCheckRollup"
+GH_FIELDS = "number,title,body,headRefName,state,mergeable,url,files,statusCheckRollup"
 
 
 def refresh_pr_cache(workdir: Path, *, run=subprocess.run) -> dict[str, Any]:

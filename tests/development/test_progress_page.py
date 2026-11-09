@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -39,14 +40,31 @@ class ProgressPageTests(unittest.TestCase):
         # The generator refuses a workdir outside the repository, so fixtures are
         # created under the gitignored output/ tree. Sandboxed checkouts may only
         # allow writes elsewhere, so honour the explicit fixture-root override.
-        fixture_root = pp.fixture_root(ROOT)
-        fixture_root.mkdir(parents=True, exist_ok=True)
-        self._temp = tempfile.TemporaryDirectory(dir=fixture_root)
-        self.addCleanup(self._temp.cleanup)
-        self.workdir = Path(self._temp.name) / "agent-workflow"
+        root = pp.fixture_root(ROOT)
+        root.mkdir(parents=True, exist_ok=True)
+        # Fixture workdirs are named here instead of via tempfile.TemporaryDirectory:
+        # that helper first resolves the default temp dir, which is not guaranteed to
+        # be usable (e.g. a redirected TEMP pointing at the repository root, or a
+        # sandbox without a writable system temp), while the generator already trusts
+        # the gitignored fixture root.
+        self._directory = self._allocate(root)
+        self.addCleanup(shutil.rmtree, self._directory, ignore_errors=True)
+        self.workdir = self._directory / "agent-workflow"
         (self.workdir / "specs").mkdir(parents=True)
         (self.workdir / "verification").mkdir()
         self.state = {"version": 1, "next_id": 1, "points": [], "updated_at": FIXED_NOW}
+
+    def _allocate(self, root):
+        for _ in range(50):
+            candidate = root / f"pp-test-{next(tempfile._get_candidate_names())}"
+            try:
+                candidate.mkdir()
+            except FileExistsError:
+                continue
+            except OSError:
+                break
+            return candidate
+        self.skipTest(f"fixture root {root} is not writable in this environment")
 
     # -- fixture helpers -------------------------------------------------
     def write_state(self, points, config=None):
@@ -105,6 +123,8 @@ class ProgressPageTests(unittest.TestCase):
             points.append(_point(point_id, status=status,
                                  spec_path=self.spec(point_id, "# t\n\n**目标**：目标句。\n"), **extra))
         self.write_state(points)
+        # dev-0007 is awaiting_merge with no cached PR: nobody but the user can move
+        # it, so it stays in the pending group with the plain "待批准合并" label.
         model = self.build()["model"]
         pending = {c["id"] for src in model["groups"]["待你决定"].values() for c in src}
         active = {c["id"] for src in model["groups"]["进行中"].values() for c in src}
@@ -295,12 +315,55 @@ class ProgressPageTests(unittest.TestCase):
         self.assertIn("检查未全绿", by_id["dev-0002"]["decisions"][0])
         self.assertEqual(by_id["dev-0003"]["merge"]["state"], "user")
         self.assertIn("PR 不可合并", by_id["dev-0003"]["decisions"][0])
+        self.assertEqual(by_id["dev-0003"]["merge"]["owner"], "engineer")
+        self.assertIn("待工程修复", by_id["dev-0003"]["decisions"][0])
         # A PR missing from the cache is a user decision, not a silent Codex merge.
         self.assertEqual(by_id["dev-0004"]["merge"]["state"], "user")
+        self.assertEqual(by_id["dev-0004"]["merge"]["owner"], "user")
         self.assertIn("PR 不在缓存中", by_id["dev-0004"]["decisions"][0])
         self.assertIsNone(by_id["dev-0005"]["merge"]["state"])
         self.assertIn('<span class="badge ok">可交 Codex 合并</span>', page["html"])
         self.assertIn('<span class="badge warn">待用户决定</span>', page["html"])
+        # Red checks and a conflicting PR are not a user decision.
+        self.assertIn('<span class="badge">待工程修复</span>', page["html"])
+        self.assertEqual(by_id["dev-0002"]["merge"]["owner"], "engineer")
+
+    def test_merge_ownership_routes_cards_to_the_next_actor(self):
+        """Codex-mergeable, CI-running and CI-failing cards are not "待你决定"."""
+        self.write_state([
+            _point("dev-0001", status="awaiting_merge", pr=7),   # green → Codex merges
+            _point("dev-0002", status="awaiting_merge", pr=8),   # running check → wait CI
+            _point("dev-0003", status="awaiting_merge", pr=9),   # red check → engineer
+            _point("dev-0004", status="awaiting_merge", pr=10),  # cache missing → user
+        ])
+        self.pr_cache([
+            {"number": 7, "title": "全绿", "headRefName": "b1", "state": "OPEN", "mergeable": "MERGEABLE",
+             "url": "u7", "files": [], "statusCheckRollup": [{"conclusion": "SUCCESS"}]},
+            {"number": 8, "title": "检查中", "headRefName": "b2", "state": "OPEN", "mergeable": "MERGEABLE",
+             "url": "u8", "files": [], "statusCheckRollup": [{"state": "PENDING"}]},
+            {"number": 9, "title": "检查失败", "headRefName": "b3", "state": "OPEN", "mergeable": "MERGEABLE",
+             "url": "u9", "files": [], "statusCheckRollup": [{"conclusion": "FAILURE"}]},
+        ])
+        page = self.build()
+        model = page["model"]
+        pending = {c["id"] for src in model["groups"]["待你决定"].values() for c in src}
+        active = {c["id"] for src in model["groups"]["进行中"].values() for c in src}
+        self.assertEqual(pending, {"dev-0004"})
+        self.assertEqual(active, {"dev-0001", "dev-0002", "dev-0003"})
+        by_id = {c["id"]: c for c in self.cards(model)}
+        self.assertEqual(by_id["dev-0001"]["status_label"], "可交 Codex 合并")
+        self.assertEqual(by_id["dev-0002"]["merge"]["owner"], "ci")
+        self.assertEqual(by_id["dev-0003"]["merge"]["owner"], "engineer")
+        # The status badge follows the merge state, and CI-waiting never claims
+        # to be waiting for user approval.
+        self.assertEqual(by_id["dev-0002"]["status_label"], "CI 未完成")
+        self.assertEqual(by_id["dev-0003"]["status_label"], "CI 未通过")
+        self.assertEqual(by_id["dev-0002"]["decisions"], ["等待 CI 完成 PR #8（检查未全绿：pending 1），无需用户操作"])
+        self.assertIn("待工程修复后重新审查合并 PR #9", by_id["dev-0003"]["decisions"][0])
+        self.assertNotIn("等待用户批准合并", by_id["dev-0002"]["decisions"][0])
+        html = page["html"]
+        self.assertIn('<span class="badge">等待 CI</span>', html)
+        self.assertEqual(by_id["dev-0004"]["status_label"], "待批准合并")
 
     def test_merge_state_requires_an_open_pr_even_when_checks_are_green(self):
         self.write_state([
@@ -380,6 +443,89 @@ class ProgressPageTests(unittest.TestCase):
         self.assertIn("主要文件 tests/b.py、docs/c.md、docs/d.md", page["html"])
         self.assertNotIn("<标记>", page["html"])
         self.assertIn("&lt;标记&gt;", page["html"])
+
+    def test_pr_body_supplies_the_implementation_summary(self):
+        """The card must say *what* the PR does, not only its title and size."""
+        self.write_state([_point("dev-0001", status="awaiting_merge", pr=7)])
+        self.pr_cache([{
+            "number": 7, "title": "进度页：修 P1/P2", "headRefName": "b", "state": "OPEN",
+            "mergeable": "MERGEABLE", "url": "u",
+            "body": ("## 目的\n\n"
+                     "补 dev-0023 I5 的文档部分，不改 PR #25 的代码。\n\n"
+                     "## 验证\n\n- 链接检查 OK\n"),
+            "files": [{"path": "docs/a.md", "additions": 9, "deletions": 1}],
+            "statusCheckRollup": [{"conclusion": "SUCCESS"}],
+        }])
+        page = self.build()
+        changes = next(self.cards(page["model"]))["changes"]
+        self.assertEqual(changes["summary"], "补 dev-0023 I5 的文档部分，不改 PR #25 的代码。")
+        self.assertFalse(changes["summary_missing"])
+        summary_at = page["html"].find("补 dev-0023 I5 的文档部分")
+        stats_at = page["html"].find("1 个文件 +9/−1")
+        self.assertGreaterEqual(summary_at, 0)
+        self.assertGreater(stats_at, summary_at)
+        self.assertNotIn("实现摘要待补", page["html"])
+
+    def test_missing_implementation_summary_is_marked_and_counted_as_a_gap(self):
+        self.write_state([_point("dev-0001", status="awaiting_merge", pr=7)])
+        self.pr_cache([{
+            "number": 7, "title": "只有标题", "headRefName": "b", "state": "OPEN",
+            "mergeable": "MERGEABLE", "url": "u", "body": "直接开始写代码，没有摘要小节。",
+            "files": [{"path": "docs/a.md", "additions": 1, "deletions": 0}],
+            "statusCheckRollup": [{"conclusion": "SUCCESS"}],
+        }])
+        page = self.build()
+        card = next(self.cards(page["model"]))
+        self.assertIsNone(card["changes"]["summary"])
+        self.assertTrue(card["changes"]["summary_missing"])
+        self.assertIn("实现摘要待补", page["html"])
+        self.assertGreaterEqual(page["model"]["summary"]["data_gaps"], 1)
+
+    def test_explicit_implementation_summary_overrides_the_body(self):
+        self.write_state([_point("dev-0001", status="awaiting_merge", pr=7)])
+        self.pr_cache([{
+            "number": 7, "title": "t", "headRefName": "b", "state": "OPEN", "mergeable": "MERGEABLE",
+            "url": "u", "body": "## 目的\n\n正文摘要。\n", "implementation_summary": "维护者写的一句话摘要。",
+            "files": [{"path": "docs/a.md", "additions": 1, "deletions": 0}], "statusCheckRollup": [],
+        }])
+        changes = next(self.cards(self.build()["model"]))["changes"]
+        self.assertEqual(changes["summary"], "维护者写的一句话摘要。")
+
+    def test_summary_extraction_reads_sections_and_bullets_only(self):
+        self.assertEqual(pp.extract_summary(None), None)
+        self.assertEqual(pp.extract_summary("没有小节的正文。\n"), None)
+        self.assertEqual(pp.extract_summary("实现摘要：**一句话**说明实现。\n"),
+                         "一句话说明实现。")
+        self.assertEqual(
+            pp.extract_summary("## 变更目的\n\n- 第一点\n- 第二点\n- 第三点\n"),
+            "第一点；第二点")
+        self.assertEqual(pp.extract_summary("## 目的\n\n> 引用式摘要\n\n## 验证\n\n- 通过\n"),
+                         "引用式摘要")
+        self.assertEqual(pp.extract_summary("## 目的\n\n```\ncode\n```\n## 其他\n"), None)
+        self.assertIn("标题在前", pp.extract_summary("## 摘要\n\n标题在前 <b>的</b> 摘要\n\n正文\n"))
+
+    def test_refresh_pr_requests_the_pr_body_field(self):
+        self.assertIn("body", pp.GH_FIELDS.split(","))
+        recorded = {}
+
+        class Completed:
+            returncode = 0
+            stdout = json.dumps([{"number": 9, "title": "t", "body": "## 目的\n\n摘要。\n",
+                                  "headRefName": "b", "state": "OPEN", "mergeable": "MERGEABLE",
+                                  "url": "u", "files": [], "statusCheckRollup": []}])
+
+        def fake_run(command, **kwargs):
+            recorded["command"] = command
+            return Completed()
+
+        with mock.patch.object(pp.shutil, "which", return_value="gh"):
+            outcome = pp.refresh_pr_cache(self.workdir, run=fake_run)
+        self.assertTrue(outcome["ok"])
+        fields = recorded["command"][recorded["command"].index("--json") + 1].split(",")
+        self.assertIn("body", fields)
+        cache = json.loads((self.workdir / pp.PR_CACHE_NAME).read_text(encoding="utf-8"))
+        self.assertIn("## 目的", cache["pulls"][0]["body"])
+        self.assertEqual(pp.extract_summary(cache["pulls"][0]["body"]), "摘要。")
 
     def test_refresh_pr_writes_cache_from_gh_json(self):
         self.write_state([_point("dev-0001")])
