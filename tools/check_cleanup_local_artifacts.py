@@ -16,7 +16,13 @@ Scope is deliberately narrow:
   a tool directory that only just became active (a new run, or a fresh entry in
   an existing one, written after the audit) is skipped instead of removed, so
   the delete step never relies on the audit-time snapshot alone;
-* symlinks are never followed or deleted - they are reported and skipped, so a
+* the delete itself is bottom-up and only unlinks entries it has already
+  scanned: each directory is removed with ``rmdir``, which atomically refuses
+  when a run/log appeared after the listing. A write that lands during the
+  final scan or during the delete therefore keeps its parent (and itself)
+  instead of being swept away by a recursive delete;
+* symlinks are never followed or deleted: a top-level link is reported and
+  skipped, and a link inside a candidate directory keeps that whole tree, so a
   link cannot be used to reach outside the temporary root;
 * ``output/tmp`` and every ancestor up to the Git root must be real
   directories; a symlink/junction in that chain is refused, not followed;
@@ -38,7 +44,6 @@ from __future__ import annotations
 import argparse
 import math
 import os
-import shutil
 import stat
 import subprocess
 import sys
@@ -63,6 +68,10 @@ class Entry:
     age_days: float
     eligible: bool
     reason: str
+
+
+class ActiveAfterAudit(ValueError):
+    """The candidate was stale at the audit but is active again at delete time."""
 
 
 def valid_days(days: float) -> bool:
@@ -178,11 +187,18 @@ def _newest_mtime(path: Path) -> float:
 
     POSIX does not update a directory mtime when files below it are written, so
     judging staleness by the top directory alone could delete an active run.
+
+    Directory mtimes are read again after the walk: creating a child (including
+    a ``run-new`` while a ``run-old`` sibling is being traversed) bumps the
+    parent's mtime, which the one-shot pre-walk read would miss. The delete step
+    does not rely on this snapshot alone either - see ``_delete_stale_tree``.
     """
     newest = path.lstat().st_mtime
+    visited: list[Path] = []
     pending = [path]
     while pending:
         current = pending.pop()
+        visited.append(current)
         try:
             children = list(current.iterdir())
         except OSError:
@@ -197,7 +213,74 @@ def _newest_mtime(path: Path) -> float:
             newest = max(newest, info.st_mtime)
             if stat.S_ISDIR(info.st_mode):
                 pending.append(child)
+    # Second, cheap pass after the whole walk: a child created while a sibling
+    # subtree was scanned updates only its parent's mtime, so re-reading every
+    # visited directory is what catches a sibling that arrived mid-scan.
+    for directory in visited:
+        try:
+            newest = max(newest, directory.lstat().st_mtime)
+        except OSError:
+            continue
     return newest
+
+
+def _delete_stale_tree(path: Path, *, deadline: float) -> bool:
+    """Delete one already-stale tree bottom-up, touching only scanned entries.
+
+    ``shutil.rmtree`` re-enumerates while it recurses, so a run or log file
+    created after the last age check is still swept away together with its
+    parent. Here every entry must be listed and judged stale *before* it is
+    unlinked, and every directory is removed with ``rmdir``, which atomically
+    refuses when anything appeared after the listing. A new sibling
+    run/file/directory therefore either shows up in a later listing (its fresh
+    mtime stops the deletion) or keeps its parent non-empty; it can never be
+    deleted as a side effect of removing an ancestor.
+
+    A candidate that is still entirely stale at the end is removed and returns
+    True. Anything unexpected - a fresh entry, a link, a file that reappeared
+    in the listing, or a directory that stopped being empty - keeps the tree and
+    returns False; the guard is deliberately conservative. ``deadline`` is the
+    oldest mtime still considered stale, the same instant the caller's re-check
+    used.
+    """
+    try:
+        children = list(path.iterdir())
+    except OSError:
+        return False
+    planned: list[tuple[Path, bool]] = []
+    for child in children:
+        try:
+            info = child.lstat()
+        except OSError:
+            return False
+        if _is_link(child) or info.st_mtime > deadline:
+            # New content or a link: never deleted as part of the parent.
+            return False
+        if stat.S_ISDIR(info.st_mode):
+            planned.append((child, True))
+            continue
+        if not stat.S_ISREG(info.st_mode):
+            return False
+        planned.append((child, False))
+    for child, is_directory in planned:
+        if is_directory:
+            if not _delete_stale_tree(child, deadline=deadline):
+                return False
+            continue
+        try:
+            # Re-read immediately before unlinking: a file rewritten after the
+            # directory listing must keep the tree instead of disappearing.
+            if child.lstat().st_mtime > deadline:
+                return False
+            child.unlink()
+        except OSError:
+            return False
+    try:
+        path.rmdir()
+    except OSError:
+        # Not empty (a new entry landed) or already gone: keep whatever is left.
+        return False
+    return True
 
 
 def audit(root: Path, *, days: float = DEFAULT_DAYS, now: float | None = None,
@@ -260,17 +343,23 @@ def _recheck_age(entry: Entry, *, days: float, now: float | None) -> float:
 
 
 def remove(entry: Entry, *, root: Path, repo_root: Path | None = None,
-           days: float = DEFAULT_DAYS, now: float | None = None) -> None:
-    """Delete one eligible directory, re-checking boundary *and* age right before acting."""
+           days: float = DEFAULT_DAYS, now: float | None = None) -> bool:
+    """Delete one eligible directory, re-checking boundary *and* age right before acting.
+
+    Returns True when ``entry.path`` was removed. A run or log file that lands
+    during the delete keeps the directory and returns False; new content is
+    never deleted as part of its parent.
+    """
     base = (repo_root or ROOT).resolve()
     if not entry.eligible or entry.kind != "dir":
         raise ValueError(f"refusing to remove ineligible entry {entry.name}")
     if (_is_link(entry.path) or _reparse_components(base, entry.path)
             or not _inside(entry.path, base / TMP_RELATIVE)):
         raise ValueError(f"refusing to remove {entry.name}: outside output/tmp")
-    if _recheck_age(entry, days=days, now=now) < days:
-        raise ValueError(f"refusing to remove {entry.name}: became active after the audit")
-    shutil.rmtree(entry.path)
+    clock = time.time() if now is None else now
+    if _recheck_age(entry, days=days, now=clock) < days:
+        raise ActiveAfterAudit(f"refusing to remove {entry.name}: became active after the audit")
+    return _delete_stale_tree(entry.path, deadline=clock - days * DAY_SECONDS)
 
 
 def _human_age(age: float) -> str:
@@ -291,7 +380,7 @@ def format_report(entries: list[Entry], *, days: float, applied: bool, removed: 
     for entry in candidates:
         lines.append(f"  - {entry.name}/  ({_human_age(entry.age_days)}，{entry.reason})")
     if rechecked:
-        lines.append(f"删除前复核：{rechecked} 个目录在审计后变为活跃或已消失，未删除。")
+        lines.append(f"删除前复核：{rechecked} 个目录在删除前变为活跃、出现新内容或已消失，未删除。")
     if files:
         lines.append(f"保留（散落文件，只报告）：{len(files)} 个")
         for entry in files:
@@ -345,9 +434,9 @@ def run(*, repo_root: Path | None = None, days: float = DEFAULT_DAYS, apply: boo
             if not entry.eligible:
                 continue
             # The audit is a snapshot: a fresh run (or a fresh file inside an
-            # existing run) can land before this rmtree. Re-check age against the
-            # delete-time clock and keep the directory instead of deleting an
-            # active run. A candidate that disappeared in the meantime is
+            # existing run) can land before this removal. Re-check age against
+            # the delete-time clock and keep the directory instead of deleting
+            # an active run. A candidate that disappeared in the meantime is
             # nothing to delete, not an error.
             try:
                 age = _recheck_age(entry, days=days, now=clock())
@@ -358,8 +447,16 @@ def run(*, repo_root: Path | None = None, days: float = DEFAULT_DAYS, apply: boo
                 rechecked += 1
                 continue
             try:
-                remove(entry, root=target, repo_root=base, days=days, now=clock())
-                removed += 1
+                if remove(entry, root=target, repo_root=base, days=days, now=clock()):
+                    removed += 1
+                else:
+                    # New content (or a link) appeared between this re-check and
+                    # the guarded delete: the directory was kept, never swept
+                    # away with its new sibling.
+                    rechecked += 1
+            except ActiveAfterAudit:
+                # Lost the race between this re-check and remove()'s own one.
+                rechecked += 1
             except (OSError, ValueError) as error:
                 return 1, f"删除 {entry.name} 失败：{type(error).__name__}: {error}"
     return 0, format_report(entries, days=days, applied=apply, removed=removed,

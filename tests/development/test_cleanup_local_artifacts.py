@@ -6,6 +6,7 @@ Every fixture is a throwaway ``TemporaryDirectory`` shaped like a repository
 
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 import sys
@@ -552,6 +553,172 @@ class CleanupLocalArtifactsTests(unittest.TestCase):
         self.run_cleanup(apply=False)
         after = {p: p.stat().st_mtime for p in sorted(self.tmp.rglob("*"))}
         self.assertEqual(before, after)
+
+
+@contextlib.contextmanager
+def race_after_listing(path: Path, *, occurrence: int, write):
+    """Run ``write()`` right after the ``occurrence``-th listing of ``path``.
+
+    Only ``Path.iterdir`` is wrapped: the write uses real files and real mtimes,
+    and the deletion implementation is never replaced, so the production timing
+    window is exercised instead of a mock.
+    """
+    real_iterdir = Path.iterdir
+    state = {"seen": 0, "fired": False}
+
+    def racing_iterdir(item):
+        children = list(real_iterdir(item))
+        if item == path:
+            state["seen"] += 1
+            if state["seen"] == occurrence and not state["fired"]:
+                state["fired"] = True
+                write()
+        return iter(children)
+
+    with mock.patch.object(Path, "iterdir", racing_iterdir):
+        yield state
+
+
+class FinalScanRaceTests(unittest.TestCase):
+    """A run/file created during the final scan or the delete must survive.
+
+    Codex P1 on b073dc63: ``_newest_mtime(tool)`` read the parent mtime once and
+    listed its children once, so a ``run-new`` created while ``run-old`` was
+    walked stayed invisible and the following recursive delete removed it.
+    These tests run the real ``run(apply=True)`` and only schedule the write by
+    wrapping ``Path.iterdir`` - no mtime is faked, no delete helper replaced.
+
+    Listing occurrences per candidate: three pre-delete scans (audit, ``run()``
+    re-check, ``remove()`` re-check) and the fourth listing happens inside the
+    guarded delete.
+    """
+
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.repo = Path(temp.name)
+        self.tmp = self.repo / "output" / "tmp"
+        self.tmp.mkdir(parents=True)
+        if shutil.which("git") is None:
+            self.skipTest("git is required for the trusted-root checks")
+        completed = subprocess.run(["git", "-C", str(self.repo), "init", "-q"],
+                                   capture_output=True, text=True, timeout=60)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
+    def aged_tool(self) -> tuple[Path, Path]:
+        """``output/tmp/old-tool/run-old/old.log``, 30 days old, plus a control."""
+        tool = self.tmp / "old-tool"
+        run = tool / "run-old"
+        run.mkdir(parents=True)
+        (run / "old.log").write_text("stale", encoding="utf-8")
+        stamp = time.time() - 30 * DAY
+        for path in (run / "old.log", run, tool):
+            os.utime(path, (stamp, stamp))
+        control = self.tmp / "control"
+        control.mkdir()
+        (control / "fresh.log").write_text("fresh", encoding="utf-8")
+        return tool, run
+
+    def run_apply(self):
+        # No pinned clocks: the audit and both pre-delete re-checks compare the
+        # real wall clock against the 30-day-old fixture.
+        return cleanup.run(repo_root=self.repo, apply=True, days=7)
+
+    def test_final_scan_keeps_a_sibling_run_created_while_walking(self):
+        """Codex's exact repro: run-new/active.log lands inside the final scan."""
+        tool, run = self.aged_tool()
+
+        def write():
+            (tool / "run-new").mkdir()
+            (tool / "run-new" / "active.log").write_text("still running", encoding="utf-8")
+
+        with race_after_listing(run, occurrence=3, write=write) as state:
+            code, report = self.run_apply()
+        self.assertEqual(code, 0, report)
+        self.assertTrue(state["fired"], "the final-scan window was never exercised")
+        self.assertTrue((tool / "run-new" / "active.log").is_file(),
+                        "a sibling run created during the final scan was deleted")
+        self.assertTrue((run / "old.log").is_file(),
+                        "the re-check must keep the whole tool dir, not half-delete it")
+        self.assertIn("删除前复核", report)
+        self.assertIn("实际已删除 0 个", report)
+        self.assertTrue((self.tmp / "control" / "fresh.log").is_file())
+
+    def test_final_scan_keeps_a_loose_file_created_while_walking(self):
+        """A file landing directly in the tool dir mid-scan also stops the delete."""
+        tool, run = self.aged_tool()
+
+        def write():
+            (tool / "active.log").write_text("live", encoding="utf-8")
+
+        with race_after_listing(run, occurrence=3, write=write) as state:
+            code, report = self.run_apply()
+        self.assertEqual(code, 0, report)
+        self.assertTrue(state["fired"], "the final-scan window was never exercised")
+        self.assertTrue((tool / "active.log").is_file())
+        self.assertTrue((run / "old.log").is_file())
+        self.assertIn("删除前复核", report)
+
+    def test_sibling_run_created_during_the_guarded_delete_is_kept(self):
+        """After every re-check, a run appearing mid-delete must not be swept away.
+
+        The tool dir was confirmed stale, but ``rmdir`` refuses while the new
+        sibling exists, so the recursive delete can no longer take it.
+        """
+        tool, _ = self.aged_tool()
+
+        def write():
+            (tool / "run-new").mkdir()
+            (tool / "run-new" / "active.log").write_text("still running", encoding="utf-8")
+
+        with race_after_listing(tool, occurrence=4, write=write) as state:
+            code, report = self.run_apply()
+        self.assertEqual(code, 0, report)
+        self.assertTrue(state["fired"], "the guarded-delete window was never exercised")
+        self.assertTrue((tool / "run-new" / "active.log").is_file(),
+                        "a sibling run created during the delete was deleted")
+        self.assertTrue(tool.is_dir())
+        self.assertIn("删除前复核", report)
+        self.assertIn("实际已删除 0 个", report)
+
+    def test_fresh_file_created_inside_an_old_run_during_delete_is_kept(self):
+        """A new log inside the run being pruned also keeps its directory."""
+        tool, run = self.aged_tool()
+
+        def write():
+            (run / "active.log").write_text("live", encoding="utf-8")
+
+        with race_after_listing(run, occurrence=4, write=write) as state:
+            code, report = self.run_apply()
+        self.assertEqual(code, 0, report)
+        self.assertTrue(state["fired"], "the guarded-delete window was never exercised")
+        self.assertTrue((run / "active.log").is_file())
+        self.assertTrue(tool.is_dir())
+        self.assertIn("删除前复核", report)
+
+    def test_newest_mtime_notices_a_sibling_created_during_the_walk(self):
+        """The snapshot itself re-reads parent mtimes after the walk."""
+        tool, run = self.aged_tool()
+        before = tool.lstat().st_mtime
+
+        def write():
+            (tool / "run-new").mkdir()
+            (tool / "run-new" / "active.log").write_text("live", encoding="utf-8")
+
+        with race_after_listing(run, occurrence=1, write=write) as state:
+            newest = cleanup._newest_mtime(tool)
+        self.assertTrue(state["fired"])
+        self.assertGreater(newest, before + 60,
+                           "a sibling added during the walk must make the tree look fresh")
+
+    def test_delete_still_removes_a_fully_stale_tree(self):
+        """Control: safety must not turn the cleaner into a no-op."""
+        tool, _ = self.aged_tool()
+        code, report = self.run_apply()
+        self.assertEqual(code, 0, report)
+        self.assertFalse(tool.exists())
+        self.assertIn("实际已删除 1 个", report)
+        self.assertTrue((self.tmp / "control" / "fresh.log").is_file())
 
 
 if __name__ == "__main__":
