@@ -596,7 +596,11 @@ class FinalScanRaceTests(unittest.TestCase):
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
-        self.repo = Path(temp.name)
+        # Resolve the fixture root: runner temp dirs may be handed out through an
+        # 8.3 short name (``RUNNER~1``) while ``run()`` compares and enumerates
+        # resolved long paths. Matching races against the short alias would never
+        # fire on CI even though the production window exists.
+        self.repo = Path(temp.name).resolve()
         self.tmp = self.repo / "output" / "tmp"
         self.tmp.mkdir(parents=True)
         if shutil.which("git") is None:
