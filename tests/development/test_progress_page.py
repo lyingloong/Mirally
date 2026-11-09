@@ -123,16 +123,16 @@ class ProgressPageTests(unittest.TestCase):
             points.append(_point(point_id, status=status,
                                  spec_path=self.spec(point_id, "# t\n\n**目标**：目标句。\n"), **extra))
         self.write_state(points)
-        # dev-0007 is awaiting_merge with no cached PR: nobody but the user can move
-        # it, so it stays in the pending group with the plain "待批准合并" label.
+        # dev-0007 is awaiting_merge with no cached PR: that is a cache/registration
+        # maintenance action, not a user approval, so it moves with the active work.
         model = self.build()["model"]
         pending = {c["id"] for src in model["groups"]["待你决定"].values() for c in src}
         active = {c["id"] for src in model["groups"]["进行中"].values() for c in src}
         done = {c["id"] for src in model["groups"]["已完成"].values() for c in src}
         closed = {c["id"] for src in model["groups"]["已关闭"].values() for c in src}
-        self.assertEqual(pending, {"dev-0002", "dev-0003", "dev-0007"})
+        self.assertEqual(pending, {"dev-0002", "dev-0003"})
         # queued (dev-0001) waits for a slot and is surfaced with the moving work
-        self.assertEqual(active, {"dev-0001", "dev-0004", "dev-0005", "dev-0006", "dev-0008"})
+        self.assertEqual(active, {"dev-0001", "dev-0004", "dev-0005", "dev-0006", "dev-0007", "dev-0008"})
         self.assertEqual(done, {"dev-0009"})
         self.assertEqual(closed, {"dev-0010"})
         required = {"id", "title", "source", "risk", "status", "purpose", "changes", "verification",
@@ -291,7 +291,7 @@ class ProgressPageTests(unittest.TestCase):
         self.assertEqual(len(card["decisions"]), 2)
         self.assertTrue(all(any(k in d for k in ("遗留", "未覆盖", "TODO")) for d in card["decisions"]))
 
-    def test_merge_state_splits_codex_merge_from_user_decision(self):
+    def test_merge_state_splits_codex_merge_from_blocked_merge(self):
         self.write_state([
             _point("dev-0001", status="awaiting_merge", pr=7),
             _point("dev-0002", status="awaiting_merge", pr=8),
@@ -317,24 +317,28 @@ class ProgressPageTests(unittest.TestCase):
         self.assertIn("PR 不可合并", by_id["dev-0003"]["decisions"][0])
         self.assertEqual(by_id["dev-0003"]["merge"]["owner"], "engineer")
         self.assertIn("待工程修复", by_id["dev-0003"]["decisions"][0])
-        # A PR missing from the cache is a user decision, not a silent Codex merge.
+        # A PR missing from the cache needs a cache refresh, not a user approval.
         self.assertEqual(by_id["dev-0004"]["merge"]["state"], "user")
-        self.assertEqual(by_id["dev-0004"]["merge"]["owner"], "user")
-        self.assertIn("PR 不在缓存中", by_id["dev-0004"]["decisions"][0])
+        self.assertEqual(by_id["dev-0004"]["merge"]["owner"], "maintenance")
+        self.assertIn("PR 不在缓存", by_id["dev-0004"]["decisions"][0])
+        self.assertIn("--refresh-pr", by_id["dev-0004"]["decisions"][0])
+        self.assertNotIn("等待用户批准", by_id["dev-0004"]["decisions"][0])
         self.assertIsNone(by_id["dev-0005"]["merge"]["state"])
         self.assertIn('<span class="badge ok">可交 Codex 合并</span>', page["html"])
-        self.assertIn('<span class="badge warn">待用户决定</span>', page["html"])
+        # Maintenance and engineer work are labelled as such, never as user approval.
+        self.assertIn('<span class="badge">需维护动作</span>', page["html"])
+        self.assertNotIn("等待用户批准合并", page["html"])
         # Red checks and a conflicting PR are not a user decision.
         self.assertIn('<span class="badge">待工程修复</span>', page["html"])
         self.assertEqual(by_id["dev-0002"]["merge"]["owner"], "engineer")
 
     def test_merge_ownership_routes_cards_to_the_next_actor(self):
-        """Codex-mergeable, CI-running and CI-failing cards are not "待你决定"."""
+        """Codex/CI/engineer/maintenance cards are not "待你决定" by themselves."""
         self.write_state([
             _point("dev-0001", status="awaiting_merge", pr=7),   # green → Codex merges
             _point("dev-0002", status="awaiting_merge", pr=8),   # running check → wait CI
             _point("dev-0003", status="awaiting_merge", pr=9),   # red check → engineer
-            _point("dev-0004", status="awaiting_merge", pr=10),  # cache missing → user
+            _point("dev-0004", status="awaiting_merge", pr=10),  # cache missing → refresh
         ])
         self.pr_cache([
             {"number": 7, "title": "全绿", "headRefName": "b1", "state": "OPEN", "mergeable": "MERGEABLE",
@@ -348,24 +352,29 @@ class ProgressPageTests(unittest.TestCase):
         model = page["model"]
         pending = {c["id"] for src in model["groups"]["待你决定"].values() for c in src}
         active = {c["id"] for src in model["groups"]["进行中"].values() for c in src}
-        self.assertEqual(pending, {"dev-0004"})
-        self.assertEqual(active, {"dev-0001", "dev-0002", "dev-0003"})
+        self.assertEqual(pending, set())
+        self.assertEqual(active, {"dev-0001", "dev-0002", "dev-0003", "dev-0004"})
         by_id = {c["id"]: c for c in self.cards(model)}
         self.assertEqual(by_id["dev-0001"]["status_label"], "可交 Codex 合并")
         self.assertEqual(by_id["dev-0002"]["merge"]["owner"], "ci")
         self.assertEqual(by_id["dev-0003"]["merge"]["owner"], "engineer")
+        self.assertEqual(by_id["dev-0004"]["merge"]["owner"], "maintenance")
         # The status badge follows the merge state, and CI-waiting never claims
         # to be waiting for user approval.
         self.assertEqual(by_id["dev-0002"]["status_label"], "CI 未完成")
         self.assertEqual(by_id["dev-0003"]["status_label"], "CI 未通过")
+        self.assertEqual(by_id["dev-0004"]["status_label"], "待维护核对")
         self.assertEqual(by_id["dev-0002"]["decisions"], ["等待 CI 完成 PR #8（检查未全绿：pending 1），无需用户操作"])
         self.assertIn("待工程修复后重新审查合并 PR #9", by_id["dev-0003"]["decisions"][0])
-        self.assertNotIn("等待用户批准合并", by_id["dev-0002"]["decisions"][0])
+        self.assertIn("--refresh-pr", by_id["dev-0004"]["decisions"][0])
+        for card in (by_id["dev-0002"], by_id["dev-0003"], by_id["dev-0004"]):
+            self.assertNotIn("等待用户批准合并", card["decisions"][0])
         html = page["html"]
         self.assertIn('<span class="badge">等待 CI</span>', html)
-        self.assertEqual(by_id["dev-0004"]["status_label"], "待批准合并")
+        self.assertIn('<span class="badge">需维护动作</span>', html)
+        self.assertNotIn("等待用户批准", html)
 
-    def test_merge_state_requires_an_open_pr_even_when_checks_are_green(self):
+    def test_merge_state_reconciles_closed_and_merged_prs_without_user_approval(self):
         self.write_state([
             _point("dev-0001", status="awaiting_merge", pr=7),
             _point("dev-0002", status="awaiting_merge", pr=8),
@@ -380,11 +389,96 @@ class ProgressPageTests(unittest.TestCase):
         ])
         page = self.build()
         by_id = {c["id"]: c for c in self.cards(page["model"])}
-        for point_id, pr_state in (("dev-0001", "CLOSED"), ("dev-0002", "MERGED")):
+        for point_id, marker in (("dev-0001", "CLOSED"), ("dev-0002", "已合并")):
             self.assertEqual(by_id[point_id]["merge"]["state"], "user")
-            self.assertIn(pr_state, by_id[point_id]["merge"]["reason"])
-            self.assertIn("不可合并", by_id[point_id]["decisions"][0])
+            self.assertEqual(by_id[point_id]["merge"]["owner"], "maintenance")
+            self.assertIn(marker, by_id[point_id]["merge"]["reason"])
+            self.assertIn("核对", by_id[point_id]["decisions"][0])
+            self.assertNotIn("等待用户批准", by_id[point_id]["decisions"][0])
+            self.assertNotIn("不可合并", by_id[point_id]["decisions"][0])
         self.assertNotIn('<span class="badge ok">可交 Codex 合并</span>', page["html"])
+        self.assertNotIn("等待用户批准", page["html"])
+        self.assertIn('<span class="badge">需维护动作</span>', page["html"])
+
+    def test_cli_never_asks_user_to_approve_a_missing_cache_or_merged_pr(self):
+        # Codex counterexample: a cache miss, a MERGED PR and an unlinked PR are
+        # maintenance/reconciliation work, never a request for user authorization.
+        self.write_state([
+            _point("dev-0001", status="awaiting_merge", pr=7),
+            _point("dev-0002", status="awaiting_merge", pr=8),
+            _point("dev-0003", status="awaiting_merge"),
+        ])
+        self.pr_cache([{
+            "number": 8, "title": "已合并", "headRefName": "b2", "state": "MERGED",
+            "mergeable": "MERGEABLE", "url": "u8", "files": [],
+            "statusCheckRollup": [{"conclusion": "SUCCESS"}],
+        }])
+        html_out = self.workdir / "maintenance.html"
+        data_out = self.workdir / "maintenance.json"
+        code = pp.main(["--workdir", str(self.workdir), "--now", FIXED_NOW,
+                        "--out", str(html_out), "--data", str(data_out)])
+        self.assertEqual(code, 0)
+        data = json.loads(data_out.read_text(encoding="utf-8"))
+        cards = {c["id"]: c for group in data["groups"].values()
+                 for source in ("user", "agent") for c in group[source]}
+        for point_id in ("dev-0001", "dev-0002", "dev-0003"):
+            self.assertEqual(cards[point_id]["merge"]["owner"], "maintenance")
+            self.assertEqual(cards[point_id]["status_label"], "待维护核对")
+            self.assertIn("维护动作", cards[point_id]["decisions"][0])
+            self.assertNotIn("等待用户批准", cards[point_id]["decisions"][0])
+        pending = {c["id"] for src in data["groups"]["待你决定"].values() for c in src}
+        self.assertEqual(pending, set())
+        html = html_out.read_text(encoding="utf-8")
+        self.assertIn("需维护动作", html)
+        self.assertIn("待维护核对", html)
+        self.assertIn("--refresh-pr", html)
+        self.assertIn("PR 已合并", html)
+        self.assertNotIn("等待用户批准", html)
+
+    def test_manual_decision_keeps_a_green_card_in_pending(self):
+        # Contrast: the same green PR moves with the active work when the captain
+        # recorded nothing, and stays a user decision when page-decisions.md has an
+        # explicit product question.
+        self.write_state([_point("dev-0001", status="awaiting_merge", pr=7)])
+        self.pr_cache([{
+            "number": 7, "title": "全绿", "headRefName": "b1", "state": "OPEN",
+            "mergeable": "MERGEABLE", "url": "u7", "files": [],
+            "statusCheckRollup": [{"conclusion": "SUCCESS"}],
+        }])
+        first = self.build()["model"]
+        card = next(self.cards(first))
+        self.assertEqual(card["status_label"], "可交 Codex 合并")
+        active = {c["id"] for src in first["groups"]["进行中"].values() for c in src}
+        self.assertEqual(active, {"dev-0001"})
+
+        (self.workdir / pp.DECISIONS_NAME).write_text(
+            "dev-0001: 是否允许删除现有用户数据？\n", encoding="utf-8")
+        page = self.build()
+        model = page["model"]
+        card = next(self.cards(model))
+        self.assertEqual(card["manual_decisions"], ["是否允许删除现有用户数据？"])
+        self.assertIn("是否允许删除现有用户数据？", card["decisions"])
+        self.assertEqual(card["status_label"], "待批准合并")
+        pending = {c["id"] for src in model["groups"]["待你决定"].values() for c in src}
+        active = {c["id"] for src in model["groups"]["进行中"].values() for c in src}
+        self.assertEqual(pending, {"dev-0001"})
+        self.assertEqual(active, set())
+        html = page["html"]
+        self.assertIn('<span class="badge warn">待你决定</span>', html)
+        self.assertIn("是否允许删除现有用户数据？", html)
+        self.assertNotIn('<span class="badge ok">可交 Codex 合并</span>', html)
+        self.assertNotIn("可交 Codex 合并", html)
+
+        # The real CLI writes the same grouping into its data snapshot and page.
+        html_out = self.workdir / "manual.html"
+        data_out = self.workdir / "manual.json"
+        code = pp.main(["--workdir", str(self.workdir), "--now", FIXED_NOW,
+                        "--out", str(html_out), "--data", str(data_out)])
+        self.assertEqual(code, 0)
+        data = json.loads(data_out.read_text(encoding="utf-8"))
+        pending = {c["id"] for src in data["groups"]["待你决定"].values() for c in src}
+        self.assertEqual(pending, {"dev-0001"})
+        self.assertIn("是否允许删除现有用户数据？", html_out.read_text(encoding="utf-8"))
 
     # -- 7. offline / --refresh-pr --------------------------------------
     def test_missing_pr_cache_is_not_fatal(self):
@@ -518,6 +612,74 @@ class ProgressPageTests(unittest.TestCase):
         self.assertEqual(pp.extract_summary("## 目的\n\n---\n\n分隔线后的摘要。\n"),
                          "分隔线后的摘要。")
         self.assertIn("标题在前", pp.extract_summary("## 摘要\n\n标题在前 <b>的</b> 摘要\n\n正文\n"))
+
+    def test_summary_reads_the_repository_pull_request_template(self):
+        # Codex counterexample: the repository's own template starts with
+        # "## 改动"; extract_summary used to ignore it and the page said "待补".
+        template = (ROOT / ".github" / "pull_request_template.md").read_text(encoding="utf-8")
+        self.assertIn("## 改动", template)
+        body = ("## 改动\n\n"
+                "<!-- 说明要解决的问题和用户可见的变化。 -->\n\n"
+                "已增加责任字段并修正卡片分组。\n\n"
+                "## 验证\n\n<!-- 列出实际运行的测试和结果。 -->\n\n- 35 OK\n")
+        self.assertEqual(pp.extract_summary(body), "已增加责任字段并修正卡片分组。")
+        self.write_state([_point("dev-0001", status="awaiting_merge", pr=7)])
+        self.pr_cache([{
+            "number": 7, "title": "进度页：责任分组", "headRefName": "b1", "state": "OPEN",
+            "mergeable": "MERGEABLE", "url": "u7", "body": body,
+            "files": [{"path": "tools/dev_workflow/progress_page.py", "additions": 4, "deletions": 1}],
+            "statusCheckRollup": [{"conclusion": "SUCCESS"}],
+        }])
+        page = self.build()
+        changes = next(self.cards(page["model"]))["changes"]
+        self.assertEqual(changes["summary"], "已增加责任字段并修正卡片分组。")
+        self.assertFalse(changes["summary_missing"])
+        self.assertNotIn("实现摘要待补", page["html"])
+        # The CLI writes the same summary into its data snapshot and page.
+        html_out = self.workdir / "template.html"
+        data_out = self.workdir / "template.json"
+        self.assertEqual(pp.main(["--workdir", str(self.workdir), "--now", FIXED_NOW,
+                                  "--out", str(html_out), "--data", str(data_out)]), 0)
+        data = json.loads(data_out.read_text(encoding="utf-8"))
+        snapshot = {c["id"]: c for group in data["groups"].values()
+                    for source in ("user", "agent") for c in group[source]}
+        self.assertEqual(snapshot["dev-0001"]["changes"]["summary"], "已增加责任字段并修正卡片分组。")
+        self.assertIn("已增加责任字段并修正卡片分组。", html_out.read_text(encoding="utf-8"))
+
+    def test_implementation_section_wins_over_purpose(self):
+        # Codex counterexample: "## 目的" first, "## 实现摘要" later. The purpose is
+        # only a fallback; the delivered change must be the summary.
+        purpose_first = ("## 目的\n\n"
+                         "希望用户知道这个 PR 做了什么。\n\n"
+                         "## 实现摘要\n\n"
+                         "已增加责任字段并修正卡片分组。\n\n"
+                         "## 验证\n\n- 35 OK\n")
+        self.assertEqual(pp.extract_summary(purpose_first), "已增加责任字段并修正卡片分组。")
+        self.assertEqual(
+            pp.extract_summary("## 目的\n\n动机。\n\n## 改动\n\n实际交付。\n"), "实际交付。")
+        self.assertEqual(
+            pp.extract_summary("## 目的\n\n动机。\n\n## 摘要\n\n交付摘要。\n"), "交付摘要。")
+        self.assertEqual(pp.extract_summary("## 目的\n\n只有动机。\n"), "只有动机。")
+        # The page and the data snapshot use the implementation section too.
+        self.write_state([_point("dev-0001", status="awaiting_merge", pr=7)])
+        self.pr_cache([{
+            "number": 7, "title": "进度页：摘要优先级", "headRefName": "b1", "state": "OPEN",
+            "mergeable": "MERGEABLE", "url": "u7", "body": purpose_first,
+            "files": [{"path": "tools/dev_workflow/progress_page.py", "additions": 2, "deletions": 0}],
+            "statusCheckRollup": [{"conclusion": "SUCCESS"}],
+        }])
+        page = self.build()
+        changes = next(self.cards(page["model"]))["changes"]
+        self.assertEqual(changes["summary"], "已增加责任字段并修正卡片分组。")
+        self.assertNotIn("希望用户知道这个 PR 做了什么", page["html"])
+        html_out = self.workdir / "summary.html"
+        data_out = self.workdir / "summary.json"
+        self.assertEqual(pp.main(["--workdir", str(self.workdir), "--now", FIXED_NOW,
+                                  "--out", str(html_out), "--data", str(data_out)]), 0)
+        data = json.loads(data_out.read_text(encoding="utf-8"))
+        snapshot = {c["id"]: c for group in data["groups"].values()
+                    for source in ("user", "agent") for c in group[source]}
+        self.assertEqual(snapshot["dev-0001"]["changes"]["summary"], "已增加责任字段并修正卡片分组。")
 
     def test_refresh_pr_requests_the_pr_body_field(self):
         self.assertIn("body", pp.GH_FIELDS.split(","))
