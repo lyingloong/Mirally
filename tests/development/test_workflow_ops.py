@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT))
 
 from tools.dev_workflow import agent_workflow as wf
 from tools.dev_workflow import ops
+from tools.dev_workflow import progress_page as pp
 
 
 def make_config(**overrides):
@@ -182,6 +183,71 @@ class RecordTests(unittest.TestCase):
             saved_second = wf.point_by_id(saved, second["id"])
             self.assertEqual(saved_second["status"], "awaiting_merge")
             self.assertIsNone(saved_second.get("merge_approved_at"))
+
+
+def progress_cli(args, *, env_extra=None):
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    if env_extra:
+        env.update(env_extra)
+    return subprocess.run(
+        [sys.executable, "-m", "tools.dev_workflow.progress_page", *args],
+        cwd=ROOT,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
+class ProgressPageConsoleTests(unittest.TestCase):
+    """progress_page CLI must degrade cleanly on non-UTF-8 consoles."""
+
+    def setUp(self):
+        fixture_root = pp.fixture_root(ROOT)
+        fixture_root.mkdir(parents=True, exist_ok=True)
+        self._temp = tempfile.TemporaryDirectory(dir=fixture_root)
+        self.addCleanup(self._temp.cleanup)
+        self.workdir = Path(self._temp.name) / "agent-workflow"
+        self.workdir.mkdir()
+        wf.save_state(self.workdir / "state.json", wf.empty_state())
+        wf.write_json(self.workdir / "config.json", make_config())
+
+    def test_stdout_survives_cp1252_and_gbk_consoles(self):
+        for encoding in ("cp1252:strict", "gbk:strict"):
+            label = encoding.split(":")[0]
+            html = self.workdir / f"console-{label}.html"
+            data = self.workdir / f"console-{label}.json"
+            result = progress_cli(
+                ["--workdir", str(self.workdir), "--out", str(html), "--data", str(data)],
+                env_extra={"PYTHONIOENCODING": encoding},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr.decode("ascii", "replace"))
+            self.assertNotIn(b"Traceback", result.stderr)
+            self.assertTrue(html.is_file())
+            self.assertTrue(data.is_file())
+
+    def test_stderr_and_argparse_survive_cp1252_console(self):
+        outside = Path(tempfile.gettempdir()).resolve()
+        self.assertNotEqual(outside, ROOT)
+        cases = ((["--workdir", str(outside)], 2), (["--help"], 0), (["--no-such-flag"], 2))
+        for argv, expected in cases:
+            result = progress_cli(argv, env_extra={"PYTHONIOENCODING": "cp1252:strict"})
+            self.assertEqual(result.returncode, expected, result.stderr.decode("ascii", "replace"))
+            self.assertNotIn(b"Traceback", result.stderr)
+
+    def test_merge_state_treats_zero_checks_as_a_user_decision(self):
+        point = {"status": "awaiting_merge", "pr": 12}
+        cached = {"state": "OPEN", "mergeable": "MERGEABLE", "checks": {"pass": 0, "pending": 0, "fail": 0}}
+        # No checks is a user decision that only the engineer can unblock by wiring
+        # CI up, so merge_state reports owner=engineer alongside state=user.
+        self.assertEqual(pp.merge_state(point, cached),
+                         {"state": "user", "owner": "engineer", "reason": "无 CI 检查"})
+        # The same PR with at least one green check is the Codex-mergeable boundary.
+        self.assertEqual(
+            pp.merge_state(point, {"state": "OPEN", "mergeable": "MERGEABLE",
+                                   "checks": {"pass": 1, "pending": 0, "fail": 0}})["state"],
+            "codex",
+        )
 
 
 CROSS_ENTRY_CHILD = r'''
