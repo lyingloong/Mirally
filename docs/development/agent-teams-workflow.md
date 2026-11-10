@@ -293,6 +293,32 @@ Proposal PR 是决策载体，不进入待合并池；低风险纯文档点不�
 
 命令输出均为 JSON（`status` 加 `--json` 也是），便于队长读取。`set-status` 不能直接设置 `blocked`、`awaiting_merge`、`merging`、`done`，必须使用对应专用命令；也不能从 `queued` 直接进入 `specifying`（必须用 `start`，`--force` 只用于明确恢复），不能从 `proposed` 直接进入 `queued`（必须用 `promote`）。如果正常转换会增加负载但没有空槽，会登记 `blocked` / `blocked_reason=capacity`，不会强行超载或丢失返工意图；槽位释放后 `resume`。
 
+## 进度页
+
+`tools/dev_workflow/progress_page.py` 把 `state.json` 渲染成一张**只读**的 HTML 进度页，供用户和队长在一个页面里看到全部开发点、待合并池和数据缺口。它只读状态、不写状态：页面上的任何操作都不会改变调度，也不会触发合并。
+
+> **来源**：生成器由 SPEC dev-0023 引入（PR #25，已合并）；本节命令在仓库中可直接运行。
+
+```powershell
+# 离线生成（默认，只读缓存的 PR 数据）
+.\.venv\Scripts\python.exe tools\dev_workflow\progress_page.py
+
+# 唯一联网步骤：用 gh 刷新 PR 缓存后再生成
+.\.venv\Scripts\python.exe tools\dev_workflow\progress_page.py --refresh-pr
+```
+
+- **输出**：默认写到 `output/agent-workflow/progress.html`，同目录再落一份 `progress.data.json`（页面用的同一份数据，便于脚本或后续点复用）。可用 `--out` / `--data` 改路径；`--workdir` 指定状态目录（默认 `output/agent-workflow`，相对路径按当前目录解析）。
+- **参数**：`--offline` 表示只用缓存里的 PR 数据、不联网，也是不给 `--refresh-pr` 时的默认行为，显式写上只是把默认意图写在命令行里；`--refresh-pr` 用 gh 刷新缓存后再生成，是唯一联网步骤，两者都不给时的效果等于 `--offline`。`--now` 注入页头与 `progress.data.json` 里的生成时间，只用于确定性测试和复现，日常生成不需要。
+- **触发时机**：由队长在状态变化后手动生成，通常紧接 `status` / `validate` 之后——派任务、审查通过、批准合并、合并完成、配额阻塞或恢复各一次；也可以用来自查。页面是**快照**，不订阅事件，打开不会自动刷新；页头注明生成时间，与 `state.json` 或 GitHub 不一致时以二者为准。
+- **定位**：**页面由 workflow 维护**。它不是第二个事实源：`state.json` 是唯一真相，页面只做呈现；不要手改 `progress.html`（下次生成会被覆盖），也不要把它当状态输入。未运行生成器时，页面停留在上次的快照。
+- **数据**：卡片字段来自 `state.json` 与 `output/agent-workflow/` 下的本地文件：
+  - `verification/<id>*.md` 与 `review-<id>*.md` 的结论（多轮文件按轮次选最新）；`state.json` 中 `spec_path` 指向的 spec 给出目的（取标题或“一句话目标”的摘要）和待决策条数。
+  - `page-tasks.json`（队长维护）按开发点 id 提供 `role` 作为「负责人」；任务列读取 `state.json` 每个点的 `task_ids`（形如 `implementation=t-abc`），`page-tasks.json` 的 `task` 字段当前未渲染。`page-decisions.md`（队长手写）里 `dev-NNNN: 文本` 的行追加到该点的「待决定问题」。缺 `page-tasks.json` 时「负责人 / 任务」显示 `—` 并计入「数据缺口」，不是留空；缺 `page-decisions.md` 只是没有手工补充的待决项。
+  - `pr-cache.json` 提供 PR 标题、正文、状态、mergeable 与 CI 计数；「主要改动」优先显示维护者写入的实现摘要（缓存里的 `implementation_summary`），否则识别 PR 正文中的实现/改动小节（如 `## 实现摘要`、`## 改动`）；没有这类小节时依次回退到 `## 摘要`/`## 概述` 等通用小节，再回退到 `## 目的`/`## 变更目的` 等动机小节。只有 `## 目的` 的正文时取其中的动机作为摘要，而不是显示「待补」；正文没有任何可用小节时才显示「实现摘要待补」。标题与增删统计只作辅助。它只由 `--refresh-pr` 写入，生成器自己从不联网。
+  - 缺卡片字段时显示 `—` 并计入页面的「数据缺口」，不用推测值填充。已有缓存时页头显示缓存生成时间，`progress.data.json` 里的 `pr_cache.note` 为 `null`；只有 `pr-cache.json` 缺失时页头才提示缓存缺失（运行 `--refresh-pr` 获取），退出码仍为 `0`，不把“没联网”当成失败。
+- **版面**：开发点按「待你决定 / 进行中 / 已完成 / 已关闭」分组，每组再分用户点和 AI 点。阻塞、AI 提案以及其他带待决定问题的点（如审查未通过、规格待决策、遗留项）进入「待你决定」。**待批准合并默认不再占用「待你决定」**：常规全绿交 Codex 合并、CI 等待、工程修复、缓存/数据维护（缺缓存、PR 已合并或关闭、未关联 PR）都归「进行中」，卡片标出下一步负责人（可交 Codex 合并 / 等待 CI / 待工程修复 / 需维护动作）；只有 `page-decisions.md` 里明确的人工产品问题，才把本可自动合并的卡片保留在「待你决定」。排队/收件箱随「进行中」显示；「已完成」「已关闭」默认折叠（点标题展开），已完成按合并时间倒序。**待合并池没有独立区段**：只在页头的「待合并」统计和待合并卡片的「待决定问题」/状态徽标里出现；页头另有容量、负载、空闲槽位、AI 在飞、阻塞和数据缺口统计，以及可折叠的状态校验；外部 PR 列表是普通列表，不可折叠。
+- **退出码**：`0` 为生成成功（包括缓存缺失的离线生成）；`2` 表示拒绝生成——`--workdir` 指向仓库外、`--workdir` 不存在，或 `--refresh-pr` 时 gh 不可用 / 调用失败 / 返回非零 / 输出无法解析。后一种情况保留旧缓存、不写页面，修好 gh 后重试。
+
 ## 队长的循环
 
 ```text

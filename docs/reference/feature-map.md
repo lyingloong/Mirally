@@ -62,11 +62,12 @@
 
 ## 开发工作流与工具
 
-开发工作流不改变产品事实；它由仓库内的状态助手和流程文档驱动，队长推进状态，合并仍由用户批准。
+开发工作流不改变产品事实；它由仓库内的状态助手、流程文档和只读进度页驱动，队长推进状态；合并在审查通过后由用户或已获授权的 Codex 执行，队长与成员绝不自行 merge。
 
 | 要修改的功能 | 从哪里开始 | 状态与执行归属 | 代表测试 |
 | --- | --- | --- | --- |
-| 开发点状态、并发/配额闸门与待合并池 | [状态助手](../../tools/dev_workflow/agent_workflow.py)、[AgentTeams 工作流](../development/agent-teams-workflow.md) | 队长用状态助手推进 `proposed → … → awaiting_merge`；审查通过仍需用户批准，不自动合并；本机状态与配置在 `output/agent-workflow/`（gitignore，不是产品数据） | [状态机与闸门测试](../../tests/development/test_agent_workflow.py) |
+| 开发点状态、并发/配额闸门与待合并池 | [状态助手](../../tools/dev_workflow/agent_workflow.py)、[AgentTeams 工作流](../development/agent-teams-workflow.md) | 队长用状态助手推进 `proposed → … → awaiting_merge`；审查通过后交用户或已获授权的 Codex 合并，队长与成员不自行 merge；本机状态与配置在 `output/agent-workflow/`（gitignore，不是产品数据） | [状态机与闸门测试](../../tests/development/test_agent_workflow.py) |
+| 只读进度页与数据快照 | [进度页生成器](../../tools/dev_workflow/progress_page.py)、[进度页说明](../development/agent-teams-workflow.md#进度页) | 只读呈现 `state.json`、spec/verification/review、`page-tasks.json`、`page-decisions.md` 与 `pr-cache.json` 为 `progress.html` + `progress.data.json`；不写状态、不触发合并，`--refresh-pr` 是唯一联网步骤 | [进度页测试](../../tests/development/test_progress_page.py) |
 | 审查经验与可复用准则 | [审查经验库](../development/review-experience.md) | 审查师维护；候选先写入 `output/agent-workflow/experience-candidates.md`，整理走独立 docs PR | 无自动化测试；实现/审查前人工核对相关条目 |
 | 仓库文档链接守卫 | [链接检查器](../../tools/check_docs_links.py) | 文档改动后由改动者运行；入口是否仍正确、测试是否覆盖目标行为仍需审查核对 | `python tools/check_docs_links.py` 输出 0 broken |
 | CI 影响范围与依赖缓存 | [PR 工作流](../../.github/workflows/mirally-pr.yml)、[范围选择器](../../tools/check_ci_scope.py) | 明确的文档/开发工具改动只运行轻量检查，网站改动另走网站工作流；未知或无法比较时运行完整产品检查，规则见[验证](validation.md#github-actions-检查范围) | [范围与 Git 差异测试](../../tests/development/test_ci_scope.py) |
