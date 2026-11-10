@@ -355,7 +355,7 @@
 .chat-pane__crumb-sep {
   flex: 0 0 auto;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--control-ui-text-md);
 }
 
 /* The title hugs its text so the segments after it stay adjacent (the trail's
@@ -368,7 +368,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--control-ui-text-md);
 }
 
 /* A breadcrumb segment, not a badge: flat and inline, sharing the title's type
@@ -389,7 +389,7 @@
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--control-ui-text-md);
   cursor: var(--cursor-action);
 }
 

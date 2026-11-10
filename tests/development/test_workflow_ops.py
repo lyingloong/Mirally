@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -15,6 +16,7 @@ sys.path.insert(0, str(ROOT))
 
 from tools.dev_workflow import agent_workflow as wf
 from tools.dev_workflow import ops
+from tools.dev_workflow import progress_page as pp
 
 
 def make_config(**overrides):
@@ -181,6 +183,171 @@ class RecordTests(unittest.TestCase):
             saved_second = wf.point_by_id(saved, second["id"])
             self.assertEqual(saved_second["status"], "awaiting_merge")
             self.assertIsNone(saved_second.get("merge_approved_at"))
+
+
+def progress_cli(args, *, env_extra=None):
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    if env_extra:
+        env.update(env_extra)
+    return subprocess.run(
+        [sys.executable, "-m", "tools.dev_workflow.progress_page", *args],
+        cwd=ROOT,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
+class ProgressPageConsoleTests(unittest.TestCase):
+    """progress_page CLI must degrade cleanly on non-UTF-8 consoles."""
+
+    def setUp(self):
+        fixture_root = pp.fixture_root(ROOT)
+        fixture_root.mkdir(parents=True, exist_ok=True)
+        self._temp = tempfile.TemporaryDirectory(dir=fixture_root)
+        self.addCleanup(self._temp.cleanup)
+        self.workdir = Path(self._temp.name) / "agent-workflow"
+        self.workdir.mkdir()
+        wf.save_state(self.workdir / "state.json", wf.empty_state())
+        wf.write_json(self.workdir / "config.json", make_config())
+
+    def test_stdout_survives_cp1252_and_gbk_consoles(self):
+        for encoding in ("cp1252:strict", "gbk:strict"):
+            label = encoding.split(":")[0]
+            html = self.workdir / f"console-{label}.html"
+            data = self.workdir / f"console-{label}.json"
+            result = progress_cli(
+                ["--workdir", str(self.workdir), "--out", str(html), "--data", str(data)],
+                env_extra={"PYTHONIOENCODING": encoding},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr.decode("ascii", "replace"))
+            self.assertNotIn(b"Traceback", result.stderr)
+            self.assertTrue(html.is_file())
+            self.assertTrue(data.is_file())
+
+    def test_stderr_and_argparse_survive_cp1252_console(self):
+        outside = Path(tempfile.gettempdir()).resolve()
+        self.assertNotEqual(outside, ROOT)
+        cases = ((["--workdir", str(outside)], 2), (["--help"], 0), (["--no-such-flag"], 2))
+        for argv, expected in cases:
+            result = progress_cli(argv, env_extra={"PYTHONIOENCODING": "cp1252:strict"})
+            self.assertEqual(result.returncode, expected, result.stderr.decode("ascii", "replace"))
+            self.assertNotIn(b"Traceback", result.stderr)
+
+    def test_merge_state_treats_zero_checks_as_a_user_decision(self):
+        point = {"status": "awaiting_merge", "pr": 12}
+        cached = {"state": "OPEN", "mergeable": "MERGEABLE", "checks": {"pass": 0, "pending": 0, "fail": 0}}
+        # No checks is a user decision that only the engineer can unblock by wiring
+        # CI up, so merge_state reports owner=engineer alongside state=user.
+        self.assertEqual(pp.merge_state(point, cached),
+                         {"state": "user", "owner": "engineer", "reason": "无 CI 检查"})
+        # The same PR with at least one green check is the Codex-mergeable boundary.
+        self.assertEqual(
+            pp.merge_state(point, {"state": "OPEN", "mergeable": "MERGEABLE",
+                                   "checks": {"pass": 1, "pending": 0, "fail": 0}})["state"],
+            "codex",
+        )
+
+
+CROSS_ENTRY_CHILD = r'''
+import contextlib, sys, time
+from pathlib import Path
+sys.path.insert(0, __ROOT__)
+from tools.dev_workflow import agent_workflow as wf
+from tools.dev_workflow import ops
+
+mode, state_path, config_path, point_id, go_path = sys.argv[1:6]
+label = mode.replace("-", "_")
+original_load = wf.load_state
+
+def slow_load(path):
+    state = original_load(path)
+    time.sleep(0.6)  # widen the read-modify-write window deterministically
+    return state
+
+wf.load_state = slow_load
+if mode.startswith(("unlocked-", "bypass-")):
+    @contextlib.contextmanager
+    def _no_lock(state_path, *, timeout=10.0):
+        yield
+    wf.state_lock = _no_lock
+    mode = mode.split("-", 1)[1]
+
+Path(go_path + "." + label + ".ready").write_text("ready", encoding="utf-8")
+while not Path(go_path).exists():
+    time.sleep(0.01)
+if mode == "ops":
+    code = ops.main(["--state", state_path, "--config", config_path, "record", point_id,
+                     "--branch", "race-branch", "--head-sha", "a" * 40])
+else:
+    code = wf.main(["--state", state_path, "--config", config_path, "add", "--source", "agent",
+                    "--risk", "low", "--title", "race-agent"])
+sys.exit(code)
+'''
+
+
+class CrossEntryLockTests(unittest.TestCase):
+    """ops.py writes and agent_workflow writes must share one OS lock window."""
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.directory = Path(directory.name)
+        self.state_path = self.directory / "state.json"
+        self.config_path = self.directory / "config.json"
+        state = wf.empty_state()
+        self.point = wf.new_point(state, source="user", title="existing")
+        wf.save_state(self.state_path, state)
+        wf.write_json(self.config_path, make_config())
+
+    def _run_pair(self, modes):
+        script = CROSS_ENTRY_CHILD.replace("__ROOT__", repr(str(ROOT)))
+        go_path = self.directory / "go"
+        processes = []
+        for mode in modes:
+            process = subprocess.Popen(
+                [sys.executable, "-c", script, mode, str(self.state_path), str(self.config_path),
+                 self.point["id"], str(go_path)],
+                cwd=str(ROOT), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            )
+            processes.append((mode, process))
+
+        # Both children patch load_state then wait; start them together so both
+        # read the same snapshot before either save recreates the race.
+        deadline = time.monotonic() + 20
+        for mode, process in processes:
+            ready = Path(str(go_path) + "." + mode.replace("-", "_") + ".ready")
+            while not ready.exists():
+                if process.poll() is not None:
+                    _, stderr = process.communicate()
+                    self.fail(f"{mode} exited before start: {stderr}")
+                if time.monotonic() >= deadline:
+                    self.fail(f"{mode} did not become ready")
+                time.sleep(0.01)
+        go_path.write_text("go", encoding="utf-8")
+
+        results = [process.communicate(timeout=60) for _, process in processes]
+        for (mode, process), (_, stderr) in zip(processes, results):
+            self.assertEqual(process.returncode, 0, f"{mode}: {stderr}")
+        return wf.load_state(self.state_path)
+
+    def test_ops_record_and_agent_add_share_one_lock(self):
+        state = self._run_pair(["ops", "agent"])
+        titles = [point["title"] for point in state["points"]]
+        self.assertIn("race-agent", titles)
+        self.assertEqual(wf.point_by_id(state, self.point["id"])["branch"], "race-branch")
+
+    def test_old_ops_entrypoint_without_shared_lock_loses_an_update(self):
+        # The pre-repair implementation: agent_workflow held a lock, ops.py did
+        # not. Simulate exactly that pair; the same barrier must show a loss.
+        state = self._run_pair(["bypass-ops", "agent"])
+        titles = [point["title"] for point in state["points"]]
+        existing = wf.point_by_id(state, self.point["id"])
+        lost_agent = "race-agent" not in titles
+        lost_ops = existing.get("branch") != "race-branch"
+        self.assertTrue(lost_agent or lost_ops,
+                        f"the old unlock-for-ops race unexpectedly kept both updates: {titles} / {existing}")
 
 
 if __name__ == "__main__":

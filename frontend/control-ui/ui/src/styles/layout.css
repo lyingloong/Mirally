@@ -4569,6 +4569,29 @@ wa-dropdown.sidebar-identity-menu::part(menu) {
   min-height: 0;
 }
 
+/* The Messages page reuses the `custodian` route id for its navigation state,
+   so it inherits the quick-chat page's full-height, non-scrolling shell even
+   though it is an ordinary long list. Give that one page the generic content
+   scrolling and padding back; the chat panel has no router content here. */
+.content--custodian:has(> openclaw-router-outlet mirally-messages-page) {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px var(--content-inline-padding) 32px;
+}
+
+.content--custodian:has(> openclaw-router-outlet mirally-messages-page) > openclaw-router-outlet {
+  display: block;
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+/* The settings shell owns its own inline padding, but it deliberately excluded
+   this class when the class only meant the full-height custodian page. */
+.shell--settings:not(.shell--mobile-nav)
+  .content--custodian:has(> openclaw-router-outlet mirally-messages-page) {
+  padding: 16px var(--space-4) 32px;
+}
+
 .content--workboard {
   display: flex;
   flex-direction: column;
@@ -5098,4 +5121,40 @@ html.openclaw-native-macos:not(.openclaw-native-nav):not(.openclaw-native-web-ch
   to {
     opacity: 1;
   }
+}
+
+/* Mirally keeps starting a conversation visible by name. */
+.sidebar-primary-action { padding: 0 12px 8px; }
+.sidebar-primary-action > openclaw-tooltip { display: block; }
+.sidebar-new-conversation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 8px 12px;
+  box-sizing: border-box;
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-size: var(--control-ui-text-md);
+  line-height: 1.5;
+  text-decoration: none;
+}
+.sidebar-new-conversation {
+  width: 100%;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  font-weight: 600;
+}
+.sidebar-new-conversation:hover:not([aria-disabled="true"]) {
+  background: color-mix(in srgb, var(--accent) 17%, transparent);
+}
+.sidebar-new-conversation[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+.sidebar-new-conversation:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.sidebar-new-conversation > svg {
+  display: block;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
 }

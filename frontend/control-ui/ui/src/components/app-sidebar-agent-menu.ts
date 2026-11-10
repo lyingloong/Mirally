@@ -324,9 +324,6 @@ export function renderSidebarAgentMenu(params: SidebarAgentMenuParams) {
           case `${COMMAND_VALUE_PREFIX}capabilities`:
             params.onAskCapabilities(activeId);
             break;
-          case `${COMMAND_VALUE_PREFIX}agent-settings`:
-            params.onNavigate("config");
-            break;
           case `${COMMAND_VALUE_PREFIX}extensions`:
             params.onNavigate("plugins");
             break;
@@ -387,10 +384,6 @@ export function renderSidebarAgentMenu(params: SidebarAgentMenuParams) {
         <span class="sidebar-customize-menu__text">
           ${t("agentChip.whatCanAgentDo", { name: activeName })}
         </span>
-      </wa-dropdown-item>
-      <wa-dropdown-item class="sidebar-customize-menu__item" value="command:agent-settings">
-        <span slot="icon" class="nav-item__icon" aria-hidden="true">${icons.settings}</span>
-        <span class="sidebar-customize-menu__text">${mirallyNavigationText("Mirally 设置", "Mirally settings")}</span>
       </wa-dropdown-item>
       <wa-dropdown-item class="sidebar-customize-menu__item" value="command:extensions">
         <span slot="icon" class="nav-item__icon" aria-hidden="true">${icons.plug}</span>

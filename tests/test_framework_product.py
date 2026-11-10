@@ -7,15 +7,532 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import sqlite3
 import subprocess
 import sys
 import tempfile
+import textwrap
+import threading
 import unittest
 from unittest.mock import patch
 
 from mirally.framework import FrameworkError, FrameworkService
+from mirally.framework import delivery_health
 from mirally.framework.service import SCHEMA_VERSION
+
+
+class DeliveryHealthSnapshotTests(unittest.TestCase):
+    """Read-only delivery snapshot (SPEC-1): counts only, no content, no writes."""
+
+    MARKER = "MARKER_DELIVERY_BODY"
+    CRASH_WRITER = textwrap.dedent(
+        """
+        import os
+        import sqlite3
+        import sys
+
+        connection = sqlite3.connect(sys.argv[1])
+        connection.execute(
+            "INSERT INTO deliveries (id, kind, reference_id, channel, status,"
+            " claim_token, receipt_json, sources_json, created_at, updated_at)"
+            " VALUES (?,?,?,?,?,NULL,NULL,'[]',?,?)",
+            ("crash-writer-1", "commitment", "crash-writer-ref", "weixin",
+             "pending", 1000000000000, 1000000000000))
+        connection.commit()
+        # No close and no checkpoint: the committed row lives only in -wal.
+        os._exit(0)
+        """).strip()
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.base = Path(self.temp.name) / "中文 root with spaces"
+        self.base.mkdir()
+        self.home = self.base / "个人 数据"
+        self.scratch = Path(self.temp.name) / "scratch"
+        self.scratch.mkdir()
+        self.now = 1_000_000_000_000
+        self.database = self.home / "framework" / "product.sqlite3"
+        self.services = []
+        # Connections used by the checkpoint tests; SQLite is thread-bound, so
+        # the checkpoint thread owns and closes its own, and tearDown joins it
+        # before closing anything else.
+        self.side_connections: list[sqlite3.Connection] = []
+        self.thread_connections: list[sqlite3.Connection] = []
+        self.side_stop = threading.Event()
+        self.side_writer: threading.Thread | None = None
+
+    def tearDown(self):
+        self.stop_side_work()
+        for service in self.services:
+            service.close()
+        self.services.clear()
+        self.temp.cleanup()
+
+    def side_connection(self, **kwargs) -> sqlite3.Connection:
+        connection = sqlite3.connect(str(self.database), **kwargs)
+        self.side_connections.append(connection)
+        return connection
+
+    def checkpoint_connection(self) -> sqlite3.Connection:
+        """A connection owned by whoever thread runs the checkpoint loop."""
+        connection = sqlite3.connect(str(self.database), check_same_thread=False, timeout=10)
+        self.thread_connections.append(connection)
+        return connection
+
+    def stop_side_work(self) -> None:
+        self.side_stop.set()
+        worker = self.side_writer
+        if worker is not None:
+            worker.join(timeout=30)
+            self.assertFalse(worker.is_alive(), "the checkpoint thread did not stop")
+        self.side_writer = None
+        for connection in (*self.side_connections, *self.thread_connections):
+            try:
+                connection.close()
+            except sqlite3.Error:
+                pass
+        self.side_connections.clear()
+        self.thread_connections.clear()
+
+    def service(self):
+        service = FrameworkService(self.base, self.home, clock=lambda: self.now)
+        # Closed in tearDown *before* the temp dir is removed: Windows keeps
+        # product.sqlite3 locked while this connection is open.
+        self.services.append(service)
+        return service
+
+    def close_services(self):
+        """Quiesce the writer so the snapshot sees checkpointed rows."""
+        for service in self.services:
+            service.close()
+        self.services.clear()
+
+    def report(self, home=None):
+        return delivery_health.build(home or self.home, work=self.scratch, now_ms=lambda: self.now)
+
+    def pending_delivery_in_wal(self) -> None:
+        """One checkpointed row plus a pending row that lives only in ``-wal``."""
+        seeded = self.service()
+        seeded.commitment_create(title="checked in", due_at_utc_ms=self.now, request_id="seed")
+        seeded.delivery_tick()              # an inbox reminder, delivered immediately
+        seeded.close()                      # schema and that row are checkpointed
+        self.services.clear()
+        journal = Path(str(self.database) + "-wal")
+        self.assertFalse(journal.exists() and journal.stat().st_size)
+        # Keep the live writer alive for the whole test: it owns the row.
+        live = self.service()
+        self.now += 100_000
+        live.commitment_create(title="still in wal", due_at_utc_ms=self.now,
+                               request_id="wal", channel="weixin")
+        live.delivery_tick()                # weixin is never sent offline: stays pending
+        self.assertGreater(journal.stat().st_size, 0)
+
+    def checkpoint_truncate(self) -> list[tuple[int, int, int]]:
+        connection = self.side_connection(timeout=10)
+        try:
+            return connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
+        finally:
+            connection.close()
+
+    def crash_writer_commit(self) -> None:
+        """A real second process commits a pending delivery and dies via ``os._exit``.
+
+        Closing a connection normally checkpoints ``-wal`` into the main file;
+        dying without closing leaves the committed row only in the journal. That
+        is the state the snapshot must never delete from stale metadata.
+        """
+        result = subprocess.run(
+            [sys.executable, "-c", self.CRASH_WRITER, str(self.database)],
+            capture_output=True, text=True)
+        if result.returncode != 0:
+            self.fail(f"crash writer failed ({result.returncode}): {result.stderr}")
+
+    def test_empty_home_reports_zeros_without_errors(self):
+        report = self.report()
+        self.assertEqual(report["schema"], "mirally.delivery.health.v1")
+        self.assertEqual(report["database"], "absent")
+        self.assertEqual(report["errors"], [])
+        self.assertEqual(report["counts"], dict.fromkeys(delivery_health.DELIVERY_STATUSES, 0))
+        self.assertEqual(report["stale"],
+                         {"pending_older_than_1h": 0, "sending_older_than_10m": 0, "unknown_any": 0})
+        self.assertEqual(report["commitments"],
+                         {"pending": 0, "queued": 0, "due_overdue": 0, "expired": 0})
+        self.assertEqual(report["initiatives"],
+                         {"pending": 0, "queued": 0, "expired": 0, "dismissed": 0})
+        self.assertEqual(report["inbox"], {"unread": 0})
+        self.assertFalse(self.database.exists(), "the snapshot must not create the product database")
+        self.assertEqual(delivery_health.main(
+            ["--home", str(self.home), "--json", "--scratch", str(self.scratch)]), 0)
+
+    def test_stale_pending_sending_and_unknown_are_counted(self):
+        service = self.service()
+        # pending, older than the 1h threshold, on a channel the tick never delivers.
+        service.commitment_create(title="waiting", due_at_utc_ms=self.now, request_id="p1",
+                                  channel="test-channel")
+        service.delivery_tick()
+        # sending, older than the 10m threshold: claimed, sender "died".
+        service.commitment_create(title="sending", due_at_utc_ms=self.now, request_id="s2",
+                                  channel="test-channel")
+        sending_id = service.delivery_tick()["delivery_ids"][0]
+        token = service.delivery_claim(sending_id)["claim_token"]
+        self.now += delivery_health.PENDING_STALE_MS + 1
+        # A live writer is fine now: the -wal is part of the snapshot, so the
+        # stale pending row is counted even before the writer checkpoints.
+        live = self.report()
+        self.assertEqual(live["database"], "present")
+        self.assertEqual(live["stale"]["pending_older_than_1h"], 1)
+        service.delivery_ack(sending_id, token, state="unknown", receipt={"provider_id": "lost"})
+        self.close_services()
+        report = self.report()
+        self.assertEqual(report["stale"]["pending_older_than_1h"], 1)
+        self.assertEqual(report["stale"]["unknown_any"], 1)
+        self.assertEqual(report["counts"]["pending"], 1)
+        self.assertEqual(report["counts"]["unknown"], 1)
+        # The commitment already counts as overdue while its delivery is stuck.
+        self.assertEqual(report["commitments"]["due_overdue"], 2)
+
+    def test_overdue_commitment_and_expired_initiative_are_visible(self):
+        service = self.service()
+        service.commitment_create(title="overdue", due_at_utc_ms=self.now + 10, request_id="o1",
+                                  channel="test-channel")
+        service.initiative_offer(title="topic", body="body", reason="relevant", dedupe_key="d1",
+                                 expires_at_utc_ms=self.now + 10)
+        self.now += 100
+        service.delivery_tick()  # expires the initiative; the test channel never delivers
+        self.close_services()
+        report = self.report()
+        self.assertEqual(report["commitments"]["due_overdue"], 1)
+        self.assertEqual(report["initiatives"]["expired"], 1)
+        self.assertEqual(report["initiatives"]["pending"], 0)
+        self.assertEqual(report["by_kind"]["pending"]["commitment"], 1)
+        # An inbox reminder is delivered immediately and becomes `fulfilled`,
+        # so it stops counting as overdue.
+        service = self.service()
+        service.commitment_create(title="now", due_at_utc_ms=self.now, request_id="o2")
+        service.delivery_tick()
+        self.close_services()
+        report = self.report()
+        self.assertEqual(report["counts"]["delivered"], 1)
+        self.assertEqual(report["by_channel"]["inbox"], 1)
+        self.assertEqual(report["inbox"]["unread"], 1)
+        self.assertEqual(report["commitments"]["due_overdue"], 1)
+
+    def test_sensitive_content_never_reaches_the_snapshot(self):
+        service = self.service()
+        service.initiative_offer(title=self.MARKER, body=self.MARKER, reason=self.MARKER,
+                                 dedupe_key=self.MARKER, expires_at_utc_ms=self.now + 10)
+        service.commitment_create(title=self.MARKER, body=self.MARKER,
+                                  due_at_utc_ms=self.now, request_id=self.MARKER,
+                                  channel="test-channel")
+        identity = service.delivery_tick()["delivery_ids"][0]
+        token = service.delivery_claim(identity)["claim_token"]
+        service.delivery_ack(identity, token, state="failed",
+                             receipt={"provider_id": self.MARKER, "detail": self.MARKER})
+        self.close_services()
+        report = self.report()
+        rendered = json.dumps(report, ensure_ascii=False)
+        self.assertNotIn(self.MARKER, rendered)
+        for leaked in ("provider_id", "reference_id", "title", "body", "receipt",
+                       "sources", "claim_token"):
+            self.assertNotIn(leaked, rendered)
+        # Neither the home path nor its non-ASCII directory names may leak.
+        for fragment in (str(self.home), str(self.home).replace("\\", "/"), "个人 数据",
+                         self.base.name):
+            self.assertNotIn(fragment, rendered)
+        self.assertGreaterEqual(report["counts"]["failed"], 1)
+
+    def test_snapshot_is_read_only_for_the_product_database(self):
+        service = self.service()
+        service.commitment_create(title="audit me", due_at_utc_ms=self.now, request_id="ro1")
+        service.delivery_tick()
+        service.close()
+        # Compare bytes rather than reading through a handle: on Windows an
+        # open SQLite connection keeps the file locked for the whole test.
+        before = self.database.read_bytes()
+        mtime = self.database.stat().st_mtime_ns
+        entries_before = sorted(path.name for path in self.database.parent.iterdir())
+        self.report()
+        self.assertEqual(self.database.read_bytes(), before)
+        self.assertEqual(self.database.stat().st_mtime_ns, mtime)
+        # A read-only WAL open leaves SQLite's own empty -wal/-shm beside a
+        # static store. The snapshot must not remove them from a size it read
+        # earlier: a writer can commit inside that window and its committed
+        # rows live in the journal. Only those two SQLite side files may
+        # appear; the main database and the caller's work dir stay untouched.
+        entries_after = sorted(path.name for path in self.database.parent.iterdir())
+        self.assertLessEqual(set(entries_after) - set(entries_before),
+                             {"product.sqlite3-wal", "product.sqlite3-shm"})
+        self.assertEqual(self.database.read_bytes(), before)
+        self.assertEqual(sorted(self.scratch.iterdir()), [])
+        self.assertEqual(self.report(), self.report())
+
+    def test_writer_commit_and_crash_never_loses_the_journal(self):
+        """P1: side files are never deleted from a size read taken earlier.
+
+        Codex repro: the snapshot inspects an empty ``-wal``, a real writer then
+        commits and calls ``os._exit(0)`` (no close, no checkpoint), and the
+        cleanup unlinks the now non-empty journal. Reopening silently loses the
+        committed row. The fixed snapshot only reads and never unlinks the
+        product's ``-wal``/``-shm``, so the crashed writer's commit survives for
+        the next open.
+        """
+        service = self.service()
+        service.commitment_create(title="before", due_at_utc_ms=self.now,
+                                  request_id="crash-before", channel="weixin")
+        service.delivery_tick()
+        service.close()
+        self.services.clear()
+        journal = Path(str(self.database) + "-wal")
+        shared_memory = Path(str(self.database) + "-shm")
+        self.assertFalse(journal.exists(), "a quiesced writer leaves no journal")
+        crash = {"ran": False}
+
+        real_stat = Path.stat
+
+        def crash_after_the_size_check(path, *args, **kwargs):
+            """Inject the writer in the exact window the old cleanup unlinked.
+
+            The removed implementation read ``st_size`` and then unlinked the
+            journal. A real commit that lands between those steps used to be
+            deleted with it; the fixed snapshot never inspects the side files,
+            so this hook only fires on the old code.
+            """
+            result = real_stat(path, *args, **kwargs)
+            if path == journal and not crash["ran"]:
+                crash["ran"] = True
+                self.crash_writer_commit()
+            return result
+
+        with patch.object(Path, "stat", crash_after_the_size_check):
+            report = self.report()
+        if not crash["ran"]:
+            # No source side file is inspected/unlinked any more: sequence the
+            # same crash commit immediately after the snapshot's read.
+            self.crash_writer_commit()
+        self.assertEqual(report["database"], "present")
+        self.assertFalse(crash["ran"], "the snapshot must not inspect product side files")
+        self.assertTrue(journal.is_file(), "the committed -wal must not be deleted")
+        self.assertGreater(journal.stat().st_size, 0)
+        self.assertTrue(shared_memory.is_file(), "the writer's -shm must not be deleted")
+        # The snapshot itself still sees the WAL-carried commit.
+        self.assertEqual(self.report()["counts"]["pending"], 2)
+        # Reopening the product database must see the committed row.
+        connection = sqlite3.connect(str(self.database))
+        try:
+            committed = connection.execute(
+                "SELECT COUNT(*) FROM deliveries WHERE reference_id='crash-writer-ref'"
+            ).fetchone()[0]
+        finally:
+            connection.close()
+        self.assertEqual(committed, 1, "reopening the product database must see the commit")
+
+    def test_unreadable_database_discloses_errors_instead_of_zeros(self):
+        self.database.parent.mkdir(parents=True)
+        self.database.write_bytes(b"this is not a sqlite database")
+        report = self.report()
+        self.assertNotEqual(report["errors"], [])
+        self.assertEqual(report["database"], "unreadable")
+        # Missing measurements must never be reported as a clean zero.
+        self.assertIsNone(report["counts"]["pending"])
+        self.assertIsNone(report["stale"]["unknown_any"])
+        self.assertEqual(delivery_health.main(
+            ["--home", str(self.home), "--json", "--scratch", str(self.scratch)]), 1)
+
+    def test_snapshot_sees_rows_a_live_writer_has_not_checkpointed(self):
+        """P1: immutable=1 alone dropped committed rows still sitting in -wal."""
+        seeded = self.service()
+        seeded.commitment_create(title="checked in", due_at_utc_ms=self.now, request_id="w1",
+                                 channel="test-channel")
+        seeded.delivery_tick()
+        seeded.close()                      # schema and the first row are checkpointed
+        self.services.clear()
+        # A live writer commits a second pending row; it lives only in -wal.
+        live = self.service()
+        self.now += 100_000
+        live.commitment_create(title="still in wal", due_at_utc_ms=self.now, request_id="w2",
+                               channel="test-channel")
+        live.delivery_tick()
+        self.assertTrue(Path(str(self.database) + "-wal").is_file())
+        before = sorted(path.name for path in self.database.parent.iterdir())
+        report = self.report()
+        self.assertEqual(report["database"], "present")
+        # Both rows: the checkpointed one and the one only present in -wal.
+        self.assertEqual(report["counts"]["pending"], 2)
+        self.assertNotIn("deliveries", [error["section"] for error in report["errors"]])
+        # The source is left exactly as the writer had it.
+        self.assertEqual(before, sorted(path.name for path in self.database.parent.iterdir()))
+
+    def test_concurrent_checkpoint_cannot_hide_wal_rows(self):
+        """P1: a live writer's TRUNCATE checkpoint must not empty the snapshot.
+
+        The removed implementation copied the main file and then ``-wal`` as
+        two steps; a checkpoint between them emptied the journal first and the
+        stale copy silently reported pending=0 with no error at all.
+        """
+        self.pending_delivery_in_wal()
+
+        def checkpoint_loop():
+            while not self.side_stop.is_set():
+                connection = self.checkpoint_connection()
+                try:
+                    connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
+                finally:
+                    connection.close()
+
+        self.side_writer = threading.Thread(target=checkpoint_loop, daemon=True)
+        self.side_writer.start()
+        try:
+            reports = [self.report() for _ in range(10)]
+        finally:
+            self.stop_side_work()
+        for report in reports:
+            self.assertEqual(report["database"], "present")
+            self.assertEqual(report["counts"]["pending"], 1, report["counts"])
+            self.assertEqual(report["commitments"]["queued"], 1)
+            self.assertEqual(report["errors"], [])
+
+    def test_checkpoint_between_two_file_copies_cannot_hide_wal_rows(self):
+        """P1, deterministically: a checkpoint right after the main-file copy.
+
+        Every separate copy of the main file is followed by a writer
+        ``wal_checkpoint(TRUNCATE)`` before a second file copy could happen.
+        A two-step copy reads pending=0 here; one SQLite backup read cannot be
+        split that way.
+        """
+        self.pending_delivery_in_wal()
+        real_copy2 = shutil.copy2
+
+        def copy_then_checkpoint(source, destination, *args, **kwargs):
+            result = real_copy2(source, destination, *args, **kwargs)
+            if Path(source) == self.database:
+                self.assertEqual(self.checkpoint_truncate()[0][0], 0)
+            return result
+
+        with patch.object(delivery_health.shutil, "copy2", copy_then_checkpoint):
+            report = self.report()
+        self.assertEqual(report["database"], "present")
+        self.assertEqual(report["counts"]["pending"], 1, report["counts"])
+        self.assertEqual(report["commitments"]["queued"], 1)
+        self.assertEqual(report["errors"], [])
+
+    def test_checkpoint_after_the_snapshot_is_neither_blocked_nor_lost(self):
+        """The snapshot releases the store before a checkpoint is attempted.
+
+        A writer that truncates the journal while the report is being read
+        from the scratch copy cannot change what the snapshot already read,
+        and the audit must not hold a read transaction that blocks it.
+        """
+        self.pending_delivery_in_wal()
+        real_snapshot = delivery_health._snapshot_copy
+        checkpoints = []
+
+        def snapshot_then_checkpoint(database, work):
+            target = real_snapshot(database, work)
+            if not checkpoints:
+                checkpoints.append(self.checkpoint_truncate())
+            return target
+
+        with patch.object(delivery_health, "_snapshot_copy", snapshot_then_checkpoint):
+            report = self.report()
+        self.assertEqual(len(checkpoints), 1)
+        self.assertEqual(checkpoints[0][0][0], 0, "the checkpoint must not be blocked")
+        self.assertEqual(report["counts"]["pending"], 1, report["counts"])
+        self.assertEqual(report["commitments"]["queued"], 1)
+
+    def test_hot_wal_without_shm_is_read_and_left_alone(self):
+        """A ``-wal`` left by a crashed writer (no ``-shm``) is still read.
+
+        This is the home SQLite would find after a crash: the journal holds
+        committed rows but no shared-memory file exists. The snapshot must
+        recover those rows and must never delete the journal; the read-only
+        open may add its own ``-shm``, which SQLite manages from then on.
+        """
+        self.pending_delivery_in_wal()
+        framework = self.base / "crashed home" / "framework"
+        framework.mkdir(parents=True)
+        shutil.copy2(self.database, framework / "product.sqlite3")
+        shutil.copy2(Path(str(self.database) + "-wal"), framework / "product.sqlite3-wal")
+        self.close_services()               # the writer is gone; the pair is all that is left
+        before = sorted(path.name for path in framework.iterdir())
+        self.assertEqual(before, ["product.sqlite3", "product.sqlite3-wal"])
+        journal = framework / "product.sqlite3-wal"
+        journal_size = journal.stat().st_size
+        self.assertGreater(journal_size, 0)
+        report = self.report(self.base / "crashed home")
+        self.assertEqual(report["database"], "present")
+        self.assertEqual(report["counts"]["pending"], 1, report["counts"])
+        self.assertEqual(report["errors"], [])
+        # The crashed writer's journal keeps the committed rows; only SQLite's
+        # own shared-memory file may be added, and no source file is removed.
+        after = sorted(path.name for path in framework.iterdir())
+        self.assertLessEqual(set(after), {"product.sqlite3", "product.sqlite3-wal",
+                                          "product.sqlite3-shm"})
+        self.assertIn("product.sqlite3-wal", after)
+        self.assertEqual(journal.stat().st_size, journal_size)
+
+    def test_scratch_parent_files_are_never_used_or_removed(self):
+        """P1: a caller's own product.sqlite3 inside --scratch must survive."""
+        service = self.service()
+        service.commitment_create(title="audit me", due_at_utc_ms=self.now, request_id="s1")
+        service.delivery_tick()
+        service.close()
+        self.services.clear()
+        caller_copy = self.scratch / "product.sqlite3"
+        caller_copy.write_bytes(b"caller owned bytes")
+        sibling = self.scratch / "notes.txt"
+        sibling.write_text("keep me", encoding="utf-8")
+        report = self.report()
+        self.assertEqual(report["counts"]["delivered"], 1)
+        # The caller's files are untouched, and no work directory is left behind.
+        self.assertEqual(caller_copy.read_bytes(), b"caller owned bytes")
+        self.assertEqual(sibling.read_text(encoding="utf-8"), "keep me")
+        self.assertEqual(sorted(path.name for path in self.scratch.iterdir()),
+                         ["notes.txt", "product.sqlite3"])
+
+    def test_scratch_subdirectory_is_exclusive_and_cleaned_up(self):
+        """The copy lives in a private mkdtemp subdirectory, removed afterwards."""
+        service = self.service()
+        service.commitment_create(title="audit me", due_at_utc_ms=self.now, request_id="s2")
+        service.delivery_tick()
+        service.close()
+        self.services.clear()
+        created = []
+        real_mkdtemp = tempfile.mkdtemp
+
+        def recording_mkdtemp(*args, **kwargs):
+            path = real_mkdtemp(*args, **kwargs)
+            created.append(Path(path))
+            return path
+
+        with patch.object(delivery_health.tempfile, "mkdtemp", recording_mkdtemp):
+            report = self.report()
+        self.assertEqual(report["counts"]["delivered"], 1)
+        self.assertEqual(len(created), 1)
+        self.assertEqual(created[0].parent, self.scratch)
+        self.assertFalse(created[0].exists(), "the private directory must be removed")
+        self.assertEqual(sorted(path.name for path in self.scratch.iterdir()), [])
+
+    def test_overlapping_scratch_and_home_is_rejected_without_damage(self):
+        """A ``--scratch`` inside the product data must not touch the source."""
+        service = self.service()
+        service.commitment_create(title="audit me", due_at_utc_ms=self.now, request_id="s3")
+        service.delivery_tick()
+        service.close()
+        self.services.clear()
+        before = self.database.read_bytes()
+        code = delivery_health.main(["--home", str(self.home), "--json",
+                                     "--scratch", str(self.database.parent)])
+        self.assertIn(code, (0, 1))
+        self.assertEqual(self.database.read_bytes(), before)
+        # SQLite's own side files may remain after the read-only open; the
+        # product database itself and any work subdirectory are not left over.
+        entries = sorted(path.name for path in self.database.parent.iterdir())
+        self.assertIn("product.sqlite3", entries)
+        self.assertLessEqual(set(entries) - {"product.sqlite3"},
+                             {"product.sqlite3-wal", "product.sqlite3-shm"})
+        self.assertFalse([name for name in entries if name.startswith("delivery-health-")],
+                         "the private work subdirectory must be removed")
 
 
 class FrameworkProductTests(unittest.TestCase):

@@ -17,6 +17,7 @@ export function renderNewSessionLink(params: {
   label: string;
   disabledReason?: string;
   showShortcut?: boolean;
+  showLabel?: boolean;
   onOpen?: (agentId: string, target?: NewSessionTarget) => void;
 }) {
   const disabled = Boolean(params.disabledReason);
@@ -48,6 +49,7 @@ export function renderNewSessionLink(params: {
       }}
     >
       ${icons.plus}
+      ${params.showLabel ? html`<span>${params.label}</span>` : nothing}
     </a>
   </openclaw-tooltip>`;
 }
