@@ -11,6 +11,7 @@
 | `framework_host.py` | 解析 home、Node/Python 工具链和端口；构建检查；启动 Node Host；打开桌面窗口或浏览器 |
 | `framework/service.py` | 产品 SQLite owner：设置、逻辑会话/代次、命令回执、偏好、提醒/日历、投递、主动候选、摘要入口 |
 | `framework/channels.py` | 微信安装身份、本人绑定、会话路由、收发去重与回执；凭据使用 DPAPI |
+| `framework/notebook.py` | [记事本](../docs/architecture/notebook.md)的记录、目录、修订、查询与私密过滤 |
 | `framework/calendar.py` | 日程、提醒与定时执行的产品事实 |
 | `framework/model_connections.py` | 命名连接、模型目录、对话/后台路由与引用保护 |
 | `framework/capabilities.py` | 文件授权根、工作区写入、网页开关与有界读取 |
@@ -23,7 +24,7 @@
 | `framework_shell.py` | WebView2 窗口、原生裁剪、托盘、伙伴与退出 |
 | `desktop_surface.py` | 与宿主无关的原生窗口、伙伴、菜单、裁剪和用户主动截图行为 |
 
-产品库位于 `<home>/framework/product.sqlite3`，schema 11。它保存引用和业务状态，不保存第二份聊天正文。
+产品库位于 `<home>/framework/product.sqlite3`，schema 12。它保存引用和业务状态，不保存第二份聊天正文。
 
 ## 内核层
 
@@ -31,7 +32,7 @@
 
 - `start.mjs` 启动 Host；`composition.mjs` 加载完整 `dsh-base` 并应用 Mirally 覆盖。
 - 原生 Session/Agent loop、模型适配、工具执行、压缩、子代理、计划、提问、todo/goal 和 workflow 由 DSH 提供。
-- `src/` 另有微信协议与生命周期、手机受限服务、日历工具、摘要、作业通知、模型探测和产品呈现。
+- `src/` 另有微信协议与生命周期、手机受限服务、日历和记事工具、摘要、作业通知、模型探测和产品呈现。
 - `kernel/dsh/packages/mirally/mirally-extensions/` 管理 Skill、脚本、MCP 与可信插件。
 
 ## 领域层

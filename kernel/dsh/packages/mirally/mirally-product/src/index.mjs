@@ -28,6 +28,7 @@ import {continuationHistory} from './continuation.mjs';
 import {NativeRuntime} from './native-runtime.mjs';
 import {installNativeInteractions, NATIVE_INTERACTION_METHODS} from './native-interactions.mjs';
 import {installCalendarTools} from './calendar-tools.mjs';
+import {installNotebookTools, NOTEBOOK_INSTRUCTION} from './notebook-tools.mjs';
 import {installAssistantTools} from './assistant-tools.mjs';
 import {ScheduledActions, installScheduledActionTools} from './scheduled-actions.mjs';
 import {SpeechService} from './speech-service.mjs';
@@ -193,6 +194,7 @@ export class MirallyProduct extends Service {
     this.speech = new SpeechService(this);
     this.installProductTools();
     installCalendarTools(this);
+    installNotebookTools(this);
     installAssistantTools(this);
     this.scheduledActions = new ScheduledActions(this);
     installScheduledActionTools(this,this.scheduledActions);
@@ -507,6 +509,8 @@ export class MirallyProduct extends Service {
         });
         agentCtx.systemPrompt.context({name: 'mirally:personal-context', order: 900, required: true, interpolate: false,
           text: () => this.contexts.get(id) ?? ''});
+        agentCtx.systemPrompt.context({name: 'mirally:notebook', order: 910, required: true, interpolate: false,
+          text: () => NOTEBOOK_INSTRUCTION});
         agentCtx.on('agent/pre-step', async (_payload, next) => {
           await this.checkCommandScope(this.handles.get(id)?.agent ?? {id}, undefined, {admission: true});
           await this.guard(id);
@@ -630,16 +634,24 @@ export class MirallyProduct extends Service {
     return {ref, data};
   }
 
+  consumedUserMessage(agent, {currentTurn = false} = {}) {
+    // Queued inbox insertions are visible user rows, but do not own a model
+    // attempt until the loop has actually appended their user/message.
+    const events = agent?.session?.snapshotEvents?.() ?? [];
+    for (let i = events.length - 1; i >= 0; i--) {
+      const event = events[i];
+      if (currentTurn && ['turn/start', 'turn/end'].includes(event.type)) return null;
+      if (event.type !== 'user/message') continue;
+      const message = event.data.message ?? event.data;
+      if (message.source?.kind === 'user') return message;
+    }
+    return null;
+  }
+
   consumedCommandId(agent) {
     const delegated = this.nativeRuntime?.delegations.get(agent?.id);
     if (delegated) return delegated.commandId;
-    // Queued inbox insertions are visible user rows, but do not own a model
-    // attempt until the loop has actually appended their user/message.
-    for (const event of (agent.session?.snapshotEvents?.() ?? []).toReversed()) {
-      if (event.type !== 'user/message') continue;
-      const message = event.data.message ?? event.data;
-      if (message.source?.kind === 'user') return this.nativeMessageCommands?.get(message.id);
-    }
+    return this.nativeMessageCommands?.get(this.consumedUserMessage(agent)?.id);
   }
 
   async send(id, request, scope = null) {

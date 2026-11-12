@@ -10,7 +10,7 @@ export class ActionGate {
     signal?.throwIfAborted();
     if (this.closed) throw failure('动作确认服务已关闭。');
     const conversation = this.host.conversationForSession(sessionId);
-    if (!conversation || !commandId || !['shell','browser','desktop_observation','desktop_action'].includes(kind)
+    if (!conversation || !commandId || !['shell','browser','desktop_observation','desktop_action','notebook'].includes(kind)
       || typeof title !== 'string' || !title.trim() || title.length > 256
       || typeof detail !== 'string' || !detail.trim() || detail.length > 24_000)
       throw failure('无法完整展示此动作，未执行。');
