@@ -103,6 +103,7 @@ jobs:
             'tests.test_framework_materials',
             'tests.test_framework_memory_replay',
             'tests.test_framework_model_connections',
+            'tests.test_framework_notebook',
             'tests.test_framework_product',
             'tests.test_framework_recaps',
             'tests.test_framework_weixin_assistant_security',
@@ -135,6 +136,8 @@ jobs:
             'tests/test_framework_mobile_ui.mjs',
             'tests/test_framework_weixin_channel.mjs',
             'tests/test_framework_weixin_assistant_tools.mjs',
+            'tests/test_framework_notebook_tools.mjs',
+            'tests/test_framework_notebook_e2e.mjs',
             'tests/test_control_ui_office.cjs'
           )
           node --test @tests

@@ -49,6 +49,10 @@ node --test tests/test_test_dependencies.cjs
 # 产品 Python 测试（不需要 UFO 子模块或额外依赖）
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 
+# 记事本与桌面、微信回环链路（先构建内核）
+.\.venv\Scripts\python.exe -m unittest tests.test_framework_notebook -v
+node --test tests/test_framework_notebook_tools.mjs tests/test_framework_notebook_e2e.mjs
+
 # Node/产品链路测试
 node --test tests/test_*.mjs
 node --test kernel/dsh/packages/mirally/mirally-product/tests/*.test.mjs
