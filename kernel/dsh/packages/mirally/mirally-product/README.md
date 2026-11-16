@@ -18,6 +18,8 @@ Authenticated `POST /api/models/discover` reads only the saved endpoint's model 
 
 Both probe requests accept an optional `connection_id`; an empty body continues to probe `default`. The UI edits one saved connection at a time and discards stale advisory results on save or refresh. The root `tools/verify_framework_model_connections.py` exercises real Host routing, isolated provider credentials, legacy probes and pre-network image refusal without external API calls.
 
+Notebook tools are scoped to the direct desktop or Weixin user turn. Mutations reuse action approval and the Python notebook owner; private reads require a fresh request. The fixed notebook instruction describes these rules without adding saved content to the system prompt. See the [notebook architecture](../../../../../docs/architecture/notebook.md).
+
 Restart recovery reads native history and marks interrupted commands unknown instead of replaying pending effects. Cancel admission is durable in the product service before native cancellation is requested. Physical actions remain subject to the executor's cancellation and outcome guarantees.
 
 ## Known limitations

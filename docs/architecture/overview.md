@@ -35,10 +35,11 @@ flowchart LR
 | `mirally/framework/calendar.py` | 日程、提醒和定时执行的产品事实 |
 | `mirally/framework/model_connections.py` | 命名连接、模型目录、对话/后台路由与引用保护 |
 | `mirally/framework/capabilities.py` | 文件授权根、工作区写入和网页开关 |
+| `mirally/framework/notebook.py` | [记事本](notebook.md)的记录、目录、修订与查询 |
 | `mirally/framework/context.py` | 按需只读组合记忆、活动和来源缺口；查询不启动采集 |
 | `mirally/framework_workers.py` | Activity/Memory 子进程和语义任务生命周期 |
 | `mirally/framework/*.py` | 材料、附件、桌面观察、摘要等明确接口 |
-| `kernel/dsh/packages/mirally/mirally-product/` | 本机鉴权 Host、Session/模型适配、原生工具覆盖、微信协议、手机服务、日历工具 |
+| `kernel/dsh/packages/mirally/mirally-product/` | 本机鉴权 Host、Session/模型适配、原生工具覆盖、微信协议、手机服务、日历和记事工具 |
 | `kernel/dsh/packages/mirally/mirally-extensions/` | Skill、脚本、MCP 与可信插件的生命周期 |
 | `frontend/control-ui/` | Lit 壳、原对话/外观组件与 `pages/mirally/` 自有页面 |
 | `mirally/core/activity`、`runtime/activity` | 观察存储、知识投影、采集器、CLI 与历史浏览器 |
@@ -49,7 +50,7 @@ flowchart LR
 
 | 数据 | 位置 |
 | --- | --- |
-| 产品设置、会话元数据、命令、偏好、日历/提醒、投递、渠道状态 | `<home>/framework/product.sqlite3`，schema 11 |
+| 产品设置、会话元数据、命令、偏好、日历/提醒、记事、投递、渠道状态 | `<home>/framework/product.sqlite3`，schema 12 |
 | 模型对话与工具事实 | DSH 原生 Session；产品只保存引用和业务状态 |
 | Activity 原始观察与资产 | `<home>/data/activity/observations.sqlite3`、`assets/` |
 | Activity 知识投影 | `<home>/data/activity/knowledge.sqlite3` |

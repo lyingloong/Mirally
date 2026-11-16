@@ -25,9 +25,10 @@ from urllib.parse import urlsplit
 from .context import ContextReader, memory_config
 from .channels import CHANNEL_SCHEMA, WeixinChannels
 from .calendar import CALENDAR_SCHEMA, CalendarOwner
+from .notebook import NOTEBOOK_SCHEMA, NotebookOwner
 
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 CONVERSATION_FORKS_SCHEMA = """CREATE TABLE IF NOT EXISTS conversation_forks (
     conversation_id TEXT PRIMARY KEY REFERENCES conversations(id),
     parent_conversation_id TEXT NOT NULL,parent_generation INTEGER NOT NULL,
@@ -90,7 +91,7 @@ class FrameworkService:
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.execute("PRAGMA busy_timeout=10000")
         try:
-            if self.db.execute("PRAGMA user_version").fetchone()[0] not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, SCHEMA_VERSION):
+            if not 0 <= self.db.execute("PRAGMA user_version").fetchone()[0] <= SCHEMA_VERSION:
                 raise FrameworkError("SCHEMA_VERSION", "unsupported product database schema")
             self.db.execute("PRAGMA journal_mode=WAL")
             self.db.execute("PRAGMA synchronous=FULL")
@@ -102,6 +103,7 @@ class FrameworkService:
             self.model_connections = ModelConnections(self)
             self.channels = WeixinChannels(self)
             self.calendar = CalendarOwner(self)
+            self.notebook = NotebookOwner(self)
             from .recaps import Recaps
             self.recaps = Recaps(self)
             with self._transaction():
@@ -117,7 +119,7 @@ class FrameworkService:
 
     def _initialize(self) -> None:
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, SCHEMA_VERSION):
+        if not 0 <= version <= SCHEMA_VERSION:
             raise FrameworkError("SCHEMA_VERSION", "unsupported product database schema")
         if version == SCHEMA_VERSION:
             # Development builds of schema 9 before notes were added can be
@@ -126,7 +128,7 @@ class FrameworkService:
                 with self._transaction():
                     self.db.execute("ALTER TABLE calendar_events ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
             return
-        if version in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10):
+        if version > 0:
             with self._transaction():
                 if version == 1:
                     self.db.execute(INITIATIVE_RUNS_SCHEMA)
@@ -151,7 +153,7 @@ class FrameworkService:
                     self.db.execute(statement)
                 if 'notes' not in {row[1] for row in self.db.execute('PRAGMA table_info(calendar_events)')}:
                     self.db.execute("ALTER TABLE calendar_events ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
-                for statement in CHANNEL_SCHEMA:
+                for statement in (*CHANNEL_SCHEMA, *NOTEBOOK_SCHEMA):
                     self.db.execute(statement)
                 self.db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             return
@@ -189,7 +191,7 @@ class FrameworkService:
                 "CREATE TABLE inbox (delivery_id TEXT PRIMARY KEY REFERENCES deliveries(id),state TEXT NOT NULL,updated_at INTEGER NOT NULL)",
                 INITIATIVE_RUNS_SCHEMA,
             )
-            for statement in (*statements, *CHANNEL_SCHEMA, CONVERSATION_FORKS_SCHEMA, *CALENDAR_SCHEMA):
+            for statement in (*statements, *CHANNEL_SCHEMA, CONVERSATION_FORKS_SCHEMA, *CALENDAR_SCHEMA, *NOTEBOOK_SCHEMA):
                 self.db.execute(statement)
             self.db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
 
@@ -217,6 +219,7 @@ class FrameworkService:
         routes = {
             **self.channels.routes(),
             **self.calendar.routes(),
+            **self.notebook.routes(),
             **self.recaps.routes(),
             "system.status": self.status, "settings.get": self.settings_get,
             "settings.update": self.settings_update, "internal.settings.get": self.settings_internal,
