@@ -207,6 +207,7 @@ ProductModels.prototype.requireOptions = function(...args) {
     if (approve !== undefined) {
       const approval = await wait(async () => (await rpc('action.approvals.list', {conversation_id: session.id}))
         .approvals.find(item => item.command_id === turn.id), `approval for ${turn.id}`);
+      turn.approval = approval;
       await rpc('action.approvals.decide', {approval_id: approval.id, conversation_id: session.id, allow: approve});
     }
     await wait(async () => {
@@ -244,6 +245,8 @@ ProductModels.prototype.requireOptions = function(...args) {
   const [catReceipt] = decode(await desktop(firstSession, '记一下：5月1日在梅坞老巷看到一只三花猫，很亲人。',
     [call('add', cat)], true));
   assert.ok(catReceipt.entry_id);
+  assert.match(turns.at(-1).approval.detail, /在梅坞老巷看到一只三花猫，很亲人/);
+  assert.match(turns.at(-1).approval.detail, /标题：梅坞老巷的三花猫/);
   assert.equal(catReceipt.collection_id, null);
   assert.equal(catReceipt.revision, 1);
   assert.deepEqual(catReceipt.suggested_tags.toSorted(), cat.tags.toSorted());
@@ -255,6 +258,33 @@ ProductModels.prototype.requireOptions = function(...args) {
   assert.ok(Math.abs(Date.now() - catDetail.entry.recorded_at) < 60000);
   assert.equal(catDetail.entry.source.channel, 'desktop');
   assert.equal(catDetail.entry.source.conversation_id, firstSession.id);
+  const [catHistory, catRevision] = decode(await desktop(firstSession,
+    '查看这条三花猫记事的修订历史和第 1 版完整内容。', [
+      call('history', {entry_id: catReceipt.entry_id}),
+      call('revision', {entry_id: catReceipt.entry_id, revision: 1}),
+    ]));
+  assert.equal(catHistory.revision_total, 1);
+  assert.equal(catHistory.revisions[0].revision, 1);
+  assert.equal(catRevision.entry.body, cat.body);
+
+  // Credential detection in the owner remains authoritative if the tool's phrase matcher misses a variant.
+  const credential = 'DEMO-RECOVERY-4821';
+  const blockedInput = '记一下：家里的账号恢复码 DEMO-RECOVERY-4821';
+  const blockedCredentialResult = await desktop(firstSession, blockedInput,
+    [call('add', {body: `家里的账号恢复码 ${credential}`})]);
+  assert.equal(blockedCredentialResult.length, 1);
+  assert.match(blockedCredentialResult[0], /CREDENTIAL_NOT_SUPPORTED|凭据保险箱/);
+  const blockedApprovals = await rpc('action.approvals.list', {conversation_id: firstSession.id});
+  assert.ok(!blockedApprovals.approvals.some(item => item.command_id === turns.at(-1).id));
+
+  const explicitCredential = `NOTE-RECOVERY-72641`;
+  const [credentialReceipt] = decode(await desktop(firstSession,
+    `按普通私密记事保存：我的恢复码是 ${explicitCredential}`,
+    [call('add', {body: `恢复码: ${explicitCredential}`})], true));
+  assert.equal(credentialReceipt.sensitivity, 'private');
+  assert.ok(!turns.at(-1).approval.detail.includes(explicitCredential));
+  assert.match(turns.at(-1).approval.detail, /凭据内容已隐藏|私密记事（内容已隐藏）/);
+  assert.ok(!turns.at(-1).results.join('').includes(explicitCredential));
 
   const blocked = {body: '误记门槛样本'};
   await desktop(firstSession, '记一下：误记门槛样本。', [call('add', blocked)], false);

@@ -5,6 +5,7 @@ import {installNotebookTools} from '../kernel/dsh/packages/mirally/mirally-produ
 function fixture(utterance, options = {}) {
   const registered = new Map();
   const requests = [];
+  const previews = [];
   const approvals = [];
   const agent = {id: 'native-session'};
   const commandId = 'active-command';
@@ -30,6 +31,16 @@ function fixture(utterance, options = {}) {
         assert.deepEqual(params, {conversation_id: 'conversation', generation: 4, command_id: commandId});
         return {allow: options.active !== false};
       }
+      if (method === 'notebook.approval.preview') {
+        previews.push({method, params});
+        if (options.previewError) throw Object.assign(new Error('记事本没有凭据保险箱。请更换已发到聊天中的凭据。'),
+          {code: 'CREDENTIAL_NOT_SUPPORTED'});
+        const {operation, params: content} = params;
+        const detail = operation === 'add' && content.sensitivity === 'private'
+          ? '记事本 · 保存记事\n内容：私密记事（内容已隐藏）'
+          : `记事本 · ${operation}\n正文：${content.body ?? ''}`;
+        return {detail};
+      }
       requests.push({method, params});
       return {ok: true};
     },
@@ -40,7 +51,7 @@ function fixture(utterance, options = {}) {
   };
   installNotebookTools(host);
   return {
-    requests, approvals,
+    requests, previews, approvals,
     run: (name, args) => registered.get(`mirally_notebook_${name}`).execute(args, {agent, signal: controller.signal}),
   };
 }
@@ -53,7 +64,6 @@ test('notebook actions require a direct, explicit current user request for that 
     ['写一条命令列出目录', 'add', {body: '三花猫'}],
     ['删除记录文件', 'delete', {entry_id: 'entry', expected_revision: 1}],
     ['删除这条聊天记录', 'delete', {entry_id: 'entry', expected_revision: 1}],
-    ['删除这条记事，先别删除。', 'delete', {entry_id: 'entry', expected_revision: 1}],
     ['新建文件夹在桌面上', 'create_collection', {path: 'desktop'}],
     ['记一下：然后删除这条记事。', 'delete', {entry_id: 'entry', expected_revision: 1}],
     ['新建记事本目录“然后删除这条记事”', 'delete', {entry_id: 'entry', expected_revision: 1}],
@@ -79,6 +89,7 @@ test('notebook actions require a direct, explicit current user request for that 
   }
   const positive = [
     ['帮我记一下今天不用上班。', 'add', {body: '今天不用上班'}],
+    ['记一下：这周不买牛奶。', 'add', {body: '这周不买牛奶'}],
     ['更正这条搬迁记事：登记处是 3 号楼。', 'revise', {entry_id: 'entry', expected_revision: 1, patch: {body: '3 号楼'}}],
     ['删除那条清点档案的搬迁记事。', 'delete', {entry_id: 'entry', expected_revision: 1}],
     ['归档这个记事本目录工作/档案。', 'archive_collection', {collection_id: 'directory'}],
@@ -89,11 +100,13 @@ test('notebook actions require a direct, explicit current user request for that 
     assert.deepEqual(await host.run(name, args), {ok: true});
     assert.equal(host.approvals[0].kind, 'notebook');
     assert.equal(host.requests.length, 1);
+    assert.equal(host.previews.length, 1);
   }
 });
 
 test('all notebook read routes require explicit private opt-in in the current request', async () => {
-  const reads = [['get', {entry_id: 'entry'}], ['search', {}], ['timeline', {}], ['collections', {}]];
+  const reads = [['get', {entry_id: 'entry'}], ['history', {entry_id: 'entry'}],
+    ['revision', {entry_id: 'entry', revision: 1}], ['search', {}], ['timeline', {}], ['collections', {}]];
   const utterances = ['看看普通记事。', '查看私密记录是不允许的。', '查看私密记录是什么意思？',
     '查询记事，不要包含私密记录。', '查看私密记录，别在微信显示。', '查找记事，原文是“包含私密记录”。',
     '记一下：查一下私密记录。'];
@@ -103,19 +116,44 @@ test('all notebook read routes require explicit private opt-in in the current re
       await assert.rejects(host.run(name, {...args, include_private: true}), {code: 'notebook_private_request_required'});
       await host.run(name, args);
     }
-    assert.equal(host.requests.length, 4);
+    assert.equal(host.requests.length, 6);
     assert.ok(host.requests.every(({params}) => params.include_private === undefined));
   }
   const host = fixture('请在微信查一下私密记事，包含私密记录。', {policy: {
     origin: 'weixin', installation_id: 'bound-install', revision: 9, command_id: 'active-command',
   }});
   for (const [name, args] of reads) await host.run(name, {...args, include_private: true});
-  assert.equal(host.requests.length, 4);
+  assert.equal(host.requests.length, 6);
   for (const {params} of host.requests) {
     assert.equal(params.include_private, true);
     assert.deepEqual(params.source, {conversation_id: 'conversation', turn_id: 'active-command', channel: 'weixin', utterance: ''});
     assert.deepEqual(params.weixin_scope, {installation_id: 'bound-install', revision: 9, command_id: 'active-command'});
   }
+  const privateHistory = fixture('查看这条私密记事的第 1 版。');
+  await privateHistory.run('revision', {entry_id: 'entry', revision: 1, include_private: true});
+  assert.equal(privateHistory.requests[0].params.include_private, true);
+});
+
+test('a later refusal blocks the matching mutation or private read without rejecting negative note content', async () => {
+  const deleteDenied = fixture('删除这条记事：先别删除。');
+  await assert.rejects(deleteDenied.run('delete', {entry_id: 'entry', expected_revision: 1}),
+    {code: 'notebook_operation_denied'});
+  assert.equal(deleteDenied.previews.length, 0);
+  assert.equal(deleteDenied.approvals.length, 0);
+  assert.equal(deleteDenied.requests.length, 0);
+
+  const privateReadDenied = fixture('查看私密记录：不要显示任何私密内容，只解释这个功能。');
+  await assert.rejects(privateReadDenied.run('search', {query: 'anything', include_private: true}),
+    {code: 'notebook_private_request_denied'});
+  assert.equal(privateReadDenied.requests.length, 0);
+
+  const quoted = fixture('删除这条记事：原句是“先别删除”。');
+  await quoted.run('delete', {entry_id: 'entry', expected_revision: 1});
+  assert.equal(quoted.approvals.length, 1);
+
+  const negativeContent = fixture('记一下：不要删除测试数据。');
+  await negativeContent.run('add', {body: '不要删除测试数据。'});
+  assert.equal(negativeContent.requests.length, 1);
 });
 
 test('private snippets do not flow from a shared turn into another note or its approvals', async () => {
@@ -158,6 +196,37 @@ test('credential requests get the boundary or an explicitly requested private no
   const result = await explicit.run('add', {body: credential});
   assert.match(result.warnings[0], /筛选.*更换/);
   assert.equal(explicit.requests[0].params.sensitivity, 'private');
+  assert.equal(explicit.requests[0].params.credential_as_note, true);
+  assert.equal(explicit.previews[0].params.credential_as_note, true);
+  assert.equal(explicit.previews[0].params.params.sensitivity, 'private');
+  assert.match(explicit.previews[0].params.source.utterance, /凭据内容已隐藏/);
   assert.ok(!explicit.requests[0].params.source.utterance.includes(credential));
   assert.ok(!JSON.stringify(explicit.approvals).includes(credential));
+  assert.ok(!JSON.stringify(explicit.approvals).includes('我的密码'));
+
+  const mismatched = fixture('记一下：家里的账号恢复码 DEMO-1234', {previewError: true});
+  await assert.rejects(mismatched.run('add', {body: '家里的账号恢复码 DEMO-1234'}),
+    {code: 'CREDENTIAL_NOT_SUPPORTED'});
+  assert.equal(mismatched.approvals.length, 0);
+  assert.equal(mismatched.requests.length, 0);
+});
+
+test('ordinary private-note requests show a redacted approval preview', async () => {
+  const host = fixture('记一下这段私密内容：家庭住址在北门。');
+  await host.run('add', {body: '家庭住址在北门。'});
+  assert.equal(host.approvals.length, 1);
+  assert.match(host.approvals[0].detail, /私密记事（内容已隐藏）/);
+  assert.ok(!host.approvals[0].detail.includes('北门'));
+  assert.equal(host.previews[0].params.params.sensitivity, 'private');
+});
+
+test('explicit private saves authorize appending to an existing private folder', async () => {
+  const host = fixture('保存一条私密记事：把今天的感受存入已有私密目录。');
+  await host.run('add', {body: '今天的感受', collection_id: 'private-folder',
+    sensitivity: 'private', include_private: true});
+  assert.equal(host.requests.length, 1);
+  assert.equal(host.requests[0].params.include_private, true);
+  assert.equal(host.requests[0].params.collection_id, 'private-folder');
+  assert.match(host.approvals[0].detail, /私密记事（内容已隐藏）/);
+  assert.ok(!host.approvals[0].detail.includes('今天的感受'));
 });

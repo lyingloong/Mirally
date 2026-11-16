@@ -66,8 +66,14 @@ CREDENTIAL = re.compile(
     r"|(?:验证码|恢复码|口令)\s+[a-z0-9-]{4,}",
     re.IGNORECASE,
 )
+ORDINARY_CREDENTIAL_NOTE = re.compile(
+    r"^(?:(?:仍(?:然)?|还是)?按普通私密(?:记事|笔记|记录)(?:记下|保存|存下)|"
+    r"save as an ordinary private note)\s*[:：]",
+    re.IGNORECASE,
+)
 IDENTITY = re.compile(r"(?<!\d)[1-9]\d{5}(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx](?!\d)|\b\d{3}-\d{2}-\d{4}\b")
 CARD_CANDIDATE = re.compile(r"(?<!\d)\d(?:[ -]?\d){12,18}(?![ -]?\d)")
+_UNSPECIFIED = object()
 EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 MICROSECOND = timedelta(microseconds=1)
 
@@ -170,6 +176,16 @@ def _path(value):
     return segments
 
 
+def _preview_text(value, maximum=200):
+    if not isinstance(value, str):
+        value = _encode(value)
+    cleaned = " ".join("".join(" " if unicodedata.category(char).startswith("C") else char
+                               for char in value).split())
+    if len(cleaned) > maximum:
+        return f"{cleaned[:maximum]}…（共 {len(cleaned)} 字）"
+    return cleaned
+
+
 def _collection(row):
     if row is None:
         return None
@@ -196,6 +212,15 @@ def _entry_view(row, *, detail=False):
     return view
 
 
+def _revision_view(row):
+    snapshot = json.loads(row["snapshot_json"])
+    return {"revision": row["revision"], "operation": row["operation"], "reason": row["reason"],
+            "source": json.loads(row["source_json"]), "changed_at": row["changed_at"],
+            "status": snapshot["status"], "collection_id": snapshot["collection_id"],
+            "title": snapshot["title"], "event_time": snapshot["event_time"],
+            "excerpt": snapshot["body"][:300]}
+
+
 class NotebookOwner:
     def __init__(self, service):
         self.s = service
@@ -204,7 +229,10 @@ class NotebookOwner:
 
     def routes(self):
         return {
+            "notebook.approval.preview": self.approval_preview,
             "notebook.entry.add": self.add, "notebook.entry.get": self.get,
+            "notebook.entry.revisions.list": self.revisions_list,
+            "notebook.entry.revision.get": self.revision_get,
             "notebook.entry.revise": self.revise, "notebook.entry.reverse": self.reverse,
             "notebook.entry.delete": self.delete, "notebook.entry.move": self.move,
             "notebook.search": self.search, "notebook.timeline": self.timeline,
@@ -251,6 +279,180 @@ class NotebookOwner:
             self.db.execute("INSERT INTO notebook_requests VALUES(?,?,?,?,?)", (*key, signature, _encode(result)))
             return {"replayed": False, **result}
 
+    def _preview_collection_path(self, value, include_private):
+        segments = _path(value)
+        prefix, collection, private = "", None, False
+        for segment in segments:
+            prefix = f"{prefix}/{segment}" if prefix else segment
+            row = self.db.execute(
+                "SELECT * FROM notebook_collections WHERE status='active' AND path_key=?",
+                (_fold(prefix),),
+            ).fetchone()
+            if row is not None:
+                if row["sensitivity"] == "private" and not include_private:
+                    raise _error("NOT_FOUND", "目录不存在。")
+                collection, prefix = row, row["path"]
+                private = private or row["sensitivity"] == "private"
+            else:
+                private = private or _privacy(prefix)[0]
+        return collection, prefix, private
+
+    @staticmethod
+    def _append_public_content(parts, values, fields=None):
+        labels = {"title": "标题", "body": "正文", "tags": "标签", "event_time": "时间",
+                  "time_quality": "时间精度", "type": "类型", "props": "属性", "sensitivity": "可见性"}
+        values = dict(values)
+        values["tags"] = json.loads(values["tags_json"]) if "tags_json" in values else values.get("tags", [])
+        values["props"] = json.loads(values["props_json"]) if "props_json" in values else values.get("props", {})
+        values["time_quality"] = values.get("time_quality", "unknown")
+        values["type"] = values.get("type", "note")
+        selected = fields or ("title", "body", "tags", "event_time", "time_quality", "type", "props")
+        for field in selected:
+            if field not in values:
+                continue
+            value = values[field]
+            if field == "sensitivity":
+                value = "私密" if value == "private" else "公开"
+            if value is None or value == [] or value == {}:
+                if field in {"tags", "props"} and fields is None:
+                    continue
+                if field not in {"title", "event_time", "tags", "props"}:
+                    continue
+                value = "（清空）" if field in {"title", "event_time"} else value
+            if isinstance(value, (dict, list)):
+                value = _encode(value)
+            parts.append(f"{labels[field]}：{_preview_text(value)}")
+
+    def _approval_preview(self, operation, params, source, include_private, credential_as_note, weixin_scope):
+        action_names = {
+            "add": "保存记事", "revise": "更正记事", "reverse": "撤销记事", "delete": "删除记事",
+            "move": "移动记事", "create_collection": "新建目录", "rename_collection": "重命名目录",
+            "archive_collection": "归档目录",
+        }
+        action = action_names.get(operation)
+        if action is None or not isinstance(params, dict):
+            raise _error("INVALID_PARAMS", "记事审批预览参数无效。")
+        include_private = _privacy_flag(include_private)
+        if not isinstance(credential_as_note, bool):
+            raise _error("INVALID_PARAMS", "credential_as_note 必须是布尔值。")
+        with self.s._transaction():
+            trusted = self._source(source, weixin_scope, required=True)
+            parts = [f"记事本 · {action}"]
+            if operation == "add":
+                if params.get("collection_id") is not None and params.get("collection_path") is not None:
+                    raise _error("INVALID_PARAMS", "请选择目录编号或目录路径。")
+                values, _ = self._contents(
+                    params.get("body"), params.get("title"), params.get("tags"), params.get("event_time"),
+                    params.get("time_quality"), params.get("type", "note"), params.get("props"),
+                    params.get("sensitivity"), trusted, credential_as_note=credential_as_note,
+                )
+                collection = None
+                collection_path = None
+                collection_private = False
+                if params.get("collection_id") is not None:
+                    collection = self._collection_row(params["collection_id"], include_private)
+                    collection_path = collection["path"]
+                    collection_private = collection["sensitivity"] == "private"
+                elif params.get("collection_path") is not None:
+                    collection, collection_path, collection_private = self._preview_collection_path(
+                        params["collection_path"], include_private,
+                    )
+                if values["sensitivity"] == "private" or collection_private:
+                    parts.append("内容：私密记事（内容已隐藏）")
+                else:
+                    fields = ["body"]
+                    if values["title"] is not None:
+                        fields.append("title")
+                    if values["tags_json"] != "[]":
+                        fields.append("tags")
+                    if values["event_time"] is not None:
+                        fields.extend(("event_time", "time_quality"))
+                    if values["type"] != "note":
+                        fields.append("type")
+                    if values["props_json"] != "{}":
+                        fields.append("props")
+                    self._append_public_content(parts, values, fields)
+                if collection_path is None:
+                    parts.append("目录：未分类")
+                else:
+                    parts.append(f"目录：{'私密目录（名称已隐藏）' if collection_private else _preview_text(collection_path, 120)}")
+            elif operation == "create_collection":
+                collection, path, private = self._preview_collection_path(params.get("path"), include_private)
+                parts.append(f"目录：{'私密目录（名称已隐藏）' if private else _preview_text(path, 120)}")
+            elif operation in {"revise", "reverse", "delete", "move"}:
+                row = self._entry_row(params.get("entry_id"), include_private)
+                self._check_revision(row, params.get("expected_revision"))
+                if row["status"] != "active":
+                    raise _error("CONFLICT", "只能操作有效记录。")
+                private = row["sensitivity"] == "private"
+                parts.append(f"记录：{row['id']} · 版本 {row['revision']}")
+                if operation == "revise":
+                    patch = params.get("patch")
+                    if not isinstance(patch, dict) or not patch or set(patch) - PATCH_FIELDS:
+                        raise _error("INVALID_PARAMS", "修订内容为空或含不支持的字段。")
+                    values = {field: row[field] for field in ("body", "title", "event_time", "time_quality", "type")}
+                    values.update(tags=json.loads(row["tags_json"]), props=json.loads(row["props_json"]), sensitivity=None)
+                    if "event_time" in patch and "time_quality" not in patch:
+                        values["time_quality"] = None
+                    values.update(patch)
+                    prospective, _ = self._contents(
+                        **values, source=trusted, previous_sensitivity=row["sensitivity"],
+                        reason=params.get("reason"), credential_as_note=credential_as_note,
+                    )
+                    private = private or prospective["sensitivity"] == "private"
+                    if private:
+                        parts.append("内容：私密记事（内容已隐藏）")
+                    else:
+                        parts.append("当前记录：")
+                        self._append_public_content(parts, row, ("title", "body"))
+                        self._append_public_content(parts, prospective, patch.keys())
+                else:
+                    if private:
+                        parts.append("内容：私密记事（内容已隐藏）")
+                    else:
+                        self._append_public_content(parts, row, ("title", "body"))
+                    if operation == "move":
+                        collection = self._collection_row(params["collection_id"], include_private) \
+                            if params.get("collection_id") is not None else None
+                        collection_private = bool(collection and collection["sensitivity"] == "private")
+                        path = collection["path"] if collection else None
+                        parts.append(f"目标目录：{'私密目录（名称已隐藏）' if collection_private else _preview_text(path, 120) if path else '未分类'}")
+            else:
+                collection = self._collection_row(params.get("collection_id"), include_private)
+                if params.get("expected_revision") is not None:
+                    self._check_revision(collection, params["expected_revision"])
+                private = collection["sensitivity"] == "private"
+                parts.append(f"目录：{'私密目录（名称已隐藏）' if private else _preview_text(collection['path'], 120)}")
+                parts.append(f"版本：{collection['revision']}")
+                if operation == "rename_collection":
+                    segments = _path(params.get("title"))
+                    if len(segments) != 1:
+                        raise _error("INVALID_PARAMS", "改名只接受单级目录名称。")
+                    title = segments[0]
+                    parent = collection["path"].rpartition("/")[0]
+                    new_path = f"{parent}/{title}" if parent else title
+                    sensitive = _privacy(new_path)[0]
+                    shown = "私密名称（已隐藏）" if private or sensitive else _preview_text(new_path, 120)
+                    parts.append(f"新目录：{shown}")
+                else:
+                    descendants = self._subtree(collection)
+                    collection_ids = [row["id"] for row in descendants]
+                    placeholders = ",".join("?" for _ in collection_ids)
+                    entry_total = self.db.execute(
+                        f"SELECT COUNT(*) FROM notebook_entries WHERE collection_id IN ({placeholders})",
+                        collection_ids,
+                    ).fetchone()[0]
+                    active_total = self.db.execute(
+                        f"SELECT COUNT(*) FROM notebook_entries WHERE status='active' AND collection_id IN ({placeholders})",
+                        collection_ids,
+                    ).fetchone()[0]
+                    parts.append(f"影响：{max(0, len(descendants) - 1)} 个子目录，{entry_total} 条记事（其中 {active_total} 条有效）")
+            return {"detail": "\n".join(parts)}
+
+    def approval_preview(self, operation, params, source, weixin_scope=None, include_private=False,
+                         credential_as_note=False):
+        return self._approval_preview(operation, params, source, include_private, credential_as_note, weixin_scope)
+
     def _entry_row(self, entry_id, include_private):
         entry_id = _text(entry_id, "entry_id", 64)
         row = self.db.execute(ENTRY_SELECT + " WHERE e.id=?", (entry_id,)).fetchone()
@@ -270,7 +472,7 @@ class NotebookOwner:
             raise _error("CONFLICT", "记录已更新，请重新读取后再操作。")
 
     def _contents(self, body, title, tags, event_time, time_quality, type, props, sensitivity, source,
-                  *, previous_sensitivity="public", reason=None):
+                  *, previous_sensitivity="public", reason=None, credential_as_note=False):
         body = _text(body, "body", 8000)
         title = _text(title, "title", 160) if title is not None else None
         tags, type = _tags(tags), _type(type)
@@ -285,6 +487,13 @@ class NotebookOwner:
             raise _error("INVALID_PARAMS", "sensitivity 须为 public 或 private。")
         tags_json, props_json = _encode(tags), _encode(props)
         detected, credential = _privacy(body, title, tags_json, props_json, source["utterance"], reason)
+        if not isinstance(credential_as_note, bool):
+            raise _error("INVALID_PARAMS", "credential_as_note 必须是布尔值。")
+        consented = bool(ORDINARY_CREDENTIAL_NOTE.match(source["utterance"].strip()))
+        if credential and not (credential_as_note and consented):
+            raise _error("CREDENTIAL_NOT_SUPPORTED", "记事本没有凭据保险箱。请更换已发到聊天中的凭据，或明确要求按普通私密记事保存。")
+        if credential and not sensitivity:
+            sensitivity = "private"
         private = detected or sensitivity == "private" or previous_sensitivity == "private"
         return {
             "type": type, "title": title, "body": body, "tags_json": tags_json, "props_json": props_json,
@@ -351,15 +560,16 @@ class NotebookOwner:
 
     def add(self, body, source, request_id, title=None, tags=None, event_time=None, time_quality=None,
             collection_id=None, collection_path=None, type="note", props=None, sensitivity=None, weixin_scope=None,
-            include_private=False):
+            include_private=False, credential_as_note=False):
         _privacy_flag(include_private)
         if collection_id is not None and collection_path is not None:
             raise _error("INVALID_PARAMS", "请选择目录编号或目录路径。")
         params = (body, title, tags, event_time, time_quality, collection_id, collection_path, type, props,
-                  sensitivity, include_private)
+                  sensitivity, include_private, credential_as_note)
 
         def apply(trusted):
-            entry, credential = self._contents(body, title, tags, event_time, time_quality, type, props, sensitivity, trusted)
+            entry, credential = self._contents(body, title, tags, event_time, time_quality, type, props, sensitivity,
+                                               trusted, credential_as_note=credential_as_note)
             collection, created = None, False
             if collection_id is not None:
                 collection = self._collection_row(collection_id, include_private)
@@ -401,18 +611,44 @@ class NotebookOwner:
             row = self._entry_row(entry_id, include_private)
             revisions = self.db.execute("""SELECT * FROM notebook_revisions WHERE entry_id=?
                 ORDER BY revision DESC LIMIT 10""", (row["id"],)).fetchall()
-            history = []
-            for revision in revisions:
-                snapshot = json.loads(revision["snapshot_json"])
-                history.append({"revision": revision["revision"], "operation": revision["operation"],
-                                "reason": revision["reason"], "source": json.loads(revision["source_json"]),
-                                "changed_at": revision["changed_at"], "status": snapshot["status"],
-                                "collection_id": snapshot["collection_id"], "title": snapshot["title"],
-                                "event_time": snapshot["event_time"], "excerpt": snapshot["body"][:300]})
-            return {"entry": _entry_view(row, detail=True), "revisions": history, "revision_total": row["revision"]}
+            return {"entry": _entry_view(row, detail=True), "revisions": [_revision_view(item) for item in revisions],
+                    "revision_total": row["revision"]}
+
+    def revisions_list(self, entry_id, limit=20, offset=0, include_private=False, source=None, weixin_scope=None):
+        limit = _integer(limit, "limit", 1, 50)
+        offset = _integer(offset, "offset", 0, 2**63 - 1)
+        _privacy_flag(include_private)
+        with self.s._transaction():
+            self._source(source, weixin_scope, required=False)
+            row = self._entry_row(entry_id, include_private)
+            total = self.db.execute("SELECT COUNT(*) FROM notebook_revisions WHERE entry_id=?", (row["id"],)).fetchone()[0]
+            rows = self.db.execute("""SELECT * FROM notebook_revisions WHERE entry_id=?
+                ORDER BY revision DESC LIMIT ? OFFSET ?""", (row["id"], limit, offset)).fetchall()
+            return {"entry_id": row["id"], "revision_total": total, "limit": limit, "offset": offset,
+                    "revisions": [_revision_view(item) for item in rows]}
+
+    def revision_get(self, entry_id, revision, include_private=False, source=None, weixin_scope=None):
+        _privacy_flag(include_private)
+        revision = _integer(revision, "revision", 1, 2**63 - 1)
+        with self.s._transaction():
+            self._source(source, weixin_scope, required=False)
+            row = self._entry_row(entry_id, include_private)
+            historical = self.db.execute("""SELECT * FROM notebook_revisions
+                WHERE entry_id=? AND revision=?""", (row["id"], revision)).fetchone()
+            if historical is None:
+                raise _error("NOT_FOUND", "修订版本不存在。")
+            snapshot = json.loads(historical["snapshot_json"])
+            entry = {"entry_id": row["id"], "revision": revision, "collection_id": snapshot["collection_id"],
+                     "type": snapshot["type"], "title": snapshot["title"], "body": snapshot["body"],
+                     "tags": json.loads(snapshot["tags_json"]), "props": json.loads(snapshot["props_json"]),
+                     "event_time": snapshot["event_time"], "event_day": snapshot["event_day"],
+                     "event_sort": snapshot["event_sort"], "time_quality": snapshot["time_quality"],
+                     "status": snapshot["status"], "sensitivity": snapshot["sensitivity"]}
+            return {"entry": entry, "operation": historical["operation"], "reason": historical["reason"],
+                    "source": json.loads(historical["source_json"]), "changed_at": historical["changed_at"]}
 
     def _change(self, operation, entry_id, expected_revision, source, request_id, weixin_scope, include_private,
-                *, reason=None, patch=None, collection_id=None):
+                *, reason=None, patch=None, collection_id=None, credential_as_note=False):
         _privacy_flag(include_private)
         reason = _text(reason, "reason", 300) if reason is not None else None
 
@@ -430,7 +666,8 @@ class NotebookOwner:
                     values["time_quality"] = None
                 values.update(patch)
                 changes, credential = self._contents(**values, source=trusted, reason=reason,
-                                                     previous_sensitivity=row["sensitivity"])
+                                                     previous_sensitivity=row["sensitivity"],
+                                                     credential_as_note=credential_as_note)
             elif operation == "move":
                 collection = self._collection_row(collection_id, include_private) if collection_id is not None else None
                 changes["collection_id"] = collection["id"] if collection else None
@@ -441,14 +678,15 @@ class NotebookOwner:
             updated = self._changed_entry(row, changes, operation, trusted, reason)
             return self._entry_result(updated, credential)
 
-        params = (entry_id, expected_revision, reason, patch, collection_id, include_private)
+        params = (entry_id, expected_revision, reason, patch, collection_id, include_private, credential_as_note)
         return self._write(operation, source, request_id, weixin_scope, params, apply)
 
-    def revise(self, entry_id, expected_revision, patch, source, request_id, reason=None, weixin_scope=None, include_private=False):
+    def revise(self, entry_id, expected_revision, patch, source, request_id, reason=None, weixin_scope=None,
+               include_private=False, credential_as_note=False):
         if not isinstance(patch, dict) or not patch or set(patch) - PATCH_FIELDS:
             raise _error("INVALID_PARAMS", "修订内容为空或含不支持的字段。")
         return self._change("revise", entry_id, expected_revision, source, request_id, weixin_scope, include_private,
-                            reason=reason, patch=patch)
+                            reason=reason, patch=patch, credential_as_note=credential_as_note)
 
     def reverse(self, entry_id, expected_revision, source, request_id, reason=None, weixin_scope=None, include_private=False):
         return self._change("reverse", entry_id, expected_revision, source, request_id, weixin_scope, include_private,
@@ -467,7 +705,9 @@ class NotebookOwner:
         parameters = []
         if not include_private:
             filters.append("e.sensitivity='public'")
-        if collection_id is not None:
+        if collection_id is None:
+            filters.append("e.collection_id IS NULL")
+        elif collection_id is not _UNSPECIFIED:
             collection_id = self._collection_row(collection_id, include_private)["id"]
             filters.append("e.collection_id=?")
             parameters.append(collection_id)
@@ -516,12 +756,12 @@ class NotebookOwner:
             return self._search(query, tags, collection_id, type, from_time, to_time, limit, offset, include_private,
                                 timeline=timeline)
 
-    def search(self, query=None, tags=None, collection_id=None, type=None, from_time=None, to_time=None, limit=20, offset=0,
+    def search(self, query=None, tags=None, collection_id=_UNSPECIFIED, type=None, from_time=None, to_time=None, limit=20, offset=0,
                include_private=False, source=None, weixin_scope=None):
         return self._query(query, tags, collection_id, type, from_time, to_time, limit, offset, include_private, source,
                            weixin_scope, timeline=False)
 
-    def timeline(self, from_time=None, to_time=None, tags=None, collection_id=None, type=None, limit=20, offset=0,
+    def timeline(self, from_time=None, to_time=None, tags=None, collection_id=_UNSPECIFIED, type=None, limit=20, offset=0,
                  include_private=False, source=None, weixin_scope=None):
         return self._query(None, tags, collection_id, type, from_time, to_time, limit, offset, include_private, source,
                            weixin_scope, timeline=True)

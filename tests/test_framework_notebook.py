@@ -82,6 +82,20 @@ class NotebookTests(unittest.TestCase):
         self.assert_error("INVALID_PARAMS", self.write, "entry.add", body="坏时间", event_time="2026-11-12T10:00:00")
         self.assert_error("INVALID_PARAMS", self.call, "notebook.timeline", from_time="2026-11-13", to_time="2026-11-12")
 
+    def test_explicit_null_collection_filters_unclassified_records(self):
+        unclassified = self.write("entry.add", body="未分类记录")
+        collection = self.write("collection.create", path="工作")
+        filed = self.write("entry.add", body="目录记录", collection_id=collection["collection_id"])
+        self.assertEqual(self.call("notebook.search")["total"], 2)
+        self.assertEqual(self.call("notebook.search", collection_id=None)["total"], 1)
+        self.assertEqual(self.call("notebook.search", collection_id=None)["entries"][0]["entry_id"],
+                         unclassified["entry_id"])
+        self.assertEqual(self.call("notebook.search", collection_id=collection["collection_id"])["entries"][0]["entry_id"],
+                         filed["entry_id"])
+        self.assertEqual(self.call("notebook.timeline")["total"], 2)
+        self.assertEqual(self.call("notebook.timeline", collection_id=None)["total"], 1)
+        self.assertEqual(self.call("notebook.timeline", collection_id=collection["collection_id"])["total"], 1)
+
     def test_command_receipts_and_semantic_idempotency(self):
         source = self.source("记下今天很开心" + "。" * 300)
         first = self.write("entry.add", body="今天很开心", source=source)
@@ -147,12 +161,40 @@ class NotebookTests(unittest.TestCase):
         self.assertEqual(self.get(deleted["entry_id"])["entry"]["status"], "deleted")
         self.assertEqual(self.call("notebook.timeline")["total"], 0)
 
+    def test_history_can_page_and_read_full_content_of_an_old_revision(self):
+        prefix = "历史记录" * 110
+        original = prefix + " OLD-FLOOR-3"
+        entry = self.write("entry.add", body=original)
+        entry_id = entry["entry_id"]
+        current = prefix + " NEW-FLOOR-9"
+        self.write("entry.revise", entry_id=entry_id, expected_revision=1, patch={"body": current})
+        for expected in range(2, 12):
+            current = prefix + f" REVISION-{expected + 1}"
+            self.write("entry.revise", entry_id=entry_id, expected_revision=expected, patch={"body": current})
+
+        first_page = self.call("notebook.entry.revisions.list", entry_id=entry_id, limit=5)
+        self.assertEqual(first_page["revision_total"], 12)
+        self.assertEqual([item["revision"] for item in first_page["revisions"]], [12, 11, 10, 9, 8])
+        last_page = self.call("notebook.entry.revisions.list", entry_id=entry_id, limit=5, offset=10)
+        self.assertEqual([item["revision"] for item in last_page["revisions"]], [2, 1])
+        self.assertNotIn("OLD-FLOOR-3", last_page["revisions"][1]["excerpt"])
+        old_revision = self.call("notebook.entry.revision.get", entry_id=entry_id, revision=1)
+        self.assertTrue(old_revision["entry"]["body"].endswith("OLD-FLOOR-3"))
+        self.assertEqual(old_revision["entry"]["revision"], 1)
+        self.assert_error("NOT_FOUND", self.call, "notebook.entry.revision.get", entry_id=entry_id, revision=13)
+
     def test_private_content_and_audit_never_appear_in_default_reads(self):
         private = self.write("entry.add", body="样例证件号 110105199001011234", collection_path="个人/身份")
         entry_id = private["entry_id"]
         self.assertEqual(private["sensitivity"], "private")
         self.assertEqual(self.call("notebook.search", query="110105199001011234")["total"], 0)
         self.assertEqual(self.call("notebook.timeline")["total"], 0)
+        self.assert_error("NOT_FOUND", self.write, "entry.add", body="私密目录追加失败", collection_id=private["collection_id"])
+        appended = self.write("entry.add", body="私密目录追加成功", collection_id=private["collection_id"],
+                              sensitivity="private", include_private=True)
+        self.assertEqual(appended["collection_id"], private["collection_id"])
+        self.assertEqual(appended["sensitivity"], "private")
+        self.assertEqual(self.call("notebook.search", query="私密目录追加成功")["total"], 0)
         self.assertEqual(self.call("notebook.collection.list")["collections"], [])
         self.assert_error("NOT_FOUND", self.get, entry_id)
         self.assert_error("NOT_FOUND", self.write, "entry.add", body="试探隐藏目录", collection_path="个人/其他")
@@ -161,18 +203,80 @@ class NotebookTests(unittest.TestCase):
                    patch={"body": "删去编号", "sensitivity": "public"}, include_private=True)
         self.assert_error("NOT_FOUND", self.get, entry_id)
         self.assertEqual(self.call("notebook.collection.list", collection_id=private["collection_id"],
-                                   include_private=True)["entry_total"], 1)
+                                   include_private=True)["entry_total"], 2)
         details = self.get(entry_id, include_private=True)
         self.assertEqual(details["entry"]["body"], "删去编号")
         self.assertIn("110105199001011234", details["revisions"][1]["excerpt"])
-        secret = self.write("entry.add", body="恢复码: NOTE-PVT-58371")
+        self.assert_error("CREDENTIAL_NOT_SUPPORTED", self.write, "entry.add", body="恢复码: NOTE-PVT-58371")
+        self.assertEqual(self.call("notebook.search", query="NOTE-PVT-58371", include_private=True)["total"], 0)
+        consent = self.source("按普通私密记事保存：我的恢复码是 NOTE-PVT-58371")
+        consent["utterance"] = "按普通私密记事保存：凭据内容已隐藏"
+        secret = self.write("entry.add", source=consent, body="恢复码: NOTE-PVT-58371", credential_as_note=True)
         self.assertTrue(secret["warnings"])
         self.assertNotIn("NOTE-PVT-58371", str(secret))
+        self.assertEqual(secret["sensitivity"], "private")
         card = self.write("entry.add", body="测试卡号: 4111 1111 1111 1111")
         self.assertEqual(card["sensitivity"], "private")
         manual = self.write("entry.add", body="需要私密的想法", sensitivity="private")
         self.assertEqual(self.call("notebook.search", query="想法", include_private=True)["entries"][0]["entry_id"],
                          manual["entry_id"])
+
+    def test_approval_preview_shows_public_content_and_redacts_private_content(self):
+        public_source = self.source("记一下：周五交付搜索页，标签为产品")
+        public = self.call("notebook.approval.preview", operation="add", source=public_source, params={
+            "body": "周五交付搜索页", "title": "迭代计划", "tags": ["产品"],
+            "event_time": "2026-11-20", "time_quality": "day", "type": "task",
+        })["detail"]
+        self.assertIn("周五交付搜索页", public)
+        self.assertIn("标题：迭代计划", public)
+        self.assertIn("标签：[\"产品\"]", public)
+        self.assertIn("时间：2026-11-20", public)
+        self.assertEqual(self.call("notebook.search", query="周五交付")["total"], 0)
+
+        secret = "110105199001011234"
+        private_source = self.source(f"记一下：证件号 {secret}")
+        private = self.call("notebook.approval.preview", operation="add", source=private_source, params={
+            "body": f"证件号 {secret}", "title": "个人资料", "tags": ["身份"],
+        })["detail"]
+        self.assertIn("私密记事（内容已隐藏）", private)
+        self.assertNotIn(secret, private)
+        self.assertNotIn("个人资料", private)
+
+        credential = "NOTE-PVT-58371"
+        self.assert_error("CREDENTIAL_NOT_SUPPORTED", self.call, "notebook.approval.preview",
+                          operation="add", source=self.source(f"记一下：恢复码 {credential}"),
+                          params={"body": f"恢复码: {credential}"})
+        safe_consent = self.source(f"按普通私密记事保存：恢复码 {credential}")
+        safe_consent["utterance"] = "按普通私密记事保存：凭据内容已隐藏"
+        redacted = self.call("notebook.approval.preview", operation="add", source=safe_consent,
+                             params={"body": f"恢复码: {credential}"}, credential_as_note=True)["detail"]
+        self.assertIn("私密记事（内容已隐藏）", redacted)
+        self.assertNotIn(credential, redacted)
+
+    def test_approval_preview_identifies_revision_and_collection_effects(self):
+        entry = self.write("entry.add", body="周会整理完成", title="原定事项")
+        source = self.source("更正这条周会记事：标题改成最终事项")
+        revised = self.call("notebook.approval.preview", operation="revise", source=source, params={
+            "entry_id": entry["entry_id"], "expected_revision": 1,
+            "patch": {"title": "最终事项"},
+        })["detail"]
+        self.assertIn(entry["entry_id"], revised)
+        self.assertIn("正文：周会整理完成", revised)
+        self.assertIn("标题：原定事项", revised)
+        self.assertIn("标题：最终事项", revised)
+        self.assertEqual(self.get(entry["entry_id"])["entry"]["title"], "原定事项")
+
+        collection = self.write("collection.create", path="项目/准备")
+        self.write("entry.add", body="准备清单", collection_id=collection["collection_id"])
+        inactive = self.write("entry.add", body="已撤销的准备清单", collection_id=collection["collection_id"])
+        self.write("entry.reverse", entry_id=inactive["entry_id"], expected_revision=1)
+        archive = self.call("notebook.approval.preview", operation="archive_collection",
+                            source=self.source("归档这个记事本目录项目/准备。"), params={
+                                "collection_id": collection["collection_id"], "expected_revision": 1,
+                            })["detail"]
+        self.assertIn("项目/准备", archive)
+        self.assertIn("影响：0 个子目录，2 条记事（其中 1 条有效）", archive)
+        self.assertEqual(self.call("notebook.collection.list", collection_id=collection["collection_id"])["entry_total"], 1)
 
     def test_full_body_only_for_direct_lookup(self):
         body = "观察记录" * 250
