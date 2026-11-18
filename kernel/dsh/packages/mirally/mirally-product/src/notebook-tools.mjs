@@ -43,12 +43,24 @@ function isInstruction(text) {
 }
 
 function directiveSegments(text) {
-  const unquoted = text.replace(/“[^”]*”|‘[^’]*’|「[^」]*」|『[^』]*』|"[^"]*"|'[^']*'|`[^`]*`/gu, ' ');
-  return unquoted.split(/[:：,，;；。!?！？\n]+/u).map(segment => segment.trim()).filter(Boolean);
+  const unquoted = text.replace(/“[^”]*”|‘[^’]*’|「[^」]*」|『[^』]*』|"[^"]*"|(?<![\p{L}\p{N}])'[^']*'(?![\p{L}\p{N}])|`[^`]*`/gu, ' ');
+  return unquoted.split(/[:：,，;；。!?！？\n]+|\.(?=\s|$)/u).map(segment => segment.trim()).filter(Boolean);
 }
 
+const cancelSave = new RegExp([
+  '^(?:(?:但是|不过|还是|算了|等等|等一下|等下)\\s*)*(?:请(?:你)?\\s*)?',
+  '(?:先别|别|不要|暂不|不必|不用|不需要|无需|请勿|取消)\\s*(?:(?:再|继续|先)\\s*)?',
+  '(?:记(?:录|下(?:来)?)?|保存|存下|写入|记到记事本|写到记事本)',
+  '(?:\\s*(?:这(?:条|段|份)|刚才的)(?:私密)?(?:记事|笔记|记录|内容)?)?\\s*(?:了|吧)?$',
+].join(''), 'u');
+const cancelSaveEnglish = /^(?:(?:actually|but|wait|please|just)\s+)*(?:do not|don['’]t)\s+(?:save|record|write down|make a note of)\s+(?:this|that|it|the note|this note|that note)(?:\s+(?:anymore|after all))?\.?$/iu;
+
 function negatesAction(text, operation) {
-  if (operation === 'add') return false;
+  if (operation === 'add') {
+    // A save can contain instructions addressed to someone else. Only a complete
+    // cancellation clause can override the request to save.
+    return directiveSegments(text).slice(1).some(segment => cancelSave.test(segment) || cancelSaveEnglish.test(segment));
+  }
   const verbs = {
     revise: '(?:更正|修正|纠正|修改|编辑|更新)',
     reverse: '(?:撤销|撤回|取消)',
@@ -203,6 +215,7 @@ export function installNotebookTools(host) {
           utterance: ordinaryPrivate ? '按普通私密记事保存：凭据内容已隐藏'
             : exactExcerpt || (action ? `用户要求${action}` : '')};
         const payload = {...args, source, ...(scope ? {weixin_scope: scope} : {})};
+        let result;
         if (action) {
           if (operation === 'create_collection') payload.kind = 'user_defined';
           if (operation === 'add' && (ordinaryPrivate || privateAdd.test(input))) payload.sensitivity = 'private';
@@ -212,18 +225,23 @@ export function installNotebookTools(host) {
           const previewParams = {...args};
           if (payload.sensitivity) previewParams.sensitivity = payload.sensitivity;
           const preview = await host.rpc('notebook.approval.preview', {
-            operation, params: previewParams, source, include_private: args.include_private === true,
+            operation, request_id: payload.request_id, params: previewParams, source, include_private: args.include_private === true,
             credential_as_note: operation === 'add' && ordinaryPrivate, ...(scope ? {weixin_scope: scope} : {}),
           });
-          if (!preview || typeof preview.detail !== 'string' || !preview.detail.trim()) {
-            throw failure('无法确认本次记事操作的具体内容。', 'notebook_preview_unavailable');
+          if (preview?.receipt?.replayed === true) {
+            await check();
+            result = preview.receipt;
+          } else {
+            if (!preview || typeof preview.detail !== 'string' || !preview.detail.trim()) {
+              throw failure('无法确认本次记事操作的具体内容。', 'notebook_preview_unavailable');
+            }
+            const allowed = await host.actionGate.request({sessionId: agent.id, commandId, kind: 'notebook',
+              title: `允许${action}？`, detail: preview.detail, signal});
+            if (!allowed) throw failure('用户未批准此记事操作。', 'action_rejected');
+            await check();
           }
-          const allowed = await host.actionGate.request({sessionId: agent.id, commandId, kind: 'notebook',
-            title: `允许${action}？`, detail: preview.detail, signal});
-          if (!allowed) throw failure('用户未批准此记事操作。', 'action_rejected');
-          await check();
         }
-        const result = await host.rpc(`notebook.${method}`, payload);
+        result ??= await host.rpc(`notebook.${method}`, payload);
         if (!action) await check();
         if (!isCredential) return result;
         return {...result, warnings: [...(result.warnings ?? []), '私密标记仅用于筛选，已经发到聊天中的凭据仍应更换。']};
