@@ -95,6 +95,8 @@ node tools/verify_framework_weixin_browser.mjs <隔离home/runtime.json>
 .\.venv\Scripts\python.exe tools\verify_framework_shell.py --page-quit --reuse-host
 ```
 
+手机网页脚本以隔离宿主的 `runtime.json` 为入口。它创建合成会话、从桌面配对手机、验证消息往返和设备偏好，再撤销本次配对。默认把截图写到 `output/tmp/verify-framework-mobile-browser/`。
+
 `--test-mode` 必须同时指定独立 `--home`，用于确定性 UI 测试，不是生产失败回退。
 
 ## 已验证范围
