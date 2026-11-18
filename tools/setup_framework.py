@@ -104,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
         raise RuntimeError("The original Mirally Control UI has not been built. Run tools/setup_framework.py without --skip-build; no replacement page will be selected.")
     for path in (kernel / "packages/mirally").glob("*/src/*.mjs"):
         subprocess.run([str(node), "--check", str(path)], check=True, env=env)
-    print("Mirally kernel and original Control UI are ready. Run .venv/Scripts/python.exe -m mirally.framework_host.")
+    print(r"Mirally is ready. Run .\run.ps1 to start.")
     return 0
 
 
