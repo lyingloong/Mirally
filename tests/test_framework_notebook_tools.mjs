@@ -33,6 +33,7 @@ function fixture(utterance, options = {}) {
       }
       if (method === 'notebook.approval.preview') {
         previews.push({method, params});
+        if (options.previewReceipt) return {receipt: options.previewReceipt};
         if (options.previewError) throw Object.assign(new Error('记事本没有凭据保险箱。请更换已发到聊天中的凭据。'),
           {code: 'CREDENTIAL_NOT_SUPPORTED'});
         const {operation, params: content} = params;
@@ -156,6 +157,24 @@ test('a later refusal blocks the matching mutation or private read without rejec
   assert.equal(negativeContent.requests.length, 1);
 });
 
+test('same-turn cancellations stop saves before trusted approval while preserving note content', async () => {
+  for (const message of [
+    '记一下：周五读书。先别记这条了。',
+    '记一下这条笔记：读完第一章\n算了，取消保存这条笔记。',
+    "Save a note: read today's chapter. Actually, don't save it.",
+  ]) {
+    const host = fixture(message, {approve: () => assert.fail('a cancelled save must never reach approval')});
+    await assert.rejects(host.run('add', {body: '正常测试正文'}), {code: 'notebook_operation_denied'});
+    assert.equal(host.previews.length, 0);
+    assert.equal(host.requests.length, 0);
+  }
+  for (const body of ['不要保存个人文件到共享目录。', '原话是“先别记这条了”。']) {
+    const host = fixture(`记一下：${body}`);
+    assert.deepEqual(await host.run('add', {body}), {ok: true});
+    assert.equal(host.approvals.length, 1);
+  }
+});
+
 test('private snippets do not flow from a shared turn into another note or its approvals', async () => {
   const privateMarker = 'a-private-body-12345';
   const host = fixture(`记一下：发布版本，同时把 ${privateMarker} 作为私密记事。`);
@@ -163,12 +182,23 @@ test('private snippets do not flow from a shared turn into another note or its a
   await host.run('add', {tags: ['发布'], body: '发布版本'});
   await host.run('add', {body: privateMarker, sensitivity: 'private'});
   assert.equal(host.requests[0].params.source.utterance, '发布版本');
+  assert.equal(host.previews[0].params.request_id, host.requests[0].params.request_id);
   assert.equal(host.requests[1].params.request_id, host.requests[0].params.request_id);
   assert.notEqual(host.requests[2].params.request_id, host.requests[0].params.request_id);
   assert.ok(!JSON.stringify(host.requests[0]).includes(privateMarker));
   assert.ok(!JSON.stringify(host.approvals).includes(privateMarker));
   await assert.rejects(host.run('add', {body: '篡改来源', source: {channel: 'weixin'}}), {code: 'invalid_request'});
   await assert.rejects(host.run('get', {entry_id: 'entry', weixin_scope: {command_id: 'active-command'}}), {code: 'invalid_request'});
+});
+
+test('an existing receipt returns without a new approval or write', async () => {
+  const previewReceipt = {entry_id: 'entry', revision: 2, replayed: true};
+  const host = fixture('更正这条记事：已完成。', {previewReceipt});
+  assert.deepEqual(await host.run('revise', {entry_id: 'entry', expected_revision: 1, patch: {body: '已完成'}}),
+    previewReceipt);
+  assert.equal(host.previews.length, 1);
+  assert.equal(host.approvals.length, 0);
+  assert.equal(host.requests.length, 0);
 });
 
 test('action approval denial, cancellation, and scope revocation prevent persistence', async () => {

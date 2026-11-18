@@ -278,12 +278,17 @@ ProductModels.prototype.requireOptions = function(...args) {
   assert.ok(!blockedApprovals.approvals.some(item => item.command_id === turns.at(-1).id));
 
   const explicitCredential = `NOTE-RECOVERY-72641`;
+  const privatePath = '合成归档/单独备忘';
   const [credentialReceipt] = decode(await desktop(firstSession,
     `按普通私密记事保存：我的恢复码是 ${explicitCredential}`,
-    [call('add', {body: `恢复码: ${explicitCredential}`})], true));
+    [call('add', {body: `恢复码: ${explicitCredential}`, collection_path: privatePath})], true));
   assert.equal(credentialReceipt.sensitivity, 'private');
+  assert.equal(credentialReceipt.collection.sensitivity, 'private');
+  assert.equal(credentialReceipt.collection.path, privatePath);
   assert.ok(!turns.at(-1).approval.detail.includes(explicitCredential));
   assert.match(turns.at(-1).approval.detail, /凭据内容已隐藏|私密记事（内容已隐藏）/);
+  assert.match(turns.at(-1).approval.detail, /私密目录（名称已隐藏）/);
+  assert.doesNotMatch(turns.at(-1).approval.detail, /合成归档|单独备忘/);
   assert.ok(!turns.at(-1).results.join('').includes(explicitCredential));
 
   const blocked = {body: '误记门槛样本'};
@@ -291,6 +296,8 @@ ProductModels.prototype.requireOptions = function(...args) {
   await rpc('settings.update', {patch: {action_approval_mode: 'trusted'}});
   const [writeDenied] = await desktop(firstSession, '随便聊聊误记门槛样本是什么。', [call('add', blocked)]);
   assert.match(writeDenied, /明确|用户|确认|explicit/i);
+  const [saveCancelled] = await desktop(firstSession, '记一下：误记门槛样本。先别记这条了。', [call('add', blocked)]);
+  assert.match(saveCancelled, /否定|denied/i);
   const [blockedSearch] = decode(await desktop(firstSession, '查找误记门槛样本的记事。', [call('search', {query: blocked.body})]));
   assert.equal(blockedSearch.total, 0);
 
@@ -341,10 +348,12 @@ ProductModels.prototype.requireOptions = function(...args) {
   assert.equal(remoteEvidence.entries[0].entry_id, evidence.entries[0].entry_id);
 
   // S4: correct a desktop record in Weixin and verify its previous value on desktop.
-  const [corrected] = decode(await weixin('更正这条记事：搬迁登记处是 3 号楼。', [call('revise', {
+  const correction = call('revise', {
     entry_id: third.entry_id, expected_revision: 1, patch: {body: '搬迁登记处在 3 号楼'}, reason: '楼号写错',
-  })]));
+  });
+  const [corrected, correctedReplay] = decode(await weixin('更正这条记事：搬迁登记处是 3 号楼。', [correction, correction]));
   assert.equal(corrected.revision, 2);
+  assert.deepEqual(correctedReplay, {...corrected, replayed: true});
   const [correctedDetail] = decode(await desktop(session, '查看已经更正的搬迁登记处记事和修改记录。',
     [call('get', {entry_id: third.entry_id})]));
   assert.equal(correctedDetail.entry.body, '搬迁登记处在 3 号楼');

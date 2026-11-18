@@ -186,6 +186,39 @@ def _preview_text(value, maximum=200):
     return cleaned
 
 
+def _request_signature(operation, params, include_private, credential_as_note):
+    if operation == "add":
+        fields = ("body", "title", "tags", "event_time", "time_quality", "collection_id",
+                  "collection_path", "type", "props", "sensitivity")
+        values = tuple(params.get(field, "note" if field == "type" else None) for field in fields)
+        values += (include_private, credential_as_note)
+    elif operation == "collection.create":
+        values = (_path(params.get("path")), params.get("kind", "user_defined"), include_private)
+    elif operation == "collection.rename":
+        values = (params.get("collection_id"), _collection_title(params.get("title")),
+                  params.get("expected_revision"), include_private)
+    elif operation == "collection.archive":
+        values = (params.get("collection_id"), params.get("expected_revision"), include_private)
+    else:
+        reason = params.get("reason")
+        if reason is not None:
+            reason = _text(reason, "reason", 300)
+        values = (params.get("entry_id"), params.get("expected_revision"), reason, params.get("patch"),
+                  params.get("collection_id"), include_private, credential_as_note)
+    return _hash((operation, values))
+
+
+def _collection_title(value):
+    segments = _path(value)
+    if len(segments) != 1:
+        raise _error("INVALID_PARAMS", "改名只接受单级目录名称。")
+    return segments[0]
+
+
+def _new_collection_private(path, private_note, private_parent):
+    return private_note or private_parent or _privacy(path)[0]
+
+
 def _collection(row):
     if row is None:
         return None
@@ -261,27 +294,32 @@ class NotebookOwner:
         return {"conversation_id": conversation_id, "turn_id": turn_id, "channel": channel,
                 "utterance": utterance[:200]}
 
-    def _write(self, operation, source, request_id, weixin_scope, params, apply):
+    def _receipt(self, key, signature):
+        receipt = self.db.execute(
+            "SELECT request_hash,result_json FROM notebook_requests WHERE conversation_id=? AND turn_id=? AND request_id=?",
+            key,
+        ).fetchone()
+        if receipt is None:
+            return None
+        if receipt["request_hash"] != signature:
+            raise _error("IDEMPOTENCY_MISMATCH", "同一次记事请求的内容发生变化。")
+        return {**json.loads(receipt["result_json"]), "replayed": True}
+
+    def _write(self, source, request_id, weixin_scope, signature, apply):
         request_id = _text(request_id, "request_id", 200)
         with self.s._transaction():
             source = self._source(source, weixin_scope, required=True)
             key = (source["conversation_id"], source["turn_id"], request_id)
-            signature = _hash((operation, params))
-            receipt = self.db.execute(
-                "SELECT request_hash,result_json FROM notebook_requests WHERE conversation_id=? AND turn_id=? AND request_id=?",
-                key,
-            ).fetchone()
-            if receipt:
-                if receipt["request_hash"] != signature:
-                    raise _error("IDEMPOTENCY_MISMATCH", "同一次记事请求的内容发生变化。")
-                return {**json.loads(receipt["result_json"]), "replayed": True}
+            receipt = self._receipt(key, signature)
+            if receipt is not None:
+                return receipt
             result = apply(source)
             self.db.execute("INSERT INTO notebook_requests VALUES(?,?,?,?,?)", (*key, signature, _encode(result)))
             return {"replayed": False, **result}
 
-    def _preview_collection_path(self, value, include_private):
+    def _preview_collection_path(self, value, include_private, *, private_note=False):
         segments = _path(value)
-        prefix, collection, private = "", None, False
+        prefix, private = "", False
         for segment in segments:
             prefix = f"{prefix}/{segment}" if prefix else segment
             row = self.db.execute(
@@ -291,11 +329,11 @@ class NotebookOwner:
             if row is not None:
                 if row["sensitivity"] == "private" and not include_private:
                     raise _error("NOT_FOUND", "目录不存在。")
-                collection, prefix = row, row["path"]
+                prefix = row["path"]
                 private = private or row["sensitivity"] == "private"
             else:
-                private = private or _privacy(prefix)[0]
-        return collection, prefix, private
+                private = _new_collection_private(prefix, private_note, private)
+        return prefix, private
 
     @staticmethod
     def _append_public_content(parts, values, fields=None):
@@ -323,7 +361,8 @@ class NotebookOwner:
                 value = _encode(value)
             parts.append(f"{labels[field]}：{_preview_text(value)}")
 
-    def _approval_preview(self, operation, params, source, include_private, credential_as_note, weixin_scope):
+    def approval_preview(self, operation, params, source, weixin_scope=None, include_private=False,
+                         credential_as_note=False, request_id=None):
         action_names = {
             "add": "保存记事", "revise": "更正记事", "reverse": "撤销记事", "delete": "删除记事",
             "move": "移动记事", "create_collection": "新建目录", "rename_collection": "重命名目录",
@@ -337,6 +376,14 @@ class NotebookOwner:
             raise _error("INVALID_PARAMS", "credential_as_note 必须是布尔值。")
         with self.s._transaction():
             trusted = self._source(source, weixin_scope, required=True)
+            if request_id is not None:
+                identity = {"create_collection": "collection.create", "rename_collection": "collection.rename",
+                            "archive_collection": "collection.archive"}.get(operation, operation)
+                key = (trusted["conversation_id"], trusted["turn_id"], _text(request_id, "request_id", 200))
+                signature = _request_signature(identity, params, include_private, credential_as_note)
+                receipt = self._receipt(key, signature)
+                if receipt is not None:
+                    return {"receipt": receipt}
             parts = [f"记事本 · {action}"]
             if operation == "add":
                 if params.get("collection_id") is not None and params.get("collection_path") is not None:
@@ -346,7 +393,6 @@ class NotebookOwner:
                     params.get("time_quality"), params.get("type", "note"), params.get("props"),
                     params.get("sensitivity"), trusted, credential_as_note=credential_as_note,
                 )
-                collection = None
                 collection_path = None
                 collection_private = False
                 if params.get("collection_id") is not None:
@@ -354,8 +400,8 @@ class NotebookOwner:
                     collection_path = collection["path"]
                     collection_private = collection["sensitivity"] == "private"
                 elif params.get("collection_path") is not None:
-                    collection, collection_path, collection_private = self._preview_collection_path(
-                        params["collection_path"], include_private,
+                    collection_path, collection_private = self._preview_collection_path(
+                        params["collection_path"], include_private, private_note=values["sensitivity"] == "private",
                     )
                 if values["sensitivity"] == "private" or collection_private:
                     parts.append("内容：私密记事（内容已隐藏）")
@@ -377,7 +423,7 @@ class NotebookOwner:
                 else:
                     parts.append(f"目录：{'私密目录（名称已隐藏）' if collection_private else _preview_text(collection_path, 120)}")
             elif operation == "create_collection":
-                collection, path, private = self._preview_collection_path(params.get("path"), include_private)
+                path, private = self._preview_collection_path(params.get("path"), include_private)
                 parts.append(f"目录：{'私密目录（名称已隐藏）' if private else _preview_text(path, 120)}")
             elif operation in {"revise", "reverse", "delete", "move"}:
                 row = self._entry_row(params.get("entry_id"), include_private)
@@ -425,10 +471,7 @@ class NotebookOwner:
                 parts.append(f"目录：{'私密目录（名称已隐藏）' if private else _preview_text(collection['path'], 120)}")
                 parts.append(f"版本：{collection['revision']}")
                 if operation == "rename_collection":
-                    segments = _path(params.get("title"))
-                    if len(segments) != 1:
-                        raise _error("INVALID_PARAMS", "改名只接受单级目录名称。")
-                    title = segments[0]
+                    title = _collection_title(params.get("title"))
                     parent = collection["path"].rpartition("/")[0]
                     new_path = f"{parent}/{title}" if parent else title
                     sensitive = _privacy(new_path)[0]
@@ -448,10 +491,6 @@ class NotebookOwner:
                     ).fetchone()[0]
                     parts.append(f"影响：{max(0, len(descendants) - 1)} 个子目录，{entry_total} 条记事（其中 {active_total} 条有效）")
             return {"detail": "\n".join(parts)}
-
-    def approval_preview(self, operation, params, source, weixin_scope=None, include_private=False,
-                         credential_as_note=False):
-        return self._approval_preview(operation, params, source, include_private, credential_as_note, weixin_scope)
 
     def _entry_row(self, entry_id, include_private):
         entry_id = _text(entry_id, "entry_id", 64)
@@ -541,8 +580,7 @@ class NotebookOwner:
             else:
                 parent_id = row["id"] if row else None
                 inherited = row is not None and row["sensitivity"] == "private"
-                sensitive, _ = _privacy(path)
-                sensitivity = "private" if private or inherited or sensitive else "public"
+                sensitivity = "private" if _new_collection_private(path, private, inherited) else "public"
                 directory_kind = kind if index == len(segments) - 1 else "auto_created"
                 now = self.s.clock()
                 found = {"id": uuid.uuid4().hex, "parent_id": parent_id, "title": segment, "path": path,
@@ -564,8 +602,10 @@ class NotebookOwner:
         _privacy_flag(include_private)
         if collection_id is not None and collection_path is not None:
             raise _error("INVALID_PARAMS", "请选择目录编号或目录路径。")
-        params = (body, title, tags, event_time, time_quality, collection_id, collection_path, type, props,
-                  sensitivity, include_private, credential_as_note)
+        params = {"body": body, "title": title, "tags": tags, "event_time": event_time, "time_quality": time_quality,
+                  "collection_id": collection_id, "collection_path": collection_path, "type": type, "props": props,
+                  "sensitivity": sensitivity}
+        signature = _request_signature("add", params, include_private, credential_as_note)
 
         def apply(trusted):
             entry, credential = self._contents(body, title, tags, event_time, time_quality, type, props, sensitivity,
@@ -602,7 +642,7 @@ class NotebookOwner:
                     "collection": _collection(collection), "collection_created": created, "created_by": created_by,
                     "suggested_tags": json.loads(record["tags_json"]) if record["sensitivity"] == "public" else []}
 
-        return self._write("add", source, request_id, weixin_scope, params, apply)
+        return self._write(source, request_id, weixin_scope, signature, apply)
 
     def get(self, entry_id, include_private=False, source=None, weixin_scope=None):
         _privacy_flag(include_private)
@@ -678,8 +718,10 @@ class NotebookOwner:
             updated = self._changed_entry(row, changes, operation, trusted, reason)
             return self._entry_result(updated, credential)
 
-        params = (entry_id, expected_revision, reason, patch, collection_id, include_private, credential_as_note)
-        return self._write(operation, source, request_id, weixin_scope, params, apply)
+        params = {"entry_id": entry_id, "expected_revision": expected_revision, "reason": reason,
+                  "patch": patch, "collection_id": collection_id}
+        signature = _request_signature(operation, params, include_private, credential_as_note)
+        return self._write(source, request_id, weixin_scope, signature, apply)
 
     def revise(self, entry_id, expected_revision, patch, source, request_id, reason=None, weixin_scope=None,
                include_private=False, credential_as_note=False):
@@ -776,7 +818,9 @@ class NotebookOwner:
             row, created = self._ensure_path(segments, kind, trusted, include_private=include_private)
             return {**_collection(row), "collection_created": created}
 
-        return self._write("collection.create", source, request_id, weixin_scope, (segments, kind, include_private), apply)
+        signature = _request_signature("collection.create", {"path": path, "kind": kind}, include_private,
+                                       credential_as_note=False)
+        return self._write(source, request_id, weixin_scope, signature, apply)
 
     def collection_list(self, collection_id=None, limit=20, offset=0, include_private=False, source=None, weixin_scope=None):
         limit = _integer(limit, "limit", 1, 50)
@@ -808,10 +852,9 @@ class NotebookOwner:
     def collection_rename(self, collection_id, title, source, request_id, weixin_scope=None, expected_revision=None,
                           include_private=False):
         _privacy_flag(include_private)
-        segments = _path(title)
-        if len(segments) != 1:
-            raise _error("INVALID_PARAMS", "改名只接受单级目录名称。")
-        title = segments[0]
+        params = {"collection_id": collection_id, "title": title, "expected_revision": expected_revision}
+        signature = _request_signature("collection.rename", params, include_private, credential_as_note=False)
+        title = _collection_title(title)
 
         def apply(trusted):
             root = self._collection_row(collection_id, include_private)
@@ -834,8 +877,7 @@ class NotebookOwner:
                                           "rename", trusted)
             return _collection(self._collection_row(collection_id, include_private))
 
-        return self._write("collection.rename", source, request_id, weixin_scope,
-                           (collection_id, title, expected_revision, include_private), apply)
+        return self._write(source, request_id, weixin_scope, signature, apply)
 
     def collection_archive(self, collection_id, source, request_id, weixin_scope=None, expected_revision=None,
                            include_private=False):
@@ -857,5 +899,6 @@ class NotebookOwner:
                 self._collection_revision({**dict(row), "status": "archived", "revision": revision}, "archive", trusted)
             return {**_collection(root), "status": "archived", "revision": root["revision"] + 1}
 
-        return self._write("collection.archive", source, request_id, weixin_scope,
-                           (collection_id, expected_revision, include_private), apply)
+        params = {"collection_id": collection_id, "expected_revision": expected_revision}
+        signature = _request_signature("collection.archive", params, include_private, credential_as_note=False)
+        return self._write(source, request_id, weixin_scope, signature, apply)
