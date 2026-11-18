@@ -1381,16 +1381,34 @@ class FrameworkService:
                 self.db.execute(f"UPDATE {table} SET status=? WHERE id=? AND status NOT IN ('cancelled','dismissed')", ("fulfilled" if old["kind"] == "commitment" else "delivered", old["reference_id"]))
         return self._record("deliveries", delivery_id)
 
-    def inbox_list(self) -> dict[str, Any]:
+    def inbox_list(self, *, unread_only: bool = False, limit: int = 200,
+                   before_delivery_id: str | None = None) -> dict[str, Any]:
+        if not isinstance(unread_only, bool):
+            raise FrameworkError("INVALID_PARAMS", "unread_only must be a boolean")
+        limit = _integer(limit, "limit", 1, 200)
+        conditions = ["i.state='unread'"] if unread_only else []
+        values: list[Any] = []
+        if before_delivery_id is not None:
+            cursor = _text(before_delivery_id, "before_delivery_id", 128)
+            before = self.db.execute("""SELECT d.created_at FROM deliveries d
+                JOIN inbox i ON i.delivery_id=d.id WHERE d.id=?""", (cursor,)).fetchone()
+            if before is None:
+                raise FrameworkError("INVALID_PARAMS", "inbox cursor does not exist")
+            conditions.append("(d.created_at,d.id)<(?,?)")
+            values.extend((before["created_at"], cursor))
         self.delivery_tick()
+        where = " WHERE " + " AND ".join(conditions) if conditions else ""
+        rows = self.db.execute("""SELECT i.delivery_id,i.state,i.updated_at,d.kind,d.reference_id
+            FROM inbox i JOIN deliveries d ON d.id=i.delivery_id""" + where + """
+            ORDER BY d.created_at DESC,d.id DESC LIMIT ?""", (*values, limit + 1)).fetchall()
         items = []
-        for row in self.db.execute("SELECT i.delivery_id,i.state,i.updated_at,d.kind,d.reference_id FROM inbox i JOIN deliveries d ON d.id=i.delivery_id ORDER BY d.created_at DESC LIMIT 200"):
+        for row in rows[:limit]:
             owner = self._record("commitments" if row["kind"] == "commitment" else "initiatives", row["reference_id"])
             withdrawn = bool(self._source_reasons(owner["sources"]))
             items.append({**dict(row), "title": "已撤回的联系" if withdrawn else owner["title"],
                           "body": "" if withdrawn else owner["body"], "withdrawn": withdrawn,
                           "conversation_id": owner["conversation_id"]})
-        return {"items": items}
+        return {"items": items, "next_cursor": items[-1]["delivery_id"] if len(rows) > limit else None}
 
     def inbox_ack(self, delivery_id: str, state: str = "read") -> dict[str, Any]:
         if state not in {"read", "dismissed", "replied"}:

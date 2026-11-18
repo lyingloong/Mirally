@@ -4,6 +4,9 @@ Answers "is anything stuck in pending/unknown, did a reminder pass its due time
 without being delivered, is a failed delivery recorded" without opening the
 product, a model, a channel or any credential.
 
+Delivery totals count separate attempts in the general and desktop/WeChat
+calendar queues. A calendar attempt marked ``sent`` counts as ``delivered``.
+
     python -m mirally.framework.delivery_health --home <dir> [--json]
 
 The snapshot only emits counts and status enums. It never selects
@@ -125,6 +128,7 @@ def build(home: Path, *, work: Path, now_ms: Callable[[], int] = _utc_now_ms) ->
         "counts": dict.fromkeys(DELIVERY_STATUSES, 0),
         "by_kind": {kind: dict.fromkeys(DELIVERY_KINDS, 0) for kind in DELIVERY_STATUSES},
         "by_channel": dict.fromkeys(DELIVERY_CHANNELS, 0),
+        "by_channel_status": {channel: dict.fromkeys(DELIVERY_STATUSES, 0) for channel in DELIVERY_CHANNELS},
         "stale": {"pending_older_than_1h": 0, "sending_older_than_10m": 0, "unknown_any": 0},
         "commitments": {"pending": 0, "queued": 0, "due_overdue": 0, "expired": 0},
         "initiatives": dict.fromkeys(INITIATIVE_STATUSES, 0),
@@ -157,14 +161,13 @@ def build(home: Path, *, work: Path, now_ms: Callable[[], int] = _utc_now_ms) ->
             # instead of reporting a clean zero.
             return _unreadable(report, errors, "read", "database",
                                "no schema visible in the snapshot copy")
-        for table in ("deliveries", "commitments", "initiatives", "inbox"):
+        for table in ("deliveries", "calendar_deliveries", "commitments", "initiatives", "inbox"):
             if not _table_present(connection, table):
-                errors.append({"section": table, "reason": "table missing"})
-        if not errors:
-            _delivery_sections(connection, report, now, errors)
-            _commitment_section(connection, report, now, errors)
-            _initiative_section(connection, report, errors)
-            _inbox_section(connection, report, errors)
+                return _unreadable(report, errors, "read", table, "table missing")
+        _delivery_sections(connection, report, now, errors)
+        _commitment_section(connection, report, now, errors)
+        _initiative_section(connection, report, errors)
+        _inbox_section(connection, report, errors)
         return report
     except (sqlite3.Error, OSError) as error:
         return _unreadable(report, errors, "unreadable", "database",
@@ -185,40 +188,41 @@ def _unreadable(report: dict[str, Any], errors: list[dict[str, str]], state: str
         report[name] = {key: None for key in report[name]}
     report["by_kind"] = {kind: dict.fromkeys(DELIVERY_KINDS, None) for kind in DELIVERY_STATUSES}
     report["by_channel"] = dict.fromkeys(DELIVERY_CHANNELS, None)
+    report["by_channel_status"] = {channel: dict.fromkeys(DELIVERY_STATUSES, None) for channel in DELIVERY_CHANNELS}
     return report
 
 
 def _delivery_sections(connection: sqlite3.Connection, report: dict[str, Any], now: int,
                        errors: list[dict[str, str]]) -> None:
-    for status, count in connection.execute(
-            "SELECT status,COUNT(*) FROM deliveries GROUP BY status").fetchall():
+    age_column = "updated_at" if _column_present(connection, "deliveries", "updated_at") else "created_at"
+    rows = connection.execute(f"""WITH attempts(kind, status, channel, changed_at) AS (
+        SELECT kind,status,channel,{age_column} FROM deliveries
+        UNION ALL
+        SELECT 'commitment',CASE status WHEN 'sent' THEN 'delivered' ELSE status END,channel,updated_at
+        FROM calendar_deliveries
+    )
+    SELECT kind,status,channel,COUNT(*),
+        SUM(CASE WHEN status='pending' AND changed_at<? THEN 1 ELSE 0 END),
+        SUM(CASE WHEN status='sending' AND changed_at<? THEN 1 ELSE 0 END)
+    FROM attempts GROUP BY kind,status,channel""", (now - PENDING_STALE_MS, now - SENDING_STALE_MS))
+    for kind, status, channel, count, pending_stale, sending_stale in rows:
         if status in report["counts"]:
-            report["counts"][status] = int(count)
+            report["counts"][status] += count
         else:
             errors.append({"section": "counts", "reason": f"unknown delivery status: {status}"})
-    for kind, status, count in connection.execute(
-            "SELECT kind,status,COUNT(*) FROM deliveries GROUP BY kind,status").fetchall():
-        bucket = report["by_kind"].get(status)
-        if bucket is None or kind not in bucket:
+        bucket = report["by_kind"].get(status, {})
+        if kind in bucket:
+            bucket[kind] += count
+        else:
             errors.append({"section": "by_kind", "reason": f"unexpected pair: {kind}/{status}"})
-            continue
-        bucket[kind] = int(count)
-    for channel, count in connection.execute(
-            "SELECT channel,COUNT(*) FROM deliveries GROUP BY channel").fetchall():
         if channel in report["by_channel"]:
-            report["by_channel"][channel] = int(count)
+            report["by_channel"][channel] += count
+            if status in report["counts"]:
+                report["by_channel_status"][channel][status] += count
         else:
             errors.append({"section": "by_channel", "reason": f"unknown channel: {channel}"})
-    age_column = "updated_at" if _column_present(connection, "deliveries", "updated_at") else "created_at"
-    if not _column_present(connection, "deliveries", age_column):
-        errors.append({"section": "stale", "reason": "no age column on deliveries"})
-        return
-    report["stale"]["pending_older_than_1h"] = _count(
-        connection, f"SELECT COUNT(*) FROM deliveries WHERE status='pending' AND {age_column}<?",
-        (now - PENDING_STALE_MS,))
-    report["stale"]["sending_older_than_10m"] = _count(
-        connection, f"SELECT COUNT(*) FROM deliveries WHERE status='sending' AND {age_column}<?",
-        (now - SENDING_STALE_MS,))
+        report["stale"]["pending_older_than_1h"] += pending_stale
+        report["stale"]["sending_older_than_10m"] += sending_stale
     # "Any" is literal: an unknown delivery has no safe automatic retry, so its
     # age never makes it fresh again (service.py delivery claim path).
     report["stale"]["unknown_any"] = report["counts"]["unknown"]
@@ -229,9 +233,8 @@ def _commitment_section(connection: sqlite3.Connection, report: dict[str, Any], 
     for status in ("pending", "queued", "expired"):
         report["commitments"][status] = _count(
             connection, "SELECT COUNT(*) FROM commitments WHERE status=?", (status,))
-    # Past its due time and still not delivered. The tick marks a queued
-    # commitment `queued` before the channel reports back, so "overdue" must
-    # include `pending` and `queued`; `fulfilled` never lands here.
+    # This is the reminder owner's state. A fulfilled reminder may still have
+    # pending or failed calendar attempts, which are counted above.
     report["commitments"]["due_overdue"] = _count(
         connection,
         "SELECT COUNT(*) FROM commitments WHERE status IN ('pending','queued') AND due_at<=?",
@@ -255,6 +258,8 @@ def print_summary(report: dict[str, Any]) -> None:
     stale = report["stale"]
     print(f"Delivery health ({report['schema']}, database {report['database']})")
     print("  deliveries: " + "  ".join(f"{key}={counts[key]}" for key in DELIVERY_STATUSES))
+    for channel, statuses in report["by_channel_status"].items():
+        print(f"  {channel}: " + "  ".join(f"{key}={value}" for key, value in statuses.items()))
     print("  stale: " + "  ".join(f"{key}={stale[key]}" for key in stale))
     print("  commitments: " + "  ".join(f"{key}={report['commitments'][key]}"
                                         for key in report["commitments"]))

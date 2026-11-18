@@ -274,7 +274,9 @@ export class MobileAccess {
       const id=text(params.conversation_id,'会话');await this.product.conversation(id);this.require(principal);
       return this.product.cancel(id,params.command_id);
     }
-    if(method==='inbox.list') return this.product.rpc('inbox.list',{});
+    if(method==='inbox.list') return this.product.rpc('inbox.list',{
+      unread_only:params.unread_only,limit:params.limit,before_delivery_id:params.before_delivery_id,
+    });
     if(method==='inbox.ack') return this.product.rpc('inbox.ack',{delivery_id:params.delivery_id,state:params.state});
     if(method==='workspace.roots') {
       const result=await this.product.rpc('workspace.roots');

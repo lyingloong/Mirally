@@ -12,12 +12,13 @@ const source=ts.transpileModule(readFileSync(new URL('../frontend/control-ui/ui/
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const snapshot=(title='已有消息')=>({
   items:[{id:title,delivery_id:title,title,state:'unread',updated_at:0}],
+  nextCursor:null,
   commitments:[{id:title,title,status:'pending',due_at:0}],
   calendar:{time_zone:'Asia/Shanghai',confirmed:true},
   deliveries:[{commitment_id:title,channel:'desktop',status:'sent'}],recurrences:[],
 });
 function response(method,params,data) {
-  if(method==='inbox.list')return {items:data.items};
+  if(method==='inbox.list')return {items:data.items,next_cursor:data.nextCursor};
   if(method==='commitment.list')return {commitments:data.commitments};
   if(method==='calendar.settings.get')return data.calendar;
   if(method==='calendar.delivery.list')return {deliveries:params.channel==='desktop'?data.deliveries:[]};
@@ -37,6 +38,7 @@ function fixture() {
     customElements:{define(_name,type){sandbox.Page=type;}}};
   vm.runInNewContext(source,sandbox);
   return {page:new sandbox.Page(),
+    handle(fn){handler=fn;},
     respond(data){handler=(method,params)=>Promise.resolve(response(method,params,data));},
     pending(){
       const calls=[];
@@ -73,6 +75,28 @@ test('refresh keeps readable rows while pending and replaces them on success',as
   assert.match(stringify(f.page.render()),/新消息/);
   assert.doesNotMatch(stringify(f.page.render()),/已有消息/);
   assert.equal(f.page.loading,false);assert.equal(f.page.failure,'');
+});
+
+test('inbox pagination keeps the active cursor on refresh and changes filter on the owner',async()=>{
+  const f=fixture(),queries=[];
+  f.handle(async(method,params)=>{
+    if(method!=='inbox.list')return response(method,params,snapshot());
+    queries.push(JSON.parse(JSON.stringify(params)));
+    if(params.unread_only)return response(method,params,snapshot('旧未读'));
+    if(params.before_delivery_id==='first-end')return response(method,params,snapshot('第二页'));
+    return response(method,params,{...snapshot('第一页'),nextCursor:'first-end'});
+  });
+  await f.page.refresh();
+  assert.match(stringify(f.page.render()),/第一页/);
+  assert.match(stringify(f.page.render()),/较早消息/);
+  f.page.changeInboxPage('older');await tick();
+  assert.match(stringify(f.page.render()),/第二页/);
+  await f.page.refresh();
+  assert.deepEqual(queries.at(-1),{unread_only:false,limit:50,before_delivery_id:'first-end'});
+  f.page.changeUnreadFilter({target:{checked:true}});await tick();
+  assert.deepEqual(queries.at(-1),{unread_only:true,limit:50,before_delivery_id:null});
+  assert.match(stringify(f.page.render()),/旧未读/);
+  assert.doesNotMatch(stringify(f.page.render()),/第二页/);
 });
 
 test('failed and malformed inbox refresh preserve the last valid snapshot with an error',async()=>{

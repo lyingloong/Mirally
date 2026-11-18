@@ -48,6 +48,9 @@ export class MirallyMobileApp extends OpenClawLightDomElement {
   @state() private rename='';
   @state() private editingTitle=false;
   @state() private inbox:Data[]=[];
+  @state() private inboxUnreadOnly=false;
+  @state() private inboxCursors:(string|null)[]=[null];
+  @state() private nextInboxCursor:string|null=null;
   @state() private moreOpen=false;
   private commandId='';
   private commandText='';
@@ -65,6 +68,7 @@ export class MirallyMobileApp extends OpenClawLightDomElement {
   private acceptPreferences(result:Data){this.preferenceState=result;this.preferences={...DEFAULT_MOBILE_PREFERENCES,...result.effective};}
   private async boot(){
     const epoch=++this.epoch;this.loading=true;
+    this.inbox=[];this.inboxUnreadOnly=false;this.inboxCursors=[null];this.nextInboxCursor=null;
     try{const preferences=await this.rpc<Data>('mobile.preferences.get');if(!this.isConnected||epoch!==this.epoch)return;
       this.acceptPreferences(preferences);this.device=preferences.device_info||this.device;
       const last=readSession(LAST_VIEW_KEY);this.view=(this.preferences.home==='last'&&last in LABELS?last:'conversations') as View;
@@ -95,13 +99,34 @@ export class MirallyMobileApp extends OpenClawLightDomElement {
           const history=await this.rpc<Data>('conversation.history',{conversation_id:id,limit:50});if(epoch!==this.epoch||id!==this.currentConversation||!this.isConnected)return;
           const older=this.messages.filter(item=>Number(item.seq)<Number(history.oldest_seq||0));this.messages=[...older,...(history.messages||[])];this.history={...history,has_more:older.length?this.history.has_more:history.has_more};}
       }else if(view==='inbox'){
-        const result=await this.rpc<Data>('inbox.list');if(epoch!==this.epoch||!this.isConnected)return;this.inbox=result.items||[];
+        await this.readInbox(this.inboxUnreadOnly,this.inboxCursors);
+        if(epoch!==this.epoch||!this.isConnected)return;
       }else if(view==='settings'){
         const result=await this.rpc<Data>('mobile.preferences.get');if(epoch!==this.epoch||!this.isConnected)return;this.acceptPreferences(result);
       }else{await this.rpc('mobile.preferences.get');if(epoch!==this.epoch||!this.isConnected)return;}
       this.connected=true;this.lastContact=Date.now();if(!this.actionError)this.error='';
     }catch(error){if(epoch===this.epoch&&this.isConnected)this.fail(error);}
     finally{if(epoch===this.epoch&&this.isConnected)this.schedule();}
+  }
+  private async readInbox(unreadOnly:boolean,cursors:(string|null)[]) {
+    const epoch=this.epoch;
+    const result=await this.rpc<Data>('inbox.list',{unread_only:unreadOnly,limit:50,before_delivery_id:cursors.at(-1)});
+    if(epoch!==this.epoch||!this.isConnected||this.view!=='inbox')return;
+    if(!Array.isArray(result.items)||(result.next_cursor!==null&&typeof result.next_cursor!=='string')){
+      throw new Error('服务返回的消息分页不完整，请刷新重试。');
+    }
+    this.inbox=result.items;this.inboxUnreadOnly=unreadOnly;this.inboxCursors=cursors;this.nextInboxCursor=result.next_cursor;
+  }
+  private changeInboxFilter(event:Event) {
+    const control=event.target as HTMLInputElement;
+    const unreadOnly=control.checked;
+    void this.act(()=>this.readInbox(unreadOnly,[null])).then(()=>{control.checked=this.inboxUnreadOnly;});
+  }
+  private changeInboxPage(direction:'newer'|'older') {
+    const cursors=direction==='older'
+      ? this.nextInboxCursor&&[...this.inboxCursors,this.nextInboxCursor]
+      : this.inboxCursors.length>1&&this.inboxCursors.slice(0,-1);
+    if(cursors)void this.act(()=>this.readInbox(this.inboxUnreadOnly,cursors));
   }
   private async act(action:()=>Promise<unknown>,notice=''){
     if(this.busy)return;const epoch=++this.epoch;this.busy=true;this.error='';this.notice='';this.actionError=false;this.clearPoll();
@@ -171,7 +196,13 @@ export class MirallyMobileApp extends OpenClawLightDomElement {
       <label class="mirally-product-field mirally-mobile-search">筛选已加载的会话标题<input type="search" placeholder="按标题筛选，不搜索聊天正文" .value=${live(this.search)} @input=${(e:Event)=>this.search=(e.target as HTMLInputElement).value}></label>
       <div class="mirally-work-list">${list.map(item=>html`<button class="mirally-work-card mirally-work-list-item" data-testid="mobile-conversation" @click=${()=>this.openConversation(conversationId(item))}><strong>${item.pinned?'★ ':''}${item.title||'未命名会话'}</strong><small class="mirally-product-meta">${timeLabel(item.updated_at)}${item.archived?' · 已归档':''}</small></button>`)}</div>${!list.length?html`<p class="mirally-product-empty">没有符合条件的会话。</p>`:nothing}${this.conversationHasMore?html`<button class="btn" ?disabled=${this.busy} @click=${()=>this.moreConversations()}>加载更多会话</button>`:nothing}<p class="mirally-product-meta">已加载 ${this.conversations.length} 项。标题筛选只覆盖已加载项目。</p></section>`;
   }
-  private inboxView(){return html`<section class="mirally-work-list">${this.inbox.length?this.inbox.map(item=>html`<article class="mirally-work-card mirally-product-form"><h2>${item.title}</h2><p class="mirally-product-body">${item.body}</p><small>${timeLabel(item.updated_at)} · ${item.state==='unread'?'未读':'已读'}</small><div class="mirally-product-actions">${item.state==='unread'?html`<button class="btn" ?disabled=${this.busy} @click=${()=>this.act(()=>this.rpc('inbox.ack',{delivery_id:item.delivery_id,state:'read'}))}>标记已读</button>`:nothing}${item.conversation_id&&!item.withdrawn?html`<button class="btn" @click=${()=>this.openConversation(item.conversation_id)}>查看会话</button>`:nothing}</div></article>`):html`<p class="mirally-product-empty">暂时没有消息。完成、异常与需要确认的事项会保存在这里。</p>`}</section>`;}
+  private inboxView(){return html`<section class="mirally-work-list">
+    <label class="mirally-product-check"><input type="checkbox" .checked=${this.inboxUnreadOnly} ?disabled=${this.busy} @change=${this.changeInboxFilter}>只看未读</label>
+    ${this.inboxCursors.length>1||this.nextInboxCursor?html`<nav class="mirally-product-actions" aria-label="消息分页">
+      <button class="btn" ?disabled=${this.busy||this.inboxCursors.length===1} @click=${()=>this.changeInboxPage('newer')}>较新消息</button>
+      <button class="btn" ?disabled=${this.busy||!this.nextInboxCursor} @click=${()=>this.changeInboxPage('older')}>较早消息</button>
+    </nav>`:nothing}
+    ${this.inbox.length?this.inbox.map(item=>html`<article class="mirally-work-card mirally-product-form"><h2>${item.title}</h2><p class="mirally-product-body">${item.body}</p><small>${timeLabel(item.updated_at)} · ${item.state==='unread'?'未读':'已读'}</small><div class="mirally-product-actions">${item.state==='unread'?html`<button class="btn" ?disabled=${this.busy} @click=${()=>this.act(()=>this.rpc('inbox.ack',{delivery_id:item.delivery_id,state:'read'}))}>标记已读</button>`:nothing}${item.conversation_id&&!item.withdrawn?html`<button class="btn" @click=${()=>this.openConversation(item.conversation_id)}>查看会话</button>`:nothing}</div></article>`):html`<p class="mirally-product-empty">${this.inboxUnreadOnly?'没有未读消息。':'暂时没有消息。'}</p>`}</section>`;}
   private settingsView(){return html`<div class="mirally-mobile-settings"><section class="mirally-work-card mirally-product-form"><h2>按你的习惯呈现</h2><label class="mirally-product-field">保存到<select .value=${this.preferenceScope} @change=${(e:Event)=>this.preferenceScope=(e.target as HTMLSelectElement).value as 'device'|'user'}><option value="device">这台手机的覆盖设置</option><option value="user">用户默认（没有设备覆盖时使用）</option></select></label>
       <p class="mirally-product-meta">当前展示生效后的设置。设备覆盖优先于用户默认；更改默认不会切换当前页面。</p>
       <label class="mirally-product-field">默认首页<select .value=${this.preferences.home==='last'?'last':'conversations'} ?disabled=${this.busy} @change=${(e:Event)=>this.savePreferences({home:(e.target as HTMLSelectElement).value})}><option value="conversations">会话</option><option value="last">继续上次</option></select></label>

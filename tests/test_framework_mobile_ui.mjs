@@ -47,6 +47,23 @@ test('boot honors conversation or per-browser last-page preference without selec
   f.storage.set('mirally.mobile.view.v1','conversations');f.app.token='phone';await f.app.boot();await settle();
   assert.equal(f.app.view,'conversations');assert.ok(f.calls.every(call=>!call.method.startsWith('weixin.')));
 });
+test('phone inbox keeps its cursor during polling and restarts when filtering unread',async()=>{
+  const f=mobile(async(method,params)=>{
+    assert.equal(method,'inbox.list');
+    if(params.unread_only)return{items:[{title:'旧未读',state:'unread'}],next_cursor:null};
+    if(params.before_delivery_id==='first-end')return{items:[{title:'第二页'}],next_cursor:null};
+    return{items:[{title:'第一页'}],next_cursor:'first-end'};
+  });
+  f.app.view='inbox';f.app.token='phone';await f.app.refresh();
+  assert.match(stringify(f.app.inboxView()),/第一页/);
+  f.app.changeInboxPage('older');await settle();
+  assert.equal(f.calls.at(-1).params.before_delivery_id,'first-end');
+  assert.match(stringify(f.app.inboxView()),/第二页/);
+  f.app.changeInboxFilter({target:{checked:true}});await settle();
+  assert.equal(f.calls.at(-1).params.before_delivery_id,null);
+  assert.equal(f.calls.at(-1).params.unread_only,true);
+  assert.match(stringify(f.app.inboxView()),/旧未读/);
+});
 test('metadata mutations send captured owner version and support archive/restore',async()=>{
   const f=mobile(async method=>method==='conversation.list'?{conversations:[]}:{});f.app.currentConversation='c1';f.app.currentConversationMeta={conversation_id:'c1',metadata_version:7,title:'旧标题'};f.app.conversations=[{...f.app.currentConversationMeta}];
   f.app.patchConversation({archived:true});await settle();const call=f.calls.find(call=>call.method==='conversation.update');
