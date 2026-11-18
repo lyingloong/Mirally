@@ -62,16 +62,14 @@ flowchart LR
 
 ## 启动与准备
 
-Windows x64、Python 3.10+、Node 24+（含 npm）和 Microsoft Edge WebView2 Runtime。Node 可用 `MIRALLY_NODE` 或 `--node` 显式指定。
+Windows x64、Python 3.10、Node 24+（含 npm）和 Microsoft Edge WebView2 Runtime。准备和启动时都可通过 `MIRALLY_NODE` 指定 Node，启动时也可使用 `--node`。
 
 ```powershell
-py -3.10 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements-framework.txt
-.\.venv\Scripts\python.exe tools\setup_framework.py
+.\run.ps1 -Setup
 .\run.ps1
 ```
 
-`tools/setup_framework.py` 按内核锁文件安装并构建 DSH，再按前端独立锁文件构建 `frontend/control-ui/dist/`。迁移到新机器需重建 `.venv`、两套 `node_modules`、内核构建产物和前端 `dist/`，不能复制开发机路径作为默认配置。
+`-Setup` 在需要时从 Python 3.10 创建 `.venv`，安装产品 Python 依赖，再调用 `tools/setup_framework.py` 按独立锁文件安装并构建 DSH 和前端。迁移到新机器时重新运行 `-Setup`，以生成本机路径对应的 `.venv`、两套 `node_modules` 和构建产物。
 
 常用参数：
 

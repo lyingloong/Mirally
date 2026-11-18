@@ -10,11 +10,11 @@ Mirally 是运行在 Windows 上的个人 agent 产品：自有界面与桌面�
 ## 快速开始
 
 ```powershell
-py -3.10 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements-framework.txt
-.\.venv\Scripts\python.exe tools\setup_framework.py
+.\run.ps1 -Setup
 .\run.ps1
 ```
+
+`-Setup` 创建本地 Python 环境、安装依赖并构建产品。首次准备或需要重建时运行，日常启动只需 `.\run.ps1`。
 
 首次启动后在「设置 → 模型」配置模型连接。
 
