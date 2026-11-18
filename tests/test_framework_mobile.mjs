@@ -66,6 +66,13 @@ test('pair code expires and brute force is bounded',async t=>{
   for(let i=0;i<19;i++)await f.request('/api/mobile/pair',{code:'bad'});
   assert.equal((await f.request('/api/mobile/pair',{code:'bad'})).status,429);
 });
+test('the phone forwards only the inbox cursor and unread filter fields to the product owner',async t=>{
+  const f=await fixture(t),paired=await f.pair();
+  const params={unread_only:true,limit:50,before_delivery_id:'delivery_previous'};
+  const result=await f.rpc(paired.token,'inbox.list',{...params,channel:'ignored'});
+  assert.equal(result.status,200);
+  assert.deepEqual(f.calls.at(-1),{method:'inbox.list',params});
+});
 test('unconfigured origins and hostile Host headers are rejected before pairing',async t=>{
   const f=await fixture(t),issued=await f.access.management('mobile.pair.create');
   const raw=async headers=>new Promise((resolve,reject)=>{

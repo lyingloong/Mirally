@@ -95,11 +95,13 @@ class DeliveryHealthSnapshotTests(unittest.TestCase):
         self.side_connections.clear()
         self.thread_connections.clear()
 
-    def service(self):
+    def service(self, *, include_calendar=False):
         service = FrameworkService(self.base, self.home, clock=lambda: self.now)
         # Closed in tearDown *before* the temp dir is removed: Windows keeps
         # product.sqlite3 locked while this connection is open.
         self.services.append(service)
+        if not include_calendar:
+            service.call("calendar.settings.update", {"channels": {"desktop": False, "weixin": False}})
         return service
 
     def close_services(self):
@@ -191,6 +193,45 @@ class DeliveryHealthSnapshotTests(unittest.TestCase):
         self.assertEqual(report["counts"]["unknown"], 1)
         # The commitment already counts as overdue while its delivery is stuck.
         self.assertEqual(report["commitments"]["due_overdue"], 2)
+
+    def test_calendar_channel_delivery_states_and_staleness_use_the_same_snapshot(self):
+        service = self.service(include_calendar=True)
+        pending, sending, sent = [service.commitment_create(title=title, due_at_utc_ms=self.now)
+                                  for title in ("pending", "sending", self.MARKER)]
+        service.delivery_tick()
+        by_reminder = {item["commitment_id"]: item for item in
+                       service.calendar.delivery_list(channel="desktop")["deliveries"]}
+        self.assertEqual(by_reminder[pending["id"]]["status"], "pending")
+        sending_id = by_reminder[sending["id"]]["delivery_id"]
+        service.calendar.delivery_claim(sending_id)
+        sent_id = by_reminder[sent["id"]]["delivery_id"]
+        claim = service.calendar.delivery_claim(sent_id)
+        service.calendar.delivery_ack(sent_id, claim["claim_token"], "sent", {"note": self.MARKER})
+        weixin = service.calendar.delivery_list(channel="weixin", include_terminal=True)["deliveries"]
+        self.assertEqual([item["status"] for item in weixin], ["failed"] * 3)
+        self.now += delivery_health.PENDING_STALE_MS + 1
+
+        report = self.report()
+        self.assertEqual(report["errors"], [])
+        self.assertEqual(report["by_channel"], {"inbox": 3, "weixin": 3, "desktop": 3})
+        self.assertEqual(report["counts"], {"pending": 1, "sending": 1, "delivered": 4,
+                                            "failed": 3, "unknown": 0, "cancelled": 0})
+        self.assertEqual(report["by_kind"]["failed"]["commitment"], 3)
+        self.assertEqual(report["by_channel_status"]["weixin"]["failed"], 3)
+        self.assertEqual(report["by_channel_status"]["desktop"]["pending"], 1)
+        self.assertEqual(report["by_channel_status"]["desktop"]["delivered"], 1)
+        self.assertEqual(report["stale"],
+                         {"pending_older_than_1h": 1, "sending_older_than_10m": 1, "unknown_any": 0})
+        self.assertNotIn(self.MARKER, json.dumps(report))
+
+    def test_missing_calendar_queue_is_reported_without_fabricated_totals(self):
+        service = self.service()
+        service.db.execute("DROP TABLE calendar_deliveries")
+        report = self.report()
+        self.assertEqual(report["errors"], [{"section": "calendar_deliveries", "reason": "table missing"}])
+        self.assertIsNone(report["counts"]["failed"])
+        self.assertIsNone(report["by_channel"]["weixin"])
+        self.assertIsNone(report["by_channel_status"]["weixin"]["failed"])
 
     def test_overdue_commitment_and_expired_initiative_are_visible(self):
         service = self.service()
@@ -850,6 +891,51 @@ class FrameworkProductTests(unittest.TestCase):
         self.restart()
         self.assertEqual(self.call("inbox.list")["items"], [])
         self.assertEqual(self.call("commitment.list")["commitments"][0]["status"], "expired")
+
+    def test_inbox_filters_before_limit_and_pages_stably_across_new_deliveries(self):
+        self.call("settings.update", patch={"background_enabled": True, "general_initiative_enabled": True})
+        self.call("calendar.settings.update", channels={"desktop": False, "weixin": False})
+        self.call("preference.set", key="tone", value="brief")
+        self.call("initiative.offer", title="Old unread", body="Contact", reason="Relevant",
+                  dedupe_key="old-unread", expires_at_utc_ms=self.now + 1000)
+        old_delivery = self.call("delivery.tick")["delivery_ids"][0]
+        self.now += 1
+        for n in range(201):
+            self.call("commitment.create", title=f"Recent {n}", due_at_utc_ms=self.now)
+        newer = []
+        for _ in range(3):
+            newer.extend(self.call("delivery.tick")["delivery_ids"])
+        for delivery_id in newer:
+            self.call("inbox.ack", delivery_id=delivery_id)
+
+        unread = self.call("inbox.list", unread_only=True, limit=1)
+        self.assertEqual([item["delivery_id"] for item in unread["items"]], [old_delivery])
+        self.assertIsNone(unread["next_cursor"])
+        self.assertEqual(self.call("initiative.acquire")["status"], "unread_contact")
+
+        first = self.call("inbox.list", limit=200)
+        first_ids = [item["delivery_id"] for item in first["items"]]
+        self.assertEqual(len(first_ids), 200)
+        self.assertNotIn(old_delivery, first_ids)
+        self.now += 1
+        self.call("commitment.create", title="Arrived after first page", due_at_utc_ms=self.now)
+        second = self.call("inbox.list", limit=200, before_delivery_id=first["next_cursor"])
+        second_ids = [item["delivery_id"] for item in second["items"]]
+        self.assertEqual(len(second_ids), 2)
+        self.assertEqual(set(first_ids + second_ids), set(newer + [old_delivery]))
+        self.assertIsNone(second["next_cursor"])
+
+        self.call("inbox.ack", delivery_id=old_delivery)
+        self.assertTrue(all(item["delivery_id"] != old_delivery for item in
+                            self.call("inbox.list", unread_only=True)["items"]))
+        self.assertEqual(self.call("initiative.acquire")["status"], "leased")
+
+    def test_inbox_rejects_invalid_pagination_parameters(self):
+        for params in ({"unread_only": "true"}, {"limit": True}, {"limit": 201},
+                       {"limit": 0}, {"before_delivery_id": "missing"}):
+            with self.subTest(params=params), self.assertRaises(FrameworkError) as error:
+                self.call("inbox.list", **params)
+            self.assertEqual(error.exception.code, "INVALID_PARAMS")
 
     def test_general_initiative_is_off_and_expires_without_backlog(self):
         self.call("initiative.offer", title="topic", body="hello", reason="relevant", dedupe_key="once", expires_at_utc_ms=self.now + 100)
