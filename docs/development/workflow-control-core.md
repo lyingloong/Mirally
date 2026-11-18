@@ -4,7 +4,7 @@
 
 ## 1. 启动或恢复
 
-1. 在队长持有的仓库 checkout 核对仓库、分支和已有改动。新环境按 [DSH AgentTeams profile 指南](../../kernel/dsh/packages/experimental/agent-team-profile/README.zh.md#use-this-package) 启用团队工具。同仓版本可用 `list_agents` 和 `team_task_list` 核对成员及任务，其他 DSH 版本以会话实际提供的工具为准。派发任务时显式交代成员使用的 worktree，团队 profile 自身不创建 worktree。
+1. 在队长持有的仓库 checkout 核对仓库、分支和已有改动。新环境按 [DSH AgentTeams profile 指南](../../kernel/dsh/packages/experimental/agent-team-profile/README.zh.md) 启用团队工具。同仓版本可用 `list_agents` 和 `team_task_list` 核对成员及任务，其他 DSH 版本以会话实际提供的工具为准。派发任务时显式交代成员使用的 worktree，团队 profile 自身不创建 worktree。
 2. 新团队使用以下命令初始化本地队列，再按需求、实现和审查分配角色。现有团队先运行 `status` 和 `validate`，对照 GitHub 和原团队的任务；`init` 只补缺失文件，不能从 PR 恢复任务。
 3. 模型和成员路由在 DSH profile 及本机 `output/agent-workflow/config.json` 配置。没有设置 `primary_route` 时沿用当前 DSH profile。需要配额备用路由时填写 `quota.fallback.provider`、`quota.fallback.model` 并显式启用它。凭据由 DSH 的账号或凭据配置管理。
 4. 用当前 roster 和状态助手输出安排工作；进度页从已有记录生成。完整命令见 [状态操作](workflow-helper.md) 与 [工作流命令](agent-teams-workflow.md#状态助手)。

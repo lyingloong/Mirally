@@ -24,6 +24,6 @@
 
 在队长持有的仓库 checkout 运行状态 CLI，团队成员在自己的 worktree 实现和验证。队长用 CLI 更新本地 `state.json`，从 DSH 查询成员和任务，并在 GitHub 查证 PR 结果。每份工作状态由一个队长维护。报告和页面可重新生成，原始状态和本机配置需要保留。
 
-仓库中的 Python 脚本可以独立使用。实际组队和分派使用启用了 [AgentTeams profile](../../kernel/dsh/packages/experimental/agent-team-profile/README.zh.md#use-this-package) 的 DSH 会话。`run.ps1` 启动 Mirally 产品，GitHub Actions 执行 CI 和 Pages 发布。
+仓库中的 Python 脚本可以独立使用。实际组队和分派使用启用了 [AgentTeams profile](../../kernel/dsh/packages/experimental/agent-team-profile/README.zh.md) 的 DSH 会话。`run.ps1` 启动 Mirally 产品，GitHub Actions 执行 CI 和 Pages 发布。
 
 新团队先按[运行手册](workflow-control-core.md#1-启动或恢复)校验 DSH 工具和目录，再初始化本地状态。现有团队接手时先读取原状态和 GitHub 记录。`.agent-teams/`、`output/agent-workflow/`、账号凭据和个人模型路由均为本地资料，请在获授权的工作目录内处理。
