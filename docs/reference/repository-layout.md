@@ -14,7 +14,7 @@
 | `tests/` | 根级产品测试 | Python/Node 产品链路测试与 `development/` 工具测试；目录归属见整改清单 R4 |
 | `tools/` | 开发与验收工具 | 命名与分类约定见下文；新增直接子目录需登记 |
 | `docs/` | 现行文档 | 索引在 [文档导航](../README.md)；一个主题一篇 |
-| `config/` | 产品 YAML 与模板 | `config/mirally/`、`config/mirally/ufo/`；模板约定见下文 |
+| `config/` | 产品配置模板 | `config/mirally/`；模板约定见下文 |
 | `website/` | 产品与愿景展示站 | 独立 npm 依赖、静态构建与 Pages 发布，不参与主产品启动链；见[网站说明](../../website/README.md) |
 | `.github/` | CI、静态站发布与仓库自动化 | 产品检查与网站构建/Pages 发布分开，不承载产品运行时行为 |
 | 根文件（`AGENTS.md`、`CONTRIBUTING.md`、`README.md`、`CHANGELOG.md`、`run.ps1`、`.gitignore`、`requirements-framework.txt`） | 项目级约定与入口 | 不新增根级脚本/配置；确有需要先登记 |
@@ -43,7 +43,7 @@
 ## `config/` 模板约定
 
 - 仓库只提交**模板/默认值**，不提交私有凭据、账号与服务商密钥。
-- 现行模板后缀不一致：`activity/memory/speech.yaml.template` 使用 `.template`，而 `execution.yaml` 与 `ufo/` 内 5 个文件无此后缀（见整改清单 R3）。在用户确认统一方案前，新增配置优先使用 `.template` 后缀并在同目录说明用途。
+- 活动、记忆和语音配置模板使用 `.yaml.template` 后缀。新增模板沿用该后缀，并在同目录说明用途。
 - 产品读取的默认值文件与“复制后修改”的模板要分开表达；不要靠文件名猜测是否含私有值。
 
 ## `tools/` 命名约定
@@ -88,9 +88,7 @@
 | --- | --- | --- | --- |
 | R1 | `tools/` 30+ 脚本平铺、三套前缀 | 评估是否分子目录；先保持前缀约定 | 需独立点 + 用户决策 |
 | R2 | `runtime/speech_credentials.py` 反向依赖 `framework.channels` | 把 `CredentialProtector` 下沉到 `core/` 或独立模块 | 需独立点（已登记为审计例外） |
-| R3 | `config/` 模板后缀不一致 | 统一 `.template` 或明确“默认值文件”规则 | 需独立点 + 用户决策 |
 | R4 | 根级、内核级、前端测试分布不清 | 在 feature map/验证文档中补“跑哪套测试”导航 | 需独立点 |
-| R5 | `mirally/ufo_full.py` 与 `mirally/runtime/ufo_full.py` 并存 | 确认无外部引用后随 UFO 清理决策处理 | 需独立点 + 用户决策 |
 
 ## 运行方式
 

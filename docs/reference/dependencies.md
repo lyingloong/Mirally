@@ -9,7 +9,6 @@
 | # | 清单 / 锁文件 | 位置 | 生态 | 分类 | Owner 与更新规则 |
 | --- | --- | --- | --- | --- | --- |
 | D1 | `requirements-framework.txt` | 仓库根 | pip | 运行时 | 产品运行时（桌面与 Python worker，安装进根 `.venv`）。修改需产品验证；`tools/setup_framework.py` 是安装入口。 |
-| D2 | `requirements-ufo.txt` | 仓库根 | pip | 可选参考 | UFO 子模块已移除，该清单文件**当前不存在**。审计工具将其登记为可选清单：存在则解析，缺失时跳过且不产生「missing expected manifest」警告；只有 D1/D3/D6 与前端/网站 `package.json` 属于必需清单。UFO 产品适配日后若需要独立依赖，再新增清单并恢复本行。 |
 | D3 | `kernel/dsh/.github/review-ownership/requirements.txt` | kernel | pip | kernel CI | kernel 审查机器人专用，与产品运行时隔离；随 kernel 上游维护。 |
 | D4 | `kernel/dsh/pnpm-lock.yaml` + 371 个非 fixture `package.json` | kernel | pnpm workspace | 上游源码 | 同仓 DSH 上游工作区；升级需整体验证模型/工具/会话主链，另立点。各 importer 可各自声明版本范围，由锁文件解析。 |
 | D5 | `frontend/control-ui/package-lock.json` + 14 个 `package.json` | frontend | npm | 固定上游 | 固定上游 Control UI 来源（`verify:source` 逐字节校验）；Mirally 自有页面在其上扩展，不随产品依赖升级。 |
@@ -33,7 +32,7 @@
 
 - **同环境重复声明且约束不一致**：同一生态、同一安装环境（`product-venv`、`kernel-ci`、`frontend`、`test-tools`、`website`）内，同名直接依赖出现不同约束时列为 finding；kernel pnpm workspace 内不同 importer 的范围差异属正常解析，只记为 informational。
 - **未使用候选**：按 import 名映射（`pywebview→webview`、`Pillow→PIL`、`PyYAML→yaml`、`tzdata→zoneinfo`、`winrt-*→winrt`）检查 `mirally/` 是否引用 `requirements-framework.txt` 中的直接依赖；未被引用只作为候选，不自动删除。
-- **清单分类**：区分运行时、可选参考、kernel CI、前端固定上游、产品网站、验收工具与 fixture；kernel 下的 fixture `package.json` 只计数、不参与重复检测，避免统计口径被测试夹具污染。
+- **清单分类**：区分运行时、kernel CI、前端固定上游、产品网站、验收工具与 fixture；kernel 下的 fixture `package.json` 只计数、不参与重复检测，避免统计口径被测试夹具污染。
 - **锁文件**：识别 D4/D5/D6/D8 的锁文件存在性；不解析锁文件内部版本树。
 
 当前基线（离线实测，不代表长期不变）：
@@ -58,15 +57,14 @@ Findings: 0
 | `kernel/dsh/**` | 本审计不动 | 同仓 DSH 升级影响模型/工具/会话主链，需独立点与全量验证。 |
 | 运行时依赖（D1） | 不删除 | 删除需真实运行验证，属独立点。 |
 | `website/package.json` + `website/package-lock.json`（D8） | 只读审计；不随产品依赖升级或裁剪 | 网站是 Mirally 自有展示面，升级/裁剪需独立点与网站构建、页面验收。 |
-| `requirements-ufo.txt`（D2） | 文件不存在即跳过，不补建 | 可选清单；缺失不是缺口，审计也不把它列为 finding。 |
 | 可选依赖（D7） | 只文档化 | 是否固定版本由用户决定。 |
 | 安全审计（CVE） | 不在本文联网执行 | 需要用户授权网络与配额。 |
 
 ## 基线记录
 
-本机离线可测部分（2026-11-07，实现 worktree；已 rebase 到含 website 与 UFO 子模块移除的 `main`）：
+本机离线可测部分（2026-11-07）：
 
-- 清单：2 个存在的 pip 清单（`requirements-framework.txt`、kernel CI `requirements.txt`；`requirements-ufo.txt` 不存在且属可选）+ 1 个验收工具清单 + 1 个网站清单 + 14 个前端 `package.json` + 371 个 kernel 非 fixture `package.json`（另有 12 个 fixture `package.json` 被排除）。
+- 清单：2 个 pip 清单（`requirements-framework.txt`、kernel CI `requirements.txt`）+ 1 个验收工具清单 + 1 个网站清单 + 14 个前端 `package.json` + 371 个 kernel 非 fixture `package.json`（另有 12 个 fixture `package.json` 被排除）。
 - 声明条目：6427；锁文件 4 个（`frontend/control-ui/package-lock.json`、`tools/testing/package-lock.json`、`website/package-lock.json`、`kernel/dsh/pnpm-lock.yaml`）。
 - 合计清单 389 个，警告 0（无「missing expected manifest」），finding 0。
 - `requirements-framework.txt` 直接依赖：17 条；未使用候选 0（启发式）。

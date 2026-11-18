@@ -88,10 +88,8 @@ jobs:
         run: |
           $tests = @(
             'tests.test_activity_projection',
-            'tests.test_conversation',
             'tests.test_delivery_invalidation',
             'tests.test_desktop_surface',
-            'tests.test_execution_contract',
             'tests.test_framework_activity_views',
             'tests.test_framework_calendar',
             'tests.test_framework_capabilities',
@@ -125,7 +123,7 @@ jobs:
             'tests/test_framework_model_validation_ui.mjs',
             'tests/test_framework_capabilities_settings_ui.mjs',
             'tests/test_framework_messages_ui.mjs',
-            'tests/test_framework_without_ufo.mjs',
+            'tests/test_framework_desktop_boundary.mjs',
             'tests/test_control_ui_activity.cjs',
             'tests/test_control_ui_files.cjs',
             'tests/test_control_ui_memory.cjs',

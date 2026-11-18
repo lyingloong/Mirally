@@ -46,7 +46,7 @@ node --test tests/test_test_dependencies.cjs
 ```
 
 ```powershell
-# 产品 Python 测试（不需要 UFO 子模块或额外依赖）
+# 产品 Python 测试
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 
 # 记事本与桌面、微信回环链路（先构建内核）

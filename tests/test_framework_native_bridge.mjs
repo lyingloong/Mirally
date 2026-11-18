@@ -73,7 +73,6 @@ test('browser shim supports page shapes while capture and OS actions report nati
   send({type: 'mirally-companion', action: 'shape'});
   send({type: 'mirally-companion', action: 'capture-target', requestId: 'capture'});
   send({type: 'mirally-companion', action: 'drag'});
-  send({type: 'mirally-ufo-input', editing: true});
   assert.match(f.captures[0].error, /需要 Mirally 桌面窗口/);
   assert.equal(f.notices.length, 1); assert.deepEqual(f.calls, []);
 });

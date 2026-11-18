@@ -9,8 +9,8 @@ The scan covers Mirally-owned source, documentation and configuration, including
 the Mirally product chain under ``kernel/dsh/packages/mirally`` and every
 frontend file this repository owns: files that are not part of the retained
 upstream snapshot (``upstream-files.json``) plus the Mirally patches listed in
-``local-changes.json``. Untouched upstream kernel/frontend files, the UFO
-submodule, dependencies and generated output are not scanned; excluded
+``local-changes.json``. Untouched upstream kernel/frontend files, dependencies
+and generated output are not scanned; excluded
 directories are pruned before descending. Binary assets with a text suffix are
 skipped instead of failing UTF-8 decoding.
 
@@ -35,7 +35,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SKIP_PARTS = {".git", ".venv", "node_modules", "output", ".artifacts", "UFO", "__pycache__",
+SKIP_PARTS = {".git", ".venv", "node_modules", "output", ".artifacts", "__pycache__",
               "dist", "build", "coverage", ".vite", ".vite-temp", ".turbo"}
 SCAN_DIRS = ("tools", "tests", "mirally", "docs", "config", ".github", "kernel/dsh/packages/mirally", "website")
 EXTRA_FILES = ("kernel/README.md", "kernel/dsh/UPSTREAM.md")

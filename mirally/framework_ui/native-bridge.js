@@ -224,7 +224,7 @@
         content: (preview.text || '') + (preview.truncated ? '\n\n[预览已截短；完整内容请从成果下载入口读取。]' : '')}};
     }
     function browserMessage(message) {
-      if (message?.type === 'mirally-ufo-input' || message?.type === 'mirally-startup-painted') return;
+      if (message?.type === 'mirally-startup-painted') return;
       if (message?.type === 'mirally-companion') {
         if (message.action === 'capture-target') root.__mirallyContext?.receive({requestId: message.requestId, error: '窗口截图需要 Mirally 桌面窗口；浏览器中请添加图片文件。'});
         else if (['drag', 'minimize'].includes(message.action)) notify('移动和最小化伙伴需要 Mirally 桌面窗口。');

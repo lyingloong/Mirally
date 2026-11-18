@@ -153,7 +153,7 @@ def main() -> int:
             if first_paint:
                 timeline["first_paint"] = time.monotonic() - began
                 startup.update(opacity_before=float(shell.window.native.Opacity), source=str(args.Source))
-            if isinstance(value, dict) and value.get("type") in {"mirally-companion", "mirally-framework", "mirally-ufo-input"}:
+            if isinstance(value, dict) and value.get("type") in {"mirally-companion", "mirally-framework"}:
                 messages.append({"type": value["type"], "action": value.get("action"), "editing": value.get("editing"),
                     "parts": value.get("parts"), "rect": value.get("rect"), "viewport": value.get("viewport"), "view": value.get("view")})
             original_message(sender, args)
@@ -234,7 +234,6 @@ def main() -> int:
                 hwnd = initial["hwnd"]
                 assert initial["title"] == "" and initial["show_icon"] and initial["has_icon"] and initial["strips"] == 0, initial
                 assert initial["opacity"] == 1 and not initial["region"], initial
-                assert not hasattr(shell, "_frontend_registration"), "Default framework must not register a UFO input bridge"
                 saved.update(process=previous_owner.process if previous_owner is not None else host.process)
                 if arguments.reuse_host:
                     assert host.process is None and not host.owned, "Shell did not reuse the existing isolated owner"
@@ -886,7 +885,7 @@ def main() -> int:
             # a missing product shutdown look like a passing native exit.
             if saved.get("process") is not None:
                 cleaned = {"host_exited": saved["process"].poll() is not None, "host_handle_released": host.process is None,
-                    "tray_disposed": shell._tray is None, "no_ufo_registration": not hasattr(shell, "_frontend_registration"),
+                    "tray_disposed": shell._tray is None,
                     "shell_closed": shell.closed.is_set(), "host_log_closed": host.log is None,
                     "runtime_retired": not (home / "runtime.json").exists()}
                 results.append({"case": saved.get("exit_gesture", "failed verification") + " cleans up", **cleaned, "native_bridge_counts": saved.get("bridge_counts", {})})

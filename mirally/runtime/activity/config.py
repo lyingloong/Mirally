@@ -1,4 +1,4 @@
-"""Activity sensor configuration, kept separate from speech and UFO config."""
+"""Activity sensor configuration."""
 
 from __future__ import annotations
 
