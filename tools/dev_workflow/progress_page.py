@@ -29,6 +29,7 @@ import re
 import shutil
 import subprocess
 import sys
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +43,7 @@ DEFAULT_WORKDIR = ROOT / "output" / "agent-workflow"
 HTML_NAME = "progress.html"
 DATA_NAME = "progress.data.json"
 PR_CACHE_NAME = "pr-cache.json"
+PR_CACHE_MAX_AGE = timedelta(hours=1)
 TASKS_NAME = "page-tasks.json"
 DECISIONS_NAME = "page-decisions.md"
 MAX_FIELD = 400
@@ -72,10 +74,19 @@ OWNER_LABELS = {OWNER_USER: "待用户决定", OWNER_CI: "等待 CI", OWNER_ENGI
 # A card whose status is ``awaiting_merge`` but whose next step nobody else can
 # take (Codex mergeable or user approval) shows this instead of "待批准合并".
 MERGE_STATUS_LABELS = {OWNER_USER: "待批准合并", OWNER_CI: "CI 未完成",
-                       OWNER_ENGINEER: "CI 未通过", OWNER_MAINTENANCE: "待维护核对"}
+                       OWNER_ENGINEER: "待工程处理", OWNER_MAINTENANCE: "待维护核对"}
 ACTIVE_STATUSES = ("specifying", "implementing", "verifying", "reviewing", "repairing", "merging")
 OPEN_VERDICT = {"PASS": "PASS", "FAIL": "FAIL", "待定": "待定"}
 CI_KEYS = ("pass", "pending", "fail")
+# These jobs are present for every main PR. The build jobs can be skipped by
+# their scope checks. Publishing Pages is not part of the PR gate.
+PR_GATE_CHECKS = {
+    "Development workflow tooling": {"SUCCESS"},
+    "Windows core and frontend": {"SUCCESS", "SKIPPED"},
+    "Website change scope": {"SUCCESS"},
+    "Website build": {"SUCCESS", "SKIPPED"},
+}
+FULL_COMMIT_SHA = re.compile(r"[0-9a-f]{40}")
 
 
 # ---------------------------------------------------------------------------
@@ -138,16 +149,25 @@ def collect_pr(workdir: Path) -> dict[str, Any]:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {"available": False, "generated_at": None, "pulls": {}, "note": "PR 缓存无法解析"}
+    if not isinstance(raw, dict) or not isinstance(raw.get("pulls"), list):
+        return {"available": False, "generated_at": None, "pulls": {}, "note": "PR 缓存无法解析"}
     pulls = {}
     for item in raw.get("pulls") or []:
         if not isinstance(item, dict) or "number" not in item:
             continue
         files = [f for f in item.get("files") or [] if isinstance(f, dict)]
         checks = {"pass": 0, "pending": 0, "fail": 0}
+        gate_results = {}
         for roll in item.get("statusCheckRollup") or []:
             if not isinstance(roll, dict):
                 continue
             conclusion = str(roll.get("conclusion") or roll.get("state") or "").upper()
+            status = roll.get("status")
+            if status and status != "COMPLETED":
+                conclusion = ""
+            name = roll.get("name")
+            if isinstance(name, str) and name in PR_GATE_CHECKS:
+                gate_results.setdefault(name, set()).add(conclusion)
             if conclusion in {"SUCCESS", "NEUTRAL", "SKIPPED"}:
                 checks["pass"] += 1
             elif conclusion in {"FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "ERROR"}:
@@ -158,6 +178,11 @@ def collect_pr(workdir: Path) -> dict[str, Any]:
             "number": item["number"],
             "title": item.get("title"),
             "headRefName": item.get("headRefName"),
+            "headRefOid": item.get("headRefOid"),
+            "baseRefName": item.get("baseRefName"),
+            "isDraft": item.get("isDraft"),
+            "reviewDecision": item.get("reviewDecision"),
+            "mergeStateStatus": item.get("mergeStateStatus"),
             "state": item.get("state"),
             "mergeable": item.get("mergeable"),
             "url": item.get("url"),
@@ -167,6 +192,9 @@ def collect_pr(workdir: Path) -> dict[str, Any]:
             "implementation_summary": item.get("implementation_summary"),
             "files": [{"path": f.get("path"), "additions": f.get("additions", 0), "deletions": f.get("deletions", 0)} for f in files],
             "checks": checks,
+            "missing_gate_checks": sorted(PR_GATE_CHECKS.keys() - gate_results.keys()),
+            "unmet_gate_checks": sorted(name for name, results in gate_results.items()
+                                        if not results <= PR_GATE_CHECKS[name]),
         }
     return {"available": True, "generated_at": raw.get("generated_at"), "pulls": pulls, "note": None}
 
@@ -448,47 +476,77 @@ def _change_summary(files: list[dict], title: str | None = None, body: str | Non
             "summary_missing": summary is None, "missing": False}
 
 
-def merge_state(point: dict, pr_entry: dict | None) -> dict[str, Any]:
-    """Classify an ``awaiting_merge`` point as Codex-mergeable or still blocked.
+def _current_pr_snapshot(cache_at: str | None, point_at: str | None, now: str) -> bool:
+    if not isinstance(cache_at, str) or not isinstance(point_at, str):
+        return False
+    try:
+        cached, updated, rendered = (wf.parse_iso(value) for value in (cache_at, point_at, now))
+        if any(value.utcoffset() is None for value in (cached, updated, rendered)):
+            return False
+        return updated <= cached <= rendered and rendered - cached <= PR_CACHE_MAX_AGE
+    except (TypeError, ValueError):
+        return False
 
-    Merging is not a single decision. ``codex`` means the PR is open (cache state
-    ``OPEN``), GitHub says ``MERGEABLE``, CI reported at least one check and all of
-    them passed, so the Codex merge gate can pick it up without a new user decision.
-    ``user`` means the merge cannot happen yet, and ``owner`` says who has to act
-    next: ``maintenance`` when the data itself is stale or missing (PR not linked,
-    cache miss, or a cache entry already CLOSED/MERGED -- refresh, register or
-    reconcile it; this never implies the user withheld an approval), ``ci`` while
-    checks are still running, and ``engineer`` for a red check, no CI checks at all
-    or a non-mergeable PR. A real product decision is not inferred here; it comes
-    from an explicit ``page-decisions.md`` entry. ``None`` applies to every other
-    status (the card then shows nothing extra).
-    """
+
+def _waiting_merge(owner: str, reason: str, *, label: str | None = None) -> dict[str, Any]:
+    return {"state": "user", "owner": owner, "reason": reason, "label": label or MERGE_STATUS_LABELS[owner]}
+
+
+def merge_state(point: dict, pr_entry: dict | None, *, cache_at: str | None, now: str) -> dict[str, Any]:
+    """Use recent, matching workflow and GitHub records to classify the next step."""
     if point.get("status") != "awaiting_merge":
         return {"state": None, "owner": None, "reason": None}
     pr = point.get("pr")
     if not pr:
-        return {"state": "user", "owner": OWNER_MAINTENANCE,
-                "reason": "未关联 PR：补充 PR 关联后重新生成页面"}
+        return _waiting_merge(OWNER_MAINTENANCE, "未关联 PR：补充 PR 关联后重新生成页面")
     if not pr_entry:
-        return {"state": "user", "owner": OWNER_MAINTENANCE,
-                "reason": "PR 不在缓存：运行 --refresh-pr 刷新后核对"}
+        return _waiting_merge(OWNER_MAINTENANCE, "PR 不在缓存：运行 --refresh-pr 刷新后核对")
     pr_state = str(pr_entry.get("state") or "").upper()
     if pr_state == "MERGED":
         # Already merged: reconcile the workflow point instead of asking for an
         # approval that is no longer meaningful.
-        return {"state": "user", "owner": OWNER_MAINTENANCE,
-                "reason": "PR 已合并：核对合并结果并将开发点置为 done"}
+        return _waiting_merge(OWNER_MAINTENANCE, "PR 已合并：核对合并结果并将开发点置为 done")
     if pr_state != "OPEN":
         # A stale cache can still carry green checks from when the PR was open.
-        return {"state": "user", "owner": OWNER_MAINTENANCE,
-                "reason": f"PR 状态 {pr_state or '未知'}：刷新缓存并核对是否重开或关闭开发点"}
+        return _waiting_merge(OWNER_MAINTENANCE, f"PR 状态 {pr_state or '未知'}：刷新缓存并核对是否重开或关闭开发点")
+
+    remote_head = pr_entry.get("headRefOid")
+    recorded_head = point.get("head_sha")
+    reviewed_head = point.get("reviewed_head_sha")
+    reviewed_pr = point.get("reviewed_pr")
+    if not isinstance(remote_head, str) or not FULL_COMMIT_SHA.fullmatch(remote_head):
+        return _waiting_merge(OWNER_MAINTENANCE, "缓存缺少完整 PR 提交号，运行 --refresh-pr 后核对")
+    if not isinstance(recorded_head, str) or not FULL_COMMIT_SHA.fullmatch(recorded_head):
+        return _waiting_merge(OWNER_MAINTENANCE, "工作流未记录完整 PR 提交号")
+    if type(reviewed_pr) is not int or not isinstance(reviewed_head, str) or not FULL_COMMIT_SHA.fullmatch(reviewed_head):
+        return _waiting_merge(OWNER_MAINTENANCE, "工作流未记录已审 PR 或提交，核对并重新记录审查")
+    if pr != reviewed_pr:
+        return _waiting_merge(OWNER_MAINTENANCE, "登记的 PR 与审查记录不一致，需要复审")
+    if recorded_head != reviewed_head:
+        return _waiting_merge(OWNER_MAINTENANCE, "登记的 PR 提交与已审提交不一致，需要复审")
+    if remote_head != reviewed_head:
+        return _waiting_merge(OWNER_MAINTENANCE, "缓存中的 PR 提交与已审提交不一致，刷新并核对是否需要复审")
+    if not _current_pr_snapshot(cache_at, point.get("updated_at"), now):
+        return _waiting_merge(OWNER_MAINTENANCE, "PR 缓存已过期或时间无法核对，运行 --refresh-pr")
+
+    draft = pr_entry.get("isDraft")
+    decision = pr_entry.get("reviewDecision")
+    github_state = pr_entry.get("mergeStateStatus")
+    base = pr_entry.get("baseRefName")
+    if type(draft) is not bool or not isinstance(decision, str) or not github_state or not base:
+        return _waiting_merge(OWNER_MAINTENANCE, "PR 缓存缺少合并条件，运行 --refresh-pr 后核对")
+    if base != "main":
+        return _waiting_merge(OWNER_ENGINEER, "PR 目标分支不是 main，核对后重新审查")
+    if draft or github_state == "DRAFT":
+        return _waiting_merge(OWNER_ENGINEER, "PR 仍是草稿", label="草稿待就绪")
+    if decision == "CHANGES_REQUESTED":
+        return _waiting_merge(OWNER_ENGINEER, "GitHub 审查要求修改", label="审查待修复")
+    if decision not in {"", "APPROVED"}:
+        return _waiting_merge(OWNER_MAINTENANCE, "GitHub 审查待完成，核对当前审查要求")
     checks = pr_entry.get("checks") or {}
     total = sum(int(checks.get(key) or 0) for key in CI_KEYS)
     if total == 0:
-        # No checks means nobody has proved the head is safe to merge; a green
-        # "mergeable" bit alone is not a substitute for CI, and the engineer has
-        # to wire CI up before anyone can.
-        return {"state": "user", "owner": OWNER_ENGINEER, "reason": "无 CI 检查"}
+        return _waiting_merge(OWNER_CI, "GitHub 尚未报告 CI 检查")
     failing = int(checks.get("fail") or 0) + int(checks.get("pending") or 0)
     if failing:
         # Running checks are CI's next step, red ones the engineer's; neither is
@@ -496,11 +554,22 @@ def merge_state(point: dict, pr_entry: dict | None) -> dict[str, Any]:
         owner = OWNER_CI if not int(checks.get("fail") or 0) else OWNER_ENGINEER
         parts = [f'fail {checks.get("fail", 0)}' if checks.get("fail") else "",
                  f'pending {checks.get("pending", 0)}' if checks.get("pending") else ""]
-        return {"state": "user", "owner": owner, "reason": "检查未全绿：" + "/".join(p for p in parts if p)}
+        label = "CI 未通过" if owner == OWNER_ENGINEER else None
+        return _waiting_merge(owner, "检查未全绿：" + "/".join(p for p in parts if p), label=label)
+    missing = pr_entry.get("missing_gate_checks")
+    unmet = pr_entry.get("unmet_gate_checks")
+    if not isinstance(missing, list) or not isinstance(unmet, list):
+        return _waiting_merge(OWNER_MAINTENANCE, "缓存缺少应有的 CI 检查信息，运行 --refresh-pr 后核对")
+    if missing:
+        return _waiting_merge(OWNER_CI, "GitHub 尚未报告：" + "、".join(missing))
+    if unmet:
+        return _waiting_merge(OWNER_ENGINEER, "必检任务未通过：" + "、".join(unmet), label="CI 未通过")
     if str(pr_entry.get("mergeable") or "").upper() != "MERGEABLE":
-        return {"state": "user", "owner": OWNER_ENGINEER,
-                "reason": f'PR 不可合并：{pr_entry.get("mergeable") or "未知"}'}
-    return {"state": "codex", "owner": None, "reason": "可交给 Codex 合并（检查全绿、PR mergeable）"}
+        return _waiting_merge(OWNER_ENGINEER, f'PR 不可合并：{pr_entry.get("mergeable") or "未知"}')
+    if github_state != "CLEAN":
+        owner = OWNER_ENGINEER if github_state in {"BEHIND", "DIRTY"} else OWNER_MAINTENANCE
+        return _waiting_merge(owner, f"GitHub 合并条件未满足（{github_state}），核对当前状态")
+    return {"state": "codex", "owner": None, "reason": "缓存显示合并条件齐备，交 Codex 核对 GitHub 后合并"}
 
 
 def derive_decisions(point: dict, spec: dict, review: dict, tasks: dict, manual: list[str],
@@ -520,16 +589,15 @@ def derive_decisions(point: dict, spec: dict, review: dict, tasks: dict, manual:
         owner = merge.get("owner") if merge.get("state") == "user" else None
         reason = f"（{merge['reason']}）" if merge.get("reason") else ""
         if merge.get("state") == "codex":
-            if manual:
-                out.append(_clip(f"已审查通过；先处理人工待决项，再交 Codex 合并{target}"))
-            else:
-                out.append(_clip(f"已审查通过，可交 Codex 合并{target}"))
+            out.append(_clip(f"已审查通过，可交 Codex 合并{target}（合并前核对 GitHub）"))
         elif owner == OWNER_CI:
             out.append(_clip(f"等待 CI 完成{target}{reason}，无需用户操作"))
         elif owner == OWNER_ENGINEER:
             out.append(_clip(f"待工程修复后重新审查合并{target}{reason}"))
         elif owner == OWNER_MAINTENANCE:
             out.append(_clip(f"维护动作：{merge.get('reason') or '刷新缓存并核对'}{target}"))
+        elif manual and owner == OWNER_USER:
+            out.append(_clip(f"先处理人工待决项，再核对合并{target}"))
         elif merge.get("reason"):
             out.append(_clip(f"等待用户批准合并{target}{reason}"))
         else:
@@ -557,11 +625,13 @@ def build_model(*, state: dict, config: dict, summary: dict, issues: list[str], 
         verification = collect_verification(workdir, point_id)
         review = collect_review(workdir, point_id)
         pr_entry = pr["pulls"].get(str(point.get("pr"))) if point.get("pr") else None
-        merge = merge_state(point, pr_entry)
+        manual = decisions.get(point_id) or []
+        merge = merge_state(point, pr_entry, cache_at=pr.get("generated_at"), now=now)
+        if manual and merge["state"] == "codex":
+            merge = _waiting_merge(OWNER_USER, "人工待决项尚未处理")
         changes = _change_summary((pr_entry or {}).get("files") or [], (pr_entry or {}).get("title"),
                                   (pr_entry or {}).get("body"),
                                   (pr_entry or {}).get("implementation_summary"))
-        manual = decisions.get(point_id) or []
         derived = derive_decisions(point, spec, review, tasks, manual, merge)
         status_label = STATUS_LABELS.get(point.get("status"), str(point.get("status")))
         if point.get("status") == "awaiting_merge" and not manual:
@@ -569,8 +639,8 @@ def build_model(*, state: dict, config: dict, summary: dict, issues: list[str], 
             # stays a user decision instead of being relabelled as Codex/CI work.
             if merge.get("state") == "codex":
                 status_label = "可交 Codex 合并"
-            elif merge.get("owner") in MERGE_STATUS_LABELS:
-                status_label = MERGE_STATUS_LABELS[merge["owner"]]
+            elif merge.get("label"):
+                status_label = merge["label"]
         task_map = point.get("task_ids") or {}
         assignment = tasks.get(point_id) if isinstance(tasks.get(point_id), dict) else {}
         card = {
@@ -832,7 +902,8 @@ def render_html(model: dict) -> str:
 # ---------------------------------------------------------------------------
 # PR cache refresh (the only networked step, explicit opt-in)
 # ---------------------------------------------------------------------------
-GH_FIELDS = "number,title,body,headRefName,state,mergeable,url,files,statusCheckRollup"
+GH_FIELDS = ("number,title,body,headRefName,headRefOid,baseRefName,isDraft,reviewDecision,"
+             "state,mergeable,mergeStateStatus,url,files,statusCheckRollup")
 
 
 def refresh_pr_cache(workdir: Path, *, run=subprocess.run) -> dict[str, Any]:
@@ -844,7 +915,7 @@ def refresh_pr_cache(workdir: Path, *, run=subprocess.run) -> dict[str, Any]:
         # gh prints UTF-8 JSON; on Windows a piped child defaults to the ANSI code
         # page (cp936/GBK, cp1252), which mangles Chinese PR titles or raises on
         # decode. Force UTF-8 and never let one bad byte discard the whole cache.
-        completed = run(command, capture_output=True, text=True, encoding="utf-8",
+        completed = run(command, cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
                         errors="replace", timeout=120, check=False)
     except (OSError, subprocess.SubprocessError) as error:
         return {"ok": False, "code": 2, "message": f"gh 调用失败：{type(error).__name__}"}
@@ -857,7 +928,7 @@ def refresh_pr_cache(workdir: Path, *, run=subprocess.run) -> dict[str, Any]:
     if not isinstance(pulls, list):
         return {"ok": False, "code": 2, "message": "gh 输出不是 PR 数组：保留旧缓存"}
     payload = {"generated_at": wf.iso(wf.utcnow()), "pulls": pulls}
-    (workdir / PR_CACHE_NAME).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    wf.write_json(workdir / PR_CACHE_NAME, payload)
     return {"ok": True, "code": 0, "message": f"已刷新 {len(pulls)} 个 PR"}
 
 
