@@ -25,11 +25,13 @@
   --status verifying `
   --branch agent/dev-0002 `
   --worktree C:\worktrees\dev-0002 `
-  --pr 6 --head-sha e2518009 `
+  --pr 6 --head-sha e25180091335c4d3b60a8f21ffc77623b275be8a `
   --task implementation=t6 --task verification=t7
 ```
 
 `pending --json` 输出机器可读列表。
+
+登记最新 GitHub PR 的完整提交 SHA。审查通过时用 `review-pass <dev-id> --head-sha <审查通过的完整 SHA>` 核对当前登记值，再生成进度页。新提交或替换 PR 后，按新版本复审并重新记录。
 
 ## 边界
 

@@ -23,6 +23,35 @@ from tools.dev_workflow import agent_workflow as wf  # noqa: E402
 from tools.dev_workflow import progress_page as pp  # noqa: E402
 
 FIXED_NOW = "2026-11-02T08:00:00+00:00"
+REVIEWED_HEAD = "4" * 40
+
+
+def _pr_check(name, conclusion="SUCCESS", *, status="COMPLETED"):
+    return {"name": name, "status": status, "conclusion": conclusion}
+
+
+def _pr(number: int, **overrides):
+    return {
+        "number": number,
+        "title": f"PR {number}",
+        "headRefName": f"work-{number}",
+        "headRefOid": REVIEWED_HEAD,
+        "baseRefName": "main",
+        "isDraft": False,
+        "reviewDecision": "",
+        "mergeStateStatus": "CLEAN",
+        "state": "OPEN",
+        "mergeable": "MERGEABLE",
+        "url": f"u{number}",
+        "files": [],
+        "statusCheckRollup": [
+            _pr_check("Development workflow tooling"),
+            _pr_check("Windows core and frontend", "SKIPPED"),
+            _pr_check("Website change scope"),
+            _pr_check("Website build", "SKIPPED"),
+        ],
+        **overrides,
+    }
 
 
 def _point(point_id: str, *, source="user", title=None, status="queued", **extra):
@@ -31,6 +60,11 @@ def _point(point_id: str, *, source="user", title=None, status="queued", **extra
     point = wf.new_point(state, source=source, title=title or f"开发点 {point_id}")
     point["id"] = point_id
     point["status"] = status
+    point["updated_at"] = FIXED_NOW
+    if status == "awaiting_merge":
+        point["head_sha"] = REVIEWED_HEAD
+        point["reviewed_head_sha"] = REVIEWED_HEAD
+        point["reviewed_pr"] = extra.get("pr")
     point.update(extra)
     return point
 
@@ -82,9 +116,9 @@ class ProgressPageTests(unittest.TestCase):
     def verification(self, name, body):
         (self.workdir / "verification" / f"{name}.md").write_text(body, encoding="utf-8")
 
-    def pr_cache(self, pulls):
+    def pr_cache(self, pulls, *, cached_at=FIXED_NOW):
         (self.workdir / pp.PR_CACHE_NAME).write_text(
-            json.dumps({"generated_at": FIXED_NOW, "pulls": pulls}, ensure_ascii=False), encoding="utf-8")
+            json.dumps({"generated_at": cached_at, "pulls": pulls}, ensure_ascii=False), encoding="utf-8")
 
     def build(self, **kwargs):
         return pp.build_page(workdir=self.workdir, root=ROOT, now=FIXED_NOW,
@@ -300,12 +334,9 @@ class ProgressPageTests(unittest.TestCase):
             _point("dev-0005", status="done"),
         ])
         self.pr_cache([
-            {"number": 7, "title": "可合并", "headRefName": "b1", "state": "OPEN", "mergeable": "MERGEABLE",
-             "url": "u7", "files": [], "statusCheckRollup": [{"conclusion": "SUCCESS"}, {"conclusion": "SKIPPED"}]},
-            {"number": 8, "title": "检查未绿", "headRefName": "b2", "state": "OPEN", "mergeable": "MERGEABLE",
-             "url": "u8", "files": [], "statusCheckRollup": [{"conclusion": "SUCCESS"}, {"conclusion": "FAILURE"}]},
-            {"number": 9, "title": "冲突", "headRefName": "b3", "state": "OPEN", "mergeable": "CONFLICTING",
-             "url": "u9", "files": [], "statusCheckRollup": [{"conclusion": "SUCCESS"}]},
+            _pr(7, title="可合并"),
+            _pr(8, title="检查未绿", statusCheckRollup=[{"conclusion": "SUCCESS"}, {"conclusion": "FAILURE"}]),
+            _pr(9, title="冲突", mergeable="CONFLICTING", mergeStateStatus="DIRTY"),
         ])
         page = self.build()
         by_id = {c["id"]: c for c in self.cards(page["model"])}
@@ -332,6 +363,74 @@ class ProgressPageTests(unittest.TestCase):
         self.assertIn('<span class="badge">待工程修复</span>', page["html"])
         self.assertEqual(by_id["dev-0002"]["merge"]["owner"], "engineer")
 
+    def test_pr_merge_gate_uses_current_review_and_complete_ci(self):
+        gate = _pr(7)["statusCheckRollup"]
+        cases = (
+            ("changed head", {"headRefOid": "3" * 40}, "maintenance", "提交与已审提交不一致"),
+            ("abbreviated cache head", {"headRefOid": REVIEWED_HEAD[:8]}, "maintenance", "完整 PR 提交号"),
+            ("old cache schema", {"mergeStateStatus": None}, "maintenance", "缺少合并条件"),
+            ("draft", {"isDraft": True}, "engineer", "仍是草稿"),
+            ("requested changes", {"reviewDecision": "CHANGES_REQUESTED"}, "engineer", "审查要求修改"),
+            ("review required", {"reviewDecision": "REVIEW_REQUIRED"}, "maintenance", "审查待完成"),
+            ("GitHub blocked", {"mergeStateStatus": "BLOCKED"}, "maintenance", "BLOCKED"),
+            ("GitHub unknown", {"mergeStateStatus": "UNKNOWN"}, "maintenance", "UNKNOWN"),
+            ("behind main", {"mergeStateStatus": "BEHIND"}, "engineer", "BEHIND"),
+            ("wrong base", {"baseRefName": "other"}, "engineer", "目标分支不是 main"),
+            ("no checks", {"statusCheckRollup": []}, "ci", "尚未报告 CI"),
+            ("incomplete rollup", {"statusCheckRollup": gate[:3]}, "ci", "Website build"),
+            ("nonterminal run", {"statusCheckRollup": [
+                *gate[:3], _pr_check("Website build", status="IN_PROGRESS")]}, "ci", "pending 1"),
+            ("skipped scope", {"statusCheckRollup": [
+                *gate[:2], _pr_check("Website change scope", "SKIPPED"), gate[3]]}, "engineer", "必检任务未通过"),
+        )
+        self.write_state([_point("dev-0001", status="awaiting_merge", pr=7)])
+        for name, fields, owner, reason in cases:
+            with self.subTest(name=name):
+                self.pr_cache([_pr(7, **fields)])
+                page = self.build()
+                card = next(self.cards(page["model"]))
+                self.assertEqual(card["merge"]["state"], "user")
+                self.assertEqual(card["merge"]["owner"], owner)
+                self.assertIn(reason, card["merge"]["reason"])
+                self.assertNotIn("可交 Codex 合并", page["html"])
+
+    def test_old_cache_and_missing_workflow_head_require_reconciliation(self):
+        self.write_state([_point("dev-0001", status="awaiting_merge", pr=7, reviewed_head_sha=None)])
+        self.pr_cache([_pr(7)])
+        self.assertIn("未记录已审 PR 或提交", next(self.cards(self.build()["model"]))["merge"]["reason"])
+
+        self.write_state([_point("dev-0001", status="awaiting_merge", pr=7, reviewed_pr=8)])
+        page = self.build()
+        self.assertIn("登记的 PR 与审查记录不一致", next(self.cards(page["model"]))["merge"]["reason"])
+        self.assertNotIn("可交 Codex 合并", page["html"])
+
+        new_head = "3" * 40
+        self.write_state([_point("dev-0001", status="awaiting_merge", pr=7, head_sha=new_head)])
+        self.pr_cache([_pr(7, headRefOid=new_head)])
+        page = self.build()
+        self.assertIn("登记的 PR 提交与已审提交不一致", next(self.cards(page["model"]))["merge"]["reason"])
+        self.assertNotIn("可交 Codex 合并", page["html"])
+
+        self.write_state([_point("dev-0001", status="awaiting_merge", pr=7,
+                                 updated_at="2026-11-02T06:30:00Z")])
+        self.pr_cache([_pr(7)], cached_at="2026-11-02T06:59:59Z")
+        self.assertEqual(next(self.cards(self.build()["model"]))["merge"]["owner"], "maintenance")
+        self.pr_cache([_pr(7)], cached_at="2026-11-02T07:00:00Z")
+        self.assertEqual(next(self.cards(self.build()["model"]))["merge"]["state"], "codex")
+
+        self.write_state([_point("dev-0001", status="awaiting_merge", pr=7,
+                                 updated_at="2026-11-02T07:30:00Z")])
+        for timestamp in ("2026-11-02T07:29:59Z", None, "2026-11-02T08:00:01Z", "2026-11-02T07:35:00"):
+            with self.subTest(timestamp=timestamp):
+                self.pr_cache([_pr(7)], cached_at=timestamp)
+                page = self.build()
+                card = next(self.cards(page["model"]))
+                self.assertEqual(card["merge"]["owner"], "maintenance")
+                self.assertIn("--refresh-pr", card["merge"]["reason"])
+                self.assertNotIn("可交 Codex 合并", page["html"])
+        self.pr_cache([_pr(7)], cached_at="2026-11-02T07:30:01Z")
+        self.assertEqual(next(self.cards(self.build()["model"]))["merge"]["state"], "codex")
+
     def test_merge_ownership_routes_cards_to_the_next_actor(self):
         """Codex/CI/engineer/maintenance cards are not "待你决定" by themselves."""
         self.write_state([
@@ -341,12 +440,9 @@ class ProgressPageTests(unittest.TestCase):
             _point("dev-0004", status="awaiting_merge", pr=10),  # cache missing → refresh
         ])
         self.pr_cache([
-            {"number": 7, "title": "全绿", "headRefName": "b1", "state": "OPEN", "mergeable": "MERGEABLE",
-             "url": "u7", "files": [], "statusCheckRollup": [{"conclusion": "SUCCESS"}]},
-            {"number": 8, "title": "检查中", "headRefName": "b2", "state": "OPEN", "mergeable": "MERGEABLE",
-             "url": "u8", "files": [], "statusCheckRollup": [{"state": "PENDING"}]},
-            {"number": 9, "title": "检查失败", "headRefName": "b3", "state": "OPEN", "mergeable": "MERGEABLE",
-             "url": "u9", "files": [], "statusCheckRollup": [{"conclusion": "FAILURE"}]},
+            _pr(7, title="全绿"),
+            _pr(8, title="检查中", statusCheckRollup=[{"state": "PENDING"}]),
+            _pr(9, title="检查失败", statusCheckRollup=[{"conclusion": "FAILURE"}]),
         ])
         page = self.build()
         model = page["model"]
@@ -440,11 +536,7 @@ class ProgressPageTests(unittest.TestCase):
         # recorded nothing, and stays a user decision when page-decisions.md has an
         # explicit product question.
         self.write_state([_point("dev-0001", status="awaiting_merge", pr=7)])
-        self.pr_cache([{
-            "number": 7, "title": "全绿", "headRefName": "b1", "state": "OPEN",
-            "mergeable": "MERGEABLE", "url": "u7", "files": [],
-            "statusCheckRollup": [{"conclusion": "SUCCESS"}],
-        }])
+        self.pr_cache([_pr(7, title="全绿")])
         first = self.build()["model"]
         card = next(self.cards(first))
         self.assertEqual(card["status_label"], "可交 Codex 合并")
@@ -459,6 +551,7 @@ class ProgressPageTests(unittest.TestCase):
         self.assertEqual(card["manual_decisions"], ["是否允许删除现有用户数据？"])
         self.assertIn("是否允许删除现有用户数据？", card["decisions"])
         self.assertEqual(card["status_label"], "待批准合并")
+        self.assertEqual(card["merge"]["owner"], "user")
         pending = {c["id"] for src in model["groups"]["待你决定"].values() for c in src}
         active = {c["id"] for src in model["groups"]["进行中"].values() for c in src}
         self.assertEqual(pending, {"dev-0001"})
@@ -681,8 +774,7 @@ class ProgressPageTests(unittest.TestCase):
                     for source in ("user", "agent") for c in group[source]}
         self.assertEqual(snapshot["dev-0001"]["changes"]["summary"], "已增加责任字段并修正卡片分组。")
 
-    def test_refresh_pr_requests_the_pr_body_field(self):
-        self.assertIn("body", pp.GH_FIELDS.split(","))
+    def test_refresh_pr_requests_summary_and_merge_gate_fields(self):
         recorded = {}
 
         class Completed:
@@ -699,7 +791,8 @@ class ProgressPageTests(unittest.TestCase):
             outcome = pp.refresh_pr_cache(self.workdir, run=fake_run)
         self.assertTrue(outcome["ok"])
         fields = recorded["command"][recorded["command"].index("--json") + 1].split(",")
-        self.assertIn("body", fields)
+        self.assertTrue({"body", "headRefOid", "baseRefName", "isDraft", "reviewDecision",
+                         "mergeStateStatus", "statusCheckRollup"}.issubset(fields))
         cache = json.loads((self.workdir / pp.PR_CACHE_NAME).read_text(encoding="utf-8"))
         self.assertIn("## 目的", cache["pulls"][0]["body"])
         self.assertEqual(pp.extract_summary(cache["pulls"][0]["body"]), "摘要。")

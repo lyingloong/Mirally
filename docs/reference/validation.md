@@ -34,7 +34,7 @@ npm --prefix website run preview
 
 `dist/` 和单文件 `exports/Mirally.html` 均位于 `website/`，属于可重新生成的忽略产物。[网站工作流](../../.github/workflows/website.yml)在网站相关 PR 中独立构建；`main` push 确认存在网站变更后发布 Pages，手动运行仅允许从 `main` 发布。网站检查不替代产品检查，混合改动分别验证。
 
-发布目标为 `https://lyingloong.github.io/Mirally/`。先验证新站首页、`/updates/` 和日期深链接、图片/字体及窄窗口/键盘操作，再将旧站切为保留路径、query 与 hash 的跳转，并核对跳转后的实际页面。构建成功不等于线上部署或重定向已生效；每次发布以工作流结果和实际访问为准。[历史验收记录](../../website/VERIFICATION.md)保留迁移前证据，不代表本次合仓或新地址验收。
+发布目标为 `https://lyingloong.github.io/Mirally/`。核验 Actions 部署结果，并实际访问首页、`/updates/` 和日期深链接，检查图片、字体、窄窗口与键盘操作。旧站链接的现状见[网站说明](../../website/README.md)，迁移前的验收证据见[历史验收记录](../../website/VERIFICATION.md)。
 
 ### 本地命令
 
@@ -73,13 +73,13 @@ npm --prefix frontend/control-ui run build
 
 完整 Python 套件依赖可写的临时目录；同一 `TEMP` 目录残留旧数据时，个别记忆/观察分页用例可能报与本改动无关的失败。重跑前换用新的可写临时目录（例如 `$env:TEMP` 指向仓库内 gitignored 的空目录）即可复现全绿；CI runner 使用真实 Temp，不需要此覆盖。
 
-验证产物统一写到 `output/tmp/<工具或开发点>/<运行标识>/`（`output/` 已忽略）。仓库根出现未被忽略的 `tmp*` 条目会让 `git status` 长期带噪声，用只读检查确认：
+验证产物统一写到 `output/tmp/<工具或开发点>/<运行标识>/`。保留 `output/agent-workflow/` 的本机开发状态。仓库根如有未被忽略的 `tmp*` 条目，用只读检查确认：
 
 ```powershell
 .\.venv\Scripts\python.exe tools\check_local_artifacts.py
 ```
 
-它只报告、不写盘、不删除、不改 `.gitignore`：退出码 `0` 干净，`1` 有未忽略的根级 `tmp*` 条目（逐个列出），`2` 不是仓库根。清理是显式的人工动作——把需要的文件挪进 `output/tmp/`，其余自行删除；仓库不提供自动清理，也不替你判断哪些还能用。
+`check_local_artifacts.py` 只报告仓库根的 `tmp*` 条目。退出码 `0` 表示干净，`1` 表示有未忽略的条目，`2` 表示不是仓库根。要检查 `output/tmp/` 下过期的运行目录，可执行 `tools/check_cleanup_local_artifacts.py` 预览。该命令只有显式加 `--apply` 才清理符合条件的目录。
 
 ```powershell
 # 对显式 --test-mode --home 的隔离宿主，GUI 顺序运行
@@ -94,6 +94,8 @@ node tools/verify_framework_weixin_browser.mjs <隔离home/runtime.json>
 .\.venv\Scripts\python.exe tools\verify_framework_shell.py --close-exit
 .\.venv\Scripts\python.exe tools\verify_framework_shell.py --page-quit --reuse-host
 ```
+
+手机网页脚本以隔离宿主的 `runtime.json` 为入口。它创建合成会话、从桌面配对手机、验证消息往返和设备偏好，再撤销本次配对。默认把截图写到 `output/tmp/verify-framework-mobile-browser/`。
 
 `--test-mode` 必须同时指定独立 `--home`，用于确定性 UI 测试，不是生产失败回退。
 

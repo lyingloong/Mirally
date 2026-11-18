@@ -1,6 +1,6 @@
 # 仓库布局与结构约定
 
-更新：2026-11-02，Asia/Shanghai。状态：现行约定 + 只读审计；不代表已批准任何目录搬迁。需求来源：user-seed `SEED-REPO-STRUCTURE`（用户原话「维护仓库结构」），由开发点 dev-0020 落成可复跑检查。
+更新：2026-11-18，Asia/Shanghai。状态：现行约定与只读审计。开发协作目录见 [开发与协作](../development/README.md)。
 
 本文回答“东西该放哪、什么不该入库、谁依赖谁”。执行检查用 [tools/check_structure.py](../../tools/check_structure.py)，它只报告、不改文件；目录搬迁与命名整改都要另立开发点并经用户批准。
 
@@ -16,7 +16,6 @@
 | `docs/` | 现行文档 | 索引在 [文档导航](../README.md)；一个主题一篇 |
 | `config/` | 产品 YAML 与模板 | `config/mirally/`、`config/mirally/ufo/`；模板约定见下文 |
 | `website/` | 产品与愿景展示站 | 独立 npm 依赖、静态构建与 Pages 发布，不参与主产品启动链；见[网站说明](../../website/README.md) |
-| `UFO/`、`.gitmodules`、`requirements-ufo.txt` | 只读子模块与专用依赖 | 移除由独立 PR 处理；移除后同步本表与审计白名单 |
 | `.github/` | CI、静态站发布与仓库自动化 | 产品检查与网站构建/Pages 发布分开，不承载产品运行时行为 |
 | 根文件（`AGENTS.md`、`CONTRIBUTING.md`、`README.md`、`CHANGELOG.md`、`run.ps1`、`.gitignore`、`requirements-framework.txt`） | 项目级约定与入口 | 不新增根级脚本/配置；确有需要先登记 |
 
@@ -36,7 +35,8 @@
 | 构建产物 | `dist/`、`*.tsbuildinfo`、`*.map`、`coverage/` | 由构建重新生成，不入库 |
 | 依赖目录 | `node_modules/`、`**/.venv/` | 由安装命令生成 |
 | 运行时缓存 | `__pycache__/`、`.pytest_cache/`、`.artifacts/` | 可删除重建 |
-| 本机运行状态 | `output/`、`tmp/`、`.agent-teams/` | gitignore 或仅本机保留 |
+| 本机运行状态 | `output/agent-workflow/`、`.agent-teams/` | 忽略跟踪。保存开发点和团队现场，由持有工作区的队长维护 |
+| 可重新生成的验证产物 | `output/tmp/`、`tmp/` | 与团队状态分开，可按[验证文档](validation.md)清理 |
 
 新增忽略规则或改变构建输出位置属于独立改动；本约定不修改 `.gitignore`。
 

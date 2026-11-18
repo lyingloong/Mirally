@@ -65,6 +65,13 @@ class ArtifactTests(unittest.TestCase):
     def test_clean_file_list_passes(self):
         self.assertTrue(check_structure.check_artifacts(["README.md", "tools/check_structure.py"])["ok"])
 
+    def test_workflow_runtime_files_are_reported_without_flagging_sources(self):
+        local = ["output/agent-workflow/state.json", "output/tmp/check/report.json",
+                 ".agent-teams/team/tasks.json", "nested/.agent-teams/team/inbox/entry.json"]
+        sources = ["docs/development/README.md", "tools/dev_workflow/agent_workflow.py",
+                   "tests/fixtures/workflow/example.json"]
+        self.assertEqual(check_structure.check_artifacts(local + sources)["matches"], sorted(local))
+
 
 class ToolsNamingTests(unittest.TestCase):
     def test_current_tool_names_pass(self):

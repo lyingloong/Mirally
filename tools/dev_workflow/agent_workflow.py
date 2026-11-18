@@ -35,16 +35,16 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "max_auto_agent_in_flight": 2,
     "max_auto_agent_per_day": 100,
     "merge_queue_exempt": 100,
-    "primary_route": {"provider": "ustc", "model": "deepseek-flash"},
+    "primary_route": {"provider": None, "model": None},
     "quota": {
         "enabled": True,
         "retry_after_minutes": 30,
         "backoff_minutes": [30, 60, 120],
         "max_retries": 2,
         "fallback": {
-            "enabled": True,
-            "provider": "deepseek-account",
-            "model": "deepseek-flash",
+            "enabled": False,
+            "provider": None,
+            "model": None,
             "mode": "quota_restart_only",
         },
     },
@@ -242,6 +242,15 @@ def validate_config(config: dict[str, Any]) -> None:
         value = config.get(key)
         if not isinstance(value, int) or isinstance(value, bool) or value < 0:
             raise WorkflowError(f"config.{key} must be an integer >= 0")
+    primary = config.get("primary_route")
+    if primary is not None:
+        if not isinstance(primary, dict):
+            raise WorkflowError("config.primary_route must be an object")
+        route = (primary.get("provider"), primary.get("model"))
+        if any(value is not None for value in route) and not all(
+            isinstance(value, str) and value.strip() for value in route
+        ):
+            raise WorkflowError("primary route requires both provider and model, or neither")
     quota = config.get("quota")
     if not isinstance(quota, dict):
         raise WorkflowError("config.quota must be an object")
@@ -259,7 +268,7 @@ def validate_config(config: dict[str, Any]) -> None:
     if quota.get("enabled") and fallback and fallback.get("enabled"):
         if fallback.get("mode") != "quota_restart_only":
             raise WorkflowError("config.quota.fallback.mode currently supports only quota_restart_only")
-        if not fallback.get("provider") or not fallback.get("model"):
+        if not all(isinstance(fallback.get(key), str) and fallback[key].strip() for key in ("provider", "model")):
             raise WorkflowError("fallback requires both provider and model")
 
 
@@ -517,6 +526,8 @@ def new_point(
         "worktree": None,
         "pr": None,
         "head_sha": None,
+        "reviewed_pr": None,
+        "reviewed_head_sha": None,
         "task_ids": {},
         "auto_started": False,
         "auto_started_at": None,
@@ -905,8 +916,14 @@ def start_point(state: dict[str, Any], config: dict[str, Any], point_id: str) ->
     return point
 
 
-def review_pass(state: dict[str, Any], config: dict[str, Any], point_id: str) -> dict[str, Any]:
+def review_pass(state: dict[str, Any], config: dict[str, Any], point_id: str,
+                *, expected_head: str | None = None) -> dict[str, Any]:
     point = point_by_id(state, point_id)
+    pr = point.get("pr")
+    head = point.get("head_sha")
+    has_full_head = isinstance(head, str) and len(head) == 40 and all(char in "0123456789abcdef" for char in head)
+    if expected_head is not None and (not has_full_head or expected_head != head):
+        raise WorkflowError(f"{point_id} reviewed head does not match the registered full head SHA")
     transition(
         state,
         config,
@@ -914,6 +931,9 @@ def review_pass(state: dict[str, Any], config: dict[str, Any], point_id: str) ->
         "awaiting_merge",
         note="review passed; waiting for user/Codex merge decision",
     )
+    has_review_identity = type(pr) is int and pr > 0 and has_full_head
+    point["reviewed_pr"] = pr if has_review_identity else None
+    point["reviewed_head_sha"] = head if has_review_identity else None
     return point
 
 
@@ -931,6 +951,8 @@ def review_fail(
         "repairing",
         note=reason or "review requested changes; returned to engineer",
     )
+    point["reviewed_pr"] = None
+    point["reviewed_head_sha"] = None
     return point
 
 
@@ -1388,6 +1410,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     review_pass_cmd = sub.add_parser("review-pass", help="mark review passed; never merges")
     review_pass_cmd.add_argument("id")
+    review_pass_cmd.add_argument("--head-sha", help="require this full reviewed commit to match the registered PR head")
     review_fail_cmd = sub.add_parser("review-fail", help="return a point to the engineer")
     review_fail_cmd.add_argument("id")
     review_fail_cmd.add_argument("--reason")
@@ -1581,7 +1604,7 @@ def command_review_pass(args: argparse.Namespace) -> int:
     state_path = Path(args.state)
     state = load_state(state_path)
     config = load_config(Path(args.config))
-    point = review_pass(state, config, args.id)
+    point = review_pass(state, config, args.id, expected_head=args.head_sha)
     save_state(state_path, state)
     print_json(point)
     return 0

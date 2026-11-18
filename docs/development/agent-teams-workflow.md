@@ -1,30 +1,6 @@
 # AgentTeams 仓库开发工作流
 
-本文定义 Mirally 的常驻开发工作流：需求师持续产出开发点，工程师在独立 worktree 实现并提 PR，审查师验证和审查，**合并在审查通过后由用户或已获授权的 Codex 执行，队长与成员绝不自行 merge**。当前已进入持续开发循环；队长运行手册与决策口径见 [AgentTeams 控制核心](workflow-control-core.md)。
-
-## 为什么不是一次性 DAG
-
-早期做法是为单个任务预先写死“需求 → 实现 → 审查 → 合并”的 DAG。它适合一次性任务，但不能持续接收新开发点，也不能表达“等待用户/Codex 合并”和“配额暂停后恢复”。本工作流改为：
-
-```text
-用户加点 ─┐
-          ├──> Backlog（source=user / agent）
-AI 发现 ──┘          │
-                     ▼
-              队长调度器
-      用户点优先；load < 并发数才启动
-                     │
-                     ▼
-   需求规格 → 实现 → 验证 → 审查 ──fail──> 修复 → 复审
-                     │ pass
-                     ▼
-          awaiting_merge（等待用户或 Codex 合并；池内全部不占并发）
-                     │ 用户/Codex 直接在 GitHub 合并
-                     ▼
-              核对 origin/main → 汇报 → done
-```
-
-队长（主 Agent）读状态、建任务、向用户汇报；成员在各自 worktree 工作。每个开发点按同一套任务模板动态创建，不再为每个任务重写整条计划。
+本文记录 Mirally 的开发协作规则。团队按需求、实现、验证和审查推进开发点，用户或已获授权的 Codex 在 GitHub 合并。启动、日常巡检和恢复见 [队长运行手册](workflow-control-core.md)，目录与工具见 [开发与协作](README.md)。
 
 ## 角色与编制
 
@@ -64,13 +40,13 @@ queued → specifying → implementing → verifying → reviewing
 ```text
 active_dev     = 正在需求/实现/验证/审查/修复的点数
 merge_waiting  = awaiting_merge 的点数
-exempt         = min(merge_queue_exempt, merge_waiting)  # 运行配置默认覆盖全部池内 PR
+exempt         = min(merge_queue_exempt, merge_waiting)
 load           = active_dev + max(0, merge_waiting - exempt)
 free_slots     = max(0, concurrency - load)
 ```
 
 - 只有 `free_slots > 0` 才启动新开发。
-- 等待用户/Codex 合并的 PR **全部不占开发并发**，因此池子可以堆积；合并不由队长或成员负责。
+- 待合并池可积压。池内优先使用 `merge_queue_exempt` 的免占额度，超出时按上述公式计算负载。
 - 合并由用户/Codex 在 GitHub 完成；状态助手只按结果记账（`merging → done`，或非队首直接合并后用 `merge-reconcile`）。
 - 配额暂停期间 `free_slots` 不用于启动新开发。
 
@@ -84,13 +60,13 @@ free_slots     = max(0, concurrency - load)
 
 1. **用户点优先**。用户提供的点直接进入 `queued`，先占开发槽；如果用户点会占满所有空槽，`start` 会拒绝启动 AI 点，把空槽留给用户点。因容量不足等待返工的用户点（`blocked` / `blocked_reason=capacity`）也属于用户优先：槽位释放后队长先 `resume_capacity`，AI 自动发现和启动不能抢先占槽。
    状态助手 `build_summary` 的 `action` 依次为：配额暂停 `wait_quota` → 用户待开发点 `start_user` → 用户容量返工 `resume_capacity` → AI 队列 `start_agent` → AI 自动启动 `promote_agent` → 需求师发现 `discover_agent`（有未交付的新合并队首、或有空槽的容量返工待恢复时让位；已交付的合并池不再阻塞发现）→ 容量返工恢复 `resume_capacity`（有空槽且存在 `capacity_blocked` 点时优先于合并队列提醒）→ 未交付的新合并队首 `ask_user_merge`（默认 `merge_queue_exempt=100` 全池免占时同样可达，只提醒一次）→ 已交付的同一池 `wait_merge_approval`（只在报告里继续列出，不重复索取决定；其余准入满足时仍返回 `discover_agent`）。
-   “已交付”是**显式持久化状态**：只有真正向用户交付队首的命令才记录它——`agent_workflow.py next --deliver` 写出 `merge_queue_asked`（待合并 id 列表、队首、时间），普通 `next`/`status`/`set-status` 等命令只读不写，未交付的询问不会被写盘命令静默消费；队列为空时 `next --deliver` 清除该记录并落盘；任何点进入或离开待合并池（含返工后重新入池）都会使旧记录失效，因此返工复审后会重新通知，不会看起来“已答复”。
+   “已交付”是**显式持久化状态**：只有真正向用户交付队首的命令才记录它——`agent_workflow.py next --deliver` 写出 `merge_queue_asked`（待合并 id 列表、队首、时间），普通 `next` 和 `status` 不写交付状态，未交付的询问不会被写盘命令静默消费；队列为空时 `next --deliver` 清除该记录并落盘；任何点进入或离开待合并池（含返工后重新入池）都会使旧记录失效，因此返工复审后会重新通知，不会看起来“已答复”。
 2. 用户待开发点为 0、仍有空槽时，需求师可以自行发现新的 AI 点。
 3. AI 点满足以下全部条件时，可**不经用户预审直接进入开发**：
    - 没有用户待开发点，也没有用户容量等待项；
    - 有空闲并发槽；
    - AI 在飞数 < `max_auto_agent_in_flight`（运行配置默认 2，留 1 个用户槽）；
-   - 不设每日自动启动上限（运行配置 `max_auto_agent_per_day` 默认覆盖为无实际限制）；
+   - 当日自动启动数 < `max_auto_agent_per_day`（默认 100）；
    - 风险为 `low`；
    - 不涉及权限、安全、数据迁移、协议、外部服务或大重构。
 4. 不满足条件时，AI 点进入 `proposed`，由队长汇总后请用户批准或驳回。
@@ -148,88 +124,17 @@ Proposal PR 是决策载体，不进入待合并池；低风险纯文档点不�
 
 ## 配额与 30 分钟退避
 
-主路由始终是 **ustc**。只有某个任务因 ustc 配额阻塞、进入退避重启时，才允许用 `deepseek-account` 作临时 fallback；任务恢复后切回 ustc。
+队长在配额失败时执行 `block <id> --reason quota`，保留原 worktree、分支和 PR。默认首次等待 30 分钟，后续按配置退避；到期用 `resume` 恢复该点，并核对容量。可以用 DSH 会话提醒在会话运行期间提示恢复；会话停止后，以本机状态为准。
 
-默认配置：
-
-```json
-"quota": {
-  "enabled": true,
-  "retry_after_minutes": 30,
-  "backoff_minutes": [30, 60, 120],
-  "max_retries": 2,
-  "fallback": {
-    "enabled": true,
-    "provider": "deepseek-account",
-    "model": "deepseek-flash",
-    "mode": "quota_restart_only"
-  }
-}
-```
-
-处理流程：
-
-1. 队长执行 `block <id> --reason quota`，记录 `blocked_until`，第一次等待 30 分钟。
-2. 保留 worktree、分支和 PR，不丢进度；不要为了绕开配额重建任务或重复开 PR。
-3. 用 `schedule_create` 安排 30 分钟后的会话提醒。
-4. 提醒到期后先尝试 ustc 重试；仍失败则按 `[30, 60, 120]` 退避，并报告 `retry_exhausted`。
-5. 如果希望在退避期间继续该任务，可临时加一个 `deepseek-account` 成员接管；只允许这个阻塞任务使用 fallback，其他新任务仍走 ustc。
-6. fallback 任务完成后执行 `resume` 清除 fallback 标记，恢复 ustc 主路由。
-7. 超过重试次数仍失败：暂停工作流并请用户决定，不无限重试。
-
-配额暂停只阻止启动新开发，不阻止恢复已有的 quota 阻塞任务；多个任务同时阻塞时，退避到期后可逐个 `resume`，避免互相等待。`resume` 会按恢复后的负载重新计算容量。
-
-`schedule_create` 是会话级提醒；DSH 关闭后不会在后台唤醒。状态文件保留阻塞信息，重新打开后按需恢复。
+主路由沿用启动团队的 DSH profile 或本机 `primary_route`。本机显式启用的 `quota.fallback` 仅用于该配额阻塞任务的恢复。完成后清除备用路由标记，超过重试次数时报告阻塞。普通调度继续使用主路由。
 
 ## 团队生命周期
 
-1. 队长创建常驻团队；当前按 provider 分组：hwang 队长、ustc-dhsun 3 工程师、ustc-qhwang 2 需求师 + 2 审查师。roster 可随额度和角色变化调整。
-2. 首次只审批一次工作流规则和一个 bootstrap 任务；后续每个开发点的任务由队长动态创建，不再逐点审批计划。
-3. 队长在成员报告、用户消息或提醒到期时推进状态；成员不自行合并。
-4. 所有开发点结束、用户暂停或删除团队时归档。
-
-> AgentTeams 不是后台守护进程。工作流依赖 DSH 会话和团队存活；关闭后暂停，状态文件用于恢复。
-
-## Provider 分组与额度目标
-
-目标是按额度分摊、避免单 key 先撞窗口；比例是软目标，不是硬保证。
-
-| 分组 | 角色 | 额度目标 | 说明 |
-| --- | --- | --- | --- |
-| `ustc`（hwang 个人） | 队长 | ~20% | 只做调度/恢复，不跑代码；减少全量 status 和重复探测 |
-| `ustc-dhsun` | 3 工程师 | ~40% | 工程实现/返工最重，集中放这里 |
-| `ustc-qhwang` | 2 需求师 + 2 审查师 | ~40% | 规格与审查分摊；审查重时再拆到其他 key |
-
-规则：
-
-- 每次巡检从 `agent_teams_status` 读当前 roster，不把上面的角色数写死。
-- 某一组额度先耗尽时：降低该组并发、把可迁移角色换到仍有额度的 provider，或暂停该组；不自动轮换 key 规避额度。
-- 三条 key 都不可用时：暂停，不启用 deepseek-account 子代理；主会话的恢复能力单独保留。
-- 队长调用保持最低：短摘要、批量状态更新、无代码/测试、不反复做预算探测。
-- provider/成员变化时，更新本节和实际 roster；工作流文档与仓库一起维护。
+队长持有持续运行的 DSH 会话和团队。其他成员在各自 worktree 执行任务，按实际任务与可用额度分配角色。停止 DSH 会话会暂停派发，恢复见[队长运行手册](workflow-control-core.md)。GitHub 与本机状态的职责见 [开发与协作](README.md#文件与状态归属)。
 
 ## 状态与配置
 
-默认路径（`output/` 已被 gitignore）：
-
-- `output/agent-workflow/state.json`：backlog 和状态；
-- `output/agent-workflow/config.json`：本机配置；
-- `.agent-teams/<team-id>/`：DSH 团队运行状态（`team.json`、`inbox/`、`archive/`），只存在于本机工作目录，已被 gitignore；不要提交，也不要从其他 checkout 复制。
-
-默认配置关键项：
-
-```json
-{
-  "config_version": 2,
-  "concurrency": 3,
-  "max_auto_agent_in_flight": 2,
-  "max_auto_agent_per_day": 100,
-  "merge_queue_exempt": 100,
-  "primary_route": {"provider": "ustc", "model": "deepseek-flash"},
-  "quota": {"retry_after_minutes": 30, "backoff_minutes": [30, 60, 120]},
-  "branch_prefixes": {"user": "feat/", "agent": "agent/"}
-}
-```
+新环境用状态助手 `init` 生成本机配置，再用 `config` 查看生效值。代码中的 [DEFAULT_CONFIG](../../tools/dev_workflow/agent_workflow.py) 是默认值来源。当前开发并发为 3，AI 自动在飞上限为 2，每日自动启动上限及待合并免占数均为 100。主路由由本机配置，备用路由需显式启用。
 
 ## 状态助手
 
@@ -265,7 +170,7 @@ Proposal PR 是决策载体，不进入待合并池；低风险纯文档点不�
   --pr 12 --task implementation=t-abc
 
 # 审查结果
-.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py review-pass dev-0001
+.\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py review-pass dev-0001 --head-sha e25180091335c4d3b60a8f21ffc77623b275be8a
 .\.venv\Scripts\python.exe tools\dev_workflow\agent_workflow.py review-fail dev-0001 --reason "失败文案不可操作"
 
 # 合并由用户/Codex 在 GitHub 完成，团队只记账：
@@ -314,38 +219,15 @@ Proposal PR 是决策载体，不进入待合并池；低风险纯文档点不�
 - **数据**：卡片字段来自 `state.json` 与 `output/agent-workflow/` 下的本地文件：
   - `verification/<id>*.md` 与 `review-<id>*.md` 的结论（多轮文件按轮次选最新）；`state.json` 中 `spec_path` 指向的 spec 给出目的（取标题或“一句话目标”的摘要）和待决策条数。
   - `page-tasks.json`（队长维护）按开发点 id 提供 `role` 作为「负责人」；任务列读取 `state.json` 每个点的 `task_ids`（形如 `implementation=t-abc`），`page-tasks.json` 的 `task` 字段当前未渲染。`page-decisions.md`（队长手写）里 `dev-NNNN: 文本` 的行追加到该点的「待决定问题」。缺 `page-tasks.json` 时「负责人 / 任务」显示 `—` 并计入「数据缺口」，不是留空；缺 `page-decisions.md` 只是没有手工补充的待决项。
-  - `pr-cache.json` 提供 PR 标题、正文、状态、mergeable 与 CI 计数；「主要改动」优先显示维护者写入的实现摘要（缓存里的 `implementation_summary`），否则识别 PR 正文中的实现/改动小节（如 `## 实现摘要`、`## 改动`）；没有这类小节时依次回退到 `## 摘要`/`## 概述` 等通用小节，再回退到 `## 目的`/`## 变更目的` 等动机小节。只有 `## 目的` 的正文时取其中的动机作为摘要，而不是显示「待补」；正文没有任何可用小节时才显示「实现摘要待补」。标题与增删统计只作辅助。它只由 `--refresh-pr` 写入，生成器自己从不联网。
-  - 缺卡片字段时显示 `—` 并计入页面的「数据缺口」，不用推测值填充。已有缓存时页头显示缓存生成时间，`progress.data.json` 里的 `pr_cache.note` 为 `null`；只有 `pr-cache.json` 缺失时页头才提示缓存缺失（运行 `--refresh-pr` 获取），退出码仍为 `0`，不把“没联网”当成失败。
+  - `pr-cache.json` 缓存 GitHub 的 PR 正文、状态与 CI。实现者在 PR 正文的「实现摘要」或「改动」小节维护主要变更。生成器优先从这些小节读取，缺失时回退到概述或目的。`--refresh-pr` 会用 GitHub 数据重新生成缓存。
+  - 缺卡片字段时显示 `—` 并计入「数据缺口」。页面显示 PR 缓存生成时间，缺缓存时可用 `--refresh-pr` 获取。
+- **待合并判断**：PR 缓存需在开发点最新一次更新之后生成，且距页面生成时间不超过一小时。只有当前提交与审查记录中的完整 SHA 一致、PR 面向 `main` 且已就绪、没有阻塞审查、应有的 CI 检查均给出适用结论，才显示「可交给 Codex 合并」。提交变更、旧格式缓存和确认不了的 GitHub 状态会提示刷新或复审。实际合并时仍要核对 GitHub 当前状态。
 - **版面**：开发点按「待你决定 / 进行中 / 已完成 / 已关闭」分组，每组再分用户点和 AI 点。阻塞、AI 提案以及其他带待决定问题的点（如审查未通过、规格待决策、遗留项）进入「待你决定」。**待批准合并默认不再占用「待你决定」**：常规全绿交 Codex 合并、CI 等待、工程修复、缓存/数据维护（缺缓存、PR 已合并或关闭、未关联 PR）都归「进行中」，卡片标出下一步负责人（可交 Codex 合并 / 等待 CI / 待工程修复 / 需维护动作）；只有 `page-decisions.md` 里明确的人工产品问题，才把本可自动合并的卡片保留在「待你决定」。排队/收件箱随「进行中」显示；「已完成」「已关闭」默认折叠（点标题展开），已完成按合并时间倒序。**待合并池没有独立区段**：只在页头的「待合并」统计和待合并卡片的「待决定问题」/状态徽标里出现；页头另有容量、负载、空闲槽位、AI 在飞、阻塞和数据缺口统计，以及可折叠的状态校验；外部 PR 列表是普通列表，不可折叠。
 - **退出码**：`0` 为生成成功（包括缓存缺失的离线生成）；`2` 表示拒绝生成——`--workdir` 指向仓库外、`--workdir` 不存在，或 `--refresh-pr` 时 gh 不可用 / 调用失败 / 返回非零 / 输出无法解析。后一种情况保留旧缓存、不写页面，修好 gh 后重试。
 
 ## 队长的循环
 
-```text
-1. status/next
-2. 有 quota 阻塞 → 等待/恢复，不派新任务
-3. 有未交付的 merge_head → 交付一次（next --deliver）；不等待批准、不创建 integration 任务，待合并池不阻塞后续调度
-4. 有用户待开发点 → 按 free_slots 创建需求/实现任务并 start
-5. 用户队列为空且有空槽 → 让需求师发现；低风险则 promote --auto 并标注
-6. 审查 pass → review-pass，生成待合并队列；fail → review-fail + 修复/复审
-7. 用户/Codex 已在 GitHub 合并 → 核对 head、CI 和 origin/main 包含合并提交 → merge-done（队首）或 merge-reconcile（非队首/直接合并）记账并汇报
-8. 无工作 → 让需求师补充候选，或等待用户
-```
-
-每个开发点的任务顺序：
-
-```text
-requirements → implementation → verification → review
-                                      ↑             │ fail
-                                      └── repair ───┘
-                                      │ pass
-                                      ▼
-                               awaiting_merge（用户/Codex 在 GitHub 合并）
-                                      ▼
-                          核对 origin/main → 状态助手记账 → 汇报
-```
-
-每个任务描述应带 `docs/development/review-experience.md`；审查任务结束前记录候选经验（没有则说明“无新增”）。
+按[队长运行手册](workflow-control-core.md#2-每轮调度)处理报告、派发和合并结果。每个任务带上相关的 [审查经验库](review-experience.md) 条目及规格、验证和 PR 入口。
 
 ## Worktree 与验证
 
@@ -361,7 +243,5 @@ requirements → implementation → verification → review
 - 状态文件丢失时，可从 open PR、分支、AgentTeams 任务输出重建；先核对再继续，不重复开 PR。
 - `resume` 按恢复后的投影 load 计算容量（含 active 和 awaiting_merge 的队首免占语义），并复核用户优先和 AI 在飞上限；超出并发或限额时保持 `blocked`，不强行恢复。配额暂停只拦新开发，不拦已有阻塞任务恢复。
 - 容量不足的返工点以 `blocked` / `blocked_reason=capacity` 等待，不占并发，也不触发配额暂停；槽位释放后 `resume`。
-- 配额 fallback 只在退避重启期间使用；正常调度和新建团队默认 ustc。
 - 审查师是单点瓶颈；并发提高或审查排队时增加第二名审查师。
 - 自动启动的 AI 点仍可能低价值；用每日上限、标签、合并闸门和用户随时叫停控制。
-- 合并不是 AgentTeams 自动流程的一步（用户或已获授权的 Codex 执行）；任何自动任务都不能越过他们自行合并。

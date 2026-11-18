@@ -41,7 +41,7 @@ npm --prefix frontend/control-ui run build
 .\.venv\Scripts\python.exe tools/verify_framework.py
 ```
 
-全量测试需先完成上面的安装与前端构建；未准备可选依赖时整批失败，逐项命令与边界见[验证与未覆盖边界](docs/reference/validation.md)。
+先完成上面的依赖安装和构建，再按[验证与未覆盖边界](docs/reference/validation.md)选择检查范围。完整 Python 套件无需 UFO 子模块。
 
 ## 文档导航
 
