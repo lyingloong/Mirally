@@ -4,7 +4,7 @@ import type {
   PortalCloseResult,
   PortalListResult,
   PortalSummary,
-} from "@openclaw/gateway-protocol";
+} from "@mirally/gateway-protocol";
 import { html, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
@@ -18,7 +18,7 @@ import { registerPortalsEnglish } from "../../i18n/locales/en-portals.ts";
 import { formatUiError } from "../../lib/format-error.ts";
 import { canCallGatewayMethod, isGatewayMethodAdvertised } from "../../lib/gateway-methods.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { PollController } from "../../lit/poll-controller.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { probePortalReachable, type PortalReachability } from "./portal-reachability.ts";
@@ -35,7 +35,7 @@ type PortalProbeState = {
   status: "probing" | "ingress-required" | "new-tab-required" | PortalReachability;
 };
 
-class PortalsPage extends OpenClawLightDomElement {
+class PortalsPage extends MirallyLightDomElement {
   @property({ type: Boolean, reflect: true }) embedded = false;
   @property({ type: Boolean }) presented = true;
   @property({ attribute: false }) requestedPortalId: string | null = null;
@@ -589,12 +589,12 @@ class PortalsPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-portals-page")) {
-  customElements.define("openclaw-portals-page", PortalsPage);
+if (!customElements.get("mirally-portals-page")) {
+  customElements.define("mirally-portals-page", PortalsPage);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-portals-page": PortalsPage;
+    "mirally-portals-page": PortalsPage;
   }
 }

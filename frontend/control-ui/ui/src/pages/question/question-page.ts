@@ -1,7 +1,7 @@
 import "../../styles/approval.css";
 import "../../styles/chat/question-card.css";
 import { consume } from "@lit/context";
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
@@ -22,7 +22,7 @@ import {
   type QuestionPrompt,
 } from "../../app/question-prompt.ts";
 import { t } from "../../i18n/index.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import {
   createGatewayQuestionPanelProps,
   renderChatQuestionSummary,
@@ -30,7 +30,7 @@ import {
 
 type QuestionPageRequestError = "connection" | "unavailable" | null;
 
-export class QuestionPage extends OpenClawLightDomElement {
+export class QuestionPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: false })
   context!: ApplicationContext;
 
@@ -186,7 +186,7 @@ export class QuestionPage extends OpenClawLightDomElement {
       onSubmit: (answers) => submitQuestionPrompt(this.questionState, prompt.id, answers),
       onSkip: () => cancelQuestionPrompt(this.questionState, prompt.id),
     });
-    return html`<openclaw-chat-question-panel .props=${props}></openclaw-chat-question-panel>`;
+    return html`<mirally-chat-question-panel .props=${props}></mirally-chat-question-panel>`;
   }
 
   private questionStatusLabel(prompt: QuestionPrompt): string {

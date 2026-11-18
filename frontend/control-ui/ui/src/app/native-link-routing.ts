@@ -12,12 +12,12 @@ import { hasNativeBrowserBridge } from "./native-browser-host.ts";
 import { webKitHostWindow, type WebKitHostMessages } from "./native-webkit-bridge.ts";
 
 type NativeLinkTarget = "external";
-type NativeLinkPoster = (message: WebKitHostMessages["openclawLink"]) => void;
+type NativeLinkPoster = (message: WebKitHostMessages["mirallyLink"]) => void;
 
-const NATIVE_UPDATE_DECLINED_EVENT = "openclaw:native-update-declined";
+const NATIVE_UPDATE_DECLINED_EVENT = "mirally:native-update-declined";
 export const NATIVE_UPDATE_AVAILABILITY_CHANGED_EVENT =
-  "openclaw:native-update-availability-changed";
-const NATIVE_UPDATE_POSTED_EVENT = "openclaw:native-update-posted";
+  "mirally:native-update-availability-changed";
+const NATIVE_UPDATE_POSTED_EVENT = "mirally:native-update-posted";
 
 type NativeLinkRouting = {
   dispose(): void;
@@ -32,12 +32,12 @@ type NativeLinkRoutingOptions = {
 
 function getNativeLinkPoster(): NativeLinkPoster | undefined {
   // Native hosts install this handler before navigation; its absence preserves browser behavior.
-  const handler = webKitHostWindow()?.webkit?.messageHandlers?.openclawLink;
+  const handler = webKitHostWindow()?.webkit?.messageHandlers?.mirallyLink;
   return handler?.postMessage.bind(handler);
 }
 
 function getNativeUpdateHandler() {
-  return webKitHostWindow()?.webkit?.messageHandlers?.openclawUpdate;
+  return webKitHostWindow()?.webkit?.messageHandlers?.mirallyUpdate;
 }
 
 export function hasNativeUpdateBridge(): boolean {
@@ -236,7 +236,7 @@ export function startNativeLinkRouting(options: NativeLinkRoutingOptions = {}): 
     void showMenu(event, link.anchor, link.url).catch((error: unknown) => {
       menuModule = undefined;
       if (!disposed) {
-        console.error("[openclaw] native link menu failed to load; right-click to retry", error);
+        console.error("[mirally] native link menu failed to load; right-click to retry", error);
       }
     });
   };

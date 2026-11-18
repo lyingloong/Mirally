@@ -1,4 +1,4 @@
-import { readGitHubPublicationSelectionRejectedError } from "@openclaw/gateway-protocol/gateway-error-details";
+import { readGitHubPublicationSelectionRejectedError } from "@mirally/gateway-protocol/gateway-error-details";
 import type { Static } from "typebox";
 import type {
   GitHubPublicationPublisher,

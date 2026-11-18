@@ -27,30 +27,30 @@ try {
   browser=await chromium.launch({channel:'msedge',headless:true});
   const page=await browser.newPage({viewport:{width:1280,height:900}});page.setDefaultTimeout(20000);
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
-  const pane=()=>page.locator('openclaw-chat-pane.chat-pane-cache__pane--active');
+  const pane=()=>page.locator('mirally-chat-pane.chat-pane-cache__pane--active');
   const trigger=()=>pane().locator('[data-chat-model-select]');
   async function open(id) {
     await page.goto(runtime.url+'/chat/main/'+encodeURIComponent(id)+'#token='+runtime.token);
-    await page.waitForFunction(key=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active')?.state?.sessionKey===key,'agent:main:'+id);
-    await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected');
+    await page.waitForFunction(key=>document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active')?.state?.sessionKey===key,'agent:main:'+id);
+    await page.waitForFunction(()=>document.querySelector('mirally-app')?.context?.gateway?.snapshot?.phase==='connected');
     await trigger().waitFor();
   }
   async function select(provider,model) {
-    await page.waitForFunction(()=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active [data-chat-model-select]')?.getAttribute('aria-disabled')==='false');
+    await page.waitForFunction(()=>document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active [data-chat-model-select]')?.getAttribute('aria-disabled')==='false');
     await trigger().click();
     const group=pane().locator(`[data-chat-model-provider-group="${provider}"]`);
     await group.locator('[data-chat-model-provider-toggle]').click();
     await group.locator(`[data-chat-model-option="${provider}/${model}"]`).click();
-    await page.waitForFunction(expected=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active [data-chat-model-select]')?.getAttribute('data-chat-select-value')===expected,`${provider}/${model}`);
+    await page.waitForFunction(expected=>document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active [data-chat-model-select]')?.getAttribute('data-chat-select-value')===expected,`${provider}/${model}`);
   }
   await open(firstSession.id);await select('mirally-default','fixture-beta');
   assert.equal((await session(firstSession.id)).model_selection.model_id,'fixture-beta');
   await open(secondSession.id);await select('mirally-'+second,'fixture-gamma');
   assert.deepEqual((await session(secondSession.id)).model_selection,{connection_id:second,model_id:'fixture-gamma'});
-  await page.reload();await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected');
-  await page.waitForFunction(expected=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active [data-chat-model-select]')?.getAttribute('data-chat-select-value')===expected,`mirally-${second}/fixture-gamma`);
+  await page.reload();await page.waitForFunction(()=>document.querySelector('mirally-app')?.context?.gateway?.snapshot?.phase==='connected');
+  await page.waitForFunction(expected=>document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active [data-chat-model-select]')?.getAttribute('data-chat-select-value')===expected,`mirally-${second}/fixture-gamma`);
   await open(firstSession.id);
-  await page.waitForFunction(()=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active [data-chat-model-select]')?.getAttribute('data-chat-select-value')==='mirally-default/fixture-beta');
+  await page.waitForFunction(()=>document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active [data-chat-model-select]')?.getAttribute('data-chat-select-value')==='mirally-default/fixture-beta');
   assert.equal((await session(secondSession.id)).model_selection.model_id,'fixture-gamma');
   await page.screenshot({path:join(output,'conversation-model.png')});
   assert.deepEqual(errors,[]);

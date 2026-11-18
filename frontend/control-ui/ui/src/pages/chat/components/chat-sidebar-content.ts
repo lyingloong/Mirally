@@ -105,7 +105,7 @@ function renderSidebarAttachment(
     isTextAttachment(mimeType, content.title) &&
     !isCrossOriginHttpSource(src ?? "")
   ) {
-    return html`<openclaw-chat-text-attachment
+    return html`<mirally-chat-text-attachment
       .compact=${true}
       .plainText=${content.plainText ?? false}
       .actions=${content.renderActions?.() ?? nothing}
@@ -115,10 +115,10 @@ function renderSidebarAttachment(
       .label=${content.title}
       .mimeType=${content.mimeType ?? ""}
       .sizeBytes=${source?.sizeBytes ?? content.sizeBytes}
-    ></openclaw-chat-text-attachment>`;
+    ></mirally-chat-text-attachment>`;
   }
   if (kind === "video" && (src || pending)) {
-    return html`<openclaw-chat-video-player
+    return html`<mirally-chat-video-player
       .src=${src ?? ""}
       .preview=${true}
       .sourceIdentity=${content.sourceIdentity ?? content.src ?? src ?? ""}
@@ -129,7 +129,7 @@ function renderSidebarAttachment(
       .sizeBytes=${source?.sizeBytes ?? content.sizeBytes}
       .mediaWidth=${source?.width ?? content.width}
       .mediaHeight=${source?.height ?? content.height}
-    ></openclaw-chat-video-player>`;
+    ></mirally-chat-video-player>`;
   }
   if (!src || imagePreview) {
     const width = source?.width ?? content.width;
@@ -192,7 +192,7 @@ function renderSidebarAttachment(
     `;
   }
   if (kind === "audio") {
-    return html`<openclaw-chat-audio-player
+    return html`<mirally-chat-audio-player
       .src=${src}
       .sourceIdentity=${content.sourceIdentity ?? content.src ?? src}
       .label=${content.title}
@@ -202,7 +202,7 @@ function renderSidebarAttachment(
       .sizeBytes=${source?.sizeBytes ?? content.sizeBytes}
       .serverDurationMs=${source?.durationMs ?? content.durationMs}
       .voiceNote=${content.voiceNote === true}
-    ></openclaw-chat-audio-player>`;
+    ></mirally-chat-audio-player>`;
   }
   return renderCompactAttachmentCard({
     kind: content.attachmentKind ?? "document",
@@ -329,7 +329,7 @@ function renderMarkdownSidebar(props: MarkdownSidebarProps) {
           : html`<div class="sidebar-header">
               <div class="sidebar-title">${title}</div>
               <div class="sidebar-header__actions">
-                <openclaw-tooltip .content=${t("chat.detailPanel.close")}>
+                <mirally-tooltip .content=${t("chat.detailPanel.close")}>
                   <button
                     @click=${props.onClose}
                     class="btn"
@@ -338,7 +338,7 @@ function renderMarkdownSidebar(props: MarkdownSidebarProps) {
                   >
                     ${icons.x}
                   </button>
-                </openclaw-tooltip>
+                </mirally-tooltip>
               </div>
             </div> `
       }
@@ -370,13 +370,13 @@ function renderMarkdownSidebar(props: MarkdownSidebarProps) {
               ? content.kind === "file"
                 ? renderSidebarFile(content, props.onViewRawText, props.fileView)
                 : content.kind === "session-diff"
-                  ? html`<openclaw-session-diff
+                  ? html`<mirally-session-diff
                       .loader=${content.load}
                       .loadFileText=${content.loadFileText ?? null}
                       .execNode=${props.fileView?.execNode ?? null}
                       .openFile=${content.openFile ?? null}
                       .revealFile=${props.fileView?.onReveal ?? null}
-                    ></openclaw-session-diff>`
+                    ></mirally-session-diff>`
                   : content.kind === "canvas"
                     ? html`
                         <div class="chat-tool-card__preview" data-kind="canvas">

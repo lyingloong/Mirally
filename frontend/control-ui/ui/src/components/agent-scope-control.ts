@@ -65,14 +65,14 @@ export function renderAgentScopeControl(params: AgentScopeControlParams) {
   ];
   return html`
     <div class="agent-scope-control">
-      <openclaw-agent-select
+      <mirally-agent-select
         .options=${options}
         .value=${selected}
         .accessibleLabel=${t("agentScope.label")}
         .menuLabel=${t("agentScope.label")}
         .onSelect=${(value: string) =>
           allowAll ? params.selection.setScope(value || null) : params.selection.set(value || null)}
-      ></openclaw-agent-select>
+      ></mirally-agent-select>
     </div>
   `;
 }

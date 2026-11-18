@@ -30,7 +30,6 @@
     "suggest_task": {"emoji":"✨","title":"Suggest Task","detailKeys":["title","tldr","cwd"]},
     "dismiss_task": {"emoji":"🗑️","title":"Dismiss Task","detailKeys":["task_id","reason"]},
     "skill_workshop": {"emoji":"🧰","title":"Skill Workshop","detailKeys":["action","name","proposal_id"]},
-    "openclaw": {"emoji":"🦀","title":"OpenClaw","detailKeys":["action","path","model"]},
     "gateway": {"emoji":"🔌","title":"Gateway","detailKeys":["action","path"]},
     "plugins": {"emoji":"🧩","title":"Plugins","detailKeys":["action","pluginId","packageName","query"]},
     "exec": {"emoji":"🛠️","title":"Exec","detailKeys":["command"]},

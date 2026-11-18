@@ -35,13 +35,13 @@ export function skillDiscoveryEntries(params: {
       attribution: library.ownerLabel,
       library,
       skill: params.skills.find(
-        (skill) => skill.source === "openclaw-library" && skill.name === library.name,
+        (skill) => skill.source === "mirally-library" && skill.name === library.name,
       ),
     }));
   const libraryCommands = new Set(params.libraries.map((entry) => entry.name));
   for (const skill of params.skills) {
     // Library command names are persisted identities, unlike user-facing names/slugs.
-    if (skill.source === "openclaw-library" && libraryCommands.has(skill.name)) {
+    if (skill.source === "mirally-library" && libraryCommands.has(skill.name)) {
       continue;
     }
     entries.push({

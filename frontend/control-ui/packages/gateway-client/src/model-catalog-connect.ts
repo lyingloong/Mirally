@@ -1,5 +1,5 @@
-import type { GATEWAY_CLIENT_CAPS } from "@openclaw/gateway-protocol/client-info";
-import type { GATEWAY_SERVER_CAPS, ConnectParams } from "@openclaw/gateway-protocol/frame-guards";
+import type { GATEWAY_CLIENT_CAPS } from "@mirally/gateway-protocol/client-info";
+import type { GATEWAY_SERVER_CAPS, ConnectParams } from "@mirally/gateway-protocol/frame-guards";
 
 const MODEL_CATALOG_SNAPSHOT: typeof GATEWAY_CLIENT_CAPS.MODEL_CATALOG_SNAPSHOT =
   "model-catalog-snapshot" satisfies typeof GATEWAY_SERVER_CAPS.MODEL_CATALOG_SNAPSHOT;

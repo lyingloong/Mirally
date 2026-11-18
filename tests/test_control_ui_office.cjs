@@ -159,12 +159,12 @@ test('intermediate tool narration cannot be handed off as the final reply', () =
   const message={role:'assistant',content:'我准备整理文件'};
   assert.equal(office.isFinal(message),false);
   assert.equal(office.isFinal({...message,stopReason:'tooluse'}),false);
-  assert.equal(office.isFinal({...message,stopReason:'error',__openclaw:{runTerminal:true}}),false);
-  assert.equal(office.isFinal({...message,channel:'commentary',__openclaw:{runTerminal:true}}),false);
+  assert.equal(office.isFinal({...message,stopReason:'error',__mirally:{runTerminal:true}}),false);
+  assert.equal(office.isFinal({...message,channel:'commentary',__mirally:{runTerminal:true}}),false);
   assert.equal(office.isFinal({...message,phase:'commentary',stopReason:'stop'}),false);
   assert.equal(office.isFinal({...message,stopReason:'stop',content:[{type:'text',text:'正在处理',textSignature:'{"v":1,"phase":"commentary"}'}]}),false);
   assert.equal(office.isFinal({...message,stopReason:'stop',content:[{type:'text',text:'已回复',textSignature:'{"v":1,"phase":"final_answer"}'}]}),true);
-  assert.equal(office.isFinal({...message,__openclaw:{runTerminal:true}}),true);
+  assert.equal(office.isFinal({...message,__mirally:{runTerminal:true}}),true);
   assert.equal(office.isFinal({...message,stopReason:'stop'}),true);
   assert.equal(office.isFinal({...message,stopReason:'stop',content:'NO_REPLY'}),false);
 });

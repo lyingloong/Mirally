@@ -96,7 +96,7 @@ export const WorkerAdmissionHandshakeSchema = withSince(
   "2026.7",
   closedObject({
     bundleHash: WorkerBundleHashSchema,
-    openclawVersion: Type.String({ minLength: 1, maxLength: 128 }),
+    mirallyVersion: Type.String({ minLength: 1, maxLength: 128 }),
     protocolFeatures: Type.Array(WorkerProtocolFeatureSchema, {
       maxItems: WORKER_PROTOCOL_MAX_FEATURES,
       uniqueItems: true,

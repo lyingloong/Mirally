@@ -1,4 +1,4 @@
-import type { ControlUiFocusBuildTarget } from "@openclaw/session-url-contract";
+import type { ControlUiFocusBuildTarget } from "@mirally/session-url-contract";
 import { html, nothing, type TemplateResult } from "lit";
 import type { SessionObserverDigest } from "../../../../packages/gateway-protocol/src/schema/sessions.js";
 import type { ControlUiSessionPullRequest } from "../../../../src/gateway/control-ui-contract.js";
@@ -160,7 +160,7 @@ export function sidebarPanelDefinitions(
       : undefined,
   });
   const terminal = state?.terminalAvailable
-    ? html`<openclaw-terminal-panel
+    ? html`<mirally-terminal-panel
         embedded
         .tabsInHeader=${params?.terminalTabsInHeader ?? false}
         .client=${state.connected ? state.client : null}
@@ -169,10 +169,10 @@ export function sidebarPanelDefinitions(
         .sessionKey=${state.sessionKey}
         .themeMode=${params?.themeMode ?? "dark"}
         .basePath=${state.basePath}
-      ></openclaw-terminal-panel>`
+      ></mirally-terminal-panel>`
     : null;
   const browser = state?.browserPanelAvailable
-    ? html`<openclaw-browser-panel
+    ? html`<mirally-browser-panel
         embedded
         data-chat-autotype-exempt
         .client=${state.connected ? state.client : null}
@@ -188,10 +188,10 @@ export function sidebarPanelDefinitions(
         .preferredTab=${params?.preferredBrowserTab}
         .resourceBasePath=${state.resourceBasePath}
         .authToken=${resolveAssistantAttachmentAuthToken(state)}
-      ></openclaw-browser-panel>`
+      ></mirally-browser-panel>`
     : null;
   const companion = params
-    ? html`<openclaw-chat-session-rail
+    ? html`<mirally-chat-session-rail
         embedded
         .presented=${params.companionPresented}
         .focusRequest=${params.companionFocusRequest}
@@ -208,11 +208,11 @@ export function sidebarPanelDefinitions(
         .onSubmit=${params.onCompanionSubmit}
         .onDraftChange=${params.onCompanionDraftChange}
         .onVisibilityChange=${params.onCompanionVisibilityChange}
-      ></openclaw-chat-session-rail>`
+      ></mirally-chat-session-rail>`
     : null;
   const desktop =
     state && params?.desktopAvailable
-      ? html`<openclaw-desktop-panel
+      ? html`<mirally-desktop-panel
           embedded
           data-chat-autotype-exempt
           .client=${state.connected ? state.client : null}
@@ -222,25 +222,25 @@ export function sidebarPanelDefinitions(
           .requestedSource=${params?.desktopSource ?? null}
           .sessionKey=${state.sessionKey}
           .onFocusTargetChange=${params?.onDesktopFocusTargetChange}
-        ></openclaw-desktop-panel>`
+        ></mirally-desktop-panel>`
       : null;
   const discussion = params?.discussion
-    ? html`<openclaw-session-discussion
+    ? html`<mirally-session-discussion
         .sessionKey=${params.discussion.sessionKey}
         .canOpen=${params.discussion.canOpen}
         .sourceGeneration=${params.discussionSourceGeneration}
         .loadInfo=${params.discussion.loadInfo}
         .openDiscussion=${params.discussion.openDiscussion}
         .onStateChange=${params.discussion.onStateChange}
-      ></openclaw-session-discussion>`
+      ></mirally-session-discussion>`
     : null;
   const portal = state
-    ? html`<openclaw-portals-page
+    ? html`<mirally-portals-page
         embedded
         .presented=${params?.portalPresented ?? false}
         .requestedPortalId=${state.sidebarLayout.columns.flatMap((column) => column.panels).find((panel) => panel.slot === "portal")?.portalId ?? null}
         .requestedEnvironmentId=${state.sidebarLayout.columns.flatMap((column) => column.panels).find((panel) => panel.slot === "portal")?.environmentId ?? null}
-      ></openclaw-portals-page>`
+      ></mirally-portals-page>`
     : null;
   const workspace = state ? getSessionWorkspace(state) : null;
   // The region owns mounting and visibility. Hidden Review tabs must keep the
@@ -249,7 +249,7 @@ export function sidebarPanelDefinitions(
     state?.sidebarContent ?? (state ? resolveSessionDiffSidebarContent(state) : null);
   const workspaceContent =
     state && params && workspace
-      ? html`<openclaw-chat-files-panel
+      ? html`<mirally-chat-files-panel
           .tabsInHeader=${sidebarMainPanel(state.sidebarLayout)?.slot !== "workspace"}
           .previews=${workspace.previews}
           .activeId=${workspace.activePreviewId}
@@ -257,7 +257,7 @@ export function sidebarPanelDefinitions(
           .renderDetail=${params.renderDetail}
           .onSelect=${(id: string | null) => selectSessionWorkspacePreview(state, id)}
           .onClose=${(id: string) => closeSessionWorkspacePreview(state, id)}
-        ></openclaw-chat-files-panel>`
+        ></mirally-chat-files-panel>`
       : (params?.workspace ?? null);
   const pluginPanels = new Map<SidebarSlotId, ControlUiRegistration<ControlUiPanel> | undefined>(
     (params?.pluginPanels ?? []).map((entry) => [`plugin:${entry.key}`, entry]),
@@ -295,7 +295,7 @@ export function sidebarPanelDefinitions(
       icon: icons.link,
       available: Boolean(params?.linkReaders?.length),
       content: state
-        ? html`<openclaw-link-reader-panel
+        ? html`<mirally-link-reader-panel
             embedded
             data-chat-autotype-exempt
             .client=${state.connected ? state.client : null}
@@ -306,7 +306,7 @@ export function sidebarPanelDefinitions(
             .presented=${params?.linkReaderPresented ?? false}
             .tabsInHeader=${params?.linkReaderTabsInHeader ?? true}
             .onClose=${params?.onCloseLinkReader}
-          ></openclaw-link-reader-panel>`
+          ></mirally-link-reader-panel>`
         : null,
       loading: renderPanelLoadingSkeleton("files", t("linkReader.loadingPreview")),
       empty: { description: t("linkReader.urlPlaceholder") },
@@ -319,7 +319,7 @@ export function sidebarPanelDefinitions(
       icons.messageSquarePlus,
       companion,
       params
-        ? html`<openclaw-tooltip .content=${t("chat.rail.clear")}>
+        ? html`<mirally-tooltip .content=${t("chat.rail.clear")}>
             <button
               class="rail-header__action chat-session-rail__clear"
               type="button"
@@ -329,7 +329,7 @@ export function sidebarPanelDefinitions(
             >
               ${icons.trash}
             </button>
-          </openclaw-tooltip>`
+          </mirally-tooltip>`
         : undefined,
     ),
     definePanel(
@@ -338,7 +338,7 @@ export function sidebarPanelDefinitions(
       icons.listChecks,
       params?.tasks ?? null,
       params
-        ? html`<openclaw-tooltip .content=${t("chat.backgroundTasks.refresh")}>
+        ? html`<mirally-tooltip .content=${t("chat.backgroundTasks.refresh")}>
             <button
               class="rail-header__action chat-tasks-rail__refresh"
               type="button"
@@ -352,7 +352,7 @@ export function sidebarPanelDefinitions(
                   : icons.refresh
               }
             </button>
-          </openclaw-tooltip>`
+          </mirally-tooltip>`
         : undefined,
     ),
     definePanel(

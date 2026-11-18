@@ -1,8 +1,8 @@
 // Config-facts module for the curated Talk settings page. No lit imports: like
 // memory-schema.ts, settings search evaluates these facts from the startup
 // chunk and must not pull settings UI code in with them.
-import { asOptionalRecord as readRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeNullableString as readTrimmedString } from "@openclaw/normalization-core/string-coerce";
+import { asOptionalRecord as readRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeNullableString as readTrimmedString } from "@mirally/normalization-core/string-coerce";
 
 /** Normalized model/voice pair from one `talk.realtime.providers.<id>` entry. */
 type TalkProviderEntryValues = {

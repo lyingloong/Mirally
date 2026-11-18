@@ -1,5 +1,5 @@
 import { consume } from "@lit/context";
-import type { RouteLocation } from "@openclaw/uirouter";
+import type { RouteLocation } from "@mirally/ui-router";
 import { html, nothing } from "lit";
 import { property } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
@@ -11,12 +11,12 @@ import { t } from "../../i18n/index.ts";
 import { buildCatalogSessionKey } from "../../lib/sessions/catalog-key.ts";
 import { normalizeAgentId } from "../../lib/sessions/session-key.ts";
 import { isTerminalAvailable } from "../../lib/terminal-availability.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { resolveTerminalRouteLocation } from "./route-location.ts";
 import "./terminal-page.css";
 
-class TerminalPage extends OpenClawLightDomElement {
+class TerminalPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -61,7 +61,7 @@ class TerminalPage extends OpenClawLightDomElement {
       : "";
     return keyed(
       key,
-      html`<openclaw-terminal-panel
+      html`<mirally-terminal-panel
           ?hidden=${!available}
           embedded
           fullscreen
@@ -72,7 +72,7 @@ class TerminalPage extends OpenClawLightDomElement {
           .agentId=${owner ? normalizeAgentId(owner) : null}
           .basePath=${context.basePath}
           .themeMode=${context.theme.resolvedMode}
-        ></openclaw-terminal-panel>
+        ></mirally-terminal-panel>
         ${
           available
             ? nothing
@@ -89,4 +89,4 @@ class TerminalPage extends OpenClawLightDomElement {
   }
 }
 
-customElements.define("openclaw-terminal-page", TerminalPage);
+customElements.define("mirally-terminal-page", TerminalPage);

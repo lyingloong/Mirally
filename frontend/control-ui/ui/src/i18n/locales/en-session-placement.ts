@@ -21,7 +21,7 @@ const enSessionPlacement = {
     continueOnGatewayMenu: "Continue on Gateway…",
     continueOnGatewayAction: "Continue on Gateway",
     continueOnGatewayConfirm:
-      'Continue "{session}" on the Gateway? Unsynced device files and in-flight work may be lost. OpenClaw will continue from the last Gateway-synced state and will not replay the interrupted turn.',
+      'Continue "{session}" on the Gateway? Unsynced device files and in-flight work may be lost. Mirally will continue from the last Gateway-synced state and will not replay the interrupted turn.',
     discardWorkspaceDeleteConfirm:
       'The device for "{session}" is offline and has changes that have not synced. Reconnect it to keep those changes. To delete this session now, discard unsynced device files and in-flight work, then retry deletion once. The last Gateway-synced workspace is used; interrupted work is not replayed.',
     discardWorkspaceDeleteAction: "Discard changes and delete",

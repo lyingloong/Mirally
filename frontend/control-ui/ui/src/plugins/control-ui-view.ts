@@ -90,7 +90,7 @@ class PluginSurfaceDirective extends AsyncDirective {
     // Built-in renderers remain synchronous and do not create a component for
     // every transcript row. Only a selected replacement owns a DOM mount.
     return this.runtime?.selectedReplacement(surface)
-      ? html`<openclaw-plugin-view
+      ? html`<mirally-plugin-view
           ?data-plugin-composer=${surface === "composer"}
           .surface=${surface}
           .props=${props}
@@ -98,7 +98,7 @@ class PluginSurfaceDirective extends AsyncDirective {
           .replacementCompanion=${replacementCompanion}
           .defaultHost=${this.host}
           .presented=${presented}
-        ></openclaw-plugin-view>`
+        ></mirally-plugin-view>`
       : defaultView;
   }
 }
@@ -122,11 +122,11 @@ export function renderPluginContribution(
   defaultView: unknown = nothing,
   presented = true,
 ) {
-  return html`<openclaw-plugin-view
+  return html`<mirally-plugin-view
     .kind=${kind}
     .contributionKey=${key}
     .props=${props}
     .defaultView=${defaultView}
     .presented=${presented}
-  ></openclaw-plugin-view>`;
+  ></mirally-plugin-view>`;
 }

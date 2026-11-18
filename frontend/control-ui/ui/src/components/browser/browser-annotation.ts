@@ -1,7 +1,7 @@
 // Annotation model for the browser panel: freehand strokes drawn over a page
 // screenshot, plus the prepackaged prompt handed to the chat composer so the
 // agent knows what was marked up.
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import { t } from "../../i18n/index.ts";
 import { registerBrowserEnglish } from "../../i18n/locales/en-browser.ts";
 import type { BrowserInspectedNode } from "./browser-client.ts";
@@ -37,7 +37,7 @@ export type BrowserAnnotationEvent = CustomEvent<BrowserAnnotationDraft> & {
   rejection?: "limit";
 };
 
-export const BROWSER_ANNOTATION_EVENT = "openclaw:browser-annotation";
+export const BROWSER_ANNOTATION_EVENT = "mirally:browser-annotation";
 
 /**
  * Hands an annotation to whichever chat pane is active. The result distinguishes

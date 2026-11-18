@@ -47,7 +47,7 @@
           var keys = Object.keys(localStorage);
           var raw;
           for (var i = 0; i < keys.length; i++) {
-            if (keys[i].indexOf("openclaw.control.settings.v1") === 0) {
+            if (keys[i].indexOf("mirally.control.settings.v1") === 0) {
               raw = localStorage.getItem(keys[i]);
               if (raw) break;
             }
@@ -87,15 +87,15 @@
             // Script-created links need explicit render blocking before first paint.
             // The gateway stamps the mount prefix and asset version before this runs.
             var base =
-              document.documentElement.getAttribute("data-openclaw-control-ui-base-path") || "";
+              document.documentElement.getAttribute("data-mirally-control-ui-base-path") || "";
             var buildId = document.documentElement.getAttribute(
-              "data-openclaw-control-ui-build-id",
+              "data-mirally-control-ui-build-id",
             );
             var version = buildId ? "?v=" + encodeURIComponent(buildId) : "";
             var palette = document.createElement("link");
             palette.rel = "stylesheet";
             palette.setAttribute("blocking", "render");
-            palette.id = "openclaw-theme-palette-" + theme;
+            palette.id = "mirally-theme-palette-" + theme;
             palette.onerror = function () {
               palette.remove();
             };
@@ -215,7 +215,7 @@
         color-scheme: inherit;
       }
 
-      body.openclaw-mount-fallback-active {
+      body.mirally-mount-fallback-active {
         margin: 0;
         min-width: 320px;
         color: #eef4f8;
@@ -230,7 +230,7 @@
           sans-serif;
       }
 
-      body.openclaw-mount-fallback-active openclaw-app {
+      body.mirally-mount-fallback-active mirally-app {
         display: none;
       }
 
@@ -331,7 +331,7 @@
         outline-offset: 3px;
       }
 
-      html[data-theme-mode="light"] body.openclaw-mount-fallback-active {
+      html[data-theme-mode="light"] body.mirally-mount-fallback-active {
         color: #151b21;
         background: #f5f7fa;
       }
@@ -354,19 +354,19 @@
     </style>
   </head>
   <body>
-    <openclaw-app></openclaw-app>
+    <mirally-app></mirally-app>
     <section
-      id="openclaw-mount-fallback"
+      id="mirally-mount-fallback"
       class="mount-fallback"
-      data-openclaw-mount-timeout-ms="12000"
+      data-mirally-mount-timeout-ms="12000"
       role="alert"
-      aria-labelledby="openclaw-mount-fallback-title"
+      aria-labelledby="mirally-mount-fallback-title"
       hidden
     >
       <div class="mount-fallback__panel" tabindex="-1">
         <p class="mount-fallback__eyebrow">Mirally</p>
-        <h1 id="openclaw-mount-fallback-title">Mirally did not start</h1>
-        <p id="openclaw-mount-fallback-summary">
+        <h1 id="mirally-mount-fallback-title">Mirally did not start</h1>
+        <p id="mirally-mount-fallback-summary">
           The browser loaded the static page, but the app bundle did not start. The local Mirally service may be
           restarting, or this page may reference assets from a different Mirally version.
         </p>
@@ -386,12 +386,12 @@
         <div class="mount-fallback__actions">
           <button
             type="button"
-            id="openclaw-mount-retry"
+            id="mirally-mount-retry"
             class="mount-fallback__button mount-fallback__button--primary"
           >
             Try again
           </button>
-          <button type="button" id="openclaw-mount-wait" class="mount-fallback__button">
+          <button type="button" id="mirally-mount-wait" class="mount-fallback__button">
             Keep waiting
           </button>
         </div>
@@ -399,17 +399,17 @@
     </section>
     <script data-cfasync="false">
       (function () {
-        var app = document.querySelector("openclaw-app");
-        var fallback = document.getElementById("openclaw-mount-fallback");
+        var app = document.querySelector("mirally-app");
+        var fallback = document.getElementById("mirally-mount-fallback");
         if (!app || !fallback) return;
 
         var panel = fallback.querySelector(".mount-fallback__panel");
-        var title = document.getElementById("openclaw-mount-fallback-title");
-        var summary = document.getElementById("openclaw-mount-fallback-summary");
+        var title = document.getElementById("mirally-mount-fallback-title");
+        var summary = document.getElementById("mirally-mount-fallback-summary");
         var failureSummary = summary.textContent;
-        var retry = document.getElementById("openclaw-mount-retry");
-        var wait = document.getElementById("openclaw-mount-wait");
-        var rawDelay = Number(fallback.getAttribute("data-openclaw-mount-timeout-ms"));
+        var retry = document.getElementById("mirally-mount-retry");
+        var wait = document.getElementById("mirally-mount-wait");
+        var rawDelay = Number(fallback.getAttribute("data-mirally-mount-timeout-ms"));
         var delay = Number.isFinite(rawDelay) && rawDelay > 0 ? rawDelay : 12000;
         var maxRecoveryAttempts = 6;
         var timer;
@@ -422,16 +422,16 @@
 
         try {
           var initialUrl = new URL(window.location.href);
-          recoveryNavigation = initialUrl.searchParams.has("openclaw_mount_recovery");
+          recoveryNavigation = initialUrl.searchParams.has("mirally_mount_recovery");
           if (recoveryNavigation) {
-            initialUrl.searchParams.delete("openclaw_mount_recovery");
+            initialUrl.searchParams.delete("mirally_mount_recovery");
             window.history.replaceState(null, "", initialUrl.href);
           }
         } catch (e) {}
 
         function hideFallback() {
           fallback.hidden = true;
-          document.body.classList.remove("openclaw-mount-fallback-active");
+          document.body.classList.remove("mirally-mount-fallback-active");
         }
 
         function setSummary(text) {
@@ -498,7 +498,7 @@
             return;
           }
           recoveryAttempt += 1;
-          documentUrl.searchParams.set("openclaw_mount_recovery", String(Date.now()));
+          documentUrl.searchParams.set("mirally_mount_recovery", String(Date.now()));
           var controller = new AbortController();
           recoveryController = controller;
           var requestTimer = window.setTimeout(function () {
@@ -538,7 +538,7 @@
           );
           if (documentLoaded) retryCurrentDocument();
           fallback.hidden = false;
-          document.body.classList.add("openclaw-mount-fallback-active");
+          document.body.classList.add("mirally-mount-fallback-active");
           if (documentLoaded && panel && typeof panel.focus === "function") {
             try {
               panel.focus({ preventScroll: true });
@@ -567,7 +567,7 @@
         );
 
         window.addEventListener(
-          "openclaw-control-ui-rendered",
+          "mirally-control-ui-rendered",
           function () {
             appStarted = true;
             window.clearTimeout(timer);

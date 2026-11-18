@@ -3,14 +3,14 @@
 // the operator types, and optional free-text entry appends values the option
 // list does not know. Light DOM so the shared stylesheet applies.
 import WaPopup from "@awesome.me/webawesome/dist/components/popup/popup.js";
-import { expectDefined } from "@openclaw/normalization-core";
-import { normalizeCsvOrLooseStringList } from "@openclaw/normalization-core/string-normalization";
+import { expectDefined } from "@mirally/normalization-core";
+import { normalizeCsvOrLooseStringList } from "@mirally/normalization-core/string-normalization";
 import { html, nothing, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import { live } from "lit/directives/live.js";
 import { ref } from "lit/directives/ref.js";
 import { t } from "../i18n/index.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import { configureAnchoredPopup } from "./anchored-overlay.ts";
 import { icons } from "./icons.ts";
 import { renderProviderBrandIcon } from "./provider-icon.ts";
@@ -30,7 +30,7 @@ let instanceCounter = 0;
 
 function nextListboxId(): string {
   instanceCounter += 1;
-  return `openclaw-multi-select-${instanceCounter}`;
+  return `mirally-multi-select-${instanceCounter}`;
 }
 
 function providerFromValue(value: string): string | undefined {
@@ -40,7 +40,7 @@ function providerFromValue(value: string): string | undefined {
 
 const keepInputFocus = (event: Event) => event.preventDefault();
 
-export class MultiSelect extends OpenClawLightDomElement {
+export class MultiSelect extends MirallyLightDomElement {
   @property({ attribute: false }) options: readonly MultiSelectOption[] = [];
   /** Current values in display order. Controlled: the host owns them. */
   @property({ attribute: false }) value: readonly string[] = [];

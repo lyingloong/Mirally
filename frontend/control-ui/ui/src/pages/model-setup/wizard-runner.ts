@@ -28,9 +28,9 @@ import {
 export type ModelSetupWizardStartMethod =
   | "mcp.authLogin"
   | "models.authLogin"
-  | "openclaw.setup.auth.start"
-  | "openclaw.setup.prepare.start"
-  | "openclaw.setup.activate.start";
+  | "mirally.setup.auth.start"
+  | "mirally.setup.prepare.start"
+  | "mirally.setup.activate.start";
 
 export type ModelSetupWizardCompletion = {
   startMethod: ModelSetupWizardStartMethod;
@@ -157,8 +157,8 @@ export class ModelSetupWizardRunner {
     authChoice: string,
     startMethod: Exclude<
       ModelSetupWizardStartMethod,
-      "openclaw.setup.activate.start" | "mcp.authLogin"
-    > = "openclaw.setup.auth.start",
+      "mirally.setup.activate.start" | "mcp.authLogin"
+    > = "mirally.setup.auth.start",
     preferences: Pick<SystemAgentSetupActivateParams, "nativeSessionCatalogsEnabled"> = {},
     modelTarget?: "utility",
   ): Promise<ModelSetupWizardCompletion | null> {
@@ -175,7 +175,7 @@ export class ModelSetupWizardRunner {
   ): Promise<ModelSetupWizardCompletion | null> {
     return this.startSession(
       params.authChoice ?? params.kind,
-      "openclaw.setup.activate.start",
+      "mirally.setup.activate.start",
       params,
       targetId,
     );
@@ -213,7 +213,7 @@ export class ModelSetupWizardRunner {
         startMethod,
         "kind" in params
           ? params
-          : startMethod === "openclaw.setup.auth.start" && "authChoice" in params
+          : startMethod === "mirally.setup.auth.start" && "authChoice" in params
             ? { ...params, kind: "provider-auth" }
             : undefined,
       ),

@@ -1,6 +1,6 @@
 import {html, nothing, type PropertyValues} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
-import {OpenClawLightDomElement} from '../../lit/openclaw-element.ts';
+import {MirallyLightDomElement} from '../../lit/mirally-element.ts';
 import {rpcProduct, errorMessage} from './api.ts';
 import './product.css';
 
@@ -8,7 +8,7 @@ type Approval = {id:string; title:string; detail:string; conversation_id:string}
 
 /** Decisions are read from the product owner, scoped to this conversation. */
 @customElement('mirally-action-approvals')
-export class MirallyActionApprovals extends OpenClawLightDomElement {
+export class MirallyActionApprovals extends MirallyLightDomElement {
   @property() sessionKey = '';
   @property({type:Boolean}) presented = true;
   @state() private approvals: Approval[] = [];

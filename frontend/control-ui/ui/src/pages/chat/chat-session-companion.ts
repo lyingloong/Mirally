@@ -1,4 +1,4 @@
-import { asRecord, readStringField } from "@openclaw/normalization-core/record-coerce";
+import { asRecord, readStringField } from "@mirally/normalization-core/record-coerce";
 import type {
   SessionCompanionExchange,
   SessionsCompanionAskResult,

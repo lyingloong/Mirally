@@ -3,7 +3,7 @@
  *
  * Handles common quoting, wrapper, and preamble shapes for UI labels without validating shell syntax.
  */
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 
 type PreambleResult = {
   command: string;

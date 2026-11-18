@@ -6,7 +6,7 @@ import {
   renderSettingsRow, renderSettingsSection, renderSettingsStatus,
 } from "../../components/settings-ui.ts";
 import { renderSettingsWorkspace } from "../../components/settings-workspace.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { errorMessage, rpcProduct } from "./api.ts";
 import {
   buildExtension, editableExtension, extensionStatus, extensionType, newExtensionDraft,
@@ -20,7 +20,7 @@ const catalogMethod = (kind: CatalogKind) => kind === "templates" ? "mcp.resourc
 const catalogKey = (kind: CatalogKind) => kind === "templates" ? "resourceTemplates" : kind;
 
 /** Product extension management reuses the existing settings surface and native owner. */
-export class MirallyExtensionsPage extends OpenClawLightDomElement {
+export class MirallyExtensionsPage extends MirallyLightDomElement {
   @state() private extensions: RecordData[] | null = null;
   @state() private skills: RecordData[] | null = null;
   @state() private tools: RecordData[] | null = null;

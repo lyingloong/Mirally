@@ -1,9 +1,9 @@
-import { gatewayCredentialScope, gatewayOriginScope } from "@openclaw/gateway-client/browser";
+import { gatewayCredentialScope, gatewayOriginScope } from "@mirally/gateway-client/browser";
 import {
   parseControlUiFocusLocation,
   type ControlUiFocusLocation,
-} from "@openclaw/session-url-contract";
-import type { RouteLocation } from "@openclaw/uirouter";
+} from "@mirally/session-url-contract";
+import type { RouteLocation } from "@mirally/ui-router";
 import { ConnectErrorDetailCodes } from "../../../packages/gateway-protocol/src/connect-error-details.js";
 import type { GatewayBrowserClient } from "../api/gateway.ts";
 import { isSettingsTakeover } from "../app-navigation.ts";
@@ -324,7 +324,7 @@ export function bootstrapApplication(): ApplicationRuntime {
     signal: startupLifecycle.signal,
     canPresentBrowserPanel: () => {
       const shell = document.querySelector<HTMLElement & { routeState: ShellRouteState }>(
-        "openclaw-app-shell",
+        "mirally-app-shell",
       );
       return shell?.isConnected === true && !isSettingsTakeover(shell.routeState.routeId);
     },
@@ -342,7 +342,7 @@ export function bootstrapApplication(): ApplicationRuntime {
     shouldOpenInControlUiBrowser: () =>
       loadSettings().openLinksInControlUiBrowser === true &&
       isBrowserPanelAvailable(gateway.snapshot) &&
-      document.querySelector("openclaw-app-shell")?.isConnected === true,
+      document.querySelector("mirally-app-shell")?.isConnected === true,
   });
   let nativeDeviceSettings: ApplicationContext["nativeDeviceSettings"] = null;
   let nativeNotifications: ApplicationContext["nativeNotifications"] = null;
@@ -476,7 +476,7 @@ export function bootstrapApplication(): ApplicationRuntime {
     const historyMode = samePage ? "replace" : requested;
     const navigationPromise = router.navigate(routeId, context, { history: historyMode }, location);
     void navigationPromise.catch((error: unknown) => {
-      console.error("[openclaw] route navigation failed", error);
+      console.error("[mirally] route navigation failed", error);
     });
     return navigationPromise;
   };
@@ -632,7 +632,7 @@ export function bootstrapApplication(): ApplicationRuntime {
                   : isDefaultChatLanding(history.location(), basePath, routeIdFromPath),
             }),
             (error) => {
-              console.error("[openclaw] initial session location failed", error);
+              console.error("[mirally] initial session location failed", error);
             },
           );
         });

@@ -17,7 +17,7 @@
   padding-bottom: 0;
   overflow: hidden;
   border: 1px solid var(--chat-composer-hairline);
-  border-radius: calc(20px * var(--openclaw-corner-radius-scale));
+  border-radius: calc(20px * var(--mirally-corner-radius-scale));
   corner-shape: superellipse(1.5);
   background: var(--composer-attached-surface, var(--chat-composer-surface));
   -webkit-backdrop-filter: blur(8px);

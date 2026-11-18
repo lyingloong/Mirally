@@ -1,4 +1,4 @@
-import { SHORT_SESSION_ID_RE } from "@openclaw/session-url-contract";
+import { SHORT_SESSION_ID_RE } from "@mirally/session-url-contract";
 import type { SessionsResolveResult } from "../../../../packages/gateway-protocol/src/index.js";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import { pathForRoute } from "../../app-route-paths.ts";

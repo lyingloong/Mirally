@@ -26,7 +26,7 @@ type SessionGroupCatalogHost = {
   retryDelayMs: (error: unknown) => number | null;
 };
 
-const LEGACY_GROUPS_STORAGE_KEY = "openclaw:sessions:custom-groups";
+const LEGACY_GROUPS_STORAGE_KEY = "mirally:sessions:custom-groups";
 const GROUPS_LIST_METHOD = "sessions.groups.list";
 const GROUPS_DEFAULTS_METHOD = "sessions.groups.defaults";
 

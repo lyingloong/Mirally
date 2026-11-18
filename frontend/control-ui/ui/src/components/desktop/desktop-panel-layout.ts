@@ -1,7 +1,7 @@
 import { createDockPanelLayout } from "../dock-panel-layout.ts";
 
 export const desktopPanelLayout = createDockPanelLayout({
-  storageKey: "openclaw.desktopPanel",
+  storageKey: "mirally.desktopPanel",
   minHeight: 240,
   minWidth: 380,
   defaultDock: "right",

@@ -1,4 +1,4 @@
-import type { GatewaySessionMessageSubscription } from "@openclaw/gateway-client/browser";
+import type { GatewaySessionMessageSubscription } from "@mirally/gateway-client/browser";
 import type {
   PreservedSessionWorktree,
   SessionOwner,

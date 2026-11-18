@@ -1,4 +1,4 @@
-openclaw-browser-dashboard-widget {
+mirally-browser-dashboard-widget {
   display: block;
   height: 100%;
   min-height: 0;
@@ -16,7 +16,7 @@ openclaw-browser-dashboard-widget {
   min-height: 0;
 }
 
-.board-browser__content > openclaw-browser-panel {
+.board-browser__content > mirally-browser-panel {
   display: block;
   height: 100%;
 }

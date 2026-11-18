@@ -1,5 +1,5 @@
 import { consume } from "@lit/context";
-import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
+import { asOptionalRecord } from "@mirally/normalization-core/record-coerce";
 import { html } from "lit";
 import { titleForRoute } from "../../app-navigation.ts";
 import type { RouteId } from "../../app-route-paths.ts";
@@ -7,12 +7,12 @@ import { applicationContext, type ApplicationContext } from "../../app/context.t
 import { isNativeWebChromeHost } from "../../app/native-web-chrome.ts";
 import { hasOperatorAdminAccess } from "../../app/operator-access.ts";
 import { renderSettingsWorkspace } from "../../components/settings-workspace.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { buildMacGatewayLaunchUrl } from "./gateway-launch.ts";
 import { renderApps } from "./view.ts";
 
-class AppsPage extends OpenClawLightDomElement {
+class AppsPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -56,6 +56,6 @@ class AppsPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-apps-page")) {
-  customElements.define("openclaw-apps-page", AppsPage);
+if (!customElements.get("mirally-apps-page")) {
+  customElements.define("mirally-apps-page", AppsPage);
 }

@@ -24,7 +24,7 @@ function fixture(handler,{file='chat-options',className='MirallyChatOptions'}={}
   const calls=[],listeners=new Map(),navigation=[];
   const sandbox={html,nothing:Symbol('nothing'),customElement:()=>target=>target,property:()=>()=>{},state:()=>()=>{},
     ref:()=>'',syncDropdownItemRadio:()=>{},icons:{check:'check-icon',chevronDown:'chevron-icon'},
-    OpenClawLightDomElement:class{isConnected=true;connectedCallback(){} disconnectedCallback(){}},
+    MirallyLightDomElement:class{isConnected=true;connectedCallback(){} disconnectedCallback(){}},
     window:{addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name)},
     setTimeout:()=>1,clearTimeout:()=>{},errorMessage:error=>error.message,
     openProductPage:async page=>navigation.push(page),

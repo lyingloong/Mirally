@@ -1,4 +1,4 @@
-import type { BoardGetParams } from "@openclaw/gateway-protocol";
+import type { BoardGetParams } from "@mirally/gateway-protocol";
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { property, state } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
@@ -26,7 +26,7 @@ import type {
   BoardViewCallbacks,
   BoardWidgetFrameUrl,
 } from "../../lib/board/view-types.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import "../../styles/board.css";
 import "../web-awesome-tabs.ts";
 import "../web-awesome.ts";
@@ -54,7 +54,7 @@ function orderedWidgets(snapshot: BoardSnapshot, tabId: string): BoardWidget[] {
     );
 }
 
-class OpenClawBoardView extends OpenClawLightDomElement {
+class MirallyBoardView extends MirallyLightDomElement {
   // Snapshots acknowledge an observer-scoped key; native views retain the query's exact owner.
   @property({ attribute: false }) session: BoardGetParams = { sessionKey: "" };
   @property({ attribute: false }) snapshot?: BoardSnapshot;
@@ -315,7 +315,7 @@ class OpenClawBoardView extends OpenClawLightDomElement {
     ) {
       return;
     }
-    const cell = [...this.querySelectorAll("openclaw-board-widget-cell")].find(
+    const cell = [...this.querySelectorAll("mirally-board-widget-cell")].find(
       (entry) => entry.pageChrome && entry.widget === widget,
     );
     cell?.selectMenuItem(value);
@@ -381,7 +381,7 @@ class OpenClawBoardView extends OpenClawLightDomElement {
         .elementFromPoint(event.clientX, event.clientY)
         ?.closest<HTMLElement>("[data-board-tab-id]");
       const candidateTabId =
-        tabTarget?.closest("openclaw-board-view") === this
+        tabTarget?.closest("mirally-board-view") === this
           ? (tabTarget.dataset.boardTabId ?? "")
           : "";
       const candidateIsValid =
@@ -414,8 +414,8 @@ class OpenClawBoardView extends OpenClawLightDomElement {
       // a card moving under the pointer must not undo the drop on pointerup.
       const items = this.previewItems ?? gesture.items;
       const targetName = pointerElement?.closest<
-        HTMLElementTagNameMap["openclaw-board-widget-cell"]
-      >("openclaw-board-widget-cell")?.widget?.name;
+        HTMLElementTagNameMap["mirally-board-widget-cell"]
+      >("mirally-board-widget-cell")?.widget?.name;
       this.previewItems = previewDrag(items, gesture.name, {
         name: targetName,
         x: Math.floor((event.clientX - bounds.left) / (columnWidth + BOARD_GRID_GAP)),
@@ -545,7 +545,7 @@ class OpenClawBoardView extends OpenClawLightDomElement {
     }
     this.focusName = target.name;
     void this.updateComplete.then(() => {
-      const cell = [...this.querySelectorAll("openclaw-board-widget-cell")].find(
+      const cell = [...this.querySelectorAll("mirally-board-widget-cell")].find(
         (entry) => entry.widget?.name === target.name,
       );
       cell?.querySelector<HTMLElement>(".board-widget")?.focus();
@@ -624,7 +624,7 @@ class OpenClawBoardView extends OpenClawLightDomElement {
               return nothing;
             }
             return html`
-              <openclaw-board-widget-cell
+              <mirally-board-widget-cell
                 ?hidden=${!activeNames.has(widget.name)}
                 ?inert=${!activeNames.has(widget.name)}
                 .widget=${widget}
@@ -646,7 +646,7 @@ class OpenClawBoardView extends OpenClawLightDomElement {
                 .busy=${this.mutationPending}
                 .canMutate=${this.canMutate}
                 .canGrant=${this.canGrant}
-              ></openclaw-board-widget-cell>
+              ></mirally-board-widget-cell>
             `;
           },
         )}
@@ -727,12 +727,12 @@ class OpenClawBoardView extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-board-view")) {
-  customElements.define("openclaw-board-view", OpenClawBoardView);
+if (!customElements.get("mirally-board-view")) {
+  customElements.define("mirally-board-view", MirallyBoardView);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-board-view": OpenClawBoardView;
+    "mirally-board-view": MirallyBoardView;
   }
 }

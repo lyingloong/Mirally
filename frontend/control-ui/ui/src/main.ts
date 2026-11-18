@@ -41,14 +41,14 @@ if (false && isProd && "serviceWorker" in navigator) {
     import("./app/sw-refresh.runtime.ts")
       .then(({ refreshControlUiServiceWorker }) => refreshControlUiServiceWorker())
       .catch((error: unknown) => {
-        console.warn("OpenClaw service worker refresh failed.", error);
+        console.warn("Mirally service worker refresh failed.", error);
       });
   navigator.serviceWorker.addEventListener("controllerchange", () => void refresh());
   void navigator.serviceWorker
     .register(swUrl, { updateViaCache: "none" })
     .then(refresh)
     .catch((error: unknown) => {
-      console.warn("OpenClaw service worker registration failed.", error);
+      console.warn("Mirally service worker registration failed.", error);
     });
 } else if (!isProd && "serviceWorker" in navigator) {
   // Unregister any leftover dev SW to avoid stale cache issues.

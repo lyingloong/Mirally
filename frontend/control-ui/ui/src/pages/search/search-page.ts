@@ -1,6 +1,6 @@
 import { consume } from "@lit/context";
-import { parseModelCatalogRef } from "@openclaw/model-catalog-core/model-catalog-refs";
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
+import { parseModelCatalogRef } from "@mirally/model-catalog-core/model-catalog-refs";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing } from "lit";
 import { state } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
@@ -38,7 +38,7 @@ import { formatUiError } from "../../lib/format-error.ts";
 import type { GatewayConnectionScope } from "../../lib/gateway-connection-lifecycle.ts";
 import { loadModelCatalog } from "../../lib/model-catalog-store.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { renderSettingsSelectRow } from "../config/settings-select-row.ts";
 import { newSessionModelSearch } from "../new-session/model-location.ts";
@@ -51,7 +51,7 @@ registerSettingsEnglish();
 
 type SearchProvider = WebSearchStatusResult["providers"][number];
 
-class SearchPage extends OpenClawLightDomElement {
+class SearchPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -680,4 +680,4 @@ class SearchPage extends OpenClawLightDomElement {
     return html`${renderSettingsPageHeader({ title: t("tabs.search"), subtitle: t("subtitles.search") })}${body}`;
   }
 }
-customElements.define("openclaw-search-page", SearchPage);
+customElements.define("mirally-search-page", SearchPage);

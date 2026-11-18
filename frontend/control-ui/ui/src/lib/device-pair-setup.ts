@@ -2,8 +2,8 @@
 import {
   DEFAULT_GATEWAY_REQUEST_TIMEOUT_MS,
   type GatewayProtocolRequestOptions,
-} from "@openclaw/gateway-client/browser";
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+} from "@mirally/gateway-client/browser";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import type {
   DevicePairSetupCodeParams,
   DevicePairSetupCodeResult,

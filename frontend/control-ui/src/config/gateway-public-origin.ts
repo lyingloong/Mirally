@@ -1,7 +1,7 @@
-import type { OpenClawConfig } from "./types.js";
+import type { MirallyConfig } from "./types.js";
 
 export function resolveGatewayPublicOrigin(
-  config: Pick<OpenClawConfig, "gateway"> | null | undefined,
+  config: Pick<MirallyConfig, "gateway"> | null | undefined,
 ): string | undefined {
   const raw = config?.gateway?.publicOrigin?.trim();
   if (!raw) {

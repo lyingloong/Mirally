@@ -6,7 +6,7 @@ import type {
   TranscriptsExportResult,
   TranscriptsGetResult,
   TranscriptsListResult,
-} from "@openclaw/gateway-protocol";
+} from "@mirally/gateway-protocol";
 import { html, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import { applicationContext, type ApplicationContext } from "../../app/context.ts";
@@ -14,7 +14,7 @@ import { hasOperatorReadAccess, hasOperatorWriteAccess } from "../../app/operato
 import { formatUiError } from "../../lib/format-error.ts";
 import { isArchiveAccessDeniedError } from "../../lib/gateway-errors.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { PollController } from "../../lit/poll-controller.ts";
 import {
   transcriptListParams,
@@ -32,7 +32,7 @@ type ArchiveReadResults = {
   "transcripts.export": TranscriptsExportResult;
 };
 
-class MeetingsPage extends OpenClawLightDomElement {
+class MeetingsPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
   @property({ attribute: false }) routeSearch = "";
@@ -570,11 +570,11 @@ class MeetingsPage extends OpenClawLightDomElement {
 export const meetingsPageComponent = {
   header: true,
   render: (search: unknown) =>
-    html`<openclaw-meetings-page
+    html`<mirally-meetings-page
       .routeSearch=${typeof search === "string" ? search : ""}
-    ></openclaw-meetings-page>`,
+    ></mirally-meetings-page>`,
 };
 
-if (!customElements.get("openclaw-meetings-page")) {
-  customElements.define("openclaw-meetings-page", MeetingsPage);
+if (!customElements.get("mirally-meetings-page")) {
+  customElements.define("mirally-meetings-page", MeetingsPage);
 }

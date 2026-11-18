@@ -1,4 +1,4 @@
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import type {
   SessionsFilesRevealResult,
   SystemInfoResult,
@@ -161,7 +161,7 @@ export abstract class ChatPaneSessionMenu extends ChatPaneContext {
       !this.active ||
       !this.presented ||
       this.onboarding ||
-      document.openClawModalLayers?.size ||
+      document.mirallyModalLayers?.size ||
       document.querySelector(".shell-nav[aria-modal='true']")
     ) {
       return true;

@@ -22,7 +22,7 @@ import {
 } from "../../../components/session-menu-compact.ts";
 import type { SessionCreatedActor } from "../../../components/session-owner-chip.ts";
 import { t } from "../../../i18n/index.ts";
-import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../../lit/mirally-element.ts";
 import { getProductHost, requestProduct } from "../../mirally/api.ts";
 import {
   renderChatSessionSharing,
@@ -66,7 +66,7 @@ const COMPACT_MENU_VIEW_BY_VALUE: Record<string, CompactMenuView> = {
   "compact:open-view": "view",
 };
 
-class ChatHeaderSessionMenu extends OpenClawLightDomElement {
+class ChatHeaderSessionMenu extends MirallyLightDomElement {
   @property({ attribute: false }) session: SessionMenuData = EMPTY_SESSION_MENU_DATA;
   @property({ attribute: false }) worktreePath: string | null = null;
   @property({ attribute: false }) onboarding = false;
@@ -547,12 +547,12 @@ class ChatHeaderSessionMenu extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-chat-header-session-menu")) {
-  customElements.define("openclaw-chat-header-session-menu", ChatHeaderSessionMenu);
+if (!customElements.get("mirally-chat-header-session-menu")) {
+  customElements.define("mirally-chat-header-session-menu", ChatHeaderSessionMenu);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-chat-header-session-menu": ChatHeaderSessionMenu;
+    "mirally-chat-header-session-menu": ChatHeaderSessionMenu;
   }
 }

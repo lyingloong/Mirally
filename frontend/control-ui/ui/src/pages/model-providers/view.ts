@@ -424,7 +424,7 @@ function renderAddProvider(props: ModelProvidersViewProps) {
   const disabled = configMutationDisabled(props) || busy;
   const provider = props.unconfiguredProviders.find((entry) => entry.id === props.addProviderId);
   return html`
-    <openclaw-modal-dialog
+    <mirally-modal-dialog
       label=${t("modelProviders.add.title")}
       @modal-cancel=${(event: Event) => {
         event.preventDefault();
@@ -465,7 +465,7 @@ function renderAddProvider(props: ModelProvidersViewProps) {
           </button>
         </div>
       </div>
-    </openclaw-modal-dialog>
+    </mirally-modal-dialog>
   `;
 }
 
@@ -608,7 +608,7 @@ export function renderModelProviders(props: ModelProvidersViewProps) {
                 >`
               : nothing
           }
-          <openclaw-tooltip
+          <mirally-tooltip
             .content=${props.refreshing ? t("modelProviders.refreshing") : t("common.refresh")}
           >
             <button
@@ -620,7 +620,7 @@ export function renderModelProviders(props: ModelProvidersViewProps) {
             >
               ${icons.refresh}
             </button>
-          </openclaw-tooltip>
+          </mirally-tooltip>
         `,
       },
       props.loading

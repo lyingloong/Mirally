@@ -19,7 +19,7 @@ export const WizardStartParamsSchema = closedObject({
   workspace: Type.Optional(Type.String()),
   installDaemon: Type.Optional(Type.Boolean()),
   // "setup" (default) runs full onboarding; "channels" runs the guided
-  // channel-setup flow (openclaw channels add) over the same step protocol.
+  // channel-setup flow (mirally channels add) over the same step protocol.
   flow: Type.Optional(Type.Union([Type.Literal("setup"), Type.Literal("channels")])),
   // Preselected channel id for flow "channels" (e.g. "telegram").
   channel: Type.Optional(NonEmptyString),

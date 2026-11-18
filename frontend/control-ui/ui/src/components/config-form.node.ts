@@ -71,10 +71,10 @@ export function renderNode(params: ConfigNodeRenderParams): TemplateResult | typ
       renderNode,
     };
     return html`
-      <openclaw-config-form-structured-draft
+      <mirally-config-form-structured-draft
         class="cfg-structured-draft"
         .props=${props}
-      ></openclaw-config-form-structured-draft>
+      ></mirally-config-form-structured-draft>
     `;
   }
 

@@ -59,7 +59,7 @@ function renderTaskMeta(task: TaskSummary, facts: TaskDisplayFacts): TemplateRes
         facts.active && facts.startedMs > 0
           ? html`<span class="chat-tasks-rail__task-sep" aria-hidden="true">·</span>
               <span
-                ><openclaw-elapsed-time .startMs=${facts.startedMs}></openclaw-elapsed-time
+                ><mirally-elapsed-time .startMs=${facts.startedMs}></mirally-elapsed-time
               ></span>`
           : nothing
       }
@@ -133,14 +133,14 @@ export function renderTaskRow(task: TaskSummary, props: BackgroundTasksProps): T
               ? html`<span class="chat-tasks-rail__task-pulse" aria-hidden="true"></span>`
               : nothing
           }
-          <openclaw-tooltip .content=${facts.title}>
+          <mirally-tooltip .content=${facts.title}>
             <span class="chat-tasks-rail__task-title">${facts.title}</span>
-          </openclaw-tooltip>
+          </mirally-tooltip>
         </button>
         ${
           facts.active && props.canCancel
             ? html`
-                <openclaw-tooltip
+                <mirally-tooltip
                   .content=${t("chat.backgroundTasks.stopTask", { title: facts.title })}
                 >
                   <button
@@ -155,7 +155,7 @@ export function renderTaskRow(task: TaskSummary, props: BackgroundTasksProps): T
                   >
                     ${cancelling ? icons.loader : icons.stop}
                   </button>
-                </openclaw-tooltip>
+                </mirally-tooltip>
               `
             : nothing
         }

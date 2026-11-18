@@ -1,4 +1,4 @@
-import { asNonArrayRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNonArrayRecord } from "@mirally/normalization-core/record-coerce";
 import type { GatewaySessionRow } from "../../../api/types.ts";
 import type { ImageLightboxItem } from "../../../components/image-lightbox.types.ts";
 import { t } from "../../../i18n/index.ts";
@@ -508,7 +508,7 @@ export function projectMessageMedia(
       },
     };
   };
-  const layout = asNonArrayRecord(asNonArrayRecord(record["__openclaw"]).mediaImageLayout);
+  const layout = asNonArrayRecord(asNonArrayRecord(record["__mirally"]).mediaImageLayout);
   const slots = Array.isArray(layout.slots) ? layout.slots.map(asNonArrayRecord) : [];
   const factIndexes = slots.length > 0 ? new Set(slots.map((slot) => slot.factIndex)) : undefined;
   // Reject ambiguous layouts before deduplication: fact positions, including

@@ -5,13 +5,13 @@
 // session. The browser runtime is dynamically imported on first open so it
 // never weighs down the initial Control UI bundle.
 import { initialState, Task, TaskStatus } from "@lit/task";
-import { buildControlUiFocusPath } from "@openclaw/session-url-contract";
+import { buildControlUiFocusPath } from "@mirally/session-url-contract";
 import { html, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 import { createRef } from "lit/directives/ref.js";
 import { t } from "../../i18n/index.ts";
 import { openExternalUrlSafe } from "../../lib/open-external-url.ts";
-import { OpenClawLitElement } from "../../lit/openclaw-element.ts";
+import { MirallyLitElement } from "../../lit/mirally-element.ts";
 import { scrollbarShadowStyles } from "../../lit/scrollbar-styles.ts";
 import { DockLayoutController } from "../dock-layout-controller.ts";
 import { terminalPanelLayout, type DockPanelPlacement } from "../dock-panel-layout.ts";
@@ -60,8 +60,8 @@ type TerminalDock = Exclude<DockPanelPlacement, "left">;
 
 const CATALOG_TERMINAL_READY_TIMEOUT_MS = 30_000;
 
-/** `<openclaw-terminal-panel>` — the dockable Control UI shell surface. */
-export class OpenClawTerminalPanel extends OpenClawLitElement implements PanelHostedTabsElement {
+/** `<mirally-terminal-panel>` — the dockable Control UI shell surface. */
+export class MirallyTerminalPanel extends MirallyLitElement implements PanelHostedTabsElement {
   /** Gateway client used for terminal.* RPCs; null until connected. */
   @property({ attribute: false }) client: TerminalGatewayClient | null = null;
   /** Agent whose workspace and sandbox policy own newly opened sessions. */
@@ -261,10 +261,10 @@ export class OpenClawTerminalPanel extends OpenClawLitElement implements PanelHo
     }
     const upload = this.terminalPanelUploadController;
     return html`
-      <openclaw-tooltip .content=${t("terminal.sessions")}>
+      <mirally-tooltip .content=${t("terminal.sessions")}>
         ${renderTerminalSessionPickerTrigger(this.sessionPickerProps)}
-      </openclaw-tooltip>
-      <openclaw-tooltip .content=${t("terminal.addFiles")}>
+      </mirally-tooltip>
+      <mirally-tooltip .content=${t("terminal.addFiles")}>
         <button
           class="rail-header__action"
           type="button"
@@ -274,8 +274,8 @@ export class OpenClawTerminalPanel extends OpenClawLitElement implements PanelHo
         >
           ${icons.paperclip}
         </button>
-      </openclaw-tooltip>
-      <openclaw-tooltip .content=${t("terminal.dockBottom")}>
+      </mirally-tooltip>
+      <mirally-tooltip .content=${t("terminal.dockBottom")}>
         <button
           class="rail-header__action"
           type="button"
@@ -284,7 +284,7 @@ export class OpenClawTerminalPanel extends OpenClawLitElement implements PanelHo
         >
           ${icons.panelBottomOpen}
         </button>
-      </openclaw-tooltip>
+      </mirally-tooltip>
     `;
   }
 
@@ -570,6 +570,6 @@ export class OpenClawTerminalPanel extends OpenClawLitElement implements PanelHo
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-terminal-panel": OpenClawTerminalPanel;
+    "mirally-terminal-panel": MirallyTerminalPanel;
   }
 }

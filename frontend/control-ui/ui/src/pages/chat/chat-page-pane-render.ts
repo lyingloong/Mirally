@@ -95,7 +95,7 @@ export function renderChatPagePaneCell(options: ChatPagePaneRenderOptions) {
           if (options.context && readDeletedSessionStartup(options.context, sessionKey)) {
             return keyed(
               sessionKey,
-              html`<openclaw-pending-session-create
+              html`<mirally-pending-session-create
                 class="chat-pane-cache__pane ${visible ? "chat-pane-cache__pane--visible" : ""}
                 ${active ? "chat-pane-cache__pane--active" : ""}
                 ${options.splitMode ? "chat-split-view__pane" : ""}"
@@ -103,12 +103,12 @@ export function renderChatPagePaneCell(options: ChatPagePaneRenderOptions) {
                 ?inert=${!presented}
                 .context=${options.context}
                 .sessionKey=${sessionKey}
-              ></openclaw-pending-session-create>`,
+              ></mirally-pending-session-create>`,
             );
           }
           return keyed(
             sessionKey,
-            html`<openclaw-chat-pane
+            html`<mirally-chat-pane
               class="chat-pane-cache__pane ${
                 visible ? "chat-pane-cache__pane--visible" : ""
               } ${active ? "chat-pane-cache__pane--active" : ""} ${
@@ -152,7 +152,7 @@ export function renderChatPagePaneCell(options: ChatPagePaneRenderOptions) {
               ) => options.onPaneSessionChange(paneId, sessionKey, nextSessionKey, paneOptions)}
               .onSessionDeleted=${options.onSessionDeleted}
               .onFaceChange=${options.onFaceChange}
-            ></openclaw-chat-pane>`,
+            ></mirally-chat-pane>`,
           );
         })}
       </div>
@@ -270,8 +270,8 @@ export function renderPendingChatPage(
   if (!presented) {
     return nothing;
   }
-  return html`<openclaw-pending-session-create
+  return html`<mirally-pending-session-create
     .context=${context}
     .sessionKey=${sessionKey}
-  ></openclaw-pending-session-create>`;
+  ></mirally-pending-session-create>`;
 }

@@ -53,10 +53,7 @@ export function environmentMenuFacts(
     nowMs: options.nowMs ?? Date.now(),
   });
   const priorityFact = updateIssue
-    ? t("newSession.nodeUpdateRequired", {
-        updateCommand: updateIssue.updateCommand,
-        restartCommand: updateIssue.headlessReconnectCommand,
-      })
+    ? t("newSession.nodeUpdateRequired")
     : lifecycle;
   const facts = priorityFact ? [priorityFact] : [];
   if (environment?.platform) {

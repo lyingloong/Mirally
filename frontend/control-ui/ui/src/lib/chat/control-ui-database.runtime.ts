@@ -1,4 +1,4 @@
-const DATABASE_NAME = "openclaw-control-ui";
+const DATABASE_NAME = "mirally-control-ui";
 const DATABASE_VERSION = 2;
 const STORE_NAME = "composerDrafts";
 const OWNER_INDEX = "ownerKey";

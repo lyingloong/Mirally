@@ -7,7 +7,7 @@ export function resolveModelRuntimeRoute(
     return "claudeCli";
   }
   if (provider === "anthropic") {
-    if (runtimeId === "openclaw") {
+    if (runtimeId === "mirally") {
       return "anthropicApi";
     }
     if (!runtimeId) {

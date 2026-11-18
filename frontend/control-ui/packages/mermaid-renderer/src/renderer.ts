@@ -1,4 +1,4 @@
-import { asRecord } from "@openclaw/normalization-core/record-coerce";
+import { asRecord } from "@mirally/normalization-core/record-coerce";
 import createDOMPurify from "dompurify";
 import type { MermaidConfig } from "mermaid";
 import mermaidScriptUrl from "mermaid/dist/mermaid.min.js?url&no-inline";
@@ -279,7 +279,7 @@ function createMermaidFrame(): MermaidFrame {
     loaded = true;
     // The frame has an opaque origin. Only this exact window receives the port;
     // all subsequent diagram data travels on that private channel.
-    frame.contentWindow?.postMessage({ type: "openclaw:mermaid-init" }, "*", [channel.port2]);
+    frame.contentWindow?.postMessage({ type: "mirally:mermaid-init" }, "*", [channel.port2]);
   });
   frame.setAttribute("sandbox", "allow-scripts");
   frame.setAttribute("aria-hidden", "true");

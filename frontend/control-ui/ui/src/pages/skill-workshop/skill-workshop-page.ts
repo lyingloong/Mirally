@@ -9,7 +9,7 @@ import { readSessionMethodAccess } from "../../lib/session-method-access.ts";
 import { sessionNavigationTarget } from "../../lib/sessions/route-navigation.ts";
 import type { SkillWorkshopProposalDecision } from "../../lib/skill-workshop/index.ts";
 import { generateUUID } from "../../lib/uuid.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { buildInitialChatSubmission } from "../chat/user-message-content.ts";
 import { retainRejectedInitialTurn } from "../new-session/rejected-initial-turn.ts";
@@ -44,7 +44,7 @@ import { loadSkillWorkshopMode } from "./storage.ts";
 
 registerSkillWorkshopEnglish();
 
-class SkillWorkshopPage extends OpenClawLightDomElement {
+class SkillWorkshopPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context?: SkillWorkshopPageContext;
   @property({ attribute: false }) data?: SkillWorkshopRouteData;
@@ -536,6 +536,6 @@ class SkillWorkshopPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-skill-workshop-page")) {
-  customElements.define("openclaw-skill-workshop-page", SkillWorkshopPage);
+if (!customElements.get("mirally-skill-workshop-page")) {
+  customElements.define("mirally-skill-workshop-page", SkillWorkshopPage);
 }

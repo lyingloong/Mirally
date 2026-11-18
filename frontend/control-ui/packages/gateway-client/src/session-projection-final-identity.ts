@@ -1,7 +1,7 @@
 /** Terminal identity rules used to reconcile live and durable assistant projections. */
 
-import { asNullableRecord as readRecord } from "@openclaw/normalization-core/record-coerce";
-import { stableStringify } from "@openclaw/normalization-core/stable-stringify";
+import { asNullableRecord as readRecord } from "@mirally/normalization-core/record-coerce";
+import { stableStringify } from "@mirally/normalization-core/stable-stringify";
 import {
   hasDisplayableSessionMessage,
   readSessionMessageDisplayContent,
@@ -112,7 +112,7 @@ export function readFinalContentIdentity(message: unknown): string | null {
   }
   const identity = readSessionMessageIdentity(message);
   const record = readRecord(terminalMessage);
-  const metadata = readRecord(record?.["__openclaw"]);
+  const metadata = readRecord(record?.["__mirally"]);
   try {
     return `content:${stableStringify([
       identity?.role ?? "assistant",
@@ -254,7 +254,7 @@ export function findUniqueSnapshotTerminalMatch(
     return entryIndex !== undefined && lastAssistantIndex >= 0 && entryIndex >= lastAssistantIndex;
   };
   const durableTerminalMatches = matches.filter((entry) => {
-    const metadata = readRecord(readRecord(entry.message)?.["__openclaw"]);
+    const metadata = readRecord(readRecord(entry.message)?.["__mirally"]);
     return (
       (metadata?.runTerminal === true ||
         (entry.identity?.runId === current.identity?.runId &&
@@ -276,7 +276,7 @@ export function findUniqueSnapshotTerminalMatch(
   if (!entry) {
     return null;
   }
-  const metadata = readRecord(readRecord(entry.message)?.["__openclaw"]);
+  const metadata = readRecord(readRecord(entry.message)?.["__mirally"]);
   return {
     entry,
     inferred: metadata?.runTerminal !== true && !hasTerminalStopReason(entry.message),

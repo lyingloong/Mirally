@@ -1,5 +1,5 @@
 {
-  "name": "@openclaw/session-url-contract",
+  "name": "@mirally/session-url-contract",
   "version": "0.0.0-private",
   "private": true,
   "type": "module",
@@ -11,6 +11,6 @@
     "./share-build": "./src/share-build.ts"
   },
   "dependencies": {
-    "@openclaw/normalization-core": "workspace:*"
+    "@mirally/normalization-core": "workspace:*"
   }
 }

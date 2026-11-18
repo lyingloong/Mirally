@@ -230,7 +230,7 @@ export function renderAgentOverview(params: {
         <dl class="settings-kv">
           <dt>${t("agents.context.workspace")}</dt>
           <dd>
-            <openclaw-tooltip .content=${t("agents.context.openFilesTab")}>
+            <mirally-tooltip .content=${t("agents.context.openFilesTab")}>
               <button
                 type="button"
                 class="workspace-link mono"
@@ -239,7 +239,7 @@ export function renderAgentOverview(params: {
               >
                 ${context.workspace}
               </button>
-            </openclaw-tooltip>
+            </mirally-tooltip>
           </dd>
           <dt>${t("agents.context.primaryModel")}</dt>
           <dd><code>${context.model}</code></dd>
@@ -336,7 +336,7 @@ export function renderAgentOverview(params: {
           title: t("agents.overview.fallbacks"),
           stacked: true,
           control: html`
-            <openclaw-multi-select
+            <mirally-multi-select
               class="agent-fallbacks"
               .options=${fallbackOptions}
               .value=${fallbackChips}
@@ -348,7 +348,7 @@ export function renderAgentOverview(params: {
               .disabled=${disabled}
               .onChange=${(next: string[]) => onModelFallbacksChange(agent.id, next)}
               .onOpen=${params.onModelCatalogOpen}
-            ></openclaw-multi-select>
+            ></mirally-multi-select>
           `,
         })}
       `,

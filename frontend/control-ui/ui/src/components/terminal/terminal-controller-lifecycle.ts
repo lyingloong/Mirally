@@ -1,4 +1,4 @@
-import type { GhosttyTerminalController } from "@openclaw/libterminal/browser";
+import type { GhosttyTerminalController } from "@mirally/terminal-runtime/browser";
 
 type TerminalControllerSlot = {
   controller: GhosttyTerminalController;

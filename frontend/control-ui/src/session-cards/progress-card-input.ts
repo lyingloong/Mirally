@@ -1,4 +1,4 @@
-import { asOptionalObjectRecord } from "@openclaw/normalization-core/record-coerce";
+import { asOptionalObjectRecord } from "@mirally/normalization-core/record-coerce";
 import {
   PROGRESS_CARD_MAX_STEP_UTF8_BYTES,
   PROGRESS_CARD_MAX_STEPS,

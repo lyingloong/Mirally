@@ -1,5 +1,5 @@
 // Pure grouping helpers for the sessions table "Group by" modes.
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import type { GatewaySessionRow } from "../../api/types.ts";
 import { resolveSessionDisplayKind } from "../session-display.ts";
 import {

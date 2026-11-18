@@ -1,6 +1,6 @@
 import { Type, type TProperties } from "typebox";
 
-const identityKey = "~openclawClosedObjectIdentity";
+const identityKey = "~mirallyClosedObjectIdentity";
 
 export function closedObject<Properties extends TProperties>(properties: Properties) {
   const schema = Type.Object(properties, { additionalProperties: false });

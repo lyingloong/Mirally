@@ -520,11 +520,11 @@ export function renderProviderProfiles(card: ModelProviderCard, props: ProviderP
                 </div>
                 ${
                   provider === "openai" && profile.type !== "api_key"
-                    ? html`<openclaw-model-account-usage
+                    ? html`<mirally-model-account-usage
                         .client=${props.usageClient ?? null}
                         .agentId=${props.usageAgentId ?? ""}
                         .profileId=${profile.profileId}
-                      ></openclaw-model-account-usage>`
+                      ></mirally-model-account-usage>`
                     : nothing
                 }
                 <span class="model-providers__profile-status"

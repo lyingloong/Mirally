@@ -16,7 +16,7 @@ export function isHtmlDocument(mimeType: string, filename: string): boolean {
 }
 
 export const htmlPreviewElement = {
-  tagName: "openclaw-chat-html-preview",
+  tagName: "mirally-chat-html-preview",
   get label() {
     return t("chat.detailPanel.renderPreview");
   },
@@ -46,12 +46,12 @@ export function renderHtmlPreview(
           ? html`<div role="status">${t("common.loading")}</div>`
           : nothing
     }
-    <openclaw-chat-html-preview
+    <mirally-chat-html-preview
       .html=${content}
       .sourceIdentity=${sourceIdentity}
       .title=${title}
       .embedSandboxMode=${embedSandboxMode}
-    ></openclaw-chat-html-preview>
+    ></mirally-chat-html-preview>
   `;
 }
 

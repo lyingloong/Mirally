@@ -9,7 +9,7 @@ import {
   toolOutputSourceLabel,
   formatToolOutput,
 } from "../../../lib/chat/tool-output.ts";
-import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../../lit/mirally-element.ts";
 import type {
   SidebarFullMessageLoader,
   ToolOutputSidebarContent,
@@ -18,7 +18,7 @@ import { renderRawOutputToggle } from "./chat-tool-content.ts";
 
 type OutputLoadState = "idle" | "loading" | "loaded" | "unavailable" | "error";
 
-class ChatToolOutput extends OpenClawLightDomElement {
+class ChatToolOutput extends MirallyLightDomElement {
   @property({ attribute: false }) content: ToolOutputSidebarContent | null = null;
   @property({ attribute: false }) loadFullMessage: SidebarFullMessageLoader | null = null;
   @property() connectionEpoch: number | undefined;
@@ -170,6 +170,6 @@ class ChatToolOutput extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-chat-tool-output")) {
-  customElements.define("openclaw-chat-tool-output", ChatToolOutput);
+if (!customElements.get("mirally-chat-tool-output")) {
+  customElements.define("mirally-chat-tool-output", ChatToolOutput);
 }

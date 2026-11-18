@@ -265,7 +265,7 @@ export function renderSidebarSessionMenuForController(controller: SidebarMenusCo
   return keyed(
     menu,
     html`
-      <openclaw-session-menu
+      <mirally-session-menu
         .session=${{
           label: session.label,
           sessionId: session.sessionId ?? null,
@@ -414,7 +414,7 @@ export function renderSidebarSessionMenuForController(controller: SidebarMenusCo
               action satisfies never;
           }
         }}
-      ></openclaw-session-menu>
+      ></mirally-session-menu>
     `,
   );
 }

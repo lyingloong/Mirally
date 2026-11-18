@@ -3,7 +3,7 @@ import type { BootRecord } from "../../app/boot-record.ts";
 import type { SessionGroupSettings } from "./custom-groups.ts";
 import type { SessionListOptions } from "./session-capability.ts";
 
-export const SESSION_ROSTER_DB_NAME = "openclaw-session-roster";
+export const SESSION_ROSTER_DB_NAME = "mirally-session-roster";
 export const SESSION_ROSTER_STORE_NAME = "rosters";
 export const SESSION_ROSTER_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 export const SESSION_ROSTER_MAX_BYTES = 1.5 * 1024 * 1024;

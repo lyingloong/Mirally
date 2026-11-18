@@ -1,4 +1,4 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing } from "lit";
 import { schemaType, type JsonSchema } from "../../components/config-form.shared.ts";
 import { analyzeConfigSchema, type ConfigSchemaAnalysis } from "../../components/config-form.ts";
@@ -94,7 +94,7 @@ export function configValueExistsAtPath(
 }
 
 export function renderUnsupportedPathSummary(paths: string[]) {
-  const marker = "__OPENCLAW_CONFIG_PATHS__";
+  const marker = "__MIRALLY_CONFIG_PATHS__";
   const key =
     paths.length === 1 ? "configView.formUnsafeCount" : "configView.formUnsafeCountPlural";
   const [prefix, suffix = ""] = t(key, {

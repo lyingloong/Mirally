@@ -1,5 +1,5 @@
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 import {
   isToolCallContentType,
   isToolResultContentType,
@@ -13,7 +13,7 @@ import { extractText, extractTextCached, isEmptyUserTextOnlyMessage } from "./me
 
 const SILENT_REPLY_PATTERN = /^\s*NO_REPLY\s*$/;
 const SYNTHETIC_TRANSCRIPT_REPAIR_RESULT =
-  "[openclaw] missing tool result in session history; inserted synthetic error result for transcript repair.";
+  "[mirally] missing tool result in session history; inserted synthetic error result for transcript repair.";
 
 // Media and unknown blocks are visible outcomes; tool and thinking blocks are
 // activity. Classifying prepared content keeps replies out of work rollups.

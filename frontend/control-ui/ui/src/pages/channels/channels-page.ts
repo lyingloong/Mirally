@@ -22,7 +22,7 @@ import {
   GatewayPageController,
   type GatewayPageChange,
 } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { PollController } from "../../lit/poll-controller.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { importNostrProfile, parseValidationErrors, putNostrProfile } from "./nostr-profile-ops.ts";
@@ -52,7 +52,7 @@ function formatNostrProfileOperationError(error: unknown, prefix: string): strin
     : t("channels.nostr.notices.operationFailed", { prefix, error: formatUiError(error) });
 }
 
-class ChannelsPage extends OpenClawLightDomElement {
+class ChannelsPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -739,6 +739,6 @@ class ChannelsPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-channels-page")) {
-  customElements.define("openclaw-channels-page", ChannelsPage);
+if (!customElements.get("mirally-control-channels-page")) {
+  customElements.define("mirally-control-channels-page", ChannelsPage);
 }

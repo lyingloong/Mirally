@@ -1,4 +1,4 @@
-import type { ProgressCard, ProgressCardGetParams } from "@openclaw/gateway-protocol";
+import type { ProgressCard, ProgressCardGetParams } from "@mirally/gateway-protocol";
 import { nothing, ReactiveElement, render } from "lit";
 import type { GatewayBrowserClient } from "../api/gateway.ts";
 import { pathForRoute } from "../app-route-paths.ts";
@@ -34,7 +34,7 @@ const EXIT_DURATION_MS = 100;
 let nextHovercardId = 0;
 
 function sessionHovercardMenuOpen(owner: ParentNode): boolean {
-  return owner.querySelector("openclaw-session-menu, openclaw-catalog-session-menu") !== null;
+  return owner.querySelector("mirally-session-menu, mirally-catalog-session-menu") !== null;
 }
 
 export class SessionProgressHovercardProvider extends ReactiveElement {
@@ -285,7 +285,7 @@ export class SessionProgressHovercardProvider extends ReactiveElement {
     }
     const agentId =
       parseAgentSessionKey(sessionKey)?.agentId ??
-      target.closest<AppSidebarSessionNavigationElement>("openclaw-app-sidebar")?.expandedAgentId();
+      target.closest<AppSidebarSessionNavigationElement>("mirally-app-sidebar")?.expandedAgentId();
     if (!agentId) {
       return;
     }
@@ -393,7 +393,7 @@ export class SessionProgressHovercardProvider extends ReactiveElement {
     }
     const sidebarRow =
       this.querySelector<AppSidebarSessionNavigationElement>(
-        "openclaw-app-sidebar",
+        "mirally-app-sidebar",
       )?.findSidebarHovercardRowByKey(sessionKey);
     const pullRequests = this.pullRequests?.get(artifactKey);
     const currentProgressCard = this.progressCards?.get(session);
@@ -461,7 +461,7 @@ export class SessionProgressHovercardProvider extends ReactiveElement {
     if (!card) {
       nextHovercardId += 1;
       card = createPortaledHovercard(
-        `openclaw-session-progress-hovercard-${nextHovercardId}`,
+        `mirally-session-progress-hovercard-${nextHovercardId}`,
         "session-progress-hovercard",
       );
       this.animateNextOpen = false;

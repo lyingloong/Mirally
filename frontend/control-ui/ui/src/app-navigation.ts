@@ -1,5 +1,5 @@
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
-import { isValidWorkboardBoardId } from "@openclaw/workboard-contract";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
+import { isValidWorkboardBoardId } from "@mirally/workboard-contract";
 // Control UI app navigation defines sidebar and settings presentation metadata.
 import type { RouteId } from "./app-route-paths.ts";
 import type {

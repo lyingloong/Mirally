@@ -1,4 +1,4 @@
-import { flattenMarkdownToPlainText } from "@openclaw/normalization-core/markdown-plain-text";
+import { flattenMarkdownToPlainText } from "@mirally/normalization-core/markdown-plain-text";
 import { html, nothing, type TemplateResult } from "lit";
 import { keyed } from "lit/directives/keyed.js";
 import { repeat } from "lit/directives/repeat.js";
@@ -128,11 +128,11 @@ function renderSubagentActivityRow(
       >
         ${content}
       </button>`;
-  return html`<openclaw-tooltip
+  return html`<mirally-tooltip
     class="chat-subagent-activity__tooltip"
     .content=${[label, statusDescription, snippet].filter(Boolean).join("\n")}
     .describe=${false}
-    >${row}</openclaw-tooltip
+    >${row}</mirally-tooltip
   >`;
 }
 

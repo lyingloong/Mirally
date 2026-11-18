@@ -4,7 +4,7 @@ import type { QuestionDraft, QuestionPrompt } from "../../../app/question-prompt
 import { icons } from "../../../components/icons.ts";
 import { t } from "../../../i18n/index.ts";
 import { formatRelativeTimestamp } from "../../../lib/format.ts";
-import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../../lit/mirally-element.ts";
 import {
   adjustTextareaHeight,
   disconnectTextareaOverflowObserver,
@@ -159,7 +159,7 @@ export function renderChatQuestionSummary(prompt: QuestionPrompt) {
   `;
 }
 
-class ChatQuestionPanel extends OpenClawLightDomElement {
+class ChatQuestionPanel extends MirallyLightDomElement {
   @property({ attribute: false }) props?: QuestionPanelProps;
   @state() private currentQuestionIndex = 0;
   @state() private pendingAction: { kind: "submit" | "skip" } | null = null;
@@ -700,6 +700,6 @@ class ChatQuestionPanel extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-chat-question-panel")) {
-  customElements.define("openclaw-chat-question-panel", ChatQuestionPanel);
+if (!customElements.get("mirally-chat-question-panel")) {
+  customElements.define("mirally-chat-question-panel", ChatQuestionPanel);
 }

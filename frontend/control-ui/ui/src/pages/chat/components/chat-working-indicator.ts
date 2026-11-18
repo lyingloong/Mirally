@@ -101,10 +101,10 @@ export function renderChatWorkingIndicator(
           waitingApproval
             ? nothing
             : html`
-                <openclaw-elapsed-time
+                <mirally-elapsed-time
                   class="chat-working-indicator__elapsed"
                   .startMs=${part.startedAt}
-                ></openclaw-elapsed-time>
+                ></mirally-elapsed-time>
               `
         }
         ${
@@ -117,12 +117,12 @@ export function renderChatWorkingIndicator(
               `
             : working
               ? html`
-                  <openclaw-working-phrase
+                  <mirally-working-phrase
                     aria-hidden="true"
                     .startMs=${part.startedAt}
                     .seed=${part.key}
                     .phrases=${options.workingPhrases}
-                  ></openclaw-working-phrase>
+                  ></mirally-working-phrase>
                 `
               : nothing
         }

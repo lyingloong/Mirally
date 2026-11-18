@@ -1,5 +1,5 @@
-import type { SystemAgentChatQuestion } from "@openclaw/gateway-protocol";
-import { normalizeNullableString as nonEmptyString } from "@openclaw/normalization-core/string-coerce";
+import type { SystemAgentChatQuestion } from "@mirally/gateway-protocol";
+import { normalizeNullableString as nonEmptyString } from "@mirally/normalization-core/string-coerce";
 
 export type CustodianStructuredQuestion = {
   id: string;
@@ -11,7 +11,7 @@ export type CustodianStructuredQuestion = {
 };
 
 /**
- * Sanitize the typed `question` field from `openclaw.chat`. The gateway owns
+ * Sanitize the typed `question` field from `mirally.chat`. The gateway owns
  * the schema, but this state renders buttons that send messages, so the page
  * still enforces the card contract locally: 2-4 unique options, at most one
  * recommended. Anything else degrades to the prose reply.

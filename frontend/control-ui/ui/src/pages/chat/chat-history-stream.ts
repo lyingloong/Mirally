@@ -1,5 +1,5 @@
-import { readSessionMessageIdentity } from "@openclaw/gateway-client/browser";
-import { asNullableRecord, asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
+import { readSessionMessageIdentity } from "@mirally/gateway-client/browser";
+import { asNullableRecord, asOptionalRecord } from "@mirally/normalization-core/record-coerce";
 import type { GatewaySessionRow } from "../../api/types.ts";
 import { accumulatedStreamText, advanceAccumulatedStreamText } from "../../lib/chat/chat-types.ts";
 import { extractText } from "../../lib/chat/message-extract.ts";
@@ -128,7 +128,7 @@ function runProjectionsUnchanged(
 function hasExactHistoryTerminal(state: ChatState, runId: string): boolean {
   return state.chatMessages.some((message) => {
     const identity = readSessionMessageIdentity(message);
-    const metadata = asNullableRecord(asNullableRecord(message)?.["__openclaw"]);
+    const metadata = asNullableRecord(asNullableRecord(message)?.["__mirally"]);
     return (
       identity?.role === "assistant" &&
       !identity.isImported &&

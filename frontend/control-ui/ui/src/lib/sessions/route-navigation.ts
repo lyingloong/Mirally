@@ -14,9 +14,9 @@ import {
   resolveUiDefaultAgentId,
 } from "./session-key.ts";
 
-export const SESSION_FACE_PREFERENCE_PARAM = "__openclawSessionFacePreference";
-export const SESSION_NAVIGATION_KEY_PARAM = "__openclawSessionKey";
-export const SESSION_COMPOSER_FOCUS_PARAM = "__openclawComposerFocus";
+export const SESSION_FACE_PREFERENCE_PARAM = "__mirallySessionFacePreference";
+export const SESSION_NAVIGATION_KEY_PARAM = "__mirallySessionKey";
+export const SESSION_COMPOSER_FOCUS_PARAM = "__mirallyComposerFocus";
 export const SESSION_DASHBOARD_EXPANDED_PARAM = "dashboard";
 
 export function composerDraftSearch(draft: string): string {

@@ -1,4 +1,4 @@
-import type { RouteLoaderOptions } from "@openclaw/uirouter";
+import type { RouteLoaderOptions } from "@mirally/ui-router";
 import type { ApplicationContext } from "../../app/context.ts";
 import { formatUiError } from "../../lib/format-error.ts";
 import {

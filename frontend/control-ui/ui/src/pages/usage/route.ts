@@ -1,4 +1,4 @@
-import { definePage, type RouteLoaderOptions } from "@openclaw/uirouter";
+import { definePage, type RouteLoaderOptions } from "@mirally/ui-router";
 import { routePageSpec } from "../../app-route-paths.ts";
 import type { ApplicationContext } from "../../app/context.ts";
 

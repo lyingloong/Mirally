@@ -1,4 +1,4 @@
-import { normalizeNullableString as normalizeLabelPart } from "@openclaw/normalization-core/string-coerce";
+import { normalizeNullableString as normalizeLabelPart } from "@mirally/normalization-core/string-coerce";
 import type { SessionParticipantIdentity } from "../../../../packages/gateway-protocol/src/schema/session-participant.js";
 import { readTranscriptSenderIdentity } from "../../../../src/chat/sender-identity.js";
 

@@ -93,7 +93,7 @@ export function projectMessages(events, commands = [], sequenceOffset = 0, {conv
     const projected = {id, role, text, content, seq, native_seq: event.seq, time: event.time, timestamp: event.time,
       ...(origin ? {input_origin: origin} : {}),
       ...(commandId ? {command_id: commandId} : {}),
-      __openclaw: {id, seq, ...(commandId ? {runId: commandId, ...(role === 'user' ? {idempotencyKey: `${commandId}:user`} : {})} : {})}, ...extra};
+      __mirally: {id, seq, ...(commandId ? {runId: commandId, ...(role === 'user' ? {idempotencyKey: `${commandId}:user`} : {})} : {})}, ...extra};
     result.push(projected);
     if (role === 'assistant' && event.data.turn !== undefined) assistantByTurn.set(event.data.turn, projected);
   };
@@ -116,7 +116,7 @@ export function projectMessages(events, commands = [], sequenceOffset = 0, {conv
     } else if (event.type === 'turn/end') {
       const terminal = assistantByTurn.get(event.data.turn);
       if (terminal) {
-        terminal.__openclaw.runTerminal = true;
+        terminal.__mirally.runTerminal = true;
         terminal.stopReason = ({completed: 'stop', 'max-tokens': 'length', aborted: 'aborted', error: 'error'})[event.data.reason?.kind] ?? 'stop';
       }
     }

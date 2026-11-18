@@ -15,7 +15,7 @@
   --mirally-activity-soft: #1a3549;
 }
 .mirally-activity[hidden], .mirally-activity [hidden] { display: none !important; }
-:root[data-mirally-activity] #control-ui-main > openclaw-router-outlet { display: none !important; }
+:root[data-mirally-activity] #control-ui-main > mirally-router-outlet { display: none !important; }
 :root[data-mirally-activity] .settings-sidebar__item--active:not(.mirally-activity__entry) { background: transparent; border-color: transparent; color: var(--mirally-activity-muted); }
 .mirally-activity__entry.settings-sidebar__item--active { background: var(--mirally-activity-soft); border-color: var(--mirally-activity-line); color: var(--mirally-activity-accent); }
 .mirally-activity { color: var(--mirally-activity-text); width: 100%; min-width: 0; font-size: var(--control-ui-text-md); line-height: 1.6; }

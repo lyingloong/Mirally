@@ -1,7 +1,7 @@
 // One boundary for the usage.status RPC. A successful empty response is valid data;
 // request failure remains a separate closed Result arm for consumer views.
 // Never convert cancellation into that arm: Lit Task discards superseded work.
-import { err, ok, type Result } from "@openclaw/normalization-core/result";
+import { err, ok, type Result } from "@mirally/normalization-core/result";
 import type { UsageSummary } from "../../../src/infra/provider-usage.types.js";
 import type { GatewayBrowserClient } from "../api/gateway.ts";
 

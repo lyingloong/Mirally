@@ -1,4 +1,4 @@
-/** Serve the existing Mirally skin without an OpenClaw Host or code injection bridge. */
+/** Assemble the same-origin Mirally presentation assets. */
 import {readFile} from 'node:fs/promises';
 import {join} from 'node:path';
 const css = ['mirally', 'companion', 'work', 'activity', 'memory'];

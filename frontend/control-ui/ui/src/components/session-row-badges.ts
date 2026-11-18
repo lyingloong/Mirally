@@ -46,7 +46,7 @@ function renderSessionRowBadge(
   diskSpaceStatus?: SessionPlacementDiskSpace["status"],
   workspaceConflictCount = 0,
 ) {
-  return html`<openclaw-tooltip .content=${label}>
+  return html`<mirally-tooltip .content=${label}>
     <span
       class=${`session-row-badge${modifier ? ` ${modifier}` : ""}`}
       data-pull-request-state=${pullRequestState ?? nothing}
@@ -57,7 +57,7 @@ function renderSessionRowBadge(
       aria-label=${label}
       >${icon}${count ? html`<span aria-hidden="true">${count}</span>` : nothing}</span
     >
-  </openclaw-tooltip>`;
+  </mirally-tooltip>`;
 }
 
 export function renderSessionRowBadges(params: {

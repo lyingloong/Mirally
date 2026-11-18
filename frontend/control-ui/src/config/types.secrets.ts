@@ -1,7 +1,7 @@
 // Defines secret reference and resolution configuration types.
-import { expectDefined } from "@openclaw/normalization-core";
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { expectDefined } from "@mirally/normalization-core";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import type { z } from "zod";
 import {
   DEFAULT_SECRET_PROVIDER_ALIAS,

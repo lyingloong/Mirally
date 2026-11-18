@@ -4,7 +4,7 @@ import { ref } from "lit/directives/ref.js";
 import { styleMap } from "lit/directives/style-map.js";
 import { icons } from "../../../components/icons.ts";
 import { t } from "../../../i18n/index.ts";
-import { OpenClawLightDomContentsElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../../../lit/mirally-element.ts";
 import {
   openAttachmentCardFromClick,
   renderAttachmentCardHeader,
@@ -47,7 +47,7 @@ function formatChatMediaTime(seconds: number): string {
   return `${minutes}:${String(remainder).padStart(2, "0")}`;
 }
 
-class ChatAudioPlayer extends OpenClawLightDomContentsElement {
+class ChatAudioPlayer extends MirallyLightDomContentsElement {
   @property() src = "";
   @property() sourceIdentity = "";
   @property() label = "";
@@ -664,12 +664,12 @@ class ChatAudioPlayer extends OpenClawLightDomContentsElement {
   }
 }
 
-if (!customElements.get("openclaw-chat-audio-player")) {
-  customElements.define("openclaw-chat-audio-player", ChatAudioPlayer);
+if (!customElements.get("mirally-chat-audio-player")) {
+  customElements.define("mirally-chat-audio-player", ChatAudioPlayer);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-chat-audio-player": ChatAudioPlayer;
+    "mirally-chat-audio-player": ChatAudioPlayer;
   }
 }

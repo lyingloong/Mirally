@@ -1,9 +1,9 @@
 import {
   readAssistantStreamSegmentIdentity,
   readSessionMessageIdentity,
-} from "@openclaw/gateway-client/browser";
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+} from "@mirally/gateway-client/browser";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import {
   advanceAccumulatedStreamText,
   streamSegmentUsesAccumulatedText,
@@ -36,7 +36,7 @@ function lastUserMessageIndex(messages: unknown[], beforeIndex = messages.length
 }
 
 export function persistedSteerTargetRunId(message: unknown): string | null {
-  const metadata = asNullableRecord(asNullableRecord(message)?.["__openclaw"]);
+  const metadata = asNullableRecord(asNullableRecord(message)?.["__mirally"]);
   return normalizeOptionalString(metadata?.steerTargetRunId) ?? null;
 }
 

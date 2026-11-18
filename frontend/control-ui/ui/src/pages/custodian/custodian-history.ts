@@ -1,4 +1,4 @@
-import type { SystemChangeEntry } from "@openclaw/gateway-protocol";
+import type { SystemChangeEntry } from "@mirally/gateway-protocol";
 import { html, nothing } from "lit";
 import { renderSettingsLoadingSkeleton } from "../../components/settings-ui.ts";
 import { t } from "../../i18n/index.ts";

@@ -1,5 +1,5 @@
 import { html, type ReactiveController, type TemplateResult } from "lit";
-import type { OpenClawLitElement } from "../lit/openclaw-element.ts";
+import type { MirallyLitElement } from "../lit/mirally-element.ts";
 import { icons } from "./icons.ts";
 
 type FullscreenControllerOptions = {
@@ -23,7 +23,7 @@ export class FullscreenController implements ReactiveController {
   private readonly onFullscreenChange = () => this.handleFullscreenChange();
 
   constructor(
-    private readonly host: OpenClawLitElement,
+    private readonly host: MirallyLitElement,
     private readonly options: FullscreenControllerOptions,
   ) {
     host.addController(this);
@@ -48,7 +48,7 @@ export class FullscreenController implements ReactiveController {
       : supported
         ? this.options.enterLabel()
         : this.options.unavailableLabel();
-    return html`<openclaw-tooltip .content=${label}>
+    return html`<mirally-tooltip .content=${label}>
       <button
         class=${this.options.buttonClass}
         type="button"
@@ -61,7 +61,7 @@ export class FullscreenController implements ReactiveController {
           ${this.active ? icons.minimize : icons.maximize}
         </span>
       </button>
-    </openclaw-tooltip>`;
+    </mirally-tooltip>`;
   }
 
   async exit(): Promise<void> {

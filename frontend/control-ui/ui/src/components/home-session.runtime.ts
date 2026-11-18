@@ -1,12 +1,12 @@
 import { consume } from "@lit/context";
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import { html, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
 import { formatChatWorkContext } from "../../../src/chat/work-context.js";
 import { applicationContext, type ApplicationContext } from "../app/context.ts";
 import { t } from "../i18n/index.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import type { ChatWorkContext } from "../pages/chat/chat-work-context.ts";
 import "../pages/chat/chat-pane.ts";
 import "../styles/chat.ts";
@@ -15,7 +15,7 @@ import "../styles/chat/composer-status.css";
 import { icons } from "./icons.ts";
 
 /** The real Home conversation; its surrounding dock owns placement and focus. */
-export class OpenClawHomeSession extends OpenClawLightDomElement {
+export class MirallyHomeSession extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
   @property({ attribute: false }) sessionKey = "";
@@ -149,7 +149,7 @@ export class OpenClawHomeSession extends OpenClawLightDomElement {
       </div>
       ${keyed(
         owner,
-        html`<openclaw-chat-pane
+        html`<mirally-chat-pane
           .paneId=${`home-dock:${owner}`}
           .presentationId=${`home-dock:${owner}`}
           .sessionKey=${this.sessionKey}
@@ -159,16 +159,16 @@ export class OpenClawHomeSession extends OpenClawLightDomElement {
           .compact=${true}
           .narrow=${true}
           .workContext=${this.includeContext ? context : undefined}
-        ></openclaw-chat-pane>`,
+        ></mirally-chat-pane>`,
       )}
     `;
   }
 }
 
-customElements.define("openclaw-home-session", OpenClawHomeSession);
+customElements.define("mirally-home-session", MirallyHomeSession);
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-home-session": OpenClawHomeSession;
+    "mirally-home-session": MirallyHomeSession;
   }
 }

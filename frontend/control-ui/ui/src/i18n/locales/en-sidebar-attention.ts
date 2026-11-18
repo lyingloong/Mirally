@@ -7,7 +7,7 @@ const enSidebarAttention = {
     scopeUpgrade: {
       limited: "This browser has limited access.",
       guidance:
-        "This browser has limited access. Manage it with openclaw devices on the Gateway or from Devices on an admin browser.",
+        "This browser has limited access. Review the browser's device permissions.",
       status: "Limited access",
       inboxState: "Administrator access required",
       showDetails: "Show limited access details",
@@ -16,7 +16,7 @@ const enSidebarAttention = {
       requesting: "Requesting administrator access…",
       requestingAction: "Requesting…",
       pending:
-        "Approve this browser by running openclaw devices on the Gateway or from Devices on an admin browser. Retry reattaches to the request; Cancel stops waiting.",
+        "Confirm access for this browser in the device settings. Retry reattaches to the request; Cancel stops waiting.",
       retry: "Retry",
       cancel: "Cancel",
       rejected: "The administrator access request was rejected.",

@@ -1,4 +1,4 @@
-import type { BoardGetParams } from "@openclaw/gateway-protocol";
+import type { BoardGetParams } from "@mirally/gateway-protocol";
 import type { ControlUiAction, ControlUiSession } from "../../../src/plugin-sdk/control-ui.js";
 import type { PluginSessionMenuAction } from "../components/session-menu.ts";
 import type { ControlUiPluginCapability } from "./control-ui-capability.ts";

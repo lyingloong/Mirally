@@ -6,7 +6,7 @@ type SnapshotInvalidation =
 
 type SnapshotInvalidationListener = (invalidation: SnapshotInvalidation) => void | Promise<void>;
 
-const SNAPSHOT_INVALIDATION_STORAGE_KEY = "openclaw.control.chatSnapshots.invalidate.v1";
+const SNAPSHOT_INVALIDATION_STORAGE_KEY = "mirally.control.chatSnapshots.invalidate.v1";
 const invalidationListeners = new Set<SnapshotInvalidationListener>();
 export let snapshotStoreGeneration = 0;
 

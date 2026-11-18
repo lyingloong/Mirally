@@ -515,7 +515,7 @@ function renderBrowserAnnotationAttachment(
           <span>${regionLabel}</span>
         </span>
       </div>
-      <openclaw-tooltip .content=${removeLabel}>
+      <mirally-tooltip .content=${removeLabel}>
         <button
           class="chat-attachment-remove chat-browser-annotation-card__remove"
           type="button"
@@ -525,7 +525,7 @@ function renderBrowserAnnotationAttachment(
         >
           ${icons.x}
         </button>
-      </openclaw-tooltip>
+      </mirally-tooltip>
     </div>
   `;
 }
@@ -593,7 +593,7 @@ export function renderAttachmentPreview(props: ChatAttachmentControlsProps) {
                   >
                     ${
                       failed
-                        ? html`<openclaw-tooltip .content=${failureLabel}>
+                        ? html`<mirally-tooltip .content=${failureLabel}>
                             <span
                               class="chat-attachment-error"
                               tabindex="0"
@@ -602,7 +602,7 @@ export function renderAttachmentPreview(props: ChatAttachmentControlsProps) {
                             >
                               ${renderAttachmentFileIcon({ filename: att.fileName ?? "", mimeType: att.mimeType, mode: "large-placeholder", unavailable: true })}
                             </span>
-                          </openclaw-tooltip>`
+                          </mirally-tooltip>`
                         : reading
                           ? nothing
                           : att.mimeType.startsWith("image/") && getChatAttachmentPreviewUrl(att)
@@ -623,7 +623,7 @@ export function renderAttachmentPreview(props: ChatAttachmentControlsProps) {
                         style=${styleMap({ transform: entry.progress === undefined ? undefined : `scaleX(${entry.progress})` })}
                       ></span
                     ></span>
-                    <openclaw-tooltip .content=${removeLabel}>
+                    <mirally-tooltip .content=${removeLabel}>
                       <button
                         class="chat-attachment-remove"
                         type="button"
@@ -638,7 +638,7 @@ export function renderAttachmentPreview(props: ChatAttachmentControlsProps) {
                       >
                         ${icons.x}
                       </button>
-                    </openclaw-tooltip>
+                    </mirally-tooltip>
                   </div>
                 `;
         },

@@ -1,8 +1,8 @@
 import { css, html, nothing, type TemplateResult } from "lit";
 import { property } from "lit/decorators.js";
-import { OpenClawLitElement } from "../lit/openclaw-element.ts";
+import { MirallyLitElement } from "../lit/mirally-element.ts";
 
-class OpenClawPanelEmptyState extends OpenClawLitElement {
+class MirallyPanelEmptyState extends MirallyLitElement {
   @property() heading = "";
   @property() description = "";
 
@@ -78,8 +78,8 @@ class OpenClawPanelEmptyState extends OpenClawLitElement {
   `;
 }
 
-if (!customElements.get("openclaw-panel-empty-state")) {
-  customElements.define("openclaw-panel-empty-state", OpenClawPanelEmptyState);
+if (!customElements.get("mirally-panel-empty-state")) {
+  customElements.define("mirally-panel-empty-state", MirallyPanelEmptyState);
 }
 
 export function renderPanelEmptyState(params: {
@@ -88,7 +88,7 @@ export function renderPanelEmptyState(params: {
   description: string;
   action?: TemplateResult | typeof nothing;
 }) {
-  return html`<openclaw-panel-empty-state
+  return html`<mirally-panel-empty-state
     .heading=${params.heading}
     .description=${params.description}
   >
@@ -97,11 +97,11 @@ export function renderPanelEmptyState(params: {
         ? html`<span slot="action">${params.action}</span>`
         : nothing
     }
-  </openclaw-panel-empty-state>`;
+  </mirally-panel-empty-state>`;
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-panel-empty-state": OpenClawPanelEmptyState;
+    "mirally-panel-empty-state": MirallyPanelEmptyState;
   }
 }

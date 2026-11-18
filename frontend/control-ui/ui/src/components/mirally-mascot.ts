@@ -8,8 +8,8 @@ export class MirallyMascot extends LitElement {
   static override styles = css`
     :host {
       display: inline-block;
-      width: var(--openclaw-mascot-size, 120px);
-      height: var(--openclaw-mascot-size, 120px);
+      width: var(--mirally-mascot-size, 120px);
+      height: var(--mirally-mascot-size, 120px);
       color: var(--accent, #52b9ef);
       pointer-events: none;
       line-height: 0;
@@ -60,7 +60,7 @@ export class MirallyMascot extends LitElement {
 
   protected override updated() {
     const size = Number.isFinite(this.size) && this.size > 0 ? this.size : 120;
-    this.style.setProperty("--openclaw-mascot-size", `${size}px`);
+    this.style.setProperty("--mirally-mascot-size", `${size}px`);
   }
 
   // Existing assistant-panel consumers use this public gesture hook.

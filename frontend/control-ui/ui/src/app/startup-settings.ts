@@ -1,10 +1,10 @@
 import {
   normalizeGatewayClientId,
   normalizeGatewayClientMode,
-} from "@openclaw/gateway-protocol/client-info";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
-import { uniqueStrings } from "@openclaw/normalization-core/string-normalization";
-import { buildControlUiFocusPath } from "@openclaw/session-url-contract";
+} from "@mirally/gateway-protocol/client-info";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
+import { uniqueStrings } from "@mirally/normalization-core/string-normalization";
+import { buildControlUiFocusPath } from "@mirally/session-url-contract";
 // Control UI startup settings resolve native auth handoff and URL parameters.
 import {
   CONTROL_UI_BOOTSTRAP_PROFILE_FRAGMENT_PARAM,
@@ -55,7 +55,7 @@ type ApplicationStartupSettings = {
 
 declare global {
   interface Window {
-    __OPENCLAW_NATIVE_CONTROL_AUTH__?: NativeControlAuth;
+    __MIRALLY_NATIVE_CONTROL_AUTH__?: NativeControlAuth;
   }
 }
 
@@ -106,12 +106,12 @@ export function resolveApplicationStartupSettings(
   };
 
   const nativeAuth =
-    typeof window === "undefined" ? undefined : window["__OPENCLAW_NATIVE_CONTROL_AUTH__"];
+    typeof window === "undefined" ? undefined : window["__MIRALLY_NATIVE_CONTROL_AUTH__"];
   if (nativeAuth) {
     try {
-      delete window["__OPENCLAW_NATIVE_CONTROL_AUTH__"];
+      delete window["__MIRALLY_NATIVE_CONTROL_AUTH__"];
     } catch {
-      window["__OPENCLAW_NATIVE_CONTROL_AUTH__"] = undefined;
+      window["__MIRALLY_NATIVE_CONTROL_AUTH__"] = undefined;
     }
 
     const gatewayUrl = normalizeOptionalString(nativeAuth.gatewayUrl);
@@ -174,7 +174,7 @@ export function resolveApplicationStartupSettings(
 
   const url = new URL(
     `${location.pathname}${location.search}${location.hash}`,
-    "http://openclaw.local",
+    "http://mirally.local",
   );
   const params = new URLSearchParams(url.search);
   const hashParams = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
@@ -207,7 +207,7 @@ export function resolveApplicationStartupSettings(
     if (queryToken != null) {
       queryTokenUsed = true;
       console.warn(
-        "[openclaw] Auth token passed as query parameter (?token=). Use URL fragment instead: #token=<token>. Query parameters may appear in server logs.",
+        "[mirally] Auth token passed as query parameter (?token=). Use URL fragment instead: #token=<token>. Query parameters may appear in server logs.",
       );
     }
     if (token && gatewayUrlChanged) {

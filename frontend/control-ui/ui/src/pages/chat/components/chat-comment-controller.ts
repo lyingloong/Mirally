@@ -3,7 +3,7 @@ import { property } from "lit/decorators.js";
 import { focusWithoutTooltip } from "../../../components/tooltip.ts";
 import type { ChatAttachment, ChatSelectionAnnotation } from "../../../lib/chat/chat-types.ts";
 import { areUiSessionKeysEquivalent } from "../../../lib/sessions/session-key.ts";
-import { OpenClawLightDomContentsElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../../../lit/mirally-element.ts";
 import { releaseDisplacedChatAttachmentPayloads } from "../attachment-payload-store.ts";
 import type { ChatAttachmentControlsProps } from "./chat-attachment-controls.types.ts";
 import { resolveChatCommentAnchor } from "./chat-comment-anchor.ts";
@@ -23,7 +23,7 @@ export function currentChatComments(props: ChatAttachmentControlsProps, sessionK
 }
 
 /** Owns comment mutations even when plugins or history errors replace the transcript. */
-class ChatCommentController extends OpenClawLightDomContentsElement {
+class ChatCommentController extends MirallyLightDomContentsElement {
   @property({ attribute: false }) props!: ChatAttachmentControlsProps;
   @property() sessionKey = "";
   @property() paneId = "";
@@ -81,12 +81,12 @@ class ChatCommentController extends OpenClawLightDomContentsElement {
   protected override updated() {
     if (!this.root) {
       this.root = this.closest(".chat");
-      this.root?.addEventListener("openclaw-comment-action", this.handleCommentAction);
+      this.root?.addEventListener("mirally-comment-action", this.handleCommentAction);
     }
   }
 
   override disconnectedCallback() {
-    this.root?.removeEventListener("openclaw-comment-action", this.handleCommentAction);
+    this.root?.removeEventListener("mirally-comment-action", this.handleCommentAction);
     this.root = null;
     this.retireEditor();
     this.props.readSignal?.removeEventListener("abort", this.retireEditor);
@@ -156,7 +156,7 @@ class ChatCommentController extends OpenClawLightDomContentsElement {
     } else if (event.detail.action === "edit" && event.target instanceof HTMLElement) {
       // Opening must not queue a transcript scroll that would dismiss the editor.
       const trigger = event.target
-        .closest("openclaw-tooltip")
+        .closest("mirally-tooltip")
         ?.querySelector<HTMLElement>(".chat-selection-annotations__trigger");
       this.editComment(attachment, this.visiblePin(attachment.id) ?? trigger ?? event.target);
     }
@@ -165,7 +165,7 @@ class ChatCommentController extends OpenClawLightDomContentsElement {
   private focusComposer() {
     this.root
       ?.querySelector<HTMLElement>(
-        "openclaw-plugin-view[data-plugin-composer], .agent-chat__composer-combobox > textarea",
+        "mirally-plugin-view[data-plugin-composer], .agent-chat__composer-combobox > textarea",
       )
       ?.focus({ preventScroll: true });
   }
@@ -300,4 +300,4 @@ class ChatCommentController extends OpenClawLightDomContentsElement {
   }
 }
 
-customElements.define("openclaw-chat-comment-controller", ChatCommentController);
+customElements.define("mirally-chat-comment-controller", ChatCommentController);

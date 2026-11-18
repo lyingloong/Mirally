@@ -1,27 +1,27 @@
-import { normalizeAtHashSlug } from "@openclaw/normalization-core/string-normalization";
+import { normalizeAtHashSlug } from "@mirally/normalization-core/string-normalization";
 import {
   inferControlUiFocusBasePath,
   matchControlUiCatalogSharePath,
   SESSION_UUID_SUFFIX_RE,
-} from "@openclaw/session-url-contract";
+} from "@mirally/session-url-contract";
 import {
   normalizeRouteBasePath as normalizeBasePath,
   normalizeRoutePath as normalizePath,
-} from "@openclaw/uirouter";
-import type { RouteLocation } from "@openclaw/uirouter";
-import { isValidWorkboardBoardId } from "@openclaw/workboard-contract";
+} from "@mirally/ui-router";
+import type { RouteLocation } from "@mirally/ui-router";
+import { isValidWorkboardBoardId } from "@mirally/workboard-contract";
 import { DEFAULT_AGENT_PANEL, isAgentsPanel, type AgentsPanel } from "./lib/agents/panels.ts";
 import type { BoardFace } from "./lib/board/settings.ts";
 import { takeGraphemes } from "./lib/graphemes.ts";
 
-export const INTERNAL_AGENT_PATH_PARAM = "__openclawAgentPath";
-export const INTERNAL_ACTIVITY_PATH_PARAM = "__openclawActivityPath";
-export const INTERNAL_TERMINAL_PATH_PARAM = "__openclawTerminalPath";
-export const INTERNAL_SESSION_PATH_PARAM = "__openclawSessionPath";
-export const INTERNAL_MEMORY_PATH_PARAM = "__openclawMemoryPath";
-export const INTERNAL_PLUGINS_PATH_PARAM = "__openclawPluginsPath";
-export const INTERNAL_PLUGIN_SETTINGS_PATH_PARAM = "__openclawPluginSettingsPath";
-export const INTERNAL_WORKBOARD_PATH_PARAM = "__openclawWorkboardPath";
+export const INTERNAL_AGENT_PATH_PARAM = "__mirallyAgentPath";
+export const INTERNAL_ACTIVITY_PATH_PARAM = "__mirallyActivityPath";
+export const INTERNAL_TERMINAL_PATH_PARAM = "__mirallyTerminalPath";
+export const INTERNAL_SESSION_PATH_PARAM = "__mirallySessionPath";
+export const INTERNAL_MEMORY_PATH_PARAM = "__mirallyMemoryPath";
+export const INTERNAL_PLUGINS_PATH_PARAM = "__mirallyPluginsPath";
+export const INTERNAL_PLUGIN_SETTINGS_PATH_PARAM = "__mirallyPluginSettingsPath";
+export const INTERNAL_WORKBOARD_PATH_PARAM = "__mirallyWorkboardPath";
 export const CONTROL_UI_DOCUMENT_ROUTE_PATHS = {
   approval: "/approve",
   question: "/ask",
@@ -121,7 +121,7 @@ for (const routeId of APP_ROUTE_IDS) {
 
 const NATIVE_ROUTE_SEGMENTS = new Set(APP_ROUTE_PATHS.map((path) => path.split("/")[1]));
 
-export const INTERNAL_PLUGIN_PATH_PARAM = "__openclawPluginPath";
+export const INTERNAL_PLUGIN_PATH_PARAM = "__mirallyPluginPath";
 type PluginTab = { pluginId: string; id: string; slug?: string };
 const tabsBySlug = new Map<string, PluginTab>();
 const warnedSlugs = new Set<string>();
@@ -539,7 +539,7 @@ export function routeIdFromPath(pathname: string, basePath = ""): RouteId | null
 // sits at or below a multi-segment route namespace ("/settings", including
 // "/settings/other"), is really a root-mounted deep link whose suffix happens
 // to match a route path or alias. Descendants of leaf routes stay valid mount
-// directories so "/apps/openclaw" keeps working. Inference is a last-resort
+// directories so "/apps/mirally" keeps working. Inference is a last-resort
 // fallback for pages served without the injected base path (vite dev, static
 // hosting); accepted tradeoff: namespaces nested under a real mount prefix
 // ("/ui/settings/other/config") are not rescued here.

@@ -1,6 +1,6 @@
 import type { nothing, TemplateResult } from "lit";
 
-export const PANEL_HOSTED_TABS_CHANGE_EVENT = "openclaw:panel-hosted-tabs-change";
+export const PANEL_HOSTED_TABS_CHANGE_EVENT = "mirally:panel-hosted-tabs-change";
 
 export type PanelHostedTab = {
   id: string;

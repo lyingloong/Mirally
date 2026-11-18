@@ -1,4 +1,4 @@
-import type { DesktopObserveResult, WorkerDesktopAppId } from "@openclaw/gateway-protocol";
+import type { DesktopObserveResult, WorkerDesktopAppId } from "@mirally/gateway-protocol";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import type { DesktopConnectionHandle, DesktopSizingMode } from "./desktop-client.ts";
 

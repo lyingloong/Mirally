@@ -123,7 +123,7 @@ export class NativeModelSetup {
 
   private applyNativeCatalog(catalog: ModelCatalogResult): void {
     this.nativeModels = catalog.models.filter(
-      (model) => model.agentRuntime && model.agentRuntime.id !== "openclaw",
+      (model) => model.agentRuntime && model.agentRuntime.id !== "mirally",
     );
     this.nativeModelsStatus = catalog.pendingProviders?.length ? "loading" : "ready";
     this.nativeCatalogError = modelCatalogRefreshError(catalog);

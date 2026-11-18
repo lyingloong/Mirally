@@ -80,7 +80,7 @@ async function noHorizontalOverflow(width) {
 
 try {
   await page.goto(runtime.url+'/inbox#token='+encodeURIComponent(runtime.token));
-  await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected');
+  await page.waitForFunction(()=>document.querySelector('mirally-app')?.context?.gateway?.snapshot?.phase==='connected');
   await controller.waitFor();await settled();
   for(let index=0;index<fixtureCount;index++)await rpc('commitment.create',{
     title:`${tag} ${String(index).padStart(2,'0')}：阅读与刷新`,

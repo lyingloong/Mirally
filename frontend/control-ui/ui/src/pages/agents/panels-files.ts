@@ -5,7 +5,7 @@ import { renderHubTabs } from "../../components/hub-tabs.ts";
 import { icons } from "../../components/icons.ts";
 import { toSanitizedMarkdownHtml } from "../../components/markdown.ts";
 import "../../components/modal-dialog.ts";
-import type { OpenClawModalDialog } from "../../components/modal-dialog.ts";
+import type { MirallyModalDialog } from "../../components/modal-dialog.ts";
 import "../../components/tooltip.ts";
 import { renderSettingsEmpty, renderSettingsSection } from "../../components/settings-ui.ts";
 import { t } from "../../i18n/index.ts";
@@ -226,7 +226,7 @@ export function renderAgentFiles(params: {
                                   }
                                   btn
                                     .closest(".settings-group")
-                                    ?.querySelector<OpenClawModalDialog>("openclaw-modal-dialog")
+                                    ?.querySelector<MirallyModalDialog>("mirally-modal-dialog")
                                     ?.show();
                                 }}
                               >
@@ -279,11 +279,11 @@ export function renderAgentFiles(params: {
                               }}
                             ></textarea>
                           </label>
-                          <openclaw-modal-dialog
+                          <mirally-modal-dialog
                             class="agent-file-preview"
                             manual
                             label=${activeEntry.name}
-                            style="--openclaw-modal-width: min(1040px, calc(100vw - 32px));"
+                            style="--mirally-modal-width: min(1040px, calc(100vw - 32px));"
                             @modal-cancel=${(e: Event) => {
                               if (e.currentTarget instanceof HTMLElement) {
                                 resetAgentFilePreview(e.currentTarget);
@@ -311,7 +311,7 @@ export function renderAgentFiles(params: {
                                   </div>
                                 </div>
                                 <div class="md-preview-dialog__actions">
-                                  <openclaw-tooltip .content=${t("agents.files.expandPreview")}>
+                                  <mirally-tooltip .content=${t("agents.files.expandPreview")}>
                                     <button
                                       type="button"
                                       class="btn btn--sm md-preview-icon-btn md-preview-expand-btn"
@@ -328,7 +328,7 @@ export function renderAgentFiles(params: {
                                         }
                                         const isFullscreen = panel.classList.toggle("fullscreen");
                                         btn
-                                          .closest("openclaw-modal-dialog")
+                                          .closest("mirally-modal-dialog")
                                           ?.classList.toggle("fullscreen", isFullscreen);
                                         setPreviewExpandButtonState(btn, isFullscreen);
                                       }}
@@ -339,8 +339,8 @@ export function renderAgentFiles(params: {
                                         >${icons.minimize}</span
                                       >
                                     </button>
-                                  </openclaw-tooltip>
-                                  <openclaw-tooltip .content=${t("agents.files.editFile")}>
+                                  </mirally-tooltip>
+                                  <mirally-tooltip .content=${t("agents.files.editFile")}>
                                     <button
                                       type="button"
                                       class="btn btn--sm md-preview-icon-btn"
@@ -351,8 +351,8 @@ export function renderAgentFiles(params: {
                                           return;
                                         }
                                         const modal =
-                                          button.closest<OpenClawModalDialog>(
-                                            "openclaw-modal-dialog",
+                                          button.closest<MirallyModalDialog>(
+                                            "mirally-modal-dialog",
                                           );
                                         const textarea = modal
                                           ?.closest(".settings-group")
@@ -366,8 +366,8 @@ export function renderAgentFiles(params: {
                                     >
                                       <span aria-hidden="true">${icons.edit}</span>
                                     </button>
-                                  </openclaw-tooltip>
-                                  <openclaw-tooltip .content=${t("agents.files.closePreview")}>
+                                  </mirally-tooltip>
+                                  <mirally-tooltip .content=${t("agents.files.closePreview")}>
                                     <button
                                       type="button"
                                       class="btn btn--sm md-preview-icon-btn"
@@ -378,8 +378,8 @@ export function renderAgentFiles(params: {
                                           return;
                                         }
                                         const modal =
-                                          button.closest<OpenClawModalDialog>(
-                                            "openclaw-modal-dialog",
+                                          button.closest<MirallyModalDialog>(
+                                            "mirally-modal-dialog",
                                           );
                                         modal?.hide();
                                         if (modal) {
@@ -389,7 +389,7 @@ export function renderAgentFiles(params: {
                                     >
                                       <span aria-hidden="true">${icons.x}</span>
                                     </button>
-                                  </openclaw-tooltip>
+                                  </mirally-tooltip>
                                 </div>
                               </div>
                               <div class="md-preview-dialog__meta">
@@ -422,7 +422,7 @@ export function renderAgentFiles(params: {
                                 </article>
                               </div>
                             </div>
-                          </openclaw-modal-dialog>
+                          </mirally-modal-dialog>
                         `
                   }
                 </div>

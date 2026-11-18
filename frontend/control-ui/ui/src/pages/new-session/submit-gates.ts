@@ -1,7 +1,7 @@
 // New-session submit gate table: the single owner of every reason submission
 // can be blocked. canSubmit, the Start tooltip, and blocked-Enter notices all
 // derive from this walk, so a gate cannot block silently.
-import type { HumanMention } from "@openclaw/gateway-protocol";
+import type { HumanMention } from "@mirally/gateway-protocol";
 import { t } from "../../i18n/index.ts";
 import { registerNewSessionSetupEnglish } from "../../i18n/locales/en-new-session-setup.ts";
 import {

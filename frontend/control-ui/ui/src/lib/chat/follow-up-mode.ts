@@ -1,4 +1,4 @@
-import { asOptionalRecord as record } from "@openclaw/normalization-core/record-coerce";
+import { asOptionalRecord as record } from "@mirally/normalization-core/record-coerce";
 import type { QueueMode } from "../../../../packages/gateway-protocol/src/schema/logs-chat.js";
 import { normalizeQueueMode } from "../../../../src/auto-reply/reply/queue/normalize.js";
 import { INTERNAL_MESSAGE_CHANNEL } from "../../../../src/utils/message-channel-constants.js";

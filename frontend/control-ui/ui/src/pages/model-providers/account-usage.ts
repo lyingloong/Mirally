@@ -7,9 +7,9 @@ import { icons } from "../../components/icons.ts";
 import { renderProviderUsageDetails } from "../../components/provider-usage.ts";
 import { t } from "../../i18n/index.ts";
 import { formatUiError } from "../../lib/format-error.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 
-export class ModelAccountUsage extends OpenClawLightDomElement {
+export class ModelAccountUsage extends MirallyLightDomElement {
   @property({ attribute: false }) client: GatewayBrowserClient | null = null;
   @property() agentId = "";
   @property() profileId = "";
@@ -71,6 +71,6 @@ export class ModelAccountUsage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-model-account-usage")) {
-  customElements.define("openclaw-model-account-usage", ModelAccountUsage);
+if (!customElements.get("mirally-model-account-usage")) {
+  customElements.define("mirally-model-account-usage", ModelAccountUsage);
 }

@@ -150,6 +150,6 @@ class SettingsSaveIndicator extends LitElement {
   }
 }
 
-if (!customElements.get("openclaw-settings-save-indicator")) {
-  customElements.define("openclaw-settings-save-indicator", SettingsSaveIndicator);
+if (!customElements.get("mirally-settings-save-indicator")) {
+  customElements.define("mirally-settings-save-indicator", SettingsSaveIndicator);
 }

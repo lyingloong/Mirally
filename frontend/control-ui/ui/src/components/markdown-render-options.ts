@@ -1,4 +1,4 @@
-import type { HumanMention } from "@openclaw/gateway-protocol";
+import type { HumanMention } from "@mirally/gateway-protocol";
 import type {
   MarkdownGitHubRepository,
   MarkdownGitHubRepositoryAliases,

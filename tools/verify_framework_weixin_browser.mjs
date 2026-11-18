@@ -59,10 +59,10 @@ await page.route('**/api/rpc', async route => {
     installation_id: 'browser-fixture', revision: status.revision, outbox: {pending: 0, unknown: 0, failed: 0}};
   return route.fulfill({json: {result: status}});
 });
-async function ready() {await page.waitForFunction(() => document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase === 'connected');}
+async function ready() {await page.waitForFunction(() => document.querySelector('mirally-app')?.context?.gateway?.snapshot?.phase === 'connected');}
 async function settled() {await test('mirally-weixin-page').waitFor(); await page.waitForFunction(() => document.querySelector('[data-testid="mirally-weixin-page"]')?.getAttribute('aria-busy') === 'false');}
 async function refresh() {await test('mirally-weixin-refresh').click(); await settled();}
-async function navigate(route) {await page.evaluate(route => document.querySelector('openclaw-app').context.navigate(route), route);}
+async function navigate(route) {await page.evaluate(route => document.querySelector('mirally-app').context.navigate(route), route);}
 try {
   await page.goto(runtime.url + '/settings/channels#token=' + runtime.token); await ready(); await settled();
   await page.locator('a[href="/settings/channels"]').waitFor();

@@ -1,4 +1,4 @@
-import { asNullableRecord as asRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableRecord as asRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing } from "lit";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import type { ConfigSnapshot, GatewaySessionRow, ToolsEffectiveResult } from "../../api/types.ts";
@@ -463,7 +463,7 @@ export class ChatComposerCapabilityHost {
         : "chat.composer.menu.scopeEverywhereHint",
     );
     return html`
-      <openclaw-modal-dialog
+      <mirally-modal-dialog
         label=${title}
         description=${description}
         @modal-cancel=${(event: Event) => {
@@ -515,7 +515,7 @@ export class ChatComposerCapabilityHost {
               : nothing
           }
         </div>
-      </openclaw-modal-dialog>
+      </mirally-modal-dialog>
     `;
   }
 

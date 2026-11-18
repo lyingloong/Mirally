@@ -29,7 +29,7 @@ export function renderLazyDevicePairSetup(host: DevicePairSetupHost, props: Devi
   // Loading and failure share the eager modal; a failed chunk remains dismissible and retryable.
   const title = t("devices.pairing.title");
   const message = t(failed ? "devices.pairing.loadFailed" : "common.loading");
-  return html`<openclaw-modal-dialog
+  return html`<mirally-modal-dialog
     label=${title}
     description=${message}
     @modal-cancel=${props.onClose}
@@ -58,5 +58,5 @@ export function renderLazyDevicePairSetup(host: DevicePairSetupHost, props: Devi
         </button>
       </footer>
     </section>
-  </openclaw-modal-dialog>`;
+  </mirally-modal-dialog>`;
 }

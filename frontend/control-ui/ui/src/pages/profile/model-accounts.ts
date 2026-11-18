@@ -22,7 +22,7 @@ import { hasOperatorAdminAccess, hasOperatorWriteAccess } from "../../app/operat
 import { t } from "../../i18n/index.ts";
 import { registerModelAccountsEnglish } from "../../i18n/locales/en-model-accounts.ts";
 import { formatUiError } from "../../lib/format-error.ts";
-import { OpenClawLightDomContentsElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../../lit/mirally-element.ts";
 import { renderModelAccountsSection } from "./model-accounts-section.ts";
 
 registerModelAccountsEnglish();
@@ -41,7 +41,7 @@ type SignInChoice = {
 };
 
 /** Model-account actions belong to the connection, not the profile editor's refresh cycle. */
-export class ModelAccounts extends OpenClawLightDomContentsElement {
+export class ModelAccounts extends MirallyLightDomContentsElement {
   @consume({ context: applicationContext, subscribe: false })
   private context!: ApplicationContext;
   @property({ attribute: false }) identityId: string | null = null;
@@ -498,6 +498,6 @@ export class ModelAccounts extends OpenClawLightDomContentsElement {
   }
 }
 
-if (!customElements.get("openclaw-model-accounts")) {
-  customElements.define("openclaw-model-accounts", ModelAccounts);
+if (!customElements.get("mirally-model-accounts")) {
+  customElements.define("mirally-model-accounts", ModelAccounts);
 }

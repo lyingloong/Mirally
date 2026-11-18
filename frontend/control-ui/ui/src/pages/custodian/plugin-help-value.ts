@@ -1,5 +1,5 @@
-import { redactSensitiveUrlLikeString } from "@openclaw/net-policy/redact-sensitive-url";
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { redactSensitiveUrlLikeString } from "@mirally/net-policy/redact-sensitive-url";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import { isSecretRefObject } from "../../components/config-form.node.shared.ts";
 import { t } from "../../i18n/index.ts";
 import { registerPluginManagementEnglish } from "../../i18n/locales/en-plugin-management.ts";

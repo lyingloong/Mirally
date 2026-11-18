@@ -25,7 +25,7 @@ export function renderModelSetupWizard(props: WizardViewProps): TemplateResult |
   }
   const canCancel = props.state.phase === "starting" || props.state.phase === "step";
   return html`
-    <openclaw-modal-dialog
+    <mirally-modal-dialog
       label=${t(
         props.mode === "prepare"
           ? "modelSetup.wizard.prepareDialogLabel"
@@ -142,6 +142,6 @@ export function renderModelSetupWizard(props: WizardViewProps): TemplateResult |
               `
         }
       </div>
-    </openclaw-modal-dialog>
+    </mirally-modal-dialog>
   `;
 }

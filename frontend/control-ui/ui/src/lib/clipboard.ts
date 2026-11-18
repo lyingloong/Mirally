@@ -45,7 +45,7 @@ function copyWithExecCommand(text: string): boolean {
   textarea.style.position = "fixed";
   textarea.style.opacity = "0";
   // Outside an active modal the document is inert, so its selection cannot be copied.
-  const layer = [...(document.openClawModalLayers ?? [])].findLast((modal) => modal.isConnected);
+  const layer = [...(document.mirallyModalLayers ?? [])].findLast((modal) => modal.isConnected);
   (layer ?? document.body).appendChild(textarea);
   textarea.select();
   try {

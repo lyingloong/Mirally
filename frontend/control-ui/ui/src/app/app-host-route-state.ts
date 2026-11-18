@@ -1,4 +1,4 @@
-import type { RouteLocation, RouterState } from "@openclaw/uirouter";
+import type { RouteLocation, RouterState } from "@mirally/ui-router";
 import { isSessionRouteId, sameRouteLocation, type RouteId } from "../app-route-paths.ts";
 import { selectRenderedRouteMatch } from "./router-outlet.ts";
 

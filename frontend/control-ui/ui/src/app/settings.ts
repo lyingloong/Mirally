@@ -1,9 +1,9 @@
-import { gatewayCredentialScope, gatewayOriginScope } from "@openclaw/gateway-client/browser";
-import { safeParseJson } from "@openclaw/normalization-core";
-import { normalizeAgentId } from "@openclaw/normalization-core/agent-id";
-import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
-import { normalizeUniqueTrimmedStringList } from "@openclaw/normalization-core/string-normalization";
+import { gatewayCredentialScope, gatewayOriginScope } from "@mirally/gateway-client/browser";
+import { safeParseJson } from "@mirally/normalization-core";
+import { normalizeAgentId } from "@mirally/normalization-core/agent-id";
+import { asOptionalRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
+import { normalizeUniqueTrimmedStringList } from "@mirally/normalization-core/string-normalization";
 import { normalizeUiAppearancePreference } from "../../../packages/gateway-protocol/src/schema/ui-appearance-preferences.ts";
 import { DEFAULT_SIDEBAR_ENTRIES, normalizeSidebarEntries } from "../app-navigation.ts";
 import { configuredUiDevGateway } from "../dev-gateway.ts";
@@ -25,15 +25,15 @@ import { normalizeTypefaceOverride, type TypefaceId } from "./typography.ts";
 import { normalizeLocalUserIdentity, type LocalUserIdentity } from "./user-identity.ts";
 
 // Control UI module implements storage behavior.
-const SETTINGS_KEY_PREFIX = "openclaw.control.settings.v1:";
-const LEGACY_SETTINGS_KEY = "openclaw.control.settings.v1";
+const SETTINGS_KEY_PREFIX = "mirally.control.settings.v1:";
+const LEGACY_SETTINGS_KEY = "mirally.control.settings.v1";
 export const NAV_WIDTH_MIN = 240;
 export const NAV_WIDTH_MAX = 400;
 const NAV_WIDTH_DEFAULT = 258;
-const CURRENT_GATEWAY_SELECTION_KEY_PREFIX = "openclaw.control.currentGateway.v1:";
-const LOCAL_USER_IDENTITY_KEY = "openclaw.control.user.v1";
-const LEGACY_TOKEN_SESSION_KEY = "openclaw.control.token.v1";
-const TOKEN_SESSION_KEY_PREFIX = "openclaw.control.token.v1:";
+const CURRENT_GATEWAY_SELECTION_KEY_PREFIX = "mirally.control.currentGateway.v1:";
+const LOCAL_USER_IDENTITY_KEY = "mirally.control.user.v1";
+const LEGACY_TOKEN_SESSION_KEY = "mirally.control.token.v1";
+const TOKEN_SESSION_KEY_PREFIX = "mirally.control.token.v1:";
 const MAX_SCOPED_SESSION_ENTRIES = 10;
 
 export function settingsKeyForGateway(gatewayUrl: string): string {

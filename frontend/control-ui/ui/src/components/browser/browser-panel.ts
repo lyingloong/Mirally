@@ -11,7 +11,7 @@ import { property } from "lit/decorators.js";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import { hasNativeBrowserBridge } from "../../app/native-browser-bridge.ts";
 import { t } from "../../i18n/index.ts";
-import { OpenClawLitElement } from "../../lit/openclaw-element.ts";
+import { MirallyLitElement } from "../../lit/mirally-element.ts";
 import { scrollbarShadowStyles } from "../../lit/scrollbar-styles.ts";
 import { DockLayoutController } from "../dock-layout-controller.ts";
 import { browserPanelLayout } from "../dock-panel-layout.ts";
@@ -41,9 +41,9 @@ import {
 } from "./browser-target.ts";
 import { normalizeBrowserUrlDraft } from "./browser-url.ts";
 
-/** `<openclaw-browser-panel>` — the dockable gateway browser surface. */
-class OpenClawBrowserPanel
-  extends OpenClawLitElement
+/** `<mirally-browser-panel>` — the dockable gateway browser surface. */
+class MirallyBrowserPanel
+  extends MirallyLitElement
   implements BrowserPanelControllerHost, PanelHostedTabsElement
 {
   /** Gateway client used for browser.request RPCs; null until connected. */
@@ -382,12 +382,12 @@ class OpenClawBrowserPanel
 
 // Guarded define (not @customElement) so re-imports under a shared registry —
 // e.g. vitest with isolate=false — don't throw "already registered".
-if (!customElements.get("openclaw-browser-panel")) {
-  customElements.define("openclaw-browser-panel", OpenClawBrowserPanel);
+if (!customElements.get("mirally-browser-panel")) {
+  customElements.define("mirally-browser-panel", MirallyBrowserPanel);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-browser-panel": OpenClawBrowserPanel;
+    "mirally-browser-panel": MirallyBrowserPanel;
   }
 }

@@ -1,5 +1,5 @@
 /** Shared SecretRef grammar and validation helpers for config, schema, SDK, and gateway parity. */
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 
 /** Supported secret reference backends in config. */
 export type SecretRefSource = "env" | "file" | "exec" | "store"; // pragma: allowlist secret

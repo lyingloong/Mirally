@@ -80,7 +80,7 @@ function renderSecurityRow(props: DebugProps) {
     title: t("debug.security.audit"),
     description: html`
       ${t("debug.security.runPrefix")}
-      <span class="mono">openclaw security audit --deep</span>
+      <span class="mono">mirally security audit --deep</span>
       ${t("debug.security.runSuffix")}
     `,
     control: renderSettingsStatus({ kind: securityKind, label: `${securityLabel}${infoSuffix}` }),

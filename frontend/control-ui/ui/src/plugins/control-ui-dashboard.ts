@@ -1,4 +1,4 @@
-import type { BoardGetParams } from "@openclaw/gateway-protocol";
+import type { BoardGetParams } from "@mirally/gateway-protocol";
 import { html, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 import type { GatewayBrowserClient } from "../api/gateway.ts";
@@ -13,17 +13,17 @@ import {
   type BoardProviderLease,
   type BoardViewCallbacks,
 } from "../lib/board/provider.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import "./control-ui-dashboard.css";
 
 function ensureBoardViewElement(): Promise<void> {
   return ensureCustomElementDefined(
-    "openclaw-board-view",
+    "mirally-board-view",
     () => import("../components/board/board-view.ts"),
   );
 }
 
-class PluginSessionDashboard extends OpenClawLightDomElement {
+class PluginSessionDashboard extends MirallyLightDomElement {
   @property({ attribute: false }) session: BoardGetParams | null = null;
   @property({ attribute: false }) client: GatewayBrowserClient | null = null;
   @property({ attribute: false }) connected = false;
@@ -184,7 +184,7 @@ class PluginSessionDashboard extends OpenClawLightDomElement {
                   </button>`
               : hasBoard && provider && snapshot && session && callbacks
                 ? html`
-                    <openclaw-board-view
+                    <mirally-board-view
                       .active=${this.expanded && this.presented}
                       .session=${session}
                       .snapshot=${snapshot}
@@ -195,7 +195,7 @@ class PluginSessionDashboard extends OpenClawLightDomElement {
                       .sessions=${[]}
                       .canMutate=${this.canMutate}
                       .canGrant=${this.canGrant}
-                    ></openclaw-board-view>
+                    ></mirally-board-view>
                   `
                 : html`<p class="plugin-session-dashboard__empty">
                     ${t("pluginUi.dashboardEmpty")}
@@ -214,12 +214,12 @@ class PluginSessionDashboard extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-plugin-session-dashboard")) {
-  customElements.define("openclaw-plugin-session-dashboard", PluginSessionDashboard);
+if (!customElements.get("mirally-plugin-session-dashboard")) {
+  customElements.define("mirally-plugin-session-dashboard", PluginSessionDashboard);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-plugin-session-dashboard": PluginSessionDashboard;
+    "mirally-plugin-session-dashboard": PluginSessionDashboard;
   }
 }

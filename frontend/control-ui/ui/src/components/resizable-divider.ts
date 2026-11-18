@@ -2,7 +2,7 @@
 import { css, nothing } from "lit";
 import { property } from "lit/decorators.js";
 import { t } from "../i18n/index.ts";
-import { OpenClawLitElement } from "../lit/openclaw-element.ts";
+import { MirallyLitElement } from "../lit/mirally-element.ts";
 
 const DRAG_END_EVENTS = ["pointerup", "pointercancel", "blur"] as const;
 
@@ -10,7 +10,7 @@ const DRAG_END_EVENTS = ["pointerup", "pointercancel", "blur"] as const;
  * An accessible draggable divider for resizable split views.
  * Dispatches 'resize' events with the current ratio and 'resize-end' after the interaction.
  */
-class ResizableDivider extends OpenClawLitElement {
+class ResizableDivider extends MirallyLitElement {
   @property({ type: Number }) splitRatio = 0.6;
   @property({ type: Number }) minRatio = 0.4;
   @property({ type: Number }) maxRatio = 0.7;

@@ -1,4 +1,4 @@
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing } from "lit";
 import { renderProviderBrandIcon } from "../../components/provider-icon.ts";
 import { renderSettingsToggleRow } from "../../components/settings-ui.ts";

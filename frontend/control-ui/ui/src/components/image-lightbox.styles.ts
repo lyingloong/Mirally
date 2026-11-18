@@ -12,11 +12,11 @@ export const imageLightboxStyles = css`
     --image-lightbox-control-background-hover: rgba(255, 255, 255, 0.22);
   }
 
-  openclaw-modal-dialog {
-    --openclaw-modal-width: 100vw;
-    --openclaw-modal-max-width: 100vw;
-    --openclaw-modal-max-height: 100dvh;
-    --openclaw-modal-backdrop-filter: none;
+  mirally-modal-dialog {
+    --mirally-modal-width: 100vw;
+    --mirally-modal-max-width: 100vw;
+    --mirally-modal-max-height: 100dvh;
+    --mirally-modal-backdrop-filter: none;
   }
 
   .lightbox {
@@ -282,10 +282,10 @@ export const imageLightboxStyles = css`
 
   @media (max-width: 768px),
     (max-width: 932px) and (max-height: 500px) and (orientation: landscape) {
-    openclaw-modal-dialog {
-      --openclaw-modal-width: 100vw;
-      --openclaw-modal-max-width: 100vw;
-      --openclaw-modal-max-height: 100dvh;
+    mirally-modal-dialog {
+      --mirally-modal-width: 100vw;
+      --mirally-modal-max-width: 100vw;
+      --mirally-modal-max-height: 100dvh;
     }
 
     .lightbox {
@@ -323,7 +323,7 @@ export const imageLightboxStyles = css`
   }
 
   @media (prefers-reduced-motion: reduce) {
-    openclaw-modal-dialog {
+    mirally-modal-dialog {
       --show-duration: 0ms;
       --hide-duration: 0ms;
     }

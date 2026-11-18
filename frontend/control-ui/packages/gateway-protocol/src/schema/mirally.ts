@@ -1,4 +1,4 @@
-// Gateway Protocol schema module defines OpenClaw chat payloads.
+// Gateway Protocol schema module defines Mirally chat payloads.
 import type { Static } from "typebox";
 import { Type } from "typebox";
 import {
@@ -29,7 +29,7 @@ const PluginCapabilityNamesSchema = Type.Optional(
 );
 
 /**
- * OpenClaw chat lets clients (macOS app onboarding, future UIs) hold the
+ * Mirally chat lets clients (macOS app onboarding, future UIs) hold the
  * setup/repair conversation over the gateway. The gateway live-tests the
  * configured inference route before creating a session. Omitting `message`
  * returns the welcome/greeting for a verified fresh session without input.
@@ -127,7 +127,7 @@ export const SystemAgentChatQuestionSchema = closedObject({
   skipAction: Type.Optional(Type.Literal("exit")),
 });
 
-/** One OpenClaw reply; `action` tells clients about conversation handoffs. */
+/** One Mirally reply; `action` tells clients about conversation handoffs. */
 export const SystemAgentChatResultSchema = closedObject({
   sessionId: NonEmptyString,
   reply: NonEmptyString,

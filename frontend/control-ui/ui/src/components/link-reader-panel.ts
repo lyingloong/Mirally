@@ -1,4 +1,4 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import { repeat } from "lit/directives/repeat.js";
@@ -10,7 +10,7 @@ import type {
 import type { GatewayBrowserClient } from "../api/gateway.ts";
 import { t } from "../i18n/index.ts";
 import { registerLinkReaderEnglish } from "../i18n/locales/en-link-reader.ts";
-import { OpenClawLitElement } from "../lit/openclaw-element.ts";
+import { MirallyLitElement } from "../lit/mirally-element.ts";
 import { DockLayoutController } from "./dock-layout-controller.ts";
 import { icons } from "./icons.ts";
 import { linkReaderErrorMessage } from "./link-reader-error.ts";
@@ -45,7 +45,7 @@ registerLinkReaderEnglish();
 const HISTORY_LIMIT = 30;
 const TAB_LIMIT = 10;
 /** Browser-style, memory-only tabs for plugin-provided read-only documents. */
-class OpenClawLinkReaderPanel extends OpenClawLitElement implements PanelHostedTabsElement {
+class MirallyLinkReaderPanel extends MirallyLitElement implements PanelHostedTabsElement {
   @property({ attribute: false }) client: GatewayBrowserClient | null = null;
   @property({ type: Boolean }) available = false;
   @property() agentId: string | undefined;
@@ -701,11 +701,11 @@ class OpenClawLinkReaderPanel extends OpenClawLitElement implements PanelHostedT
     </section>`;
   }
 }
-if (!customElements.get("openclaw-link-reader-panel")) {
-  customElements.define("openclaw-link-reader-panel", OpenClawLinkReaderPanel);
+if (!customElements.get("mirally-link-reader-panel")) {
+  customElements.define("mirally-link-reader-panel", MirallyLinkReaderPanel);
 }
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-link-reader-panel": OpenClawLinkReaderPanel;
+    "mirally-link-reader-panel": MirallyLinkReaderPanel;
   }
 }

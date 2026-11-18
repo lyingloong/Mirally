@@ -1,4 +1,4 @@
-import { expectDefined } from "@openclaw/normalization-core";
+import { expectDefined } from "@mirally/normalization-core";
 import type { LobsterPetLook, LobsterPetPalette } from "./lobster-pet-contract.ts";
 
 // Rarity ladder loosely mirrors real lobster genetics: blue and gold lead into

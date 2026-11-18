@@ -1,4 +1,4 @@
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import { html, nothing, type TemplateResult } from "lit";
 import "../../../components/elapsed-time.ts";
 import { ref } from "lit/directives/ref.js";
@@ -91,7 +91,7 @@ export function renderTaskDetailPanel(params: {
       : (currentTask.childSessionKey ?? currentTask.sessionKey),
   );
   // Preserve child-session previews while allowing the task owner to advertise
-  // transcript history without creating an OpenClaw session.
+  // transcript history without creating an Mirally session.
   const hasTranscript = transcriptSessionKey
     ? !uiConversationMatches(
         params.host,
@@ -147,7 +147,7 @@ function renderTaskHeader(
                   }"
                   >${backgroundTaskStatusLabel(task)}</span
                 >
-                ${active && startedMs > 0 ? html`<span aria-hidden="true">·</span><openclaw-elapsed-time .startMs=${startedMs}></openclaw-elapsed-time>` : duration ? html`<span aria-hidden="true">·</span><span>${duration}</span>` : nothing}
+                ${active && startedMs > 0 ? html`<span aria-hidden="true">·</span><mirally-elapsed-time .startMs=${startedMs}></mirally-elapsed-time>` : duration ? html`<span aria-hidden="true">·</span><span>${duration}</span>` : nothing}
                 ${(task.toolUseCount ?? 0) > 0 ? html`<span aria-hidden="true">·</span><span>${t(task.toolUseCount === 1 ? "chat.backgroundTasks.toolCallsOne" : "chat.backgroundTasks.toolCallsMany", { count: String(task.toolUseCount) })}</span>` : nothing}
                 ${task.diffStat ? html`<span aria-hidden="true">·</span>${renderDiffStatChips(task.diffStat)}` : nothing}
                 ${task.runtime !== "subagent" ? html`<span aria-hidden="true">·</span><span>${taskRuntimeLabel(task)}</span>` : nothing}
@@ -192,9 +192,9 @@ function renderTaskObservation(task: TaskSummary, props: BackgroundTasksProps) {
               >${t("chat.backgroundTasks.currentTool")}</span
             >
             <code>${currentTool.name}</code>
-            <openclaw-elapsed-time
+            <mirally-elapsed-time
               .startMs=${taskTimestampMs(currentTool.startedAt)}
-            ></openclaw-elapsed-time>
+            ></mirally-elapsed-time>
           </div>`
         : lastTool
           ? html`<div class="chat-task-detail__fact">
@@ -212,7 +212,7 @@ function renderTaskObservation(task: TaskSummary, props: BackgroundTasksProps) {
               >${t("chat.backgroundTasks.lastActivity")}</span
             >
             <span
-              ><openclaw-elapsed-time .startMs=${activityAt}></openclaw-elapsed-time>
+              ><mirally-elapsed-time .startMs=${activityAt}></mirally-elapsed-time>
               ${t("chat.backgroundTasks.activityAgo")}</span
             >
           </div>`

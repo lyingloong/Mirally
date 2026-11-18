@@ -1,4 +1,4 @@
-openclaw-custodian-page {
+mirally-custodian-page {
   display: flex;
   flex: 1 1 0;
   min-width: 0;
@@ -50,7 +50,7 @@ openclaw-custodian-page {
   text-align: center;
 }
 
-.custodian__setup-state openclaw-mascot {
+.custodian__setup-state mirally-mascot {
   display: block;
   margin-bottom: 4px;
 }
@@ -89,7 +89,7 @@ openclaw-custodian-page {
   align-content: start;
 }
 
-.custodian > openclaw-custodian-surface {
+.custodian > mirally-custodian-surface {
   display: block;
   height: 100%;
 }
@@ -148,7 +148,7 @@ openclaw-custodian-page {
   place-items: center;
 }
 
-.custodian__mark openclaw-mascot {
+.custodian__mark mirally-mascot {
   display: block;
 }
 
@@ -358,7 +358,7 @@ openclaw-custodian-page {
   background: transparent;
 }
 
-.custodian__mascot-avatar openclaw-mascot {
+.custodian__mascot-avatar mirally-mascot {
   display: block;
 }
 

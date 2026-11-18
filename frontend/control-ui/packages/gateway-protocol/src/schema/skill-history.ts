@@ -18,7 +18,7 @@ export const SkillsProposalHistoryScanParamsSchema = Type.Object(
 
 export const SkillsProposalHistoryScanResultSchema = Type.Object(
   {
-    schema: Type.Literal("openclaw.skill-workshop.history-scan.v1"),
+    schema: Type.Literal("mirally.skill-workshop.history-scan.v1"),
     hasScanned: Type.Boolean(),
     reviewedSessions: Type.Integer({ minimum: 0 }),
     ideasFound: Type.Integer({ minimum: 0 }),

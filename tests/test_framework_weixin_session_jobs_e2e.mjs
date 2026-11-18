@@ -97,7 +97,7 @@ for (const nativeJobs of [false,true]) test(`real ${nativeJobs?'DSH':'Mirally'} 
     t.after(()=>browser.close());
     page=await browser.newPage({viewport:{width:1280,height:900}});
     await page.goto(`${runtime.url}/chat/main/${encodeURIComponent(session.id)}#token=${runtime.token}`);
-    const sidebar=page.locator('openclaw-app-sidebar');
+    const sidebar=page.locator('mirally-app-sidebar');
     await sidebar.getByText('实验',{exact:true}).waitFor({state:'visible',timeout:15000});
     assert.equal(await sidebar.getByLabel('后台作业运行中').count(),0);
   }
@@ -110,7 +110,7 @@ for (const nativeJobs of [false,true]) test(`real ${nativeJobs?'DSH':'Mirally'} 
   await until(()=>jobId,'job started',5000).catch(async e=>{e.message+=` requests=${JSON.stringify(requests)} errors=${modelErrors.map(x=>x.stack)} history=${JSON.stringify((await api(`/api/sessions/${session.id}/history?events=1`)).events.filter(x=>['tool/result','assistant/attempt','turn/end'].includes(x.type)))}`;throw e;});
   await until(async()=>(await api('/api/sessions')).sessions.find(item=>item.id===session.id)?.background_job_count===1,'background job status');
   if (page) {
-    const sidebar=page.locator('openclaw-app-sidebar');
+    const sidebar=page.locator('mirally-app-sidebar');
     const row=sidebar.getByText('实验',{exact:true}).locator('xpath=ancestor::a[1]');
     await row.getByLabel('后台作业运行中').waitFor({state:'visible',timeout:15000});
     assert.equal(await sidebar.getByLabel('后台作业运行中').count(),1);
@@ -161,7 +161,7 @@ for (const nativeJobs of [false,true]) test(`real ${nativeJobs?'DSH':'Mirally'} 
   await delay(1500);
   assert.equal(replies.slice(completeAt).filter(text=>text.includes('提醒：后台作业完成')).length,1);
   await rpc('settings.update',{patch:{action_approval_mode:'ask'}});
-  if (page) await page.locator('openclaw-app-sidebar').getByLabel('后台作业运行中').waitFor({state:'hidden',timeout:15000});
+  if (page) await page.locator('mirally-app-sidebar').getByLabel('后台作业运行中').waitFor({state:'hidden',timeout:15000});
   if(nativeJobs){assert.deepEqual(modelErrors,[]);return;}
   const startAt=replies.length;send(7,'微信启动新命令');
   const startReview=await until(()=>replies.slice(startAt).find(text=>text.includes('/approve ')),'remote command approval');

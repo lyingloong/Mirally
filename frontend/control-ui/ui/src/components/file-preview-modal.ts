@@ -4,7 +4,7 @@ import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { stripFrontmatterBlock } from "../../../packages/markdown-core/src/frontmatter.js";
 import { t } from "../i18n/index.ts";
 import { registerFilePreviewEnglish } from "../i18n/locales/en-file-preview.ts";
-import { OpenClawLitElement } from "../lit/openclaw-element.ts";
+import { MirallyLitElement } from "../lit/mirally-element.ts";
 import { renderCopyButton } from "./copy-button.ts";
 import { type FileKind, fileKindForPath } from "./file-kind.ts";
 import { filePreviewModalStyles } from "./file-preview-modal.styles.ts";
@@ -22,7 +22,7 @@ export type FilePreviewModalFile = {
   message?: string;
 };
 
-export class OpenClawFilePreviewModal extends OpenClawLitElement {
+export class MirallyFilePreviewModal extends MirallyLitElement {
   @property({ attribute: false }) files: FilePreviewModalFile[] = [];
   @property() activePath = "";
   @property() query = "";
@@ -100,9 +100,9 @@ export class OpenClawFilePreviewModal extends OpenClawLitElement {
     const searchPlaceholder = this.searchPlaceholder || t("filePreview.searchPlaceholder");
 
     return html`
-      <openclaw-modal-dialog
+      <mirally-modal-dialog
         label=${label}
-        style="--openclaw-modal-width: min(1100px, 92vw); --openclaw-modal-max-height: 86vh;"
+        style="--mirally-modal-width: min(1100px, 92vw); --mirally-modal-max-height: 86vh;"
         @modal-cancel=${this.emitClose}
         @keydown=${this.handleKeydown}
       >
@@ -173,7 +173,7 @@ export class OpenClawFilePreviewModal extends OpenClawLitElement {
               : ""
           }
         </div>
-      </openclaw-modal-dialog>
+      </mirally-modal-dialog>
     `;
   }
 
@@ -468,6 +468,6 @@ function iconForFile(path: string) {
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-file-preview-modal": OpenClawFilePreviewModal;
+    "mirally-file-preview-modal": MirallyFilePreviewModal;
   }
 }

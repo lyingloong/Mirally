@@ -4,7 +4,7 @@ import { property, state as litState } from "lit/decorators.js";
 import type { ApplicationContext } from "../../app/context.ts";
 import { t } from "../../i18n/index.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { PollController } from "../../lit/poll-controller.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { renderDebugOverlaySectionLoading } from "./debug-overlay-loading.ts";
@@ -24,7 +24,7 @@ type SectionState =
   | { status: "ready"; value: unknown }
   | { status: "unavailable" };
 
-class DebugOverlayContent extends OpenClawLightDomElement {
+class DebugOverlayContent extends MirallyLightDomElement {
   @property({ attribute: false }) context?: ApplicationContext;
   @property({ type: Boolean }) minimized = false;
   @litState() private sections = new Map<string, SectionState>();
@@ -172,6 +172,6 @@ class DebugOverlayContent extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-debug-overlay-content")) {
-  customElements.define("openclaw-debug-overlay-content", DebugOverlayContent);
+if (!customElements.get("mirally-debug-overlay-content")) {
+  customElements.define("mirally-debug-overlay-content", DebugOverlayContent);
 }

@@ -1,6 +1,6 @@
 // `/model` directive parser for auto-reply messages.
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
-import { normalizeStringEntries } from "@openclaw/normalization-core/string-normalization";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
+import { normalizeStringEntries } from "@mirally/normalization-core/string-normalization";
 import { splitTrailingAuthProfile } from "../agents/model-ref-profile.js";
 import type { ModelSelectionScope } from "../config/types.agent-defaults.js";
 import { escapeRegExp } from "../shared/regexp.js";

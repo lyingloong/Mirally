@@ -1,5 +1,5 @@
 {
-  "name": "@openclaw/model-catalog-core",
+  "name": "@mirally/model-catalog-core",
   "version": "0.0.0-private",
   "private": true,
   "files": [
@@ -9,7 +9,7 @@
   "main": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
   "dependencies": {
-    "@openclaw/normalization-core": "workspace:*",
+    "@mirally/normalization-core": "workspace:*",
     "zod": "4.6.5"
   },
   "exports": {

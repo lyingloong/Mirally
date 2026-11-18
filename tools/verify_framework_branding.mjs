@@ -11,21 +11,25 @@ const output=resolve(process.argv[3]??join(root,'.artifacts/branding-close'));aw
 const browser=await chromium.launch({channel:'msedge',headless:true});
 const errors=[];
 const oldBrand=/OpenClaw|Clawd(?:bot)?|龙虾|lobster/i;
-async function ready(page){await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected');}
+async function ready(page){await page.waitForFunction(()=>document.querySelector('mirally-app')?.context?.gateway?.snapshot?.phase==='connected');}
 async function go(page,path){await page.goto(runtime.url+path);await ready(page);}
 async function rpc(page,method,params={}){return page.evaluate(({method,params})=>window.__mirallyHost.rpc(method,params),{method,params});}
 async function noOldBrand(page){
-  assert.ok(!oldBrand.test(await page.locator('body').innerText()),'visible product text is Mirally');
+  const legacyLabels=(await page.locator('body').innerText()).split('\n').filter(line=>oldBrand.test(line));
+  assert.deepEqual(legacyLabels,[],'visible product text is Mirally');
   const links=await page.locator('a[href]').evaluateAll(nodes=>nodes.filter(node=>node.getClientRects().length).map(node=>node.href));
   assert.ok(!links.some(link=>/openclaw\.(?:ai|dev)|github\.com\/openclaw/i.test(link)),'visible help links are product-owned');
   assert.ok(!oldBrand.test(await page.title()),'document title is product-owned');
+  const registeredLegacyElements=await page.evaluate(()=>['openclaw-app','openclaw-mascot','openclaw-lobster-pet']
+    .filter(name=>customElements.get(name)));
+  assert.deepEqual(registeredLegacyElements,[],'active components are registered under the Mirally identity');
 }
 try{
   // This must pass even when no product script can run.
   const plain=await browser.newContext({javaScriptEnabled:false});
   const staticPage=await plain.newPage();await staticPage.goto(runtime.url+'/new');
   assert.equal(await staticPage.title(),'Mirally');
-  assert.ok(!oldBrand.test(await staticPage.locator('#openclaw-mount-fallback').textContent()));
+  assert.ok(!oldBrand.test(await staticPage.locator('#mirally-mount-fallback').textContent()));
   const manifest=await (await plain.request.get(runtime.url+'/manifest.webmanifest')).json();
   assert.equal(manifest.name,'Mirally');assert.equal(manifest.short_name,'Mirally');assert.ok(!oldBrand.test(manifest.description));
   const icon=await (await plain.request.get(runtime.url+'/favicon.svg')).text();
@@ -37,7 +41,7 @@ try{
   await page.goto(runtime.url+'/new#token='+runtime.token);await ready(page);
   assert.equal((await rpc(page,'settings.get')).model.model_id,'','requires an unconfigured isolated home');
   const setup=page.locator('.agent-chat__welcome--setup');await setup.waitFor();
-  await setup.locator('openclaw-mascot[data-mirally-mascot=companion-m]').waitFor();
+  await setup.locator('mirally-mascot[data-mirally-mascot=companion-m]').waitFor();
   assert.equal(await setup.locator('canvas').count(),0,'the no-model illustration no longer paints the lobster Canvas');
   await noOldBrand(page);await page.screenshot({path:join(output,'unconfigured.png')});
   await setup.getByRole('button',{name:/连接模型|Connect a model/}).click();
@@ -55,10 +59,10 @@ try{
   await close.selectOption('tray');await page.getByTestId('mirally-settings-notice').filter({hasText:'关闭方式已保存'}).waitFor();
   await noOldBrand(page);await page.screenshot({path:join(output,'close-preferences.png')});
   await go(page,'/settings/appearance');await page.locator('wa-radio[value=dark]').click();
-  await page.waitForFunction(()=>document.querySelector('openclaw-app').context.theme.resolvedMode==='dark');
+  await page.waitForFunction(()=>document.querySelector('mirally-app').context.theme.resolvedMode==='dark');
   await noOldBrand(page);await page.screenshot({path:join(output,'appearance-dark.png')});
   await page.locator('wa-radio[value=light]').click();
-  await page.waitForFunction(()=>document.querySelector('openclaw-app').context.theme.resolvedMode==='light');
+  await page.waitForFunction(()=>document.querySelector('mirally-app').context.theme.resolvedMode==='light');
   const activeIcons=await page.locator('link[rel~=icon]').evaluateAll(nodes=>nodes.map(node=>node.href));
   for(const href of activeIcons){assert.ok(!href.startsWith('data:')||!oldBrand.test(decodeURIComponent(href)));if(href.endsWith('.svg'))assert.ok(!oldBrand.test(await (await page.request.get(href)).text()));}
   assert.deepEqual(errors,[]);
@@ -76,10 +80,10 @@ try{
   await fallback.route(url=>url.pathname.startsWith('/assets/')&&url.pathname.endsWith('.js'),route=>route.abort('failed'));
   // Keep the original failed document visible while its ordinary recovery fetch
   // also fails. Do not mutate the app, fallback markup or its real timeout.
-  await fallback.route(url=>url.searchParams.has('openclaw_mount_recovery'),route=>route.abort('failed'));
+  await fallback.route(url=>url.searchParams.has('mirally_mount_recovery'),route=>route.abort('failed'));
   await fallback.goto(runtime.url+'/new');
-  await fallback.locator('#openclaw-mount-fallback').waitFor({state:'visible',timeout:20000});
-  assert.ok(!oldBrand.test(await fallback.locator('#openclaw-mount-fallback').innerText()));
+  await fallback.locator('#mirally-mount-fallback').waitFor({state:'visible',timeout:20000});
+  assert.ok(!oldBrand.test(await fallback.locator('#mirally-mount-fallback').innerText()));
   assert.equal(await fallback.title(),'Mirally');
   await fallback.screenshot({path:join(output,'startup-fallback.png')});
   await broken.close();

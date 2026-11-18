@@ -1,4 +1,4 @@
-import { definePage } from "@openclaw/uirouter";
+import { definePage } from "@mirally/ui-router";
 import { html } from "lit";
 import { routePageSpec } from "../../app-route-paths.ts";
 import type { ApplicationContext } from "../../app/context.ts";
@@ -12,6 +12,6 @@ export const page = definePage({
   component: () =>
     import("./profile-page.ts").then(() => ({
       header: true,
-      render: () => html`<openclaw-profile-page></openclaw-profile-page>`,
+      render: () => html`<mirally-profile-page></mirally-profile-page>`,
     })),
 });

@@ -80,7 +80,7 @@ export function renderAttachmentPreviewChip(options: {
   openOnClick?: boolean;
   removal?: AttachmentChipRemoval;
 }) {
-  return html`<openclaw-tooltip
+  return html`<mirally-tooltip
     class=${options.removal ? "chat-comment-preview chat-comment-preview--editable" : "chat-comment-preview"}
     placement="top-start"
     auto-size
@@ -106,5 +106,5 @@ export function renderAttachmentPreviewChip(options: {
     >
       ${options.content}
     </div>
-  </openclaw-tooltip>`;
+  </mirally-tooltip>`;
 }

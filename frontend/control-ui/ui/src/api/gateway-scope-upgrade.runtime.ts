@@ -1,5 +1,5 @@
-import type { GatewayProtocolRequestOptions } from "@openclaw/gateway-client/browser";
-import { GatewayScopeUpgrade } from "@openclaw/gateway-client/scope-upgrade";
+import type { GatewayProtocolRequestOptions } from "@mirally/gateway-client/browser";
+import { GatewayScopeUpgrade } from "@mirally/gateway-client/scope-upgrade";
 import {
   clearDeviceAuthToken,
   loadDeviceAuthToken,

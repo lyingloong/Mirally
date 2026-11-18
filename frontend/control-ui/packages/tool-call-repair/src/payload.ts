@@ -1,4 +1,4 @@
-import { safeParseJsonRecord } from "@openclaw/normalization-core";
+import { safeParseJsonRecord } from "@mirally/normalization-core";
 import {
   isOffsetInProtectedRanges,
   type PlainTextToolCallNameMatcher,

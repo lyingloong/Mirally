@@ -23,7 +23,7 @@ import {
   GatewayPageController,
   type GatewayPageChange,
 } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import "../../styles/plugins.css";
 import {
@@ -53,7 +53,7 @@ import type { PluginsRouteData } from "./route-data.ts";
 import type { PluginSettingsTab } from "./settings-view.ts";
 import { PluginPreviewController } from "./skill-preview.ts";
 
-class PluginsPage extends OpenClawLightDomElement {
+class PluginsPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -217,8 +217,8 @@ class PluginsPage extends OpenClawLightDomElement {
     ) {
       return;
     }
-    const progress = this.querySelector<HTMLElementTagNameMap["openclaw-plugin-install-action"]>(
-      "openclaw-plugin-install-action[open]",
+    const progress = this.querySelector<HTMLElementTagNameMap["mirally-plugin-install-action"]>(
+      "mirally-plugin-install-action[open]",
     );
     if (progress) {
       progress.dismiss();
@@ -231,7 +231,7 @@ class PluginsPage extends OpenClawLightDomElement {
       return;
     }
     // The file viewer owns Escape inside its shadow-root modal.
-    if (this.skillPreview.state || document.querySelector("openclaw-modal-dialog")) {
+    if (this.skillPreview.state || document.querySelector("mirally-modal-dialog")) {
       return;
     }
     // Firefox does not emit blur when a focused input is removed from the document.
@@ -723,13 +723,13 @@ class PluginsPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-plugins-page")) {
-  customElements.define("openclaw-plugins-page", PluginsPage);
+if (!customElements.get("mirally-plugins-page")) {
+  customElements.define("mirally-plugins-page", PluginsPage);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-plugins-page": PluginsPage;
+    "mirally-plugins-page": PluginsPage;
   }
 }
 

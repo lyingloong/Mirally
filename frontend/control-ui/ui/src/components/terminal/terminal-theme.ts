@@ -2,7 +2,7 @@
 import type {
   CreateGhosttyTerminalOptions,
   TerminalDefaultColors,
-} from "@openclaw/libterminal/browser";
+} from "@mirally/terminal-runtime/browser";
 import { resolveThemeColor } from "../../lib/theme-color.ts";
 
 type TerminalTheme = NonNullable<

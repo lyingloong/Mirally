@@ -1,5 +1,5 @@
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 // Control UI view renders usage render overview screen content.
 import { html, nothing } from "lit";
 import { ifDefined } from "lit/directives/if-defined.js";
@@ -105,11 +105,11 @@ function renderFilterChips(
           ({ labelKey, value, removeKey, onClear, title }) => html`
             <div class="filter-chip" title=${ifDefined(title)}>
               <span class="filter-chip-label">${t(labelKey)}: ${value}</span>
-              <openclaw-tooltip .content=${t("usage.filters.remove")}>
+              <mirally-tooltip .content=${t("usage.filters.remove")}>
                 <button class="filter-chip-remove" @click=${onClear} aria-label=${t(removeKey)}>
                   ×
                 </button>
-              </openclaw-tooltip>
+              </mirally-tooltip>
             </div>
           `,
         )}
@@ -280,7 +280,7 @@ function renderSummaryStat(params: {
     <div class=${classes}>
       <div class="usage-summary-title">
         ${params.title}
-        <openclaw-tooltip open-on-click>
+        <mirally-tooltip open-on-click>
           <button
             id=${hintId}
             type="button"
@@ -295,7 +295,7 @@ function renderSummaryStat(params: {
                click-to-open; the click handler still normalizes browsers that do
                not focus buttons on pointer activation. -->
           <span slot="content">${params.hint}</span>
-        </openclaw-tooltip>
+        </mirally-tooltip>
       </div>
       <div class=${valueClasses}>${params.value}</div>
       <div class="usage-summary-sub">${params.sub}</div>
@@ -707,7 +707,7 @@ function renderSessionsCard(
               )}
             </select>
           </label>
-          <openclaw-tooltip
+          <mirally-tooltip
             .content=${
               sessionSortDir === "desc"
                 ? t("usage.sessions.descending")
@@ -725,7 +725,7 @@ function renderSessionsCard(
             >
               ${sessionSortDir === "desc" ? "↓" : "↑"}
             </button>
-          </openclaw-tooltip>
+          </mirally-tooltip>
           ${
             selectedCount > 0
               ? html`

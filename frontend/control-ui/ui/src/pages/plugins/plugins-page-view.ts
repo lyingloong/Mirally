@@ -229,7 +229,7 @@ export function renderPluginsPage(model: PluginsPageViewModel) {
         : nothing
     }
     ${renderSettingsWorkspace(html`
-      <openclaw-plugin-manager></openclaw-plugin-manager>
+      <mirally-plugin-manager></mirally-plugin-manager>
       ${renderPluginRowMessage(model.pageNotice ?? undefined)}
       ${
         model.surface === "discovery"

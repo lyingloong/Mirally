@@ -1,5 +1,5 @@
 // Control UI view renders the gateway connection settings content.
-import { gatewayCredentialScope } from "@openclaw/gateway-client/browser";
+import { gatewayCredentialScope } from "@mirally/gateway-client/browser";
 import { html, nothing } from "lit";
 import type { SystemInfoResult } from "../../../../packages/gateway-protocol/src/index.js";
 import type { GatewayHelloOk } from "../../api/gateway.ts";
@@ -134,13 +134,13 @@ function renderPing(props: ConnectionProps) {
         </div>`,
       )}
     </dl>
-    <openclaw-sparkline
+    <mirally-sparkline
       class="gateway-vital connection-ping__trend"
       .label=${t("connection.ping.latest")}
       .samples=${props.pingSamples}
       .format=${formatPing}
       .floorMax=${100}
-    ></openclaw-sparkline>
+    ></mirally-sparkline>
     <p class="settings-row__desc">
       ${
         props.ping

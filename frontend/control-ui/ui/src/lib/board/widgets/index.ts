@@ -15,7 +15,7 @@ type CoreBoardWidgetElement = OptionalCustomElement & {
 export const CORE_BOARD_WIDGET_ELEMENTS: readonly CoreBoardWidgetElement[] = [
   {
     kind: "session:progress",
-    tagName: "openclaw-session-progress-widget",
+    tagName: "mirally-session-progress-widget",
     get label() {
       return t("sessionProgressCard.widgetLabel");
     },
@@ -24,7 +24,7 @@ export const CORE_BOARD_WIDGET_ELEMENTS: readonly CoreBoardWidgetElement[] = [
   },
   {
     kind: "session:report",
-    tagName: "openclaw-report-widget",
+    tagName: "mirally-report-widget",
     get label() {
       return t("board.widget.kindReport");
     },
@@ -33,7 +33,7 @@ export const CORE_BOARD_WIDGET_ELEMENTS: readonly CoreBoardWidgetElement[] = [
   },
   {
     kind: "session:website",
-    tagName: "openclaw-website-widget",
+    tagName: "mirally-website-widget",
     get label() {
       return t("board.widget.kindWebsite");
     },
@@ -42,7 +42,7 @@ export const CORE_BOARD_WIDGET_ELEMENTS: readonly CoreBoardWidgetElement[] = [
   },
   {
     kind: "browser:dashboard",
-    tagName: "openclaw-browser-dashboard-widget",
+    tagName: "mirally-browser-dashboard-widget",
     get label() {
       return t("board.widget.kindBrowserDashboard");
     },

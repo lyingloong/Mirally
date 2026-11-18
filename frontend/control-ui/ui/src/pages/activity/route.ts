@@ -1,4 +1,4 @@
-import { definePage, type RouteLocation } from "@openclaw/uirouter";
+import { definePage, type RouteLocation } from "@mirally/ui-router";
 import {
   INTERNAL_ACTIVITY_PATH_PARAM,
   restoreBridgedRouteLocation,

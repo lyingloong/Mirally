@@ -40,7 +40,7 @@ function waitForChatRouteReady(document: Document) {
 async function navigateAndAnimate(options: RouteTransitionOptions) {
   const { document, navigate, prefersReducedMotion, router, signal, to } = options;
   const outlet = document.querySelector<HTMLElement & { updateComplete?: Promise<unknown> }>(
-    "openclaw-router-outlet",
+    "mirally-router-outlet",
   );
   const chatReady = waitForChatRouteReady(document);
   let canceled = false;

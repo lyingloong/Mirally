@@ -15,7 +15,7 @@ export default defineConfig({
   publicDir: path.join(root,'ui/public'),
   cacheDir: path.join(root,'node_modules/.vite'),
   define: {
-    'globalThis.OPENCLAW_CONTROL_UI_BUILD_INFO': JSON.stringify({version:'0.1.0',commit:null,buildId:'mirally-frontend-0.1.0',builtAt:null}),
+    'globalThis.MIRALLY_CONTROL_UI_BUILD_INFO': JSON.stringify({version:'0.1.0',commit:null,buildId:'mirally-frontend-0.1.0',builtAt:null}),
   },
   resolve: {alias:[{find:'json5',replacement:require.resolve('json5/dist/index.mjs')}]},
   build: {outDir:path.join(root,'dist'),emptyOutDir:true,sourcemap:false,chunkSizeWarningLimit:1600,
@@ -30,7 +30,7 @@ export default defineConfig({
         if (source === '../logging/redact.js' && importer && /\/src\/agents\/tool-display(?:-common|-exec)?\.ts$/.test(importer.replaceAll('\\','/'))) {
           return path.join(root,'ui/src/lib/browser-redact.ts');
         }
-        const match = /^@openclaw\/([^/]+)(?:\/(.+))?$/.exec(source);
+        const match = /^@mirally\/([^/]+)(?:\/(.+))?$/.exec(source);
         if (!match || !packages.has(match[1])) return null;
         const entry = match[2] ?? (match[1] === 'mermaid-renderer' ? 'renderer' : 'index');
         return path.join(root,'packages',match[1],'src',entry+'.ts');
@@ -38,9 +38,9 @@ export default defineConfig({
     },
     {
       name:'mirally-original-locales',
-      resolveId(id) {return id.startsWith('virtual:openclaw-control-ui-locale/') ? '\0'+id : null;},
+      resolveId(id) {return id.startsWith('virtual:mirally-control-ui-locale/') ? '\0'+id : null;},
       load(id) {
-        const prefix='\0virtual:openclaw-control-ui-locale/';
+        const prefix='\0virtual:mirally-control-ui-locale/';
         if (!id.startsWith(prefix)) return null;
         const locale=id.slice(prefix.length);
         if (!/^[A-Za-z-]+$/.test(locale)) throw new Error('Invalid locale');

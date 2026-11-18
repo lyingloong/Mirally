@@ -42,7 +42,7 @@ EXTRA_FILES = ("kernel/README.md", "kernel/dsh/UPSTREAM.md")
 FRONTEND_ROOT = "frontend/control-ui"
 FRONTEND_UPSTREAM = "upstream-files.json"
 FRONTEND_CHANGES = "local-changes.json"
-ROOT_FILES = ("README.md", "AGENTS.md", "CONTRIBUTING.md", "CHANGELOG.md", "run.ps1", "run-openclaw.ps1")
+ROOT_FILES = ("README.md", "AGENTS.md", "CONTRIBUTING.md", "CHANGELOG.md", "run.ps1")
 TEXT_SUFFIXES = {".py", ".md", ".mjs", ".cjs", ".js", ".cpp", ".ps1", ".yml", ".yaml", ".template",
                  ".json", ".toml", ".txt", ".css", ".html", ".webmanifest", ".ts", ".tsx", ".jsx"}
 MARKERS = ("<<<<<<<", "|||||||", ">>>>>>>")

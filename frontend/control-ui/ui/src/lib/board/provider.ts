@@ -3,7 +3,7 @@ import type {
   BoardGetParams,
   BoardOp,
   BoardSnapshot,
-} from "@openclaw/gateway-protocol";
+} from "@mirally/gateway-protocol";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import {
   normalizeDefaultMainSessionAliasForUi,

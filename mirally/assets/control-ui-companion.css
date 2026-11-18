@@ -1,5 +1,5 @@
 /* Mirally's companion surface. Native conversations remain the source of truth. */
-html[data-mirally-mode="companion"] openclaw-app { display:none!important; }
+html[data-mirally-mode="companion"] mirally-app { display:none!important; }
 html[data-mirally-mode="companion"],
 html[data-mirally-mode="companion"] body { background:transparent!important; overflow:hidden; }
 .mirally-companion[hidden],.mirally-handoff[hidden],

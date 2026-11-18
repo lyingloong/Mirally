@@ -88,7 +88,7 @@ test('real host binds command approval to the session, rejects or cancels safely
   const page=await browser.newPage({viewport:{width:1280,height:900}}), pageErrors=[];
   page.on('pageerror',error=>pageErrors.push(error.message));
   await page.goto(runtime.url+'/settings/model-providers#token='+runtime.token);
-  await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected');
+  await page.waitForFunction(()=>document.querySelector('mirally-app')?.context?.gateway?.snapshot?.phase==='connected');
   await page.evaluate(()=>window.__mirallyFramework.showPage('chat'));
   await page.locator('.new-session-page__message').fill('allow');
   await rm(join(home,'allow.txt'),{force:true});
@@ -99,8 +99,8 @@ test('real host binds command approval to the session, rejects or cancels safely
   await card.getByRole('button',{name:'允许这次'}).click();
   await until(()=>existsSync(join(home,'allow.txt')),'UI approved command');
   await card.waitFor({state:'hidden'});
-  const pane=page.locator('openclaw-chat-pane.chat-pane-cache__pane--active');
-  await page.waitForFunction(()=>{const p=document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active');return p?.state?.chatMessages?.some(m=>m.role==='assistant') && !p.runActivity?.working;});
+  const pane=page.locator('mirally-chat-pane.chat-pane-cache__pane--active');
+  await page.waitForFunction(()=>{const p=document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active');return p?.state?.chatMessages?.some(m=>m.role==='assistant') && !p.runActivity?.working;});
   await pane.locator('textarea[aria-label="聊天输入框"]').fill('deny');
   await pane.locator('.chat-send-btn--send').click();
   await card.waitFor({state:'visible'}); assert.match(await card.innerText(),/deny\.txt/);

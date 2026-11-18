@@ -35,7 +35,7 @@ import { renderModelSetupWizard } from "./wizard-view.ts";
 
 registerModelSetupEnglish();
 
-const MODEL_SETUP_DOCS_URL = "https://docs.openclaw.ai/concepts/model-providers";
+const MODEL_SETUP_DOCS_URL = "https://github.com/lyingloong/Mirally#快速开始";
 
 type Candidate = SystemAgentSetupDetectResult["candidates"][number];
 type AuthOption = NonNullable<SystemAgentSetupDetectResult["authOptions"]>[number];
@@ -535,7 +535,7 @@ export function renderModelSetup(props: ModelSetupViewProps): TemplateResult {
       ${cache(
         wizardOpen
           ? nothing
-          : html`<openclaw-modal-dialog
+          : html`<mirally-modal-dialog
               label=${t("modelSetup.discovery.title")}
               @modal-cancel=${() => props.onClose?.()}
               @wa-after-show=${(event: Event) =>
@@ -549,7 +549,7 @@ export function renderModelSetup(props: ModelSetupViewProps): TemplateResult {
                   </button>
                 </div>
               </div>
-            </openclaw-modal-dialog>`,
+            </mirally-modal-dialog>`,
       )}
       ${dialogs}
     `;

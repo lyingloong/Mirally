@@ -9,7 +9,7 @@ import { UI_COMMAND_EVENT, type UiCommandDetail } from "../../components/panel-t
 import type { BoardFace } from "../../lib/board/settings.ts";
 import { readSessionDragData, sessionDragActive } from "../../lib/sessions/drag.ts";
 import { areUiSessionKeysEquivalent } from "../../lib/sessions/session-key.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { stillOwnsCanonicalLocation } from "./chat-canonical-location.ts";
 import { resolveDropIndicator, type DropIndicator } from "./chat-page-drop-indicator.ts";
@@ -48,7 +48,7 @@ import {
   singlePaneLayout,
 } from "./split-layout.ts";
 
-export class ChatPage extends OpenClawLightDomElement implements SessionSplitHost {
+export class ChatPage extends MirallyLightDomElement implements SessionSplitHost {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
   @property({ attribute: false }) data!: SessionChatRouteData;
@@ -325,7 +325,7 @@ export class ChatPage extends OpenClawLightDomElement implements SessionSplitHos
       event.dataTransfer.dropEffect = "copy";
     }
     const target = event.target instanceof Element ? event.target : null;
-    const pane = target?.closest<ChatPaneElement>("openclaw-chat-pane");
+    const pane = target?.closest<ChatPaneElement>("mirally-chat-pane");
     if (!pane || !this.contains(pane)) {
       return;
     }
@@ -374,7 +374,7 @@ export class ChatPage extends OpenClawLightDomElement implements SessionSplitHos
     event.preventDefault();
     const sessionKey = readSessionDragData(event.dataTransfer);
     const target = event.target instanceof Element ? event.target : null;
-    const pane = target?.closest<ChatPaneElement>("openclaw-chat-pane");
+    const pane = target?.closest<ChatPaneElement>("mirally-chat-pane");
     const indicator =
       (pane && this.contains(pane)
         ? resolveDropIndicator(this, pane, event.clientX, event.clientY)
@@ -432,7 +432,7 @@ export class ChatPage extends OpenClawLightDomElement implements SessionSplitHos
   }
 
   private updateRouteToPane(pane: ChatSplitPane): void {
-    const mounted = [...this.querySelectorAll<ChatPaneElement>("openclaw-chat-pane")].find(
+    const mounted = [...this.querySelectorAll<ChatPaneElement>("mirally-chat-pane")].find(
       (candidate) =>
         candidate.paneId === pane.id &&
         candidate.sessionKey !== undefined &&
@@ -590,7 +590,7 @@ export class ChatPage extends OpenClawLightDomElement implements SessionSplitHos
     if (this.mcpAppUnmountGate.retiring) {
       return;
     }
-    const pane = [...this.querySelectorAll<ChatPaneElement>("openclaw-chat-pane")].find(
+    const pane = [...this.querySelectorAll<ChatPaneElement>("mirally-chat-pane")].find(
       (candidate) =>
         candidate.paneId === pending.paneId &&
         candidate.active &&
@@ -610,7 +610,7 @@ export class ChatPage extends OpenClawLightDomElement implements SessionSplitHos
     const source = this.ownerDocument.activeElement;
     const ownsFocus =
       source &&
-      [...this.querySelectorAll<ChatPaneElement>("openclaw-chat-pane")].some(
+      [...this.querySelectorAll<ChatPaneElement>("mirally-chat-pane")].some(
         (pane) => pane.paneId === paneId && pane.contains(source),
       );
     const survivingPane = closeStagedPane(this.context, this, layout, paneId);
@@ -706,7 +706,7 @@ export class ChatPage extends OpenClawLightDomElement implements SessionSplitHos
       return this.mcpAppUnmountGate.render(
         "pending-create",
         () => renderPendingChatPage(this.context, this.data.sessionKey, this.presented),
-        () => [...this.querySelectorAll<ChatPaneElement>("openclaw-chat-pane")],
+        () => [...this.querySelectorAll<ChatPaneElement>("mirally-chat-pane")],
       );
     }
     const layout = this.layout ?? this.classicLayout();
@@ -731,13 +731,13 @@ export class ChatPage extends OpenClawLightDomElement implements SessionSplitHos
         this.dropIndicator,
       );
     return this.mcpAppUnmountGate.render(JSON.stringify([...nextPaneKeys]), renderValue, () =>
-      [...this.querySelectorAll<ChatPaneElement>("openclaw-chat-pane")].filter(
+      [...this.querySelectorAll<ChatPaneElement>("mirally-chat-pane")].filter(
         (pane) => !nextPaneKeys.has(pane.dataset.mcpAppOwnerKey ?? ""),
       ),
     );
   }
 }
 
-if (!customElements.get("openclaw-chat-page")) {
-  customElements.define("openclaw-chat-page", ChatPage);
+if (!customElements.get("mirally-chat-page")) {
+  customElements.define("mirally-chat-page", ChatPage);
 }

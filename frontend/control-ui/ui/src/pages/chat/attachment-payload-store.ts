@@ -1,4 +1,4 @@
-import { estimateBase64DecodedBytes, isValidBase64 } from "@openclaw/media-core/base64";
+import { estimateBase64DecodedBytes, isValidBase64 } from "@mirally/media-core/base64";
 import type { ChatAttachment } from "../../lib/chat/chat-types.ts";
 import {
   payloads,

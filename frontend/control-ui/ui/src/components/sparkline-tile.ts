@@ -2,7 +2,7 @@ import "../styles/gateway-vitals.css";
 import { html, nothing, svg } from "lit";
 import { property, state as litState } from "lit/decorators.js";
 import { formatDurationCompact } from "../lib/format-duration.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 
 export type SparklineSample = {
   value: number;
@@ -26,7 +26,7 @@ function nextGradientId(): string {
 }
 
 /** Stat tile with an embedded area sparkline and pointer scrubbing. */
-class SparklineTile extends OpenClawLightDomElement {
+class SparklineTile extends MirallyLightDomElement {
   @property() label = "";
   @property() sub = "";
   @property({ attribute: false }) samples: readonly SparklineSample[] = [];
@@ -206,6 +206,6 @@ class SparklineTile extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-sparkline")) {
-  customElements.define("openclaw-sparkline", SparklineTile);
+if (!customElements.get("mirally-sparkline")) {
+  customElements.define("mirally-sparkline", SparklineTile);
 }

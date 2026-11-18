@@ -1,6 +1,6 @@
 import { css, html, type TemplateResult } from "lit";
 import { property } from "lit/decorators.js";
-import { OpenClawLitElement } from "../lit/openclaw-element.ts";
+import { MirallyLitElement } from "../lit/mirally-element.ts";
 
 export type PanelLoadingSkeletonVariant =
   | "board"
@@ -15,7 +15,7 @@ export type PanelLoadingSkeletonVariant =
   | "tasks"
   | "terminal";
 
-class PanelLoadingSkeleton extends OpenClawLitElement {
+class PanelLoadingSkeleton extends MirallyLitElement {
   @property({ reflect: true, attribute: "data-panel-skeleton" })
   variant: PanelLoadingSkeletonVariant = "files";
 
@@ -451,7 +451,7 @@ export function renderPanelLoadingSkeleton(
   overlay = false,
 ): TemplateResult {
   return html`
-    <openclaw-panel-loading-skeleton
+    <mirally-panel-loading-skeleton
       .variant=${variant}
       .label=${label}
       ?compact=${compact}
@@ -459,16 +459,16 @@ export function renderPanelLoadingSkeleton(
       role="status"
       aria-busy="true"
       aria-label=${label}
-    ></openclaw-panel-loading-skeleton>
+    ></mirally-panel-loading-skeleton>
   `;
 }
 
-if (!customElements.get("openclaw-panel-loading-skeleton")) {
-  customElements.define("openclaw-panel-loading-skeleton", PanelLoadingSkeleton);
+if (!customElements.get("mirally-panel-loading-skeleton")) {
+  customElements.define("mirally-panel-loading-skeleton", PanelLoadingSkeleton);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-panel-loading-skeleton": PanelLoadingSkeleton;
+    "mirally-panel-loading-skeleton": PanelLoadingSkeleton;
   }
 }

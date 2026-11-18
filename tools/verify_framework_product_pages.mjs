@@ -14,7 +14,7 @@ const browser=await chromium.launch({channel:'msedge',headless:true});
 const page=await browser.newPage({viewport:{width:1280,height:900}});page.setDefaultTimeout(15000);
 const errors=[];page.on('pageerror',error=>errors.push(error.message));
 const test=id=>page.getByTestId(id);
-async function ready(){await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected');}
+async function ready(){await page.waitForFunction(()=>document.querySelector('mirally-app')?.context?.gateway?.snapshot?.phase==='connected');}
 async function go(path){await page.goto(runtime.url+path);await ready();}
 async function rpc(method,params={}){return page.evaluate(({method,params})=>window.__mirallyHost.rpc(method,params),{method,params});}
 async function settled(id){await test(id).waitFor();await page.waitForFunction(id=>document.querySelector(`[data-testid="${id}"]`)?.getAttribute('aria-busy')==='false',id);}
@@ -35,8 +35,8 @@ try{
   await page.waitForFunction(()=>document.querySelector('[data-testid="mirally-settings-hide-companion-from-capture"] wa-switch')?.checked===true);
   await page.screenshot({path:join(output,'mirally-settings.png')});
   await go('/inbox');await page.locator('mirally-messages-page').waitFor();
-  await page.locator('openclaw-app-sidebar .nav-item').filter({hasText:'消息'}).waitFor();
-  const nav=await page.locator('openclaw-app-sidebar .nav-item').allTextContents();
+  await page.locator('mirally-app-sidebar .nav-item').filter({hasText:'消息'}).waitFor();
+  const nav=await page.locator('mirally-app-sidebar .nav-item').allTextContents();
   for(const title of ['消息','提醒','活动','记忆','扩展'])assert.ok(nav.some(text=>text.includes(title)),`real nav: ${title}`);
   assert.ok(!nav.some(text=>/渠道|节点|Gateway|应用商店/.test(text)));
 
@@ -75,11 +75,11 @@ try{
   await inbox.getByRole('button',{name:'标记已读'}).click();await page.getByText('已标记为已读。',{exact:true}).waitFor();
   await page.screenshot({path:join(output,'mirally-inbox.png')});
   await inbox.getByRole('button',{name:'接着聊'}).click();
-  await page.locator('openclaw-chat-pane.chat-pane-cache__pane--active textarea').waitFor();
-  assert.equal(await page.evaluate(()=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active').state.sessionKey),session.key);
+  await page.locator('mirally-chat-pane.chat-pane-cache__pane--active textarea').waitFor();
+  assert.equal(await page.evaluate(()=>document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active').state.sessionKey),session.key);
   const methodOffset=seenMethods.length;
-  await page.locator(`openclaw-app-sidebar .sidebar-recent-session[data-session-key="${session.key}"]`).click({button:'right'});
-  const menu=page.locator('openclaw-session-menu');await menu.locator('wa-dropdown-item').first().waitFor();
+  await page.locator(`mirally-app-sidebar .sidebar-recent-session[data-session-key="${session.key}"]`).click({button:'right'});
+  const menu=page.locator('mirally-session-menu');await menu.locator('wa-dropdown-item').first().waitFor();
   assert.deepEqual(await menu.locator('wa-dropdown-item').evaluateAll(items=>items.map(item=>item.getAttribute('value'))),['rename','toggle-pin','toggle-archived','copy-markdown','copy-session-link','open-new-tab']);
   assert.ok(!seenMethods.slice(methodOffset).includes('users.list'));
   await page.keyboard.press('Escape');

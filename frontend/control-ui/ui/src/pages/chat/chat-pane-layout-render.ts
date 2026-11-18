@@ -1,4 +1,4 @@
-import { buildControlUiFocusPath } from "@openclaw/session-url-contract";
+import { buildControlUiFocusPath } from "@mirally/session-url-contract";
 import { html, nothing } from "lit";
 import "./chat-outbox-recovery.ts";
 import type { SessionObserverDigest } from "../../../../packages/gateway-protocol/src/index.js";
@@ -117,7 +117,7 @@ export abstract class ChatPaneLayoutRender extends ChatPaneBrowserAnnotationRend
           : undefined,
       );
     }
-    const recovery = html`<openclaw-chat-outbox-recovery
+    const recovery = html`<mirally-chat-outbox-recovery
       .host=${state}
       .identity=${JSON.stringify([
         state.settings.gatewayUrl,
@@ -128,7 +128,7 @@ export abstract class ChatPaneLayoutRender extends ChatPaneBrowserAnnotationRend
         this.chatState.restoreComposer();
         state.requestUpdate?.();
       }}
-    ></openclaw-chat-outbox-recovery>`;
+    ></mirally-chat-outbox-recovery>`;
     const latestBrowserTabs = latestBrowserTabCards(chatProps.messages, chatProps.toolMessages);
     const chat = renderChat({
       ...chatProps,
@@ -269,12 +269,12 @@ export abstract class ChatPaneLayoutRender extends ChatPaneBrowserAnnotationRend
             chatProps.placementStartup,
             sidebarLayout,
             panelDefinitions,
-          )}<openclaw-plugin-contributions
+          )}<mirally-plugin-contributions
             .kind=${"session-header"}
             .sessionKey=${state.sessionKey}
             .agentId=${currentAgentId}
             .presented=${this.visuallyPresented}
-          ></openclaw-plugin-contributions>`;
+          ></mirally-plugin-contributions>`;
     const content = renderSidebarRegion({
       presentationId: this.presentationId,
       availableWidth: this.paneWidth,

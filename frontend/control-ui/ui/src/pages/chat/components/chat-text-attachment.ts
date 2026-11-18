@@ -10,7 +10,7 @@ import { t } from "../../../i18n/index.ts";
 import { formatBytes } from "../../../lib/agents/display.ts";
 import type { EmbedSandboxMode } from "../../../lib/chat/tool-display.ts";
 import { detectTextDirection } from "../../../lib/text-direction.ts";
-import { OpenClawLightDomContentsElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../../../lit/mirally-element.ts";
 import {
   renderAttachmentPreviewSkeleton,
   renderCompactAttachmentCard,
@@ -41,7 +41,7 @@ export function isTextAttachment(rawMimeType: string, filename: string): boolean
   );
 }
 
-class ChatTextAttachment extends OpenClawLightDomContentsElement {
+class ChatTextAttachment extends MirallyLightDomContentsElement {
   @property({ type: Boolean }) compact = false;
   @property({ type: Boolean }) plainText = false;
   @property({ attribute: false }) actions: TemplateResult | typeof nothing = nothing;
@@ -253,12 +253,12 @@ ${this.text}</pre>`,
   }
 }
 
-if (!customElements.get("openclaw-chat-text-attachment")) {
-  customElements.define("openclaw-chat-text-attachment", ChatTextAttachment);
+if (!customElements.get("mirally-chat-text-attachment")) {
+  customElements.define("mirally-chat-text-attachment", ChatTextAttachment);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-chat-text-attachment": ChatTextAttachment;
+    "mirally-chat-text-attachment": ChatTextAttachment;
   }
 }

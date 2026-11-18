@@ -1,11 +1,11 @@
-import { gatewayOriginScope } from "@openclaw/gateway-client/browser";
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { gatewayOriginScope } from "@mirally/gateway-client/browser";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import type { FastMode } from "../../api/types.ts";
 import { normalizeAgentId } from "../../lib/sessions/session-key.ts";
 import { getSafeLocalStorage } from "../../local-storage.ts";
 
-const STORAGE_KEY_PREFIX = "openclaw.new-session.preferences.v1:";
+const STORAGE_KEY_PREFIX = "mirally.new-session.preferences.v1:";
 const IDENTITY_KEY_PREFIX = "new-session.v1:";
 export const PREFS_MIGRATION_KEY = "new-session.migration.v1";
 // users.prefs is already authenticated-user and Gateway scoped. Null deletes this key.

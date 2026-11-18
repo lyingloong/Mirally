@@ -1,9 +1,9 @@
-import { asNullableRecord as readThemeRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { asNullableRecord as readThemeRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 
 export const THEME_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
-const CUSTOM_THEME_STYLE_ID = "openclaw-custom-theme";
+const CUSTOM_THEME_STYLE_ID = "mirally-custom-theme";
 const MAX_CSS_TOKEN_LENGTH = 240;
 const FORBIDDEN_CSS_VALUE_PARTS = [
   "url(",

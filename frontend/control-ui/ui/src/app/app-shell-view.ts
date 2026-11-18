@@ -134,7 +134,7 @@ export function renderApplicationShell(host: ShellViewHost) {
   const homePanelAvailable = isHomePanelAvailable(context.gateway);
   const custodianPanelAvailable =
     // Scope-aware to match the store: admin-only, never advertisement alone.
-    canCallGatewayMethod(gatewaySnapshot, "openclaw.chat", "operator.admin");
+    canCallGatewayMethod(gatewaySnapshot, "mirally.chat", "operator.admin");
   const activeRoute = host.routeState.routeId ?? "chat";
   const sessionRoute = isSessionRouteId(activeRoute);
   // Session routes have an offline outbox, New Session keeps a local draft, and
@@ -368,7 +368,7 @@ export function renderApplicationShell(host: ShellViewHost) {
       ${
         nativeWebChrome && !onboarding
           ? html`
-              <openclaw-macos-titlebar-controls
+              <mirally-macos-titlebar-controls
                 ?inert=${navDrawerOpen}
                 .navCollapsed=${host.nativeNavCollapsed()}
                 .historyOnly=${settingsTakeover}
@@ -380,27 +380,27 @@ export function renderApplicationShell(host: ShellViewHost) {
                 .onToggleSidebar=${() => host.toggleNavigationSurface()}
                 .onOpenPalette=${() => host.openPalette()}
                 .onOpenNewSession=${() => host.handleNativeNewSession()}
-              ></openclaw-macos-titlebar-controls>
+              ></mirally-macos-titlebar-controls>
             `
           : nothing
       }
       ${
         nativeEmbed
           ? nothing
-          : html`<openclaw-app-topbar
+          : html`<mirally-app-topbar
               ?inert=${navDrawerOpen}
               .resourceBasePath=${context.resourceBasePath}
               .environment=${config.environment}
               .navDrawerOpen=${navDrawerOpen}
               .onOpenPalette=${() => host.openPalette()}
               .onToggleDrawer=${(trigger: HTMLElement) => host.toggleNavigationSurface(trigger)}
-            ></openclaw-app-topbar>`
+            ></mirally-app-topbar>`
       }
       ${
         !nativeEmbed && navCollapsed && !onboarding && !settingsTakeover && !mobileNavLayout
           ? html`
               <div class="shell-chrome-controls">
-                <openclaw-tooltip
+                <mirally-tooltip
                   .content=${`${t("nav.expand")} (${formatKeyboardShortcutCombo(KEYBOARD_SHORTCUT_COMBOS.toggleSidebar)})`}
                 >
                   <button
@@ -415,7 +415,7 @@ export function renderApplicationShell(host: ShellViewHost) {
                   >
                     ${icons.panelLeftOpen}
                   </button>
-                </openclaw-tooltip>
+                </mirally-tooltip>
                 ${renderNewSessionLink({
                   basePath: context.basePath,
                   agentId: selectedAgentId,
@@ -425,7 +425,7 @@ export function renderApplicationShell(host: ShellViewHost) {
                   disabledReason: newSessionAccess.allowed ? undefined : newSessionAccess.reason,
                   onOpen: openNewSession,
                 })}
-                <openclaw-tooltip
+                <mirally-tooltip
                   .content=${`${t("chat.openCommandPalette")} (${formatKeyboardShortcutCombo(KEYBOARD_SHORTCUT_COMBOS.commandPalette)})`}
                 >
                   <button
@@ -436,7 +436,7 @@ export function renderApplicationShell(host: ShellViewHost) {
                   >
                     ${icons.search}
                   </button>
-                </openclaw-tooltip>
+                </mirally-tooltip>
                 ${homePanelAvailable ? renderCollapsedHomeToggle() : nothing}
               </div>
             `
@@ -534,7 +534,7 @@ export function renderApplicationShell(host: ShellViewHost) {
           onOpenApprovals: () => host.openApprovals(),
         })}
         ${nativeEmbed ? navigationContent : nothing}
-        <openclaw-router-outlet
+        <mirally-router-outlet
           ?inert=${pageActionsBlocked || reloadRequired}
           aria-disabled=${pageActionsBlocked || reloadRequired ? "true" : nothing}
           .router=${runtime.router}
@@ -542,7 +542,7 @@ export function renderApplicationShell(host: ShellViewHost) {
           .retentionScope=${presentationScope}
           .onNotFound=${host.recoverNotFoundRoute}
           .notFoundRecoveryReady=${gatewayConnected}
-        ></openclaw-router-outlet>
+        ></mirally-router-outlet>
       </main>
       ${
         (navigationSurfaceHidden ||
@@ -562,7 +562,7 @@ export function renderApplicationShell(host: ShellViewHost) {
             </div>`
           : nothing
       }
-      <openclaw-terminal-panel
+      <mirally-terminal-panel
         ?inert=${navDrawerOpen}
         .client=${gatewayConnected ? gatewaySnapshot.client : null}
         .available=${terminalAvailable}
@@ -571,9 +571,9 @@ export function renderApplicationShell(host: ShellViewHost) {
         .suppressed=${settingsTakeover || nativeEmbed}
         .themeMode=${context.theme.resolvedMode}
         .basePath=${context.basePath}
-      ></openclaw-terminal-panel>
+      ></mirally-terminal-panel>
       ${sessionRoute ? nothing : renderShellDocks(context, navDrawerOpen, settingsTakeover || nativeEmbed, selectedAgentId, activeRoute)}
-      <openclaw-assistant-panel
+      <mirally-assistant-panel
         ?inert=${navDrawerOpen}
         .custodianAvailable=${custodianPanelAvailable && !nativeEmbed}
         .homeAvailable=${homePanelAvailable && !nativeEmbed}
@@ -583,10 +583,10 @@ export function renderApplicationShell(host: ShellViewHost) {
         .pageRouteId=${activeRoute}
         .pageRouteFailed=${host.routeState.routeFailed === true}
         .minimizeRequestId=${host.custodianMinimizeRequestId}
-      ></openclaw-assistant-panel>
+      ></mirally-assistant-panel>
       ${
         isOptionalElementDefined(host.execApprovalElement)
-          ? html`<openclaw-exec-approval
+          ? html`<mirally-exec-approval
               .props=${{
                 queue: overlaySnapshot.approvalQueue,
                 busy: overlaySnapshot.approvalBusy,
@@ -597,7 +597,7 @@ export function renderApplicationShell(host: ShellViewHost) {
                   decision: Parameters<typeof context.overlays.decideApproval>[0],
                 ) => context.overlays.decideApproval(decision, approvalId),
               }}
-            ></openclaw-exec-approval>`
+            ></mirally-exec-approval>`
           : nothing
       }
       ${renderLazyDevicePairSetup(host, {
@@ -619,13 +619,13 @@ export function renderApplicationShell(host: ShellViewHost) {
       })}
       ${
         memoryImportActive && isOptionalElementDefined(host.onboardingMemoryImportElement)
-          ? html`<openclaw-onboarding-memory-import
+          ? html`<mirally-onboarding-memory-import
               .active=${true}
               .context=${context}
-            ></openclaw-onboarding-memory-import>`
+            ></mirally-onboarding-memory-import>`
           : nothing
       }
-      <openclaw-toast-host></openclaw-toast-host>
+      <mirally-toast-host></mirally-toast-host>
     </div>
   `;
   // Keep plugin settings reachable when a replacement owns the workspace.

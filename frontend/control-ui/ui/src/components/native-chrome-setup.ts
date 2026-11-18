@@ -8,12 +8,12 @@ import type {
 } from "../app/native-chrome-setup.ts";
 import type { LegacyChromeInstallResult } from "../app/native-device-settings.ts";
 import { t } from "../i18n/index.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import { SubscriptionsController } from "../lit/subscriptions-controller.ts";
 import { renderChromeSetupStatus } from "./chrome-setup-status.ts";
 import "./native-chrome-setup.css";
 
-class NativeChromeSetup extends OpenClawLightDomElement {
+class NativeChromeSetup extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context?: ApplicationContext;
   @property({ type: Boolean, attribute: "auto-inspect" }) autoInspect = false;
@@ -163,6 +163,6 @@ class NativeChromeSetup extends OpenClawLightDomElement {
     `;
   }
 }
-if (!customElements.get("openclaw-native-chrome-setup")) {
-  customElements.define("openclaw-native-chrome-setup", NativeChromeSetup);
+if (!customElements.get("mirally-native-chrome-setup")) {
+  customElements.define("mirally-native-chrome-setup", NativeChromeSetup);
 }

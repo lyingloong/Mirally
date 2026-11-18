@@ -1,5 +1,5 @@
-import type { RouteLocation } from "@openclaw/uirouter";
-import { definePage } from "@openclaw/uirouter";
+import type { RouteLocation } from "@mirally/ui-router";
+import { definePage } from "@mirally/ui-router";
 import { html } from "lit";
 import { routePageSpec } from "../../app-route-paths.ts";
 
@@ -10,6 +10,6 @@ export const page = definePage({
   component: () =>
     import("./terminal-page.ts").then(() => ({
       render: (location: RouteLocation | undefined) =>
-        html`<openclaw-terminal-page .location=${location ?? null}></openclaw-terminal-page>`,
+        html`<mirally-terminal-page .location=${location ?? null}></mirally-terminal-page>`,
     })),
 });

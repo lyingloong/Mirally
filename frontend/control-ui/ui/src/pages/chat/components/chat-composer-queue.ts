@@ -40,7 +40,7 @@ type ChatQueueReorder = {
   offered: boolean;
 };
 
-const DRAG_MIME = "application/x-openclaw-queued-message";
+const DRAG_MIME = "application/x-mirally-queued-message";
 const DRAG_OVER_CLASS = "chat-queue__item--drop-target";
 const KEYBOARD_EDIT_FOCUS_ATTRIBUTE = "data-edit-keyboard-focus";
 const QUEUE_ROW_CONTROL_SELECTOR =
@@ -574,7 +574,7 @@ function renderChatQueueItem(
           busy || editing
             ? nothing
             : html`
-                <openclaw-tooltip .content=${t("chat.queue.removeQueuedMessage")}>
+                <mirally-tooltip .content=${t("chat.queue.removeQueuedMessage")}>
                   <button
                     class="chat-queue__remove"
                     type="button"
@@ -590,7 +590,7 @@ function renderChatQueueItem(
                   >
                     ${icons.trash}
                   </button>
-                </openclaw-tooltip>
+                </mirally-tooltip>
               `
         }
         ${

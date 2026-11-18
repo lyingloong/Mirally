@@ -10,7 +10,7 @@ import type { ChatPaneElement } from "./route-draft-focus-handoff.ts";
 import type { ChatSplitLayout, ChatSplitPane } from "./split-layout-types.ts";
 import { findPane, visiblePanesOf } from "./split-layout.ts";
 
-export const QUEUED_EDIT_RETENTION_CHANGE_EVENT = "openclaw:queued-edit-retention-change";
+export const QUEUED_EDIT_RETENTION_CHANGE_EVENT = "mirally:queued-edit-retention-change";
 
 const RETAINED_SESSIONS_PER_PANE = 3;
 const SESSION_NAVIGATION_PREVIEW_TIMEOUT_MS = 5_000;
@@ -183,7 +183,7 @@ export class ChatPageRetainedSessions {
   };
 
   private findPane(paneId: string, sessionKey: string): ChatPaneElement | undefined {
-    return [...this.host.querySelectorAll<ChatPaneElement>("openclaw-chat-pane")].find(
+    return [...this.host.querySelectorAll<ChatPaneElement>("mirally-chat-pane")].find(
       (pane) =>
         pane.paneId === paneId && areUiSessionKeysEquivalent(pane.sessionKey ?? "", sessionKey),
     );
@@ -249,7 +249,7 @@ export class ChatPageRetainedSessions {
     const visible = visiblePanesOf(this.bindings.layout(), this.bindings.narrow()).some(
       (pane) => pane.id === paneId,
     );
-    for (const pane of this.host.querySelectorAll<ChatPaneElement>("openclaw-chat-pane")) {
+    for (const pane of this.host.querySelectorAll<ChatPaneElement>("mirally-chat-pane")) {
       if (pane.paneId !== paneId) {
         continue;
       }

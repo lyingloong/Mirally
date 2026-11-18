@@ -1,4 +1,4 @@
-import type { GhosttyTerminalController } from "@openclaw/libterminal/browser";
+import type { GhosttyTerminalController } from "@mirally/terminal-runtime/browser";
 import type { TerminalConnection } from "./terminal-connection.ts";
 import {
   disposeTerminalController,
@@ -45,7 +45,7 @@ export async function bootTerminalPanelSession(params: {
     () => tabReference.current?.gatewaySessionId,
   );
   const { createTerminalDefaultColorQueryResponder } =
-    await import("@openclaw/libterminal/browser");
+    await import("@mirally/terminal-runtime/browser");
   const defaultColorQueries = createTerminalDefaultColorQueryResponder({
     getColors: terminalDynamicColors,
     reply: (data) => startupInput.onData(TERMINAL_OUTPUT_ENCODER.encode(data)),

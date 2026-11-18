@@ -2,7 +2,7 @@ import type { ApplicationGateway } from "./gateway.ts";
 import type { NativeGateway } from "./native-gateways.runtime.ts";
 
 type NativeGatewaysWindow = Window & {
-  __OPENCLAW_NATIVE_GATEWAY_HEALTH__?: { gatewayUrl: string; health: NativeGateway["health"] };
+  __MIRALLY_NATIVE_GATEWAY_HEALTH__?: { gatewayUrl: string; health: NativeGateway["health"] };
 };
 
 let healthReporter: object | undefined;
@@ -17,14 +17,14 @@ export function startNativeGatewayHealthReporting(gateway: ApplicationGateway): 
       return;
     }
     const gatewayUrl = gateway.connection.gatewayUrl;
-    const previous = nativeWindow["__OPENCLAW_NATIVE_GATEWAY_HEALTH__"];
+    const previous = nativeWindow["__MIRALLY_NATIVE_GATEWAY_HEALTH__"];
     if (previous?.gatewayUrl === gatewayUrl && previous.health === health) {
       return;
     }
-    nativeWindow["__OPENCLAW_NATIVE_GATEWAY_HEALTH__"] = { gatewayUrl, health };
+    nativeWindow["__MIRALLY_NATIVE_GATEWAY_HEALTH__"] = { gatewayUrl, health };
     // The Mac embedder forwards this wake-up and reads the current document.
     // Linux shares the action bridge but does not implement health reporting.
-    window.dispatchEvent(new Event("openclaw:native-gateway-health-changed"));
+    window.dispatchEvent(new Event("mirally:native-gateway-health-changed"));
   };
   const refresh = () => {
     const { phase, lastError } = gateway.snapshot;

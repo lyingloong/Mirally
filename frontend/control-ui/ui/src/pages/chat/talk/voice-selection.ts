@@ -4,7 +4,7 @@ import {
   type TalkVoiceChangeEvent,
   type TalkVoiceSelection,
   type TalkVoiceSetResult,
-} from "@openclaw/gateway-protocol";
+} from "@mirally/gateway-protocol";
 import type { GatewayBrowserClient } from "../../../api/gateway.ts";
 import { t } from "../../../i18n/index.ts";
 import { formatUiError } from "../../../lib/format-error.ts";

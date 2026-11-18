@@ -29,7 +29,7 @@ export function renderSnapshotBuildDialog(options: {
     options.profiles.some(
       (profile) => profile.id === options.profileId && profile.warmImages === "on",
     ) && options.repositories.some((repository) => repository.root === options.projectPath);
-  return html`<openclaw-modal-dialog
+  return html`<mirally-modal-dialog
     label=${t("cloudWorkersPage.snapshots.buildSnapshot")}
     @modal-cancel=${(event: Event) => {
       if (options.preparing) {
@@ -84,5 +84,5 @@ export function renderSnapshotBuildDialog(options: {
         </button>
       </div>
     </div>
-  </openclaw-modal-dialog>`;
+  </mirally-modal-dialog>`;
 }

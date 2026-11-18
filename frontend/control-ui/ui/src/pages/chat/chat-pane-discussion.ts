@@ -191,7 +191,7 @@ export abstract class ChatPaneDiscussion extends ChatPaneSessionMenu {
       return nothing;
     }
     return html`
-      <openclaw-tooltip .content=${action.label}>
+      <mirally-tooltip .content=${action.label}>
         <button
           class="btn btn--ghost btn--icon chat-icon-btn chat-session-discussion-toggle"
           type="button"
@@ -201,7 +201,7 @@ export abstract class ChatPaneDiscussion extends ChatPaneSessionMenu {
         >
           ${icons.messageSquare}
         </button>
-      </openclaw-tooltip>
+      </mirally-tooltip>
     `;
   }
 }

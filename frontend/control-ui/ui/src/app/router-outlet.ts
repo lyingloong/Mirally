@@ -1,4 +1,4 @@
-import type { RouteMatch, Router } from "@openclaw/uirouter";
+import type { RouteMatch, Router } from "@mirally/ui-router";
 import { html, nothing } from "lit";
 import type { ReactiveController, ReactiveControllerHost } from "lit";
 import { property } from "lit/decorators.js";
@@ -9,7 +9,7 @@ import { renderLazyViewError } from "../components/lazy-view-error.ts";
 import { renderLoadingState } from "../components/loading-state.ts";
 import { McpAppUnmountGate } from "../components/mcp-app-unmount.ts";
 import { t } from "../i18n/index.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import {
   RouterOutletController,
   selectRenderedRouteMatch,
@@ -51,7 +51,7 @@ function measureRoutedRender<T>(routeId: string, render: () => T): T {
   const result = render();
   const durationMs = Math.round((globalThis.performance?.now() ?? startedAt) - startedAt);
   if (durationMs >= 16) {
-    console.debug("[openclaw] routed render", { routeId, durationMs });
+    console.debug("[mirally] routed render", { routeId, durationMs });
   }
   return result;
 }
@@ -217,7 +217,7 @@ class LitRouterOutletController<
 }
 
 /** Presentation can retire immediately while its connected subtree finishes MCP teardown. */
-class OpenClawRoutePresentation extends OpenClawLightDomElement {
+class MirallyRoutePresentation extends MirallyLightDomElement {
   @property({ attribute: false }) ownerKey = "";
   @property({ attribute: false }) renderPage: (presented: boolean) => unknown = () => nothing;
   private presentedValue = false;
@@ -240,12 +240,12 @@ class OpenClawRoutePresentation extends OpenClawLightDomElement {
   }
 }
 
-class OpenClawRouterOutlet<
+class MirallyRouterOutlet<
   TRouteId extends string = string,
   TLoadContext = unknown,
   TModule = unknown,
   TData = unknown,
-> extends OpenClawLightDomElement {
+> extends MirallyLightDomElement {
   @property({ attribute: false }) router?: Router<TRouteId, TLoadContext, TModule, TData>;
   @property({ attribute: false }) retryContext?: TLoadContext;
   @property({ attribute: false }) onNotFound?: () => boolean | void;
@@ -258,7 +258,7 @@ class OpenClawRouterOutlet<
   @property({ attribute: false }) retentionScope?: object;
   private readonly retainedUnmountGate = new McpAppUnmountGate(this);
   private readonly transientUnmountGate = new McpAppUnmountGate(this);
-  private readonly retainedPresentation = createRef<OpenClawRoutePresentation>();
+  private readonly retainedPresentation = createRef<MirallyRoutePresentation>();
   private retainedMatch?: RouteMatch<TRouteId, TModule, TData>;
   private retainedOwnerKey?: string;
   private retainedPresented = false;
@@ -381,7 +381,7 @@ class OpenClawRouterOutlet<
           retained
             ? keyed(
                 retainedKey,
-                html`<openclaw-route-presentation
+                html`<mirally-route-presentation
                   ${ref(this.retainedPresentation)}
                   .ownerKey=${retainedKey}
                   .presented=${presentRetained}
@@ -390,7 +390,7 @@ class OpenClawRouterOutlet<
                       retryContext: this.retryContext,
                       presented,
                     })}
-                ></openclaw-route-presentation>`,
+                ></mirally-route-presentation>`,
               )
             : nothing,
         () => (this.retainedPresentation.value ? [this.retainedPresentation.value] : []),
@@ -422,10 +422,10 @@ class OpenClawRouterOutlet<
   }
 }
 
-if (!customElements.get("openclaw-route-presentation")) {
-  customElements.define("openclaw-route-presentation", OpenClawRoutePresentation);
+if (!customElements.get("mirally-route-presentation")) {
+  customElements.define("mirally-route-presentation", MirallyRoutePresentation);
 }
 
-if (!customElements.get("openclaw-router-outlet")) {
-  customElements.define("openclaw-router-outlet", OpenClawRouterOutlet);
+if (!customElements.get("mirally-router-outlet")) {
+  customElements.define("mirally-router-outlet", MirallyRouterOutlet);
 }

@@ -35,7 +35,7 @@ import {
   resolveUiKnownSelectedGlobalAgentId,
 } from "../lib/sessions/session-key.ts";
 import { showToast } from "../lib/toast.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import { SubscriptionsController } from "../lit/subscriptions-controller.ts";
 import type { ChatPage } from "../pages/chat/chat-page.ts";
 import type { NewSessionTarget } from "../pages/new-session/location.ts";
@@ -44,7 +44,7 @@ import {
   selectShellRouteState,
   type ShellRouteState,
 } from "./app-host-route-state.ts";
-import { OpenClawApp } from "./app-root.ts";
+import { MirallyApp } from "./app-root.ts";
 import { ShellChromeOwner, type ShellChromeHost } from "./app-shell-chrome.ts";
 import {
   ShellGatewayOwner,
@@ -91,8 +91,8 @@ i18n.setLocaleLoadRecovery({
   },
 });
 
-class OpenClawShell
-  extends OpenClawLightDomElement
+class MirallyShell
+  extends MirallyLightDomElement
   implements ShellChromeHost, ShellGatewayHost, ShellNavigationHost, ShellViewHost
 {
   @property({ attribute: false }) runtime: ApplicationRuntime | undefined;
@@ -111,7 +111,7 @@ class OpenClawShell
   readonly desktopPanelElement = DESKTOP_PANEL_ELEMENT;
   readonly execApprovalElement = EXEC_APPROVAL_ELEMENT;
   readonly onboardingMemoryImportElement = {
-    tagName: "openclaw-onboarding-memory-import",
+    tagName: "mirally-onboarding-memory-import",
     label: t("onboarding.memoryImport.title"),
     loadModule: () => import("../components/onboarding-memory-import.ts"),
   } satisfies OptionalCustomElement;
@@ -124,8 +124,8 @@ class OpenClawShell
   // still splash-gated, replaying would loop through the open handlers forever.
   readonly queryRenderedElement = (tagName: string): Element | null =>
     this.renderRoot?.querySelector(tagName) ?? null;
-  @query("openclaw-command-palette") commandPalette: CommandPaletteElement | undefined;
-  @query("openclaw-exec-approval")
+  @query("mirally-command-palette") commandPalette: CommandPaletteElement | undefined;
+  @query("mirally-exec-approval")
   approvalOverlay: (HTMLElement & { show(): void; dialogOpen?: boolean }) | undefined;
   commandPaletteTarget: CommandPaletteTargetDetail | undefined;
   navDrawerTrigger: HTMLElement | null = null;
@@ -681,12 +681,12 @@ class OpenClawShell
     // renders their element, independent of further context updates.
     this.restorePendingLazyAction();
     if (
-      !customElements.get("openclaw-sidebar-update-card") &&
-      this.querySelector("openclaw-sidebar-update-card")
+      !customElements.get("mirally-sidebar-update-card") &&
+      this.querySelector("mirally-sidebar-update-card")
     ) {
       this.loadSidebarUpdateCard();
     }
-    const chatPage = this.querySelector<ChatPage>("openclaw-chat-page");
+    const chatPage = this.querySelector<ChatPage>("mirally-chat-page");
     if (chatPage) {
       chatPage.navDrawerOpen = this.navDrawerOpen && !this.onboardingMode;
     }
@@ -753,9 +753,9 @@ class OpenClawShell
     return renderApplicationShell(this);
   }
 }
-if (!customElements.get("openclaw-app")) {
-  customElements.define("openclaw-app", OpenClawApp);
+if (!customElements.get("mirally-app")) {
+  customElements.define("mirally-app", MirallyApp);
 }
-if (!customElements.get("openclaw-app-shell")) {
-  customElements.define("openclaw-app-shell", OpenClawShell);
+if (!customElements.get("mirally-app-shell")) {
+  customElements.define("mirally-app-shell", MirallyShell);
 }

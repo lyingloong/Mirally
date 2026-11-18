@@ -306,7 +306,7 @@ test('native history materials and completed tool blocks survive original-client
   const image = {type: 'image', url: prefix + 'image/' + 'a'.repeat(64), fileName: '窗口.png', mimeType: 'image/png', width: 1, height: 1};
   const attachment = {type: 'attachment', attachment: {kind: 'document', label: '资料.txt', url: prefix + 'file/' + 'b'.repeat(64)}};
   const tool = {toolCallId: 'native-call', id: 'native-call', role: 'toolResult', time: 2,
-    __openclaw: {id: 'native-call', seq: 3, runId: 'command-one'}, content: [
+    __mirally: {id: 'native-call', seq: 3, runId: 'command-one'}, content: [
       {type: 'toolcall', id: 'native-call', name: 'mirally_reminders', arguments: {}},
       {type: 'toolresult', id: 'native-call', name: 'mirally_reminders', text: '{"commitments":[]}', isError: false}]};
   f.histories.set('one', [{id: 'material-user', role: 'user', text: '查看材料', content: [{type: 'text', text: '查看材料'}, image, attachment]}, tool]);
@@ -316,7 +316,7 @@ test('native history materials and completed tool blocks survive original-client
     {...attachment,attachment:{...attachment.attachment,url:new URL(attachment.attachment.url,f.location.origin).href}},
   ],'Native receipt URLs are HTTP resources, never old host filesystem paths');
   assert.equal(history.messages[1].toolCallId, 'native-call'); assert.deepEqual(history.messages[1].content, tool.content);
-  assert.equal(history.messages[1].__openclaw.runId, 'command-one');
+  assert.equal(history.messages[1].__mirally.runId, 'command-one');
 });
 
 test('new-session parameters preserve the original UI display title and initial attachment ownership', async t => {
@@ -445,8 +445,8 @@ test('Stop maps the original UI run identity to the product command ID', async t
 test('history and live session events preserve remote user origin without replaying assistant rows', async t => {
   const f = fixture(t); await f.start();
   f.histories.set('one', [
-    {id:'user-1',role:'user',text:'来自微信',input_origin:'weixin',__openclaw:{id:'user-1',seq:1,runId:'remote-1'}},
-    {id:'assistant-1',role:'assistant',text:'答复',__openclaw:{id:'assistant-1',seq:2,runId:'remote-1'}},
+    {id:'user-1',role:'user',text:'来自微信',input_origin:'weixin',__mirally:{id:'user-1',seq:1,runId:'remote-1'}},
+    {id:'assistant-1',role:'assistant',text:'答复',__mirally:{id:'assistant-1',seq:2,runId:'remote-1'}},
   ]);
   const history = await f.client.request('chat.history', {sessionKey:conversationKey('one')});
   assert.equal(history.messages[0].input_origin, 'weixin');
@@ -486,7 +486,7 @@ test('interleaved, chunk-split UTF-8 SSE preserves conversation, run, and transc
   for (const byte of bytes) f.streams.at(-1).enqueue(Uint8Array.of(byte));
   f.push({type: 'assistant-start', session_id: 'two', attempt_id: 'b'}); f.push({type: 'token', session_id: 'two', text: '另一件'});
   f.push({type: 'token', session_id: 'one', text: '，一起做'});
-  f.histories.set('one', [{id: 'persisted-one', role: 'assistant', text: '你好，一起做', __openclaw: {id: 'persisted-one', seq: 4, runId: 'run-one', runTerminal: true}}]);
+  f.histories.set('one', [{id: 'persisted-one', role: 'assistant', text: '你好，一起做', __mirally: {id: 'persisted-one', seq: 4, runId: 'run-one', runTerminal: true}}]);
   f.push({type: 'done', session_id: 'one'});
   await until(() => f.events.some(item => item.payload.state === 'final'), 'final event');
   const deltas = f.events.filter(item => item.event === 'chat' && item.payload.state === 'delta').map(item => item.payload);
@@ -535,7 +535,7 @@ test('provider reasoning streams through the original thinking view and survives
   push({type: 'assistant-end', attempt_id: 'reason-attempt', outcome: 'committed', native_seq: 4});
   const persisted = {id: 'actual-message', role: 'assistant', time: 123, text: '结果为 42。', native_seq: 4, native_session_id: 'native-one',
     content: [{type: 'thinking', thinking: '先核对条件。'}, {type: 'text', text: '结果为 42。'}],
-    __openclaw: {id: 'actual-message', seq: 5, runId: 'reasoning-run', runTerminal: true}};
+    __mirally: {id: 'actual-message', seq: 5, runId: 'reasoning-run', runTerminal: true}};
   f.histories.set('one', [persisted]);
   await until(() => f.events.filter(item => item.payload.state === 'delta').length === 3, 'answer delta');
   const restored = await f.client.request('chat.history', {sessionKey: conversationKey('one')});
@@ -758,8 +758,8 @@ test('tool start and real result have ordered, detailed receipts accepted by the
   const strings = moduleUrl(readSource('packages/normalization-core/src/string-coerce.ts'));
   const utf16 = moduleUrl(readSource('packages/normalization-core/src/utf16-slice.ts'));
   const approvals = await import(moduleUrl(readSource('ui/src/lib/chat/tool-approval-reviews.ts')
-    .replaceAll('"@openclaw/normalization-core/record-coerce"', JSON.stringify(records))
-    .replaceAll('"@openclaw/normalization-core/utf16-slice"', JSON.stringify(utf16))));
+    .replaceAll('"@mirally/normalization-core/record-coerce"', JSON.stringify(records))
+    .replaceAll('"@mirally/normalization-core/utf16-slice"', JSON.stringify(utf16))));
   const streamState = await import(moduleUrl(readSource('ui/src/pages/chat/tool-stream-state.ts')));
   const recordFunctions = await import(records), stringFunctions = await import(strings);
   const identitySource = readSource('ui/src/pages/chat/tool-stream-identity.ts');
@@ -784,7 +784,7 @@ test('tool start and real result have ordered, detailed receipts accepted by the
   assert.equal(host.toolStreamById.values().next().value.resultReceived, undefined);
   assert.equal(sandbox.reduceTool(host, payloads[1]), true, 'The result must not be rejected as a duplicate seq=0');
   const entry = host.toolStreamById.values().next().value;
-  assert.equal(entry.resultReceived, true); assert.equal(entry.message.__openclawToolStreamResultReceived, true);
+  assert.equal(entry.resultReceived, true); assert.equal(entry.message.__mirallyToolStreamResultReceived, true);
   assert.deepEqual(entry.args, args); assert.equal(entry.output, '真实来源：会议记录');
   assert.equal(entry.message.content.some(block => block.type === 'toolresult'), true);
   assert.equal(host.chatToolMessages.length, 1);
@@ -838,9 +838,9 @@ test('isolated test-mode Host accepts original-client ownership, retries, and ex
   const history = await client.request('chat.history', {sessionKey: first.key});
   assert.equal(history.messages.filter(item => item.role === 'user').length, 1);
   const firstUser = history.messages.find(item => item.role === 'user');
-  assert.equal(firstUser.__openclaw.idempotencyKey, 'initial-real-turn:user');
-  assert.ok(Number.isSafeInteger(firstUser.__openclaw.seq) && firstUser.__openclaw.seq > 0);
-  assert.equal(history.messages.find(item => item.role === 'assistant').__openclaw.runId, 'initial-real-turn');
+  assert.equal(firstUser.__mirally.idempotencyKey, 'initial-real-turn:user');
+  assert.ok(Number.isSafeInteger(firstUser.__mirally.seq) && firstUser.__mirally.seq > 0);
+  assert.equal(history.messages.find(item => item.role === 'assistant').__mirally.runId, 'initial-real-turn');
   assert.match(textOf(history.messages.find(item => item.role === 'assistant')), /Mirally 测试模型已收到：你好/);
   const nativeId = history.sessionId; assert.ok(nativeId.startsWith('mirally-'));
   const secondAck = await client.request('chat.send', {sessionKey: first.key, sessionId: nativeId, message: '继续第二轮', idempotencyKey: 'second-real-turn'});
@@ -848,7 +848,7 @@ test('isolated test-mode Host accepts original-client ownership, retries, and ex
   const later = await client.request('chat.history', {sessionKey: first.key});
   assert.equal(later.sessionId, nativeId); assert.equal(later.messages.filter(item => item.role === 'user').length, 2);
   assert.match(textOf(later.messages.at(-1)), /继续第二轮/);
-  assert.equal(later.messages.filter(item => item.role === 'user').at(-1).__openclaw.seq, secondAck.messageSeq);
+  assert.equal(later.messages.filter(item => item.role === 'user').at(-1).__mirally.seq, secondAck.messageSeq);
   const receipts = (await readdir(join(home, 'materials'))).filter(name => name.endsWith('.json'));
   assert.equal(receipts.length, 1);
   const material = JSON.parse(await readFile(join(home, 'materials', receipts[0]), 'utf8'));
@@ -938,14 +938,14 @@ test('isolated test-mode Host accepts original-client ownership, retries, and ex
     const ack = await client.request('chat.send', {sessionKey: first.key, message: '补充需求也要保留', idempotencyKey: followupRun});
     assert.ok(Number.isSafeInteger(ack.messageSeq) && ack.messageSeq > 0);
     const admitted = await client.request('chat.history', {sessionKey: first.key});
-    const pending = admitted.messages.filter(item => item.role === 'user' && item.__openclaw?.idempotencyKey === `${followupRun}:user`);
-    assert.equal(pending.length, 1); assert.equal(pending[0].__openclaw.seq, ack.messageSeq);
+    const pending = admitted.messages.filter(item => item.role === 'user' && item.__mirally?.idempotencyKey === `${followupRun}:user`);
+    assert.equal(pending.length, 1); assert.equal(pending[0].__mirally.seq, ack.messageSeq);
     for (const run of [originalRun, followupRun]) await until(() => events.find(item => item.payload.runId === run && item.payload.state === 'final'), 'owned busy completion ' + run, 12000);
     const finished = await client.request('chat.history', {sessionKey: first.key});
-    assert.equal(finished.messages.filter(item => item.role === 'user' && item.__openclaw?.idempotencyKey === `${followupRun}:user`).length, 1);
-    assert.equal(finished.messages.find(item => item.id === pending[0].id).__openclaw.seq, ack.messageSeq);
-    assert.ok(finished.messages.some(item => item.role === 'assistant' && item.__openclaw?.runId === originalRun));
-    assert.ok(finished.messages.some(item => item.role === 'assistant' && item.__openclaw?.runId === followupRun));
+    assert.equal(finished.messages.filter(item => item.role === 'user' && item.__mirally?.idempotencyKey === `${followupRun}:user`).length, 1);
+    assert.equal(finished.messages.find(item => item.id === pending[0].id).__mirally.seq, ack.messageSeq);
+    assert.ok(finished.messages.some(item => item.role === 'assistant' && item.__mirally?.runId === originalRun));
+    assert.ok(finished.messages.some(item => item.role === 'assistant' && item.__mirally?.runId === followupRun));
   });
 
   await t.test('a fresh client without any stream or token can recover and stop native in-flight work', async () => {

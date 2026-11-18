@@ -1,7 +1,7 @@
 import { html, nothing, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import { t } from "../../../i18n/index.ts";
-import { OpenClawLightDomContentsElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../../../lit/mirally-element.ts";
 import { renderCompactAttachmentCard } from "./chat-attachment-card.ts";
 import { isCrossOriginHttpSource } from "./chat-attachment-href.ts";
 import { observeChatAttachmentViewport } from "./chat-attachment-viewport.ts";
@@ -16,7 +16,7 @@ type SvgRenderSource = {
   retired: boolean;
 };
 
-class ChatSvgAttachment extends OpenClawLightDomContentsElement {
+class ChatSvgAttachment extends MirallyLightDomContentsElement {
   @property() src = "";
   @property() sourceIdentity = "";
   @property() label = "";
@@ -222,12 +222,12 @@ class ChatSvgAttachment extends OpenClawLightDomContentsElement {
   }
 }
 
-if (!customElements.get("openclaw-chat-svg-attachment")) {
-  customElements.define("openclaw-chat-svg-attachment", ChatSvgAttachment);
+if (!customElements.get("mirally-chat-svg-attachment")) {
+  customElements.define("mirally-chat-svg-attachment", ChatSvgAttachment);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-chat-svg-attachment": ChatSvgAttachment;
+    "mirally-chat-svg-attachment": ChatSvgAttachment;
   }
 }

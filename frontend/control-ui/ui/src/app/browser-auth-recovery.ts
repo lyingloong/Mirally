@@ -64,7 +64,7 @@ export function startBrowserAuthRecovery(
         modal.finish(undefined);
       };
       const content = () => html`
-        <openclaw-modal-dialog
+        <mirally-modal-dialog
           label=${t("connection.browserSignIn.title")}
           description=${t("connection.browserSignIn.description")}
           @modal-cancel=${dismiss}
@@ -94,7 +94,7 @@ export function startBrowserAuthRecovery(
               <button
                 class="btn primary"
                 @click=${async () => {
-                  if (webKitHostWindow()?.webkit?.messageHandlers?.openclawGateways) {
+                  if (webKitHostWindow()?.webkit?.messageHandlers?.mirallyGateways) {
                     const { nativeGatewaysCapability } =
                       await import("./native-gateways.runtime.ts");
                     if (lifetime.signal.aborted || dismissed) {
@@ -122,7 +122,7 @@ export function startBrowserAuthRecovery(
               </button>
             </div>
           </div>
-        </openclaw-modal-dialog>
+        </mirally-modal-dialog>
       `;
       dialog = { close: () => modal.finish(undefined), update: () => modal.render(content) };
       modal.render(content);
@@ -227,7 +227,7 @@ export function startBrowserAuthRecovery(
     if (
       serviceWorker?.controller &&
       event.source === serviceWorker.controller &&
-      event.data?.type === "openclaw-http-request-failed"
+      event.data?.type === "mirally-http-request-failed"
     ) {
       void check();
     }

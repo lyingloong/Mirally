@@ -7,7 +7,7 @@ import { RealtimeTalkLevelSignal } from "../talk/level.ts";
 import type { RealtimeTalkStatus } from "../talk/session.ts";
 
 const BAR_GAINS = [0.38, 0.62, 0.84, 1, 0.84, 0.62, 0.38];
-const MICROPHONE_ACTIVITY_TAG = "openclaw-microphone-activity";
+const MICROPHONE_ACTIVITY_TAG = "mirally-microphone-activity";
 const EMPTY_LEVEL_SIGNAL = new RealtimeTalkLevelSignal();
 
 // Wider meters ask for more bars via the `bars` attribute; the default 7-bar
@@ -128,7 +128,7 @@ type MicrophoneActivityProps = {
 // aria-hidden while `data-status` keeps driving the bar animations.
 export function renderMicrophoneActivity(props: MicrophoneActivityProps): TemplateResult {
   return html`
-    <openclaw-microphone-activity
+    <mirally-microphone-activity
       class="agent-chat__voice-activity"
       data-status=${activeStatus(props.status)}
       data-source="microphone"
@@ -137,7 +137,7 @@ export function renderMicrophoneActivity(props: MicrophoneActivityProps): Templa
       aria-hidden="true"
       .signal=${props.inputLevel ?? EMPTY_LEVEL_SIGNAL}
     >
-    </openclaw-microphone-activity>
+    </mirally-microphone-activity>
   `;
 }
 

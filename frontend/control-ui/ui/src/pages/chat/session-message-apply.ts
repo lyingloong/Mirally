@@ -1,9 +1,9 @@
 import {
   readSessionMessageIdentity,
   readSessionMessageSequence,
-} from "@openclaw/gateway-client/browser";
-import type { SessionProjectionScope } from "@openclaw/gateway-client/browser";
-import { asNonArrayRecord } from "@openclaw/normalization-core/record-coerce";
+} from "@mirally/gateway-client/browser";
+import type { SessionProjectionScope } from "@mirally/gateway-client/browser";
+import { asNonArrayRecord } from "@mirally/normalization-core/record-coerce";
 import { extractText } from "../../lib/chat/message-extract.ts";
 import { normalizeRoleForGrouping } from "../../lib/chat/message-normalizer.ts";
 import { resolveChatAgentId } from "./chat-agent-id.ts";
@@ -136,10 +136,10 @@ export function applySessionMessagePayload(
   if (!sourceRecord) {
     return;
   }
-  const sourceMetadata = asNonArrayRecord(sourceRecord["__openclaw"]);
+  const sourceMetadata = asNonArrayRecord(sourceRecord["__mirally"]);
   const message = {
     ...sourceRecord,
-    __openclaw: {
+    __mirally: {
       ...sourceMetadata,
       ...(incoming.id ? { id: incoming.id } : {}),
       ...(incoming.idempotencyKey ? { idempotencyKey: incoming.idempotencyKey } : {}),

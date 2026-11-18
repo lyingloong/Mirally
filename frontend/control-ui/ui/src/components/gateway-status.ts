@@ -36,7 +36,7 @@ export function renderGatewayStatus(props: GatewayStatusProps) {
         ${content}
       </button>`
     : html`<span class=${className}>${content}</span>`;
-  return html`<openclaw-tooltip
+  return html`<mirally-tooltip
     class="gateway-status-tooltip"
     .content=${
       props.lastError && canRetryGatewayStatus(kind) ? redactLoginFailureError(props.lastError) : ""
@@ -45,6 +45,6 @@ export function renderGatewayStatus(props: GatewayStatusProps) {
       role=${props.announce === false ? nothing : "status"}
       aria-live=${props.announce === false ? nothing : "polite"}
       >${status}</span
-    ></openclaw-tooltip
+    ></mirally-tooltip
   >`;
 }

@@ -150,11 +150,11 @@ export class BoardWidgetSandboxHost {
     if (!this.documentHost.ready) {
       return;
     }
-    if (event.data?.type === "openclaw:widget-prompt-offer") {
+    if (event.data?.type === "mirally:widget-prompt-offer") {
       event.ports[0]?.close();
       return;
     }
-    if (event.data?.type === "openclaw:widget-bridge-port-offer") {
+    if (event.data?.type === "mirally:widget-bridge-port-offer") {
       const port = event.ports[0];
       if (this.options.bridgeEnabled === false || !port || this.bridgePort) {
         port?.close();
@@ -168,7 +168,7 @@ export class BoardWidgetSandboxHost {
       this.postHostInit();
       return;
     }
-    if (event.data?.type === "openclaw:widget-bridge-ready") {
+    if (event.data?.type === "mirally:widget-bridge-ready") {
       this.postHostInit();
     }
     // Requests on the forgeable window channel never carry authority. The
@@ -182,7 +182,7 @@ export class BoardWidgetSandboxHost {
     if (
       data &&
       typeof data === "object" &&
-      Reflect.get(data, "type") === "openclaw:widget-host-init-ack" &&
+      Reflect.get(data, "type") === "mirally:widget-host-init-ack" &&
       typeof Reflect.get(data, "ticket") === "string"
     ) {
       const ticket = Reflect.get(data, "ticket") as string;
@@ -306,7 +306,7 @@ export class BoardWidgetSandboxHost {
     const controlUiBaseUrl = this.options.controlUiBaseUrl?.trim();
     this.bridgePort.postMessage(
       {
-        type: "openclaw:widget-host-init",
+        type: "mirally:widget-host-init",
         ticket,
         ...(controlUiBaseUrl ? { controlUiBaseUrl } : {}),
       },
@@ -379,7 +379,7 @@ export class BoardWidgetSandboxHost {
 
   private postResponse(id: string, ok: boolean, result?: unknown, error?: string): void {
     this.bridgePort?.postMessage({
-      type: "openclaw:widget-bridge-response",
+      type: "mirally:widget-bridge-response",
       id,
       ok,
       ...(ok ? { result } : { error: error ?? "widget host request failed" }),

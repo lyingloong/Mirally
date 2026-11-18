@@ -1,12 +1,12 @@
 import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
-import { gatewayCredentialScope } from "@openclaw/gateway-client/browser";
+import { gatewayCredentialScope } from "@mirally/gateway-client/browser";
 import type { ApplicationContext } from "../../app/context.ts";
 import { getSafeLocalStorage } from "../../local-storage.ts";
 import { activationTimeoutForKind } from "./state.ts";
 
-const FIRST_RUN_ACTIVATION_RECEIPT_KEY = "openclaw.modelSetup.pendingActivation.v1";
-const DEVICE_IDENTITY_KEY = "openclaw-device-identity-v1";
+const FIRST_RUN_ACTIVATION_RECEIPT_KEY = "mirally.modelSetup.pendingActivation.v1";
+const DEVICE_IDENTITY_KEY = "mirally-device-identity-v1";
 const ACTIVATION_DEADLINE_SAFETY_MS = 5_000;
 const receiptClearedListeners = new Set<(receipt: string) => void>();
 

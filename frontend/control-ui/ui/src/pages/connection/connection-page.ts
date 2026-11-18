@@ -24,7 +24,7 @@ import {
   GatewayPageController,
   type GatewayPageChange,
 } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { PollController } from "../../lit/poll-controller.ts";
 import {
   CONNECTION_PING_SAMPLE_LIMIT,
@@ -37,7 +37,7 @@ import { renderConnection } from "./view.ts";
 const DIAGNOSTICS_POLL_INTERVAL_MS = 5_000;
 const CONNECTION_DOCS_URL = "https://docs.openclaw.ai/gateway/remote";
 
-export class ConnectionPage extends OpenClawLightDomElement {
+export class ConnectionPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -408,6 +408,6 @@ export class ConnectionPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-connection-page")) {
-  customElements.define("openclaw-connection-page", ConnectionPage);
+if (!customElements.get("mirally-connection-page")) {
+  customElements.define("mirally-connection-page", ConnectionPage);
 }

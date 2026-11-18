@@ -1,13 +1,13 @@
 import {html,nothing} from 'lit';
 import {customElement,state} from 'lit/decorators.js';
 import {live} from 'lit/directives/live.js';
-import {OpenClawLightDomElement} from '../../lit/openclaw-element.ts';
+import {MirallyLightDomElement} from '../../lit/mirally-element.ts';
 import {renderSettingsSection,renderSettingsRow} from '../../components/settings-ui.ts';
 import {rpcProduct,errorMessage} from './api.ts';
 
 type Config={revision:number;read_roots:string[];web_enabled:boolean;workspace_write_enabled:boolean;search_connection:string;workspace:string};
 @customElement('mirally-capabilities-settings')
-export class MirallyCapabilitiesSettings extends OpenClawLightDomElement{
+export class MirallyCapabilitiesSettings extends MirallyLightDomElement{
   @state() private config:Config|null=null;
   @state() private paths='';
   @state() private connection='chat';

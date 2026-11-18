@@ -6,7 +6,7 @@ import type { LoginFailureFeedbackParams } from "./login-gate-feedback.ts";
 import { canReloadControlUiDocument } from "../app/document-reload-guard.ts";
 import { i18n } from "../i18n/index.ts";
 import "../lib/toast.ts";
-import { OpenClawLightDomContentsElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../lit/mirally-element.ts";
 import { mirallyMark } from "./mirally-mark.ts";
 
 type LoginGateProps = LoginFailureFeedbackParams & {
@@ -34,7 +34,7 @@ function renderLoginGate(props: LoginGateProps) {
     summary: "Check that Mirally is running on this computer. If it has stopped or this connection has expired, run .\\run.ps1 in the project folder and use the newly opened window.",
     retry: "Reconnect", reload: "Refresh page", details: "Connection details",
   };
-  return html`<div class="login-gate"><openclaw-toast-host></openclaw-toast-host>
+  return html`<div class="login-gate"><mirally-toast-host></mirally-toast-host>
     <div class="login-gate__card" data-mode="status" data-mirally-connection>
       <header class="login-gate__brand">
         <span class="login-gate__logo login-gate__logo--neutral" aria-hidden="true">${mirallyMark}</span>
@@ -54,8 +54,8 @@ function renderLoginGate(props: LoginGateProps) {
   </div>`;
 }
 
-class LoginGate extends OpenClawLightDomContentsElement {
+class LoginGate extends MirallyLightDomContentsElement {
   @property({attribute: false}) props?: LoginGateProps;
   override render() { return this.props ? renderLoginGate(this.props) : nothing; }
 }
-if (!customElements.get("openclaw-login-gate")) customElements.define("openclaw-login-gate", LoginGate);
+if (!customElements.get("mirally-login-gate")) customElements.define("mirally-login-gate", LoginGate);

@@ -1,5 +1,4 @@
 import DOMPurify from "dompurify";
-import { CONTROL_UI_ROOT_PUBLIC_ASSETS } from "../../../src/gateway/control-ui-root-assets.js";
 import { stripUnsupportedCitationControlMarkers } from "../../../src/shared/text/citation-control-markers.js";
 import { routeIdFromPath } from "../app-route-paths.ts";
 import { resolveControlUiPaths } from "../app/browser.ts";
@@ -46,7 +45,7 @@ const allowedTags = [
   "input",
   "li",
   "ol",
-  "openclaw-person-reference",
+  "mirally-person-reference",
   "p",
   "pre",
   "s",
@@ -110,225 +109,6 @@ const MARKDOWN_CHAR_LIMIT = 140_000;
 // up to 50k characters enter this 500-entry LRU, keeping memory bounded.
 const MARKDOWN_CACHE_LIMIT = 500;
 const MARKDOWN_CACHE_MAX_CHARS = 50_000;
-const DOCS_ORIGIN = "https://docs.openclaw.ai";
-const DOCS_ROOT_SEGMENTS = new Set([
-  "agent-runtime-architecture",
-  "announcements",
-  "auth-credential-semantics",
-  "automation",
-  "brave-search",
-  "channels",
-  "ci",
-  "clawhub",
-  "cli",
-  "concepts",
-  "date-time",
-  "debug",
-  "diagnostics",
-  "gateway",
-  "help",
-  "index",
-  "install",
-  "logging",
-  "maturity-scorecard",
-  "network",
-  "nodes",
-  "openclaw-agent-runtime",
-  "perplexity",
-  "plan",
-  "platforms",
-  "plugins",
-  "prose",
-  "providers",
-  "refactor",
-  "reference",
-  "security",
-  "specs",
-  "start",
-  "tools",
-  "tts",
-  "vps",
-  "web",
-]);
-const DOCS_SHORTLINK_PATHS = new Set([
-  "/AGENTS.default",
-  "/RELEASING",
-  "/agent",
-  "/agent-loop",
-  "/agent-send",
-  "/agent-workspace",
-  "/android",
-  "/anthropic",
-  "/architecture",
-  "/audio",
-  "/auth-monitoring",
-  "/azure",
-  "/background-process",
-  "/bash",
-  "/bonjour",
-  "/browser",
-  "/browser-linux-troubleshooting",
-  "/bun",
-  "/camera",
-  "/clawd",
-  "/clawdhub",
-  "/compaction",
-  "/configuration",
-  "/context",
-  "/context-engine",
-  "/control-ui",
-  "/cron",
-  "/cron-jobs",
-  "/cron-vs-heartbeat",
-  "/dashboard",
-  "/device-models",
-  "/discord",
-  "/discovery",
-  "/docker",
-  "/doctor",
-  "/duckduckgo-search",
-  "/elevated",
-  "/exa-search",
-  "/experiments/plans/cron-add-hardening",
-  "/experiments/plans/group-policy-hardening",
-  "/faq",
-  "/gateway-lock",
-  "/gcp",
-  "/gemini-search",
-  "/getting-started",
-  "/glm",
-  "/gmail-pubsub",
-  "/grammy",
-  "/grok-search",
-  "/group-messages",
-  "/groups",
-  "/health",
-  "/heartbeat",
-  "/hubs",
-  "/images",
-  "/imessage",
-  "/ios",
-  "/kimi-search",
-  "/line",
-  "/linux",
-  "/location",
-  "/location-command",
-  "/lore",
-  "/mac/bun",
-  "/mac/canvas",
-  "/mac/child-process",
-  "/mac/dev-setup",
-  "/mac/health",
-  "/mac/icon",
-  "/mac/logging",
-  "/mac/menu-bar",
-  "/mac/peekaboo",
-  "/mac/permissions",
-  "/mac/release",
-  "/mac/remote",
-  "/mac/signing",
-  "/mac/skills",
-  "/mac/voice-overlay",
-  "/mac/voicewake",
-  "/mac/webchat",
-  "/mac/xpc",
-  "/macos",
-  "/mattermost",
-  "/mcp",
-  "/message",
-  "/messages",
-  "/minimax",
-  "/mistral",
-  "/model",
-  "/model-failover",
-  "/models",
-  "/moonshot",
-  "/multi-agent",
-  "/nix",
-  "/northflank",
-  "/oauth",
-  "/onboarding",
-  "/openai",
-  "/opencode",
-  "/opencode-go",
-  "/openrouter",
-  "/pairing",
-  "/pi",
-  "/pi-dev",
-  "/plugin",
-  "/podman",
-  "/poll",
-  "/presence",
-  "/provider-routing",
-  "/qianfan",
-  "/queue",
-  "/quickstart",
-  "/railway",
-  "/remote",
-  "/remote-gateway-readme",
-  "/render",
-  "/rpc",
-  "/sandbox",
-  "/sandboxing",
-  "/session",
-  "/session-tool",
-  "/sessions",
-  "/setup",
-  "/showcase",
-  "/signal",
-  "/skill-workshop",
-  "/skills",
-  "/skills-config",
-  "/slack",
-  "/slash-commands",
-  "/subagents",
-  "/tailscale",
-  "/talk",
-  "/telegram",
-  "/templates/AGENTS",
-  "/templates/BOOT",
-  "/templates/BOOTSTRAP",
-  "/templates/HEARTBEAT",
-  "/templates/IDENTITY",
-  "/templates/SOUL",
-  "/templates/TOOLS",
-  "/templates/USER",
-  "/test",
-  "/thinking",
-  "/timezone",
-  "/troubleshooting",
-  "/tui",
-  "/typebox",
-  "/updating",
-  "/voicewake",
-  "/web-fetch",
-  "/webchat",
-  "/webhook",
-  "/whatsapp",
-  "/windows",
-  "/wizard",
-  "/xiaomi",
-  "/zai",
-]);
-const APP_RESOURCE_ROOT_SEGMENTS = new Set([
-  "__openclaw",
-  "__openclaw__",
-  "_next",
-  "api",
-  "assets",
-  "avatar",
-  "manifest.json",
-  "media",
-  "res",
-  "socket.io",
-  "static",
-  "ws",
-  ...CONTROL_UI_ROOT_PUBLIC_ASSETS,
-]);
-const APP_RESOURCE_PATH_PREFIXES = [
-  ["plugins", "diffs"],
-  ["plugins", "diffs-language-pack"],
-];
 const markdownCache = new Map<string, string>();
 const STREAMING_INPUT_CACHE_LIMIT = 8;
 const STREAMING_INPUT_CACHE_MAX_CHARS = MARKDOWN_CHAR_LIMIT;
@@ -413,51 +193,6 @@ function currentControlUiBasePath(): string {
   return resolveControlUiPaths(window.location.pathname)[0];
 }
 
-function pathSegments(pathname: string): string[] {
-  return pathname.split("/").filter(Boolean);
-}
-
-function stripCurrentControlUiBasePath(pathname: string): string[] {
-  const segments = pathSegments(pathname);
-  const baseSegments = pathSegments(currentControlUiBasePath());
-  if (
-    baseSegments.length === 0 ||
-    baseSegments.some((segment, index) => segments[index] !== segment)
-  ) {
-    return segments;
-  }
-  return segments.slice(baseSegments.length);
-}
-
-function segmentsStartWith(segments: string[], prefix: string[]): boolean {
-  return prefix.every((segment, index) => segments[index] === segment);
-}
-
-function isControlUiResourcePath(segments: string[]): boolean {
-  if (segments.includes("__openclaw__") || segments.includes("__openclaw")) {
-    return true;
-  }
-  const segment = segments[0];
-  if (!segment || APP_RESOURCE_ROOT_SEGMENTS.has(segment)) {
-    return true;
-  }
-  return APP_RESOURCE_PATH_PREFIXES.some((prefix) => segmentsStartWith(segments, prefix));
-}
-
-function isDocsRootPath(normalizedPath: string, segments: string[]): boolean {
-  if (DOCS_SHORTLINK_PATHS.has(normalizedPath)) {
-    return true;
-  }
-  const segment = segments[0];
-  return segment ? DOCS_ROOT_SEGMENTS.has(segment) : false;
-}
-
-// Preserve the author's link target. Mirally does not own the upstream host's
-// documentation namespace or redirect unrelated root-relative links to it.
-function normalizeDocsRootHref(href: string): string {
-  return href;
-}
-
 function hasMarkdownContentName(node: Node): boolean {
   if (node.nodeType === Node.TEXT_NODE) {
     return Boolean(node.textContent?.trim());
@@ -506,14 +241,9 @@ function installHooks() {
       return;
     }
 
-    const normalizedHref = normalizeDocsRootHref(href);
-    if (normalizedHref !== href) {
-      node.setAttribute("href", normalizedHref);
-    }
-
     // Block dangerous URL schemes (javascript:, data:, vbscript:, etc.)
     try {
-      const url = new URL(normalizedHref, document.baseURI);
+      const url = new URL(href, document.baseURI);
       if (url.protocol !== "http:" && url.protocol !== "https:" && url.protocol !== "mailto:") {
         node.removeAttribute("href");
         return;

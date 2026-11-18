@@ -20,7 +20,7 @@ import {
 } from "../../../components/panel-toggle-contract.ts";
 import "../../../components/tooltip.ts";
 import { t } from "../../../i18n/index.ts";
-import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../../lit/mirally-element.ts";
 import { sidebarPanelDefinitions } from "../chat-pane-embedded-panels.ts";
 import { readLinkFavicon } from "../link-favicon-cache.ts";
 import type { LinkFaviconFetcher } from "../link-favicon-loader.ts";
@@ -76,7 +76,7 @@ function panelsOf(layout: SidebarLayout): SidebarPanel[] {
   return layout.columns[0]?.panels ?? [];
 }
 
-class ChatSidebarRegion extends OpenClawLightDomElement {
+class ChatSidebarRegion extends MirallyLightDomElement {
   @property({ attribute: false }) panelIdPrefix = "";
   @property({ attribute: false }) layout: SidebarLayout = { columns: [] };
   @property({ attribute: false }) panelDefinitions = sidebarPanelDefinitions();
@@ -107,7 +107,7 @@ class ChatSidebarRegion extends OpenClawLightDomElement {
     // Document focus also clears the owner when another pane or chrome wins it.
     document.addEventListener("pointerdown", this.trackFocus, options);
     document.addEventListener("focusin", this.trackFocus, options);
-    window.addEventListener("openclaw:native-close-focused-panel", this.closeFocusedPanel, options);
+    window.addEventListener("mirally:native-close-focused-panel", this.closeFocusedPanel, options);
     this.requestUpdate();
   }
 
@@ -169,7 +169,7 @@ class ChatSidebarRegion extends OpenClawLightDomElement {
       surface.closest(".sidebar-region") !== this.parentElement ||
       !surface.matches('[data-region="side"], [data-region-header="side"]') ||
       surface.closest('[hidden], [inert], [aria-hidden="true"]') ||
-      document.openClawModalLayers?.size ||
+      document.mirallyModalLayers?.size ||
       document.querySelector("dialog[open], [aria-modal='true']")
     ) {
       return;
@@ -453,7 +453,7 @@ class ChatSidebarRegion extends OpenClawLightDomElement {
       <span class="side-panel__action-group side-panel__action-group--close">
         ${
           active
-            ? html`<openclaw-tooltip .content=${expandLabel}>
+            ? html`<mirally-tooltip .content=${expandLabel}>
                 <button
                   class="rail-header__action side-panel__expand"
                   type="button"
@@ -463,10 +463,10 @@ class ChatSidebarRegion extends OpenClawLightDomElement {
                 >
                   ${expanded ? icons.minimize : icons.maximize}
                 </button>
-              </openclaw-tooltip>`
+              </mirally-tooltip>`
             : nothing
         }
-        <openclaw-tooltip .content=${t("common.close")}>
+        <mirally-tooltip .content=${t("common.close")}>
           <button
             class="rail-header__action side-panel__minimize"
             type="button"
@@ -475,7 +475,7 @@ class ChatSidebarRegion extends OpenClawLightDomElement {
           >
             ${icons.x}
           </button>
-        </openclaw-tooltip>
+        </mirally-tooltip>
       </span>
     </div>`;
   }
@@ -660,12 +660,12 @@ class ChatSidebarRegion extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-chat-sidebar-region")) {
-  customElements.define("openclaw-chat-sidebar-region", ChatSidebarRegion);
+if (!customElements.get("mirally-chat-sidebar-region")) {
+  customElements.define("mirally-chat-sidebar-region", ChatSidebarRegion);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-chat-sidebar-region": ChatSidebarRegion;
+    "mirally-chat-sidebar-region": ChatSidebarRegion;
   }
 }

@@ -1,6 +1,6 @@
-import { hasHttpUrlPrefix } from "@openclaw/net-policy/url-protocol";
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeNullableString as readNonEmptyString } from "@openclaw/normalization-core/string-coerce";
+import { hasHttpUrlPrefix } from "@mirally/net-policy/url-protocol";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeNullableString as readNonEmptyString } from "@mirally/normalization-core/string-coerce";
 import type { Question } from "../../../packages/gateway-protocol/src/index.js";
 import { normalizeQuestionSecretStoreFields } from "./question-prompt-secret-store.ts";
 

@@ -16,11 +16,11 @@ import { copyToClipboard } from "../../../lib/clipboard.ts";
 import { canCallGatewayMethod } from "../../../lib/gateway-methods.ts";
 import { loadLinkPreview } from "../../../lib/link-preview.ts";
 import { openExternalUrlSafe } from "../../../lib/open-external-url.ts";
-import { OpenClawLitElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLitElement } from "../../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../../lit/subscriptions-controller.ts";
 import sessionMenuStyles from "../../../styles/session-menu.css?inline";
 
-class OpenClawBrowserTabCard extends OpenClawLitElement {
+class MirallyBrowserTabCard extends MirallyLitElement {
   @consume({ context: applicationContext, subscribe: true })
   @property({ attribute: false })
   context?: ApplicationContext;
@@ -425,12 +425,12 @@ class OpenClawBrowserTabCard extends OpenClawLitElement {
   }
 }
 
-if (!customElements.get("openclaw-browser-tab-card")) {
-  customElements.define("openclaw-browser-tab-card", OpenClawBrowserTabCard);
+if (!customElements.get("mirally-browser-tab-card")) {
+  customElements.define("mirally-browser-tab-card", MirallyBrowserTabCard);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-browser-tab-card": OpenClawBrowserTabCard;
+    "mirally-browser-tab-card": MirallyBrowserTabCard;
   }
 }

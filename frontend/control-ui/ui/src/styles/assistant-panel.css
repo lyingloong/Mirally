@@ -1,4 +1,4 @@
-openclaw-assistant-panel {
+mirally-assistant-panel {
   position: fixed;
   z-index: 60;
   color: var(--text);
@@ -67,7 +67,7 @@ openclaw-assistant-panel {
   font-size: 12px;
 }
 
-.assistant-panel-title openclaw-mascot {
+.assistant-panel-title mirally-mascot {
   display: inline-block;
   width: 16px;
   height: 16px;

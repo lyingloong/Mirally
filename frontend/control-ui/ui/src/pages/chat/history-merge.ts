@@ -8,8 +8,8 @@ import {
   type SessionProjectionEntry,
   type SessionProjectionScope,
   type SessionProjectionState,
-} from "@openclaw/gateway-client/browser";
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
+} from "@mirally/gateway-client/browser";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
 import type {
   ChatInputReceipts,
   ChatPendingInputsPage,

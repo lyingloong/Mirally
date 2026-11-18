@@ -11,7 +11,7 @@ import type { LinkReaderTarget } from "./link-reader-target.ts";
 import { panelTabStripStyles } from "./panel-tab-strip.ts";
 
 export const linkReaderPanelLayout = createDockPanelLayout({
-  storageKey: "openclaw.link-reader.panel.v1",
+  storageKey: "mirally.link-reader.panel.v1",
   minHeight: 240,
   minWidth: 300,
   defaultDock: "right",

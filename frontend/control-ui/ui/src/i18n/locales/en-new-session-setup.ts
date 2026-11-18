@@ -59,7 +59,7 @@ const enNewSessionSetup = {
     offlineFor: "Offline for {duration}",
     lastSeen: "Last seen {time}",
     nodeUpdateRequired:
-      "Update required: run {updateCommand}, then reconnect. For a headless node, run {restartCommand}.",
+      "Update this device before reconnecting.",
     nodeCommandPendingApproval:
       "Ask an administrator to approve the pending {command} request, or pick another device.",
     nodeCommandUndeclared:
@@ -108,7 +108,7 @@ const enNewSessionSetup = {
     created: "Session created",
     startInTerminal: "Start in terminal",
     nativeTerminalHint:
-      "Start the native CLI on the selected machine using its own account and configuration. This does not create an OpenClaw Chat.",
+      "Start the native CLI on the selected machine using its own account and configuration. This does not create an Mirally Chat.",
     chooseNativeHost: "Choose a native CLI host",
     nativeHostsUnavailable:
       "No native CLI is available. Install it on the Gateway or connect a machine with CLI access, then reconnect to the Gateway.",
@@ -162,9 +162,9 @@ const enNewSessionSetup = {
     manageCloudWorkers: "Manage cloud workers",
     persistentEnvironmentHint: "Reusable host",
     disposableEnvironmentHint: "Disposable host",
-    sessionHostingAction: "Session hosting is disabled. Run the following command on the device:",
-    updateAction: "This device needs an update. Run the following command:",
-    reconnectAction: "Then reconnect the device. For a headless device, run:",
+    sessionHostingAction: "Session hosting is disabled on this device.",
+    updateAction: "This device needs an update.",
+    reconnectAction: "Reconnect the device after updating it.",
     runsOnGateway: "Runs on your gateway",
     autoDeviceHint: "Chooses the least-busy connected device",
     autoDeviceHintEligible: "Chooses the first eligible connected device",
@@ -177,22 +177,22 @@ const enNewSessionSetup = {
       "Native CLI host unavailable. Check that the CLI is installed and the node is connected with its fresh-start command approved, then retry the catalog.",
     terminalDisabled: "Enable CLI agents and terminals in Gateway settings to start a native CLI.",
     terminalPlacementUnsupported:
-      "Native CLI sessions use a specific host, not OpenClaw worker placement. Reset this draft and choose a native host.",
+      "Native CLI sessions use a specific host, not Mirally worker placement. Reset this draft and choose a native host.",
     terminalNeedsFolder: "Pick a folder before starting in a terminal.",
     noSessionHosts: "No session hosts are paired. Connect a machine with session hosting enabled.",
     deviceUnavailable: "Device unavailable. Reconnect it and try again.",
     sessionHostingDisabled:
-      "Session hosting is disabled. Run openclaw connect --service --session-host on the device.",
+      "Session hosting is disabled on this device.",
     deviceCapacityUnavailable:
       "Worker capacity is unavailable. Restart the device session host and try again.",
     deviceNoSlots: "No worker slots are available. Wait for a slot or pick another device.",
     connectMachineTitle: "Connect a machine",
-    connectMachineDescription: "Run this command on the machine you want to connect.",
+    connectMachineDescription: "Use this setup link on the machine you want to connect.",
     connectMachineGenerating: "Creating a secure connection link…",
     connectMachineFailed: "Couldn't create a connection link.",
     connectMachineMissingUrl: "The Gateway did not return a join URL. Update it and try again.",
     connectMachineUnavailable: "Reconnect to the Gateway and try again.",
-    connectMachineTeamHint: "Running it pairs that machine as a device for your team.",
+    connectMachineTeamHint: "The setup link pairs that machine as a device for your team.",
     connectMachineSingleUse: "This link is single-use and expires soon.",
     connectMachineSingleUseExpires: "This link is single-use and expires at {time}.",
     connectMachineFreshCode: "Mint fresh code",

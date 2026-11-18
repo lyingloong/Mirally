@@ -11,12 +11,12 @@ import { hasOperatorAdminAccess } from "../app/operator-access.ts";
 import { t } from "../i18n/index.ts";
 import { formatUiError, formatUiExternalText } from "../lib/format-error.ts";
 import { generateUUID } from "../lib/uuid.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import { SubscriptionsController } from "../lit/subscriptions-controller.ts";
 import "../styles/onboarding-memory-import.css";
 import "./modal-dialog.ts";
 
-const ONBOARDING_MEMORY_IMPORT_KEY = "openclaw.onboarding.memory-import";
+const ONBOARDING_MEMORY_IMPORT_KEY = "mirally.onboarding.memory-import";
 
 type ProviderResult =
   | { kind: "success"; result: MigrationsMemoryApplyResult }
@@ -55,7 +55,7 @@ function setGuardDone() {
   }
 }
 
-class OnboardingMemoryImport extends OpenClawLightDomElement {
+class OnboardingMemoryImport extends MirallyLightDomElement {
   @property({ attribute: false }) context?: ApplicationContext;
   @property({ type: Boolean }) active = false;
 
@@ -385,7 +385,7 @@ class OnboardingMemoryImport extends OpenClawLightDomElement {
     const title = t("onboarding.memoryImport.title");
     const body = t("onboarding.memoryImport.body");
     return html`
-      <openclaw-modal-dialog
+      <mirally-modal-dialog
         class="onboarding-memory-import-dialog"
         label=${title}
         description=${body}
@@ -454,17 +454,17 @@ class OnboardingMemoryImport extends OpenClawLightDomElement {
             }
           </footer>
         </section>
-      </openclaw-modal-dialog>
+      </mirally-modal-dialog>
     `;
   }
 }
 
-if (!customElements.get("openclaw-onboarding-memory-import")) {
-  customElements.define("openclaw-onboarding-memory-import", OnboardingMemoryImport);
+if (!customElements.get("mirally-onboarding-memory-import")) {
+  customElements.define("mirally-onboarding-memory-import", OnboardingMemoryImport);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-onboarding-memory-import": OnboardingMemoryImport;
+    "mirally-onboarding-memory-import": OnboardingMemoryImport;
   }
 }

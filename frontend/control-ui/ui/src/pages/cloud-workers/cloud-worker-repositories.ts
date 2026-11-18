@@ -12,7 +12,7 @@ import { registerSettingsEnglish } from "../../i18n/locales/en-settings.ts";
 import { resolveEditableSnapshotConfig } from "../../lib/config/config-state-model.ts";
 import { canCallGatewayMethod } from "../../lib/gateway-methods.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomContentsElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { CloudWorkerConfigSave } from "./cloud-worker-config-save.ts";
 import { readCloudWorkerProfiles } from "./cloud-worker-config.ts";
@@ -28,7 +28,7 @@ import {
 
 registerSettingsEnglish();
 
-class CloudWorkerRepositories extends OpenClawLightDomContentsElement {
+class CloudWorkerRepositories extends MirallyLightDomContentsElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -296,12 +296,12 @@ class CloudWorkerRepositories extends OpenClawLightDomContentsElement {
   }
 }
 
-if (!customElements.get("openclaw-cloud-worker-repositories")) {
-  customElements.define("openclaw-cloud-worker-repositories", CloudWorkerRepositories);
+if (!customElements.get("mirally-cloud-worker-repositories")) {
+  customElements.define("mirally-cloud-worker-repositories", CloudWorkerRepositories);
 }
 
 export function renderCloudWorkerRepositories(canManage: boolean) {
-  return html`<openclaw-cloud-worker-repositories
+  return html`<mirally-cloud-worker-repositories
     .canManage=${canManage}
-  ></openclaw-cloud-worker-repositories>`;
+  ></mirally-cloud-worker-repositories>`;
 }

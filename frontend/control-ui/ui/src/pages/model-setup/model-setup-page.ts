@@ -12,7 +12,7 @@ import { hasOperatorAdminAccess } from "../../app/operator-access.ts";
 import { t } from "../../i18n/index.ts";
 import { isGatewayMethodAdvertised } from "../../lib/gateway-methods.ts";
 import { readSessionDefaults } from "../../lib/sessions/session-key.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { ModelProviderLoginController } from "../model-providers/login-controller.ts";
 import {
@@ -49,7 +49,7 @@ import { ModelSetupWizardRunner, type ModelSetupWizardCompletion } from "./wizar
 export type { ModelSetupRouteData } from "./first-run-setup.ts";
 export { resumeFirstRunActivation } from "./first-run-activation-receipt.ts";
 
-export class ModelSetupPage extends OpenClawLightDomElement {
+export class ModelSetupPage extends MirallyLightDomElement {
   private readonly actionsDisabled = (): boolean =>
     this.login.busy ||
     this.nativeModels.saving ||
@@ -162,7 +162,7 @@ export class ModelSetupPage extends OpenClawLightDomElement {
       }
     },
     onStart: (method, intent) => {
-      if (method === "openclaw.setup.prepare.start") {
+      if (method === "mirally.setup.prepare.start") {
         return undefined;
       }
       const activation = this.firstRun.beginActivation(intent ?? { kind: "provider-auth" });
@@ -240,7 +240,7 @@ export class ModelSetupPage extends OpenClawLightDomElement {
       revealModelSetupFeedback(this.renderRoot);
     }
     if (this.wizardState.phase !== "idle") {
-      this.querySelector("openclaw-modal-dialog")?.setReturnFocusTarget(this.wizardReturnFocus);
+      this.querySelector("mirally-modal-dialog")?.setReturnFocusTarget(this.wizardReturnFocus);
     }
     this.iconLoader.reconcile();
     this.firstRun.start();
@@ -338,7 +338,7 @@ export class ModelSetupPage extends OpenClawLightDomElement {
       (this.routeData?.firstRun === true || this.agentSelection.state.selectedId !== null) &&
       snapshot.phase === "connected" &&
       hasOperatorAdminAccess(snapshot.hello?.auth ?? null) &&
-      isGatewayMethodAdvertised(snapshot, "openclaw.setup.detect") === true,
+      isGatewayMethodAdvertised(snapshot, "mirally.setup.detect") === true,
     );
   }
 
@@ -365,7 +365,7 @@ export class ModelSetupPage extends OpenClawLightDomElement {
     const snapshot = this.context.gateway.snapshot;
     return (
       this.canUseSetup(client) &&
-      isGatewayMethodAdvertised(snapshot, "openclaw.setup.verify") === true
+      isGatewayMethodAdvertised(snapshot, "mirally.setup.verify") === true
     );
   }
 
@@ -438,7 +438,7 @@ export class ModelSetupPage extends OpenClawLightDomElement {
     isCurrent,
   }: ModelSetupWizardCompletion): Promise<void> {
     const prepareOption =
-      startMethod === "openclaw.setup.prepare.start" ? this.pendingPrepareOption : null;
+      startMethod === "mirally.setup.prepare.start" ? this.pendingPrepareOption : null;
     const nativeSessionCatalogPreference = this.nativeSessionCatalogPreference();
     this.pendingPrepareOption = null;
     if (prepareOption && preparedModelRef) {
@@ -450,7 +450,7 @@ export class ModelSetupPage extends OpenClawLightDomElement {
       );
       return;
     }
-    if (startMethod !== "openclaw.setup.prepare.start") {
+    if (startMethod !== "mirally.setup.prepare.start") {
       if (isCurrent?.() === false) {
         this.wizard.close();
         return;
@@ -458,7 +458,7 @@ export class ModelSetupPage extends OpenClawLightDomElement {
       if (!modelActivation) {
         this.wizard.fail(
           t(
-            startMethod === "openclaw.setup.activate.start"
+            startMethod === "mirally.setup.activate.start"
               ? "modelSetup.errors.activationFailed"
               : "modelSetup.wizard.notComplete",
           ),
@@ -625,7 +625,7 @@ export class ModelSetupPage extends OpenClawLightDomElement {
     const canAdmin = hasOperatorAdminAccess(snapshot.hello?.auth ?? null);
     const gatewayTooOld =
       snapshot.phase === "connected" &&
-      isGatewayMethodAdvertised(snapshot, "openclaw.setup.detect") !== true;
+      isGatewayMethodAdvertised(snapshot, "mirally.setup.detect") !== true;
     return renderModelSetup({
       detecting: this.detectionRequest !== null,
       detectionError: this.detectionError,
@@ -653,7 +653,7 @@ export class ModelSetupPage extends OpenClawLightDomElement {
       canVerify: this.canVerify(snapshot.client),
       canPrepare:
         this.canUseSetup(snapshot.client) &&
-        isGatewayMethodAdvertised(snapshot, "openclaw.setup.prepare.start") === true,
+        isGatewayMethodAdvertised(snapshot, "mirally.setup.prepare.start") === true,
       modelConfigured: readSessionDefaults(snapshot)?.modelConfigured === true,
       gatewayTooOld,
       refreshWarning: this.setupRefreshWarning,
@@ -690,7 +690,7 @@ export class ModelSetupPage extends OpenClawLightDomElement {
         void this.runWizardMutation(() =>
           this.wizard.start(
             option.id,
-            "openclaw.setup.auth.start",
+            "mirally.setup.auth.start",
             this.nativeSessionCatalogPreference(),
             option.modelTarget,
           ),
@@ -700,7 +700,7 @@ export class ModelSetupPage extends OpenClawLightDomElement {
         this.pendingPrepareOption = option;
         this.wizardMode = "prepare";
         void this.runWizardMutation(() =>
-          this.wizard.start(option.id, "openclaw.setup.prepare.start"),
+          this.wizard.start(option.id, "mirally.setup.prepare.start"),
         );
       },
       onManualProviderChange: (providerId) => this.selectManualProvider(providerId),
@@ -730,6 +730,6 @@ export class ModelSetupPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-model-setup-page")) {
-  customElements.define("openclaw-model-setup-page", ModelSetupPage);
+if (!customElements.get("mirally-model-setup-page")) {
+  customElements.define("mirally-model-setup-page", ModelSetupPage);
 }

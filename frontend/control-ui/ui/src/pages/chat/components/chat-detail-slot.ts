@@ -17,14 +17,14 @@ export function renderChatDetailSlot(params: {
 }): TemplateResult {
   const { content, host } = params;
   if (content.kind === "tool-output") {
-    return html`<openclaw-chat-tool-output
+    return html`<mirally-chat-tool-output
       class="chat-sidebar"
       .content=${content}
       .loadFullMessage=${params.chat.loadFullAssistantMessage ?? null}
       .connectionEpoch=${params.chat.connectionEpoch}
-    ></openclaw-chat-tool-output>`;
+    ></mirally-chat-tool-output>`;
   }
-  return html`<openclaw-chat-detail-panel
+  return html`<mirally-chat-detail-panel
     class="chat-sidebar"
     .content=${content}
     .fileNavigation=${content.kind === "file" ? (content.navigation ?? null) : null}
@@ -56,5 +56,5 @@ export function renderChatDetailSlot(params: {
     .embedded=${true}
     @chat-detail-panel-close=${() =>
       host.handleCloseSidebar(content.kind === "attachment" ? "workspace" : "detail")}
-  ></openclaw-chat-detail-panel>`;
+  ></mirally-chat-detail-panel>`;
 }

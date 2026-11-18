@@ -62,7 +62,7 @@ const APP_SECTIONS: readonly AppSection[] = [
         ctas: [
           {
             kind: "external",
-            href: "https://apps.apple.com/app/openclaw-ai-that-does-things/id6780396132",
+            href: "https://apps.apple.com/app/mirally-ai-that-does-things/id6780396132",
             label: () => t("appsPage.ctaAppStore"),
           },
           docsCta("/platforms/ios"),
@@ -271,7 +271,7 @@ function renderAppCard(card: AppCard, props: AppsProps) {
           }
           ${card.ctas.map((cta, index) => renderCta(cta, index + (macGatewayLaunchUrl ? 1 : 0), props))}
         </div>
-        ${card.id === "chrome-extension" ? html`<openclaw-native-chrome-setup></openclaw-native-chrome-setup>` : nothing}
+        ${card.id === "chrome-extension" ? html`<mirally-native-chrome-setup></mirally-native-chrome-setup>` : nothing}
       </div>
     </article>
   `;
