@@ -142,6 +142,37 @@ class NotebookTests(unittest.TestCase):
         self.assertEqual([item["operation"] for item in details["revisions"]], ["archive_collection", "move", "add"])
         self.assertEqual(self.call("notebook.search", query="旅途")["total"], 1)
 
+    def test_approval_preflight_replays_only_matching_receipts_from_the_active_turn(self):
+        entry = self.write("entry.add", body="待修订")
+        collection = self.write("collection.create", path="整理")
+        entry_id, collection_id = entry["entry_id"], collection["collection_id"]
+        cases = (
+            ("add", "entry.add", {"body": "当天记录", "collection_path": "个人/整理", "sensitivity": "private"}),
+            ("revise", "entry.revise", {"entry_id": entry_id, "expected_revision": 1,
+                                       "patch": {"body": "已修订"}, "reason": " 校正 "}),
+            ("move", "entry.move", {"entry_id": entry_id, "expected_revision": 2, "collection_id": collection_id}),
+            ("delete", "entry.delete", {"entry_id": entry_id, "expected_revision": 3}),
+            ("create_collection", "collection.create", {"path": " 日程 /地点 "}),
+            ("rename_collection", "collection.rename", {"collection_id": collection_id,
+                                                         "expected_revision": 1, "title": " 资料 "}),
+            ("archive_collection", "collection.archive", {"collection_id": collection_id, "expected_revision": 2}),
+        )
+        for operation, route, params in cases:
+            with self.subTest(operation=operation):
+                source = self.source()
+                preview = {"operation": operation, "params": params, "source": source, "request_id": "one"}
+                self.assertIn("detail", self.call("notebook.approval.preview", **preview))
+                first = self.write(route, source=source, **params)
+                self.assertEqual(self.call("notebook.approval.preview", **preview),
+                                 {"receipt": {**first, "replayed": True}})
+                other_operation = "add" if operation != "add" else "delete"
+                self.assert_error("IDEMPOTENCY_MISMATCH", self.call, "notebook.approval.preview",
+                                  **{**preview, "operation": other_operation})
+                self.call("command.ack", conversation_id=self.conversation, command_id=source["turn_id"],
+                          state="completed")
+                self.assert_error("CONFLICT", self.call, "notebook.approval.preview", **preview)
+        self.assertEqual(self.get(entry_id)["entry"]["status"], "deleted")
+
     def test_revision_conflicts_and_terminal_records(self):
         entry = self.write("entry.add", body="三花猫", event_time="2026-11-10")
         entry_id = entry["entry_id"]
@@ -252,6 +283,26 @@ class NotebookTests(unittest.TestCase):
                              params={"body": f"恢复码: {credential}"}, credential_as_note=True)["detail"]
         self.assertIn("私密记事（内容已隐藏）", redacted)
         self.assertNotIn(credential, redacted)
+
+    def test_new_private_folder_names_use_the_same_visibility_at_preview_and_write(self):
+        parent = self.write("collection.create", path="已有公开目录")
+        source = self.source("保存一条私密记事")
+        new_path = "已有公开目录/合成主题/归档资料"
+        params = {"body": "模拟私密正文", "collection_path": new_path, "sensitivity": "private"}
+        preview = self.call("notebook.approval.preview", source=source, operation="add", params=params)["detail"]
+        self.assertIn("私密目录（名称已隐藏）", preview)
+        self.assertNotIn("合成主题", preview)
+        self.assertNotIn("归档资料", preview)
+        self.assertNotIn("模拟私密正文", preview)
+        saved = self.write("entry.add", source=source, **params)
+        self.assertEqual(saved["collection"]["sensitivity"], "private")
+        self.assertEqual(saved["collection"]["path"], new_path)
+        self.assertEqual(self.call("notebook.collection.list", collection_id=parent["collection_id"])["total"], 0)
+        existing_public = self.call("notebook.approval.preview", source=source, operation="add", params={
+            **params, "collection_path": "已有公开目录",
+        })["detail"]
+        self.assertIn("目录：已有公开目录", existing_public)
+        self.assertIn("私密记事（内容已隐藏）", existing_public)
 
     def test_approval_preview_identifies_revision_and_collection_effects(self):
         entry = self.write("entry.add", body="周会整理完成", title="原定事项")
