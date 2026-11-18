@@ -2,7 +2,7 @@ import {
   readSkillProposalRevisionChangedError,
   type SkillsProposalApplyResult,
   type SkillsProposalRecordResult,
-} from "@openclaw/gateway-protocol";
+} from "@mirally/gateway-protocol";
 import type { SkillWorkshopRevisionAdmissionOutcome } from "../../app/skill-workshop-revision-admissions.ts";
 import { t } from "../../i18n/index.ts";
 import { registerSkillWorkshopEnglish } from "../../i18n/locales/en-skill-workshop.ts";

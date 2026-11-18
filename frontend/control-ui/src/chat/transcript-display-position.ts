@@ -1,4 +1,4 @@
-import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
+import { asOptionalRecord } from "@mirally/normalization-core/record-coerce";
 import { z } from "zod";
 
 const ordinal = z.number().int().nonnegative();
@@ -121,7 +121,7 @@ export function composeTranscriptDisplay<T>(
     emitGap();
   };
   for (const value of values) {
-    const metadata = asOptionalRecord(asOptionalRecord(messageFor(value))?.["__openclaw"]);
+    const metadata = asOptionalRecord(asOptionalRecord(messageFor(value))?.["__mirally"]);
     const position = readTranscriptDisplayPosition(metadata?.transcriptPosition);
     // Optimistic/uncoordinated rows and different rewrite generations are causal
     // barriers. A later canonical snapshot can place them; timestamps cannot.

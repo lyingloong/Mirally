@@ -1,4 +1,4 @@
-import { expectDefined } from "@openclaw/normalization-core";
+import { expectDefined } from "@mirally/normalization-core";
 import type { LobsterPetPaletteId } from "./lobster-pet-contract.ts";
 
 type LobsterPaletteLore = {

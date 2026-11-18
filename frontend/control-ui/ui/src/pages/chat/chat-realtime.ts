@@ -1,4 +1,4 @@
-import type { TalkVoiceChangeEvent } from "@openclaw/gateway-protocol";
+import type { TalkVoiceChangeEvent } from "@mirally/gateway-protocol";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import { loadSettings, patchSettings, type UiSettings } from "../../app/settings.ts";
 import { t } from "../../i18n/index.ts";

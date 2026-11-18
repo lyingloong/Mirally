@@ -1,4 +1,4 @@
-import { asNullableRecord as catalogRawRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableRecord as catalogRawRecord } from "@mirally/normalization-core/record-coerce";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import type { ApplicationContext } from "../../app/context.ts";
 import type { BoardProvider } from "../../lib/board/provider.ts";
@@ -244,7 +244,7 @@ function keyboardEventPathHasInteractiveTarget(event: KeyboardEvent): boolean {
 }
 
 function openDropdownOwnsKey(root: ParentNode, key: string): boolean {
-  const surface = root instanceof Element ? (root.closest("openclaw-app") ?? root) : root;
+  const surface = root instanceof Element ? (root.closest("mirally-app") ?? root) : root;
   return [...surface.querySelectorAll<HTMLElement & { open?: boolean }>("wa-dropdown")].some(
     (dropdown) =>
       dropdown.open === true &&
@@ -281,7 +281,7 @@ export function focusChatComposerFromPrintableKeydown(
     openDropdownOwnsKey(root, event.key) ||
     event.key.length !== 1 ||
     keyboardEventPathHasInteractiveTarget(event) ||
-    document.openClawModalLayers?.size ||
+    document.mirallyModalLayers?.size ||
     document.querySelector("dialog[open], [aria-modal='true']")
   ) {
     return;

@@ -1,7 +1,7 @@
 import {
   normalizeLowercaseStringOrEmpty,
   normalizeOptionalLowercaseString,
-} from "@openclaw/normalization-core/string-coerce";
+} from "@mirally/normalization-core/string-coerce";
 /**
  * Client-side execution engine for slash commands.
  * Calls gateway RPC methods and returns formatted results.

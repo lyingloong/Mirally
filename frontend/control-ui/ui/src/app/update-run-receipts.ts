@@ -1,17 +1,17 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { getSafeLocalStorage, getSafeSessionStorage } from "../local-storage.ts";
 
 // Only browser acknowledgments live here. Run identity, progress and outcomes
 // always come from the Gateway ledger, including after a bundle reload.
 type ReceiptKind = "acknowledged" | "triaged";
-const TRIAGED_KEY = "openclaw:control-ui:update:v1";
-const ARRAY_TRIAGED_KEY = "openclaw:control-ui:update-triaged:v1";
+const TRIAGED_KEY = "mirally:control-ui:update:v1";
+const ARRAY_TRIAGED_KEY = "mirally:control-ui:update-triaged:v1";
 
 export function createUpdateRunReceipts() {
   const acknowledged = getSafeLocalStorage();
   const triaged = getSafeSessionStorage();
   const key = (kind: ReceiptKind) =>
-    kind === "triaged" ? TRIAGED_KEY : "openclaw:control-ui:update-acknowledged:v1";
+    kind === "triaged" ? TRIAGED_KEY : "mirally:control-ui:update-acknowledged:v1";
   const read = (storage: Storage | null, storageKey: string): string[] | null => {
     try {
       const raw = storage?.getItem(storageKey);

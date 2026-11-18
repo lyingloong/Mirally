@@ -2,7 +2,7 @@ import "../../styles/chat/startup-layout.css";
 import {
   normalizeStringEntries,
   uniqueStrings,
-} from "@openclaw/normalization-core/string-normalization";
+} from "@mirally/normalization-core/string-normalization";
 import { html, nothing } from "lit";
 import { ifDefined } from "lit/directives/if-defined.js";
 import { repeat } from "lit/directives/repeat.js";

@@ -1,4 +1,4 @@
-import type { SystemInfoResult } from "@openclaw/gateway-protocol";
+import type { SystemInfoResult } from "@mirally/gateway-protocol";
 import { html, nothing, type TemplateResult } from "lit";
 import { renderCapacityMeter } from "../../components/capacity-meter.ts";
 import { t } from "../../i18n/index.ts";

@@ -24,7 +24,7 @@ import { renderSettingsWorkspace } from "../../components/settings-workspace.ts"
 import { t } from "../../i18n/index.ts";
 import { registerAppsEnglish } from "../../i18n/locales/en-apps.ts";
 import { registerSettingsEnglish } from "../../i18n/locales/en-settings.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import "../../components/native-chrome-setup.ts";
 import "./device.css";
@@ -66,7 +66,7 @@ function settleCookieSyncEdit(
   }
 }
 
-class DevicePage extends OpenClawLightDomElement {
+class DevicePage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -185,7 +185,7 @@ class DevicePage extends OpenClawLightDomElement {
           stacked: true,
           control: html`
             <div class="device-extension-setup">
-              <openclaw-native-chrome-setup auto-inspect></openclaw-native-chrome-setup>
+              <mirally-native-chrome-setup auto-inspect></mirally-native-chrome-setup>
               <div class="device-extension-setup__actions">
                 <a
                   href="https://chromewebstore.google.com/detail/openclaw/kcdjddhmeafeomebliikmbpblkmkfoig"
@@ -539,6 +539,6 @@ class DevicePage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-device-page")) {
-  customElements.define("openclaw-device-page", DevicePage);
+if (!customElements.get("mirally-device-page")) {
+  customElements.define("mirally-device-page", DevicePage);
 }

@@ -1,6 +1,6 @@
 type MacFormFactor = "laptop" | "mini" | "studio" | "pro" | "imac";
 
-// Apple-silicon entries from kyle-seongwoo-jun/apple-device-identifiers (MIT; see apps/macos/Sources/OpenClaw/Resources/DeviceModels/NOTICE.md).
+// Apple-silicon entries from kyle-seongwoo-jun/apple-device-identifiers (MIT; see apps/macos/Sources/Mirally/Resources/DeviceModels/NOTICE.md).
 const APPLE_SILICON_FORM_FACTORS: Record<string, MacFormFactor> = {
   "Mac13,1": "studio",
   "Mac13,2": "studio",

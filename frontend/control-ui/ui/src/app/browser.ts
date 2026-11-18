@@ -1,4 +1,4 @@
-import type { RouteLocation, RouterHistory } from "@openclaw/uirouter";
+import type { RouteLocation, RouterHistory } from "@mirally/ui-router";
 import { CONTROL_UI_BASE_PATH_ATTRIBUTE } from "../../../src/gateway/control-ui-bootstrap-contract.js";
 import {
   inferBasePathFromPathname,
@@ -17,7 +17,7 @@ function readControlUiResourceBasePath(): string | null {
   const windowValue =
     typeof window === "undefined"
       ? undefined
-      : (window as WindowWithControlUiBasePath)["__OPENCLAW_CONTROL_UI_BASE_PATH__"];
+      : (window as WindowWithControlUiBasePath)["__MIRALLY_CONTROL_UI_BASE_PATH__"];
   const value =
     typeof windowValue === "string"
       ? windowValue
@@ -51,8 +51,8 @@ function writeLocation(location: RouteLocation) {
 
 function nativeEmbedHistoryDepth(): number {
   const state: unknown = window.history.state;
-  if (state && typeof state === "object" && "openclawNativeEmbedDepth" in state) {
-    const depth = state.openclawNativeEmbedDepth;
+  if (state && typeof state === "object" && "mirallyNativeEmbedDepth" in state) {
+    const depth = state.mirallyNativeEmbedDepth;
     if (typeof depth === "number" && Number.isSafeInteger(depth) && depth >= 0) {
       return depth;
     }
@@ -96,13 +96,13 @@ export function createBrowserHistory(): RouterHistory {
     // counts a WebView's initial blank document and cannot prove that boundary.
     push: (location) =>
       window.history.pushState(
-        embedded ? { openclawNativeEmbedDepth: nativeEmbedHistoryDepth() + 1 } : {},
+        embedded ? { mirallyNativeEmbedDepth: nativeEmbedHistoryDepth() + 1 } : {},
         "",
         writeLocation(location),
       ),
     replace: (location) =>
       window.history.replaceState(
-        embedded ? { openclawNativeEmbedDepth: nativeEmbedHistoryDepth() } : {},
+        embedded ? { mirallyNativeEmbedDepth: nativeEmbedHistoryDepth() } : {},
         "",
         writeLocation(location),
       ),

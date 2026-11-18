@@ -1,6 +1,6 @@
 import type { ApplicationContext } from "./context.ts";
 
-const NOTIFICATIONS_AUTO_PROMPT_KEY = "openclaw.control.notificationsAutoPrompt.v1";
+const NOTIFICATIONS_AUTO_PROMPT_KEY = "mirally.control.notificationsAutoPrompt.v1";
 
 type NotificationsContext = Pick<ApplicationContext, "nativeNotifications" | "webPush">;
 

@@ -14,10 +14,10 @@ const browser = await chromium.launch({channel:'msedge', headless:true});
 const page = await browser.newPage({viewport:{width:1280,height:900}});
 page.setDefaultTimeout(15000);
 const errors=[]; page.on('pageerror', error=>errors.push(error.message));
-const active = 'openclaw-chat-pane.chat-pane-cache__pane--active';
-async function ready() { await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase === 'connected'); }
+const active = 'mirally-chat-pane.chat-pane-cache__pane--active';
+async function ready() { await page.waitForFunction(()=>document.querySelector('mirally-app')?.context?.gateway?.snapshot?.phase === 'connected'); }
 async function newChat() { await page.evaluate(()=>window.__mirallyFramework.showPage('chat')); await page.locator('.new-session-page__message').waitFor({state:'visible'}); }
-async function idle() { await page.waitForFunction(()=>{const p=document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active'); return p?.state?.chatMessages?.some(m=>m.role==='assistant') && !p.runActivity?.working;}); }
+async function idle() { await page.waitForFunction(()=>{const p=document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active'); return p?.state?.chatMessages?.some(m=>m.role==='assistant') && !p.runActivity?.working;}); }
 try {
   // Save the Mirally-owned form through the same real product transport.
   await page.goto(runtime.url+'/settings/model-providers#token='+runtime.token); await ready();
@@ -51,12 +51,12 @@ try {
   assert.equal(await pane.locator('.chat-group.user').count(),1,'refresh does not duplicate user message');
   await pane.locator('textarea[aria-label="聊天输入框"]').fill('第二轮原版输入');
   await pane.locator('.chat-send-btn--send').click();
-  await page.waitForFunction(()=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active')?.state?.chatMessages?.filter(m=>m.role==='assistant').length===2);
+  await page.waitForFunction(()=>document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active')?.state?.chatMessages?.filter(m=>m.role==='assistant').length===2);
   await idle();
   assert.equal(await pane.locator('.chat-group.user').count(),2);
   // Original file controls: two simultaneous reads, remove one, attachments-only first turn.
   await newChat();
-  const first=page.locator('openclaw-new-session-page');
+  const first=page.locator('mirally-new-session-page');
   await first.locator('input.agent-chat__file-input').setInputFiles([
     {name:'移除材料.txt',mimeType:'text/plain',buffer:Buffer.from('不应发送')},
     {name:'中文材料.txt',mimeType:'text/plain',buffer:Buffer.from('验收材料只保留这一份')},

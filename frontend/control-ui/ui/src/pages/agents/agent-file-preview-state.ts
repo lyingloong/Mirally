@@ -27,7 +27,7 @@ export function setPreviewExpandButtonState(
   button.classList.toggle("is-fullscreen", isFullscreen);
   button.setAttribute("aria-pressed", String(isFullscreen));
   button.setAttribute("aria-label", label);
-  button.closest("openclaw-tooltip")?.setAttribute("content", label);
+  button.closest("mirally-tooltip")?.setAttribute("content", label);
 }
 
 export function resetAgentFilePreview(modal: HTMLElement) {

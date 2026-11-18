@@ -1,6 +1,6 @@
 # Copy to memory.yaml to customize the default local organization profile.
 # This service never starts desktop collection. Models and credentials remain
-# managed by OpenClaw; no provider credentials belong in this file.
+# managed by Mirally; no provider credentials belong in this file.
 enabled: true
 activity_config_path: config/mirally/activity.yaml
 storage:

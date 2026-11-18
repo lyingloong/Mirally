@@ -1,4 +1,4 @@
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import type {
   AgentSummary,
   ProjectRecord,

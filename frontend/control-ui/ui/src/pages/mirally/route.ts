@@ -1,11 +1,11 @@
-import { definePage, redirect } from '@openclaw/uirouter';
+import { definePage, redirect } from '@mirally/ui-router';
 import { html, nothing } from 'lit';
 import { APP_ROUTE_IDS, pathForRoute, routePageSpec, type RouteId } from '../../app-route-paths.ts';
 import type { ApplicationContext } from '../../app/context.ts';
 
 // Route IDs remain stable for the retained shell. Product pages own their
 // contents and use the existing authenticated Mirally client, without loaders
-// that assume an OpenClaw Gateway, node, channel or administrator service.
+// that assume an Mirally Gateway, node, channel or administrator service.
 const settings = {config:'general',profile:'profile','model-providers':'model','model-setup':'model',notifications:'initiative',about:'about'} as const;
 const ownIds: RouteId[] = [...Object.keys(settings) as RouteId[], 'custodian','cron','memory','activity','channels'];
 const ownPages = ownIds.map(id=>definePage({

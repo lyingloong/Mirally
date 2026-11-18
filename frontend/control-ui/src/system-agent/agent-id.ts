@@ -1,6 +1,6 @@
 import { normalizeAgentId } from "../routing/session-key.js";
 
-export const SYSTEM_AGENT_ID = "openclaw";
+export const SYSTEM_AGENT_ID = "mirally";
 
 export const SYSTEM_AGENT_ROSTER_ENTRIES = [
   { id: SYSTEM_AGENT_ID, kind: "system" },

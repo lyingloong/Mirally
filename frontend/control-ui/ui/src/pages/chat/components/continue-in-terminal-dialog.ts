@@ -7,7 +7,7 @@ export function renderContinueInTerminalDialog(params: { command: string; onClos
   const title = t("chat.sessionHeader.continueInTerminal.title");
   const description = t("chat.sessionHeader.continueInTerminal.description");
   return html`
-    <openclaw-modal-dialog
+    <mirally-modal-dialog
       class="continue-in-terminal-dialog"
       label=${title}
       description=${description}
@@ -28,6 +28,6 @@ export function renderContinueInTerminalDialog(params: { command: string; onClos
           </button>
         </footer>
       </section>
-    </openclaw-modal-dialog>
+    </mirally-modal-dialog>
   `;
 }

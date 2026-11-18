@@ -15,11 +15,11 @@ const server=http.createServer((request,response)=>{
   const pathname=new URL(request.url,origin).pathname;
   if(pathname==='/companion.js'){response.setHeader('Content-Type','text/javascript; charset=utf-8');response.end(source.replaceAll('__MIRALLY_ORIGIN__',JSON.stringify(origin)).replaceAll('__MIRALLY_MARK__',JSON.stringify('data:image/svg+xml,'+encodeURIComponent(svg))).replaceAll('__MIRALLY_PETS__',JSON.stringify({otter:svg,fox:svg})));return;}
   if(pathname==='/companion.css'){response.setHeader('Content-Type','text/css');response.end(css);return;}
-  response.setHeader('Content-Type','text/html; charset=utf-8');response.end(`<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/companion.css"></head><body><openclaw-app></openclaw-app><openclaw-chat-pane class="chat-pane-cache__pane--active"></openclaw-chat-pane><script>
+  response.setHeader('Content-Type','text/html; charset=utf-8');response.end(`<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/companion.css"></head><body><mirally-app></mirally-app><mirally-chat-pane class="chat-pane-cache__pane--active"></mirally-chat-pane><script>
     window.__posts=[];window.chrome=window.chrome||{};window.chrome.webview={postMessage:value=>window.__posts.push(value)};
     window.__mirallyOffice={createReplyTracker:()=>()=>null,isFinal:row=>row.role==='assistant',handoff:()=>null,plain:value=>value};
-    document.querySelector('openclaw-app').context={};
-    const pane=document.querySelector('openclaw-chat-pane');pane.paneId='synthetic';pane.state={sessionKey:'fixture',connected:true,chatMessage:'',chatMessages:[],handleSendChat:()=>{},handleChatDraftChange:value=>pane.state.chatMessage=value};
+    document.querySelector('mirally-app').context={};
+    const pane=document.querySelector('mirally-chat-pane');pane.paneId='synthetic';pane.state={sessionKey:'fixture',connected:true,chatMessage:'',chatMessages:[],handleSendChat:()=>{},handleChatDraftChange:value=>pane.state.chatMessage=value};
   </script><script src="/companion.js"></script></body></html>`);
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));

@@ -1,8 +1,8 @@
 // Per-Gateway, per-profile, per-browser snooze state for the sidebar attention chips.
 // Deliberately client-side chrome (like nav width / dock layout), not gateway
 // state: dismissing a nag on one device should not acknowledge it everywhere.
-import { gatewayCredentialScope } from "@openclaw/gateway-client/browser";
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
+import { gatewayCredentialScope } from "@mirally/gateway-client/browser";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
 import type { UpdateAvailable, UpdateScheduleState } from "../api/types.ts";
 import type { ScopeUpgradeState } from "../app/device-scope-upgrade-availability.ts";
 import type { ApplicationGateway } from "../app/gateway.ts";
@@ -22,7 +22,7 @@ export type SidebarAttentionDismissal = { kind: SidebarAttentionKind; signature:
 export type SidebarAttentionDismissals = Partial<Record<SidebarAttentionKind, string[]>>;
 
 // Origin-only v1 records have no proven account owner. Leave them untouched and unadopted.
-const DISMISSED_STORE_PREFIX = "openclaw.control.sidebarAttention.v2:";
+const DISMISSED_STORE_PREFIX = "mirally.control.sidebarAttention.v2:";
 
 export function resolveSidebarAttentionKey(gateway: ApplicationGateway): string | null {
   const snapshot = gateway.snapshot;

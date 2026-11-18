@@ -2,10 +2,10 @@ import { property } from "lit/decorators.js";
 import type { AgentIdentityResult } from "../api/types.ts";
 import { resolveAgentAvatarUrl } from "../lib/avatar.ts";
 import { IdentityAvatarController } from "../lib/identity-avatar-loader.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import { renderAgentSelectAvatar, type AgentSelectOption } from "./agent-select.ts";
 
-export class AgentAvatar extends OpenClawLightDomElement {
+export class AgentAvatar extends MirallyLightDomElement {
   @property({ attribute: false }) option: AgentSelectOption = { value: "", label: "" };
 
   @property({ attribute: false }) identity: AgentIdentityResult | null = null;
@@ -27,6 +27,6 @@ export class AgentAvatar extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-agent-avatar")) {
-  customElements.define("openclaw-agent-avatar", AgentAvatar);
+if (!customElements.get("mirally-agent-avatar")) {
+  customElements.define("mirally-agent-avatar", AgentAvatar);
 }

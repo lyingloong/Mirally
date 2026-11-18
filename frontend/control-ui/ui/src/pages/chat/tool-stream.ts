@@ -1,5 +1,5 @@
-import { asNullableObjectRecord as readRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeNullableString as toTrimmedString } from "@openclaw/normalization-core/string-coerce";
+import { asNullableObjectRecord as readRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeNullableString as toTrimmedString } from "@mirally/normalization-core/string-coerce";
 import { Value } from "typebox/value";
 import { AgentActivityItemSchema } from "../../../../packages/gateway-protocol/src/schema/logs-chat.js";
 import type { ChatGuardianNotice, ToolApprovalReview } from "../../lib/chat/chat-types.ts";
@@ -147,12 +147,12 @@ function buildToolStreamMessage(entry: ToolStreamEntry): Record<string, unknown>
     // and completion comes from the result event — partial `update` output
     // must not end the running state. Transcript messages never carry these,
     // so historical output-less calls (aborted runs) stay inert.
-    __openclawToolStreamLive: true,
-    __openclawToolStreamResultReceived: entry.resultReceived === true,
+    __mirallyToolStreamLive: true,
+    __mirallyToolStreamResultReceived: entry.resultReceived === true,
     ...(entry.resultReceived !== true && entry.liveDiffStat
-      ? { __openclawToolStreamDiffStat: entry.liveDiffStat }
+      ? { __mirallyToolStreamDiffStat: entry.liveDiffStat }
       : {}),
-    __openclawToolStreamReceivedAt: entry.receivedAt,
+    __mirallyToolStreamReceivedAt: entry.receivedAt,
   };
 }
 

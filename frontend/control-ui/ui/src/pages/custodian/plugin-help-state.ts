@@ -1,4 +1,4 @@
-import type { SystemAgentPluginReference } from "@openclaw/gateway-protocol/system-agent-context";
+import type { SystemAgentPluginReference } from "@mirally/gateway-protocol/system-agent-context";
 import type { ApplicationContext } from "../../app/context.ts";
 import { CustodianSessionOwner } from "./custodian-session-owner.ts";
 

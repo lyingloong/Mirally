@@ -6,9 +6,9 @@ import type {
   ProgressCardRefreshParams,
   ProgressCardRefreshResult,
   ProgressCardStep,
-} from "@openclaw/gateway-protocol";
-import { asDateTimestampMs } from "@openclaw/normalization-core/number-coercion";
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+} from "@mirally/gateway-protocol";
+import { asDateTimestampMs } from "@mirally/normalization-core/number-coercion";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { GatewayRequestError } from "../api/gateway.ts";
 import type { ApplicationGateway } from "../app/gateway.ts";
 import { createGatewayConnectionLifecycle } from "./gateway-connection-lifecycle.ts";

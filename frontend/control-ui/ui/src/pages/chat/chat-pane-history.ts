@@ -1,7 +1,7 @@
 import {
   readSessionMessageIdentity,
   reduceSessionProjection,
-} from "@openclaw/gateway-client/browser";
+} from "@mirally/gateway-client/browser";
 import type { SessionsCatalogContinueResult } from "../../../../packages/gateway-protocol/src/index.js";
 import {
   COMMAND_PALETTE_TARGET_EVENT,

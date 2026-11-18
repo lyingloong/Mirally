@@ -1,11 +1,11 @@
 import { MultiSelect } from "./multi-select.ts";
 
-if (!customElements.get("openclaw-multi-select")) {
-  customElements.define("openclaw-multi-select", MultiSelect);
+if (!customElements.get("mirally-multi-select")) {
+  customElements.define("mirally-multi-select", MultiSelect);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-multi-select": MultiSelect;
+    "mirally-multi-select": MultiSelect;
   }
 }

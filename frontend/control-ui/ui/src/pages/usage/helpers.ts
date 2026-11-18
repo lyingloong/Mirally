@@ -1,5 +1,5 @@
 // Control UI module implements usage helpers behavior.
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 import { formatUiError } from "../../lib/format-error.ts";
 
 type UsageQueryTerm = {

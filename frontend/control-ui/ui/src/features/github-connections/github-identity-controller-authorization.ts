@@ -1,4 +1,4 @@
-import { resolveSafeTimeoutDelayMs } from "@openclaw/gateway-client/browser";
+import { resolveSafeTimeoutDelayMs } from "@mirally/gateway-client/browser";
 import type { UsersGitHubAuthorizePollResult } from "../../../../packages/gateway-protocol/src/schema/users.ts";
 import type {
   ToolsGitHubAuthorizePollResult,

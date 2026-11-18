@@ -32,7 +32,7 @@ export function renderBoardMcpAppContent(options: BoardMcpAppContentOptions): Te
           .viewId=${ready.viewId}
           .fillContainer=${true}
           .title=${widget.title || widget.name}
-          @openclaw-mcp-app-view-expired=${options.expired}
+          @mirally-mcp-app-view-expired=${options.expired}
         ></mcp-app-view>`
       : !options.nearVisible || !appView
         ? loading

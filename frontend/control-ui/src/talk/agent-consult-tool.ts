@@ -1,5 +1,5 @@
 /**
- * Realtime voice tool definition and helpers for delegating work to OpenClaw.
+ * Realtime voice tool definition and helpers for delegating work to Mirally.
  *
  * Voice providers call this function tool when a spoken request needs normal
  * agent tools, memory, workspace context, or current information before reply.
@@ -7,11 +7,11 @@
 import {
   normalizeOptionalLowercaseString,
   normalizeOptionalString,
-} from "@openclaw/normalization-core/string-coerce";
+} from "@mirally/normalization-core/string-coerce";
 import type { RealtimeVoiceTool } from "./provider-types.js";
 
 /** Stable provider-facing tool name for realtime voice agent delegation. */
-export const REALTIME_VOICE_AGENT_CONSULT_TOOL_NAME = "openclaw_agent_consult";
+export const REALTIME_VOICE_AGENT_CONSULT_TOOL_NAME = "mirally_agent_consult";
 /** Closed policy set controlling whether the consult tool is exposed. */
 export const REALTIME_VOICE_AGENT_CONSULT_TOOL_POLICIES = [
   "safe-read-only",
@@ -39,7 +39,7 @@ export const REALTIME_VOICE_AGENT_CONSULT_TOOL: RealtimeVoiceTool = {
   type: "function",
   name: REALTIME_VOICE_AGENT_CONSULT_TOOL_NAME,
   description:
-    "Delegate the caller's request to the configured OpenClaw agent for normal tool-backed work, actions, context, memory, or reasoning before speaking.",
+    "Delegate the caller's request to the configured Mirally agent for normal tool-backed work, actions, context, memory, or reasoning before speaking.",
   parameters: {
     type: "object",
     properties: {
@@ -72,7 +72,7 @@ export function buildRealtimeVoiceAgentConsultWorkingResponse(
   return {
     status: "working",
     tool: REALTIME_VOICE_AGENT_CONSULT_TOOL_NAME,
-    message: `Tell the ${audienceLabel} briefly that you are checking, then wait for the final OpenClaw result before answering with the actual result.`,
+    message: `Tell the ${audienceLabel} briefly that you are checking, then wait for the final Mirally result before answering with the actual result.`,
   };
 }
 
@@ -136,7 +136,7 @@ function readRealtimeVoiceCustomToolName(tool: RealtimeVoiceTool): string | unde
   }
 }
 
-/** Resolve the OpenClaw tool allowlist paired with the consult exposure policy. */
+/** Resolve the Mirally tool allowlist paired with the consult exposure policy. */
 export function resolveRealtimeVoiceAgentConsultToolsAllow(
   policy: RealtimeVoiceAgentConsultToolPolicy,
 ): string[] | undefined {
@@ -160,7 +160,7 @@ export function buildRealtimeVoiceAgentConsultPolicyInstructions(config: {
   if (config.consultPolicy === "always") {
     return [
       "Consult behavior:",
-      "- Call openclaw_agent_consult before every substantive answer.",
+      "- Call mirally_agent_consult before every substantive answer.",
       "- You may answer directly only for greetings, acknowledgements, brief latency tests, or filler while waiting for the consult result.",
       "- After the consult result arrives, speak that result concisely.",
     ].join("\n");
@@ -168,7 +168,7 @@ export function buildRealtimeVoiceAgentConsultPolicyInstructions(config: {
   return [
     "Consult behavior:",
     "- Answer directly for greetings, acknowledgements, simple conversational glue, and brief latency tests.",
-    "- Call openclaw_agent_consult before answering requests that need facts, memory, current information, tools, workspace state, or the user's OpenClaw-specific context.",
+    "- Call mirally_agent_consult before answering requests that need facts, memory, current information, tools, workspace state, or the user's Mirally-specific context.",
     "- Keep spoken replies concise and natural.",
   ].join("\n");
 }
@@ -185,14 +185,14 @@ export function buildRealtimeVoiceSessionInstructions(params: {
     return [
       params.base,
       params.bootstrapContextInstructions?.trim(),
-      "Mode: OpenClaw agent proxy.",
-      "You are the realtime voice surface for the same OpenClaw agent the user can message directly.",
+      "Mode: Mirally agent proxy.",
+      "You are the realtime voice surface for the same Mirally agent the user can message directly.",
       "Do not mention a backend, supervisor, helper, or separate system. Present the result as your own work.",
-      "Delegate substantive requests, actions, tool work, current facts, memory, workspace context, and user-specific context with openclaw_agent_consult.",
-      "Do not block, refuse, or downscope at the voice layer. Delegate to OpenClaw and treat its result as authoritative.",
+      "Delegate substantive requests, actions, tool work, current facts, memory, workspace context, and user-specific context with mirally_agent_consult.",
+      "Do not block, refuse, or downscope at the voice layer. Delegate to Mirally and treat its result as authoritative.",
       "Answer directly only for greetings, acknowledgements, brief latency tests, or filler while waiting.",
-      'While waiting for OpenClaw data or tool results, use at most one short natural backchannel such as "yeah", "mm-hmm", "got it", or "one sec"; vary it and do not treat it as the final answer.',
-      "When OpenClaw sends an internal exact answer to speak, do not call tools. Say only that answer.",
+      'While waiting for Mirally data or tool results, use at most one short natural backchannel such as "yeah", "mm-hmm", "got it", or "one sec"; vary it and do not treat it as the final answer.',
+      "When Mirally sends an internal exact answer to speak, do not call tools. Say only that answer.",
       buildRealtimeVoiceAgentConsultPolicyInstructions({
         toolPolicy: params.toolPolicy,
         consultPolicy: params.consultPolicy,
@@ -202,7 +202,7 @@ export function buildRealtimeVoiceSessionInstructions(params: {
   return [
     params.base,
     params.bootstrapContextInstructions?.trim(),
-    'While waiting for OpenClaw data or tool results, use at most one short natural backchannel such as "yeah", "mm-hmm", "got it", or "one sec"; vary it and do not treat it as the final answer.',
+    'While waiting for Mirally data or tool results, use at most one short natural backchannel such as "yeah", "mm-hmm", "got it", or "one sec"; vary it and do not treat it as the final answer.',
     buildRealtimeVoiceAgentConsultPolicyInstructions({
       toolPolicy: params.toolPolicy,
       consultPolicy: params.consultPolicy,
@@ -245,7 +245,7 @@ export function buildRealtimeVoiceAgentConsultChatMessage(args: unknown): string
     .join("\n\n");
 }
 
-/** Build the delegated OpenClaw agent prompt for a live voice consult. */
+/** Build the delegated Mirally agent prompt for a live voice consult. */
 export function buildRealtimeVoiceAgentConsultPrompt(params: {
   args: unknown;
   transcript: RealtimeVoiceAgentConsultTranscriptEntry[];
@@ -267,7 +267,7 @@ export function buildRealtimeVoiceAgentConsultPrompt(params: {
 
   return [
     `Live voice request from the ${questionSourceLabel} during ${params.surface}.`,
-    "Act as the configured OpenClaw agent on behalf of this user. Use available tools when the request asks you to do work.",
+    "Act as the configured Mirally agent on behalf of this user. Use available tools when the request asks you to do work.",
     "When finished, return only the concise result the realtime voice agent should speak back.",
     "Do not include markdown, tool logs, or private reasoning. Include citations only when the spoken answer needs them.",
     parsed.responseStyle ? `Spoken style: ${parsed.responseStyle}` : undefined,

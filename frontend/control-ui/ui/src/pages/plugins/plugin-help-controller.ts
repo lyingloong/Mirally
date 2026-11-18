@@ -67,7 +67,7 @@ export class PluginHelpController implements ReactiveController {
       : undefined;
     this.plugin =
       model.connected &&
-      canCallGatewayMethod(context.gateway.snapshot, "openclaw.chat", "operator.admin")
+      canCallGatewayMethod(context.gateway.snapshot, "mirally.chat", "operator.admin")
         ? installed
           ? {
               id: installed.id,

@@ -7,7 +7,7 @@
 
   function active() {
     return [...(root.document?.querySelectorAll(
-      'openclaw-chat-pane.chat-pane-cache__pane--active') ?? [])]
+      'mirally-chat-pane.chat-pane-cache__pane--active') ?? [])]
       .find(pane => pane.presented !== false && pane.state?.handleSendChat) ?? null;
   }
 

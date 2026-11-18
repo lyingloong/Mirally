@@ -176,10 +176,10 @@ function renderTranscriptShell(
       ${transcriptContents}
       ${
         props.commentAttachments?.attachments?.some((attachment) => attachment.selectionAnnotation)
-          ? html`<openclaw-chat-comment-pins
+          ? html`<mirally-chat-comment-pins
               .props=${props.commentAttachments}
               .sessionKey=${props.sessionKey}
-            ></openclaw-chat-comment-pins>`
+            ></mirally-chat-comment-pins>`
           : nothing
       }
     </div>

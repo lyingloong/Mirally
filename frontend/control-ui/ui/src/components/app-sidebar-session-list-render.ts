@@ -169,7 +169,7 @@ export function renderSessionSection(params: {
   </span>`;
   const ownerAvatar = personOwner
     ? html`<span class="sidebar-session-group-toggle__person"
-        ><openclaw-viewer-avatar
+        ><mirally-viewer-avatar
           .identity=${personOwner.identity}
           .user=${{
             id: personOwner.id,
@@ -180,7 +180,7 @@ export function renderSessionSection(params: {
           .markAsViewer=${false}
           variant="session"
           aria-hidden="true"
-        ></openclaw-viewer-avatar>
+        ></mirally-viewer-avatar>
         ${
           presence
             ? html`<span
@@ -695,7 +695,7 @@ export function renderSessionListFrame(host: SidebarSessionListHost, body: unkno
                 data-sidebar-session-error
               >
                 <span class="callout__content">${host.sessionData.sessionMutationError}</span>
-                <openclaw-tooltip .content=${t("chat.actions.dismissError")}>
+                <mirally-tooltip .content=${t("chat.actions.dismissError")}>
                   <button
                     class="callout__dismiss"
                     type="button"
@@ -704,7 +704,7 @@ export function renderSessionListFrame(host: SidebarSessionListHost, body: unkno
                   >
                     ${icons.x}
                   </button>
-                </openclaw-tooltip>
+                </mirally-tooltip>
               </div>
             `
           : nothing

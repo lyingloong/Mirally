@@ -17,7 +17,7 @@ export function renderChatSelectionAnnotations(props: ChatAttachmentControlsProp
     action: "edit" | "delete" | "delete-all",
   ) => {
     event.currentTarget?.dispatchEvent(
-      new CustomEvent("openclaw-comment-action", {
+      new CustomEvent("mirally-comment-action", {
         bubbles: true,
         composed: true,
         detail: { id, action },

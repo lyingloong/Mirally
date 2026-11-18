@@ -227,20 +227,20 @@ export class LazyCustomElementRequestController {
 }
 
 export const COMMAND_PALETTE_ELEMENT = {
-  tagName: "openclaw-command-palette",
+  tagName: "mirally-command-palette",
   label: "command palette",
   loadModule: () => import("../components/command-palette.ts"),
 } satisfies OptionalCustomElement;
 
 export const DEBUG_OVERLAY_ELEMENT = {
-  tagName: "openclaw-debug-overlay",
+  tagName: "mirally-debug-overlay",
   get label() {
     return t("debug.overlay.title");
   },
   loadModule: () => import("../pages/debug/debug-overlay.ts"),
 } satisfies OptionalCustomElement;
 
-const KEYBOARD_SHORTCUTS_TAG = "openclaw-keyboard-shortcuts-dialog";
+const KEYBOARD_SHORTCUTS_TAG = "mirally-keyboard-shortcuts-dialog";
 
 export const KEYBOARD_SHORTCUTS_ELEMENT = {
   tagName: KEYBOARD_SHORTCUTS_TAG,
@@ -250,7 +250,7 @@ export const KEYBOARD_SHORTCUTS_ELEMENT = {
   loadModule: () => import("../components/keyboard-shortcuts-dialog.ts"),
 } satisfies OptionalCustomElement;
 
-const APP_SIDEBAR_TAG = "openclaw-app-sidebar";
+const APP_SIDEBAR_TAG = "mirally-app-sidebar";
 
 export const APP_SIDEBAR_ELEMENT = {
   tagName: APP_SIDEBAR_TAG,
@@ -258,7 +258,7 @@ export const APP_SIDEBAR_ELEMENT = {
   loadModule: () => import("../components/app-sidebar.ts"),
 } satisfies OptionalCustomElement;
 
-const MACOS_TITLEBAR_TAG = "openclaw-macos-titlebar-controls";
+const MACOS_TITLEBAR_TAG = "mirally-macos-titlebar-controls";
 
 export const MACOS_TITLEBAR_ELEMENT = {
   tagName: MACOS_TITLEBAR_TAG,
@@ -267,31 +267,31 @@ export const MACOS_TITLEBAR_ELEMENT = {
 } satisfies OptionalCustomElement;
 
 export const SIDEBAR_ATTENTION_ELEMENT = {
-  tagName: "openclaw-sidebar-attention",
+  tagName: "mirally-sidebar-attention",
   label: t("attention.issues"),
   loadModule: () => import("../components/sidebar-attention.ts"),
 } satisfies OptionalCustomElement;
 
 export const TERMINAL_PANEL_ELEMENT = {
-  tagName: "openclaw-terminal-panel",
+  tagName: "mirally-terminal-panel",
   label: "terminal panel",
   loadModule: () => import("../components/terminal/terminal-panel-registration.ts"),
 } satisfies OptionalCustomElement;
 
 export const BROWSER_PANEL_ELEMENT = {
-  tagName: "openclaw-browser-panel",
+  tagName: "mirally-browser-panel",
   label: "browser panel",
   loadModule: () => import("../components/browser/browser-panel.ts"),
 } satisfies OptionalCustomElement;
 
 export const DESKTOP_PANEL_ELEMENT = {
-  tagName: "openclaw-desktop-panel",
+  tagName: "mirally-desktop-panel",
   label: "desktop panel",
   loadModule: () => import("../components/desktop/desktop-panel.ts"),
 } satisfies OptionalCustomElement;
 
 export const LINK_READER_PANEL_ELEMENT = {
-  tagName: "openclaw-link-reader-panel",
+  tagName: "mirally-link-reader-panel",
   get label() {
     return t("linkReader.title");
   },
@@ -299,7 +299,7 @@ export const LINK_READER_PANEL_ELEMENT = {
 } satisfies OptionalCustomElement;
 
 export const DASHBOARD_DOCUMENT_ELEMENT = {
-  tagName: "openclaw-board-document",
+  tagName: "mirally-board-document",
   label: "dashboard document",
   loadModule: () => import("../components/board/board-document.ts"),
 } satisfies OptionalCustomElement;
@@ -307,12 +307,12 @@ export const DASHBOARD_DOCUMENT_ELEMENT = {
 // Loaded only for approval document URLs: the approval page pulls the protocol
 // validators (typebox runtime) and must stay out of the normal startup graph.
 export const APPROVAL_PAGE_ELEMENT = {
-  tagName: "openclaw-approval-page",
+  tagName: "mirally-approval-page",
   label: "approval page",
   loadModule: () => import("../pages/approval/approval-page-registration.ts"),
 } satisfies OptionalCustomElement;
 
-const QUESTION_PAGE_TAG = "openclaw-question-page";
+const QUESTION_PAGE_TAG = "mirally-question-page";
 
 export const QUESTION_PAGE_ELEMENT = {
   tagName: QUESTION_PAGE_TAG,
@@ -322,7 +322,7 @@ export const QUESTION_PAGE_ELEMENT = {
 
 // The card is in the chat graph, but modal-only queue controls stay off the
 // startup path until an approval is actually pending.
-const EXEC_APPROVAL_TAG = "openclaw-exec-approval";
+const EXEC_APPROVAL_TAG = "mirally-exec-approval";
 
 export const EXEC_APPROVAL_ELEMENT = {
   tagName: EXEC_APPROVAL_TAG,
@@ -337,7 +337,7 @@ export function isOptionalElementDefined(element: OptionalCustomElement): boolea
 }
 
 export const LOGIN_GATE_ELEMENT = {
-  tagName: "openclaw-login-gate",
+  tagName: "mirally-login-gate",
   label: "login screen",
   loadModule: () => import("../components/login-gate.ts"),
 } satisfies OptionalCustomElement;

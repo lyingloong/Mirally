@@ -1,4 +1,4 @@
-import type { EnvironmentSummary, WorkerDesktopAppId } from "@openclaw/gateway-protocol";
+import type { EnvironmentSummary, WorkerDesktopAppId } from "@mirally/gateway-protocol";
 import { html, type TemplateResult } from "lit";
 import { t } from "../../i18n/index.ts";
 import type { DockLayoutController } from "../dock-layout-controller.ts";

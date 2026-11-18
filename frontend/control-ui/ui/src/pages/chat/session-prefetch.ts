@@ -1,4 +1,4 @@
-import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
+import { asOptionalRecord } from "@mirally/normalization-core/record-coerce";
 import type { ReactiveController, ReactiveControllerHost } from "lit";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import type { GatewaySessionRow } from "../../api/types.ts";
@@ -26,7 +26,7 @@ import type { SessionSnapshotStore } from "./session-snapshot-store.ts";
 const SESSION_PREFETCH_COUNT = 2;
 const SESSION_PREFETCH_INITIAL_DELAY_MS = 250;
 const SESSION_PREFETCH_COOLDOWN_MS = 30_000;
-const SESSION_PREFETCH_LOCK_NAME = "openclaw-chat-prefetch";
+const SESSION_PREFETCH_LOCK_NAME = "mirally-chat-prefetch";
 
 type ChatSnapshotKeyHost = Parameters<typeof resolveChatSnapshotKey>[0];
 
@@ -530,7 +530,7 @@ class SessionPrefetchController implements ReactiveController {
   hostConnected(): void {
     // Home is a sibling of the page. Observe every pane on this socket through
     // its shell, including lifecycle edges that cannot bubble after removal.
-    this.paneRoot = this.host.closest("openclaw-app-shell") ?? this.host;
+    this.paneRoot = this.host.closest("mirally-app-shell") ?? this.host;
     this.paneRoot.addEventListener(CHAT_TRANSCRIPT_LOADING_CHANGED_EVENT, this.sync);
     this.paneRoot.addEventListener(CHAT_PANE_LIFECYCLE_CHANGED_EVENT, this.sync);
     this.paneRoot.addEventListener("pointerover", this.handleNavigationIntent);
@@ -559,7 +559,7 @@ class SessionPrefetchController implements ReactiveController {
         (target): target is HTMLElement =>
           target instanceof HTMLElement && target.hasAttribute("data-session-key"),
       );
-    if (row && row.closest("openclaw-app-shell") !== this.paneRoot.closest("openclaw-app-shell")) {
+    if (row && row.closest("mirally-app-shell") !== this.paneRoot.closest("mirally-app-shell")) {
       return;
     }
     const sessionKey = row?.dataset.sessionKey ?? null;
@@ -584,8 +584,8 @@ class SessionPrefetchController implements ReactiveController {
     if (!context) {
       return;
     }
-    const panes = [...this.paneRoot.querySelectorAll<ChatPaneElement>("openclaw-chat-pane")].filter(
-      (pane) => pane.closest("openclaw-app-shell") === this.paneRoot.closest("openclaw-app-shell"),
+    const panes = [...this.paneRoot.querySelectorAll<ChatPaneElement>("mirally-chat-pane")].filter(
+      (pane) => pane.closest("mirally-app-shell") === this.paneRoot.closest("mirally-app-shell"),
     );
     const openSessionKeys = panes.flatMap((pane) => (pane.sessionKey ? [pane.sessionKey] : []));
     const sessions = context.sessions;

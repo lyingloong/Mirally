@@ -1,5 +1,5 @@
 // Control UI controller manages agent files gateway state.
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { GatewayRequestError, type GatewayBrowserClient } from "../../api/gateway.ts";
 import type {
   AgentsFilesGetResult,

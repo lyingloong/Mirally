@@ -86,12 +86,12 @@ function renderPersonAvatar(person: PresenceViewer, showPresence = false) {
     >`;
   }
   return html`<span class="activity-feed__person-avatar">
-    <openclaw-viewer-avatar
+    <mirally-viewer-avatar
       .identity=${{ type: "profile", id: person.id }}
       .user=${person}
       .markAsViewer=${false}
       variant="footer"
-    ></openclaw-viewer-avatar>
+    ></mirally-viewer-avatar>
     ${
       showPresence && (person.entries?.length ?? 0) > 0
         ? html`<span
@@ -315,12 +315,12 @@ function renderSessionLink(
               ></span>`
             : nothing
         }
-        <openclaw-viewer-avatar
+        <mirally-viewer-avatar
           .identity=${row.owner?.actor.identity ?? row.createdActor?.identity}
           .user=${owner}
           .markAsViewer=${false}
           variant="footer"
-        ></openclaw-viewer-avatar>
+        ></mirally-viewer-avatar>
       </span>
       <span class="activity-feed__session-main">
         <span class="activity-feed__session-title">${resolveSessionDisplayName(row.key, row)}</span>
@@ -358,18 +358,18 @@ function renderSessionLink(
       </span>
     </${tag}>
     ${renderSessionActivitySummary(row, onSummaryRetry)}
-    <openclaw-activity-session-git
+    <mirally-activity-session-git
       .context=${context}
       .sessionKey=${scopedSessionArtifactKey(row.key, agentId)}
       .agentId=${agentId}
-    ></openclaw-activity-session-git>
-    <openclaw-activity-session-media
+    ></mirally-activity-session-git>
+    <mirally-activity-session-media
       .context=${context}
       .sessionKey=${scopedSessionArtifactKey(row.key, agentId)}
       .agentId=${agentId}
       .revision=${row.updatedAt ?? 0}
       .session=${row}
-    ></openclaw-activity-session-media>
+    ></mirally-activity-session-media>
     ${
       activeObserverRunId
         ? html`<a
@@ -438,12 +438,12 @@ function renderIdentityHeader(
   return html`
     <section class="activity-feed__identity" data-activity-identity=${identity.id}>
       <div class="activity-feed__identity-main">
-        <openclaw-viewer-avatar
+        <mirally-viewer-avatar
           .identity=${{ type: "profile", id: identity.id }}
           .user=${identity}
           .markAsViewer=${false}
           variant="profile"
-        ></openclaw-viewer-avatar>
+        ></mirally-viewer-avatar>
         <div class="activity-feed__identity-copy">
           <h2>${presenceViewerLabel(identity)}</h2>
           ${identity.email ? html`<p>${identity.email}</p>` : nothing}
@@ -464,7 +464,7 @@ function renderIdentityHeader(
                   ${device ? html`<span>${device}</span>` : nothing}
                   ${
                     entry.ip
-                      ? html`<openclaw-ip-location .ip=${entry.ip}></openclaw-ip-location>`
+                      ? html`<mirally-ip-location .ip=${entry.ip}></mirally-ip-location>`
                       : nothing
                   }
                   ${

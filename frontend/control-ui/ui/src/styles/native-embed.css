@@ -1,5 +1,5 @@
 /* Loaded only for the document-start native embed capability. */
-html.openclaw-native-embed .shell--embed {
+html.mirally-native-embed .shell--embed {
   --shell-nav-width: 0px;
   --shell-topbar-height: 0px;
   --shell-chrome-safe-area-left: 0px;
@@ -51,7 +51,7 @@ html.openclaw-native-embed .shell--embed {
   height: 20px;
 }
 
-.native-embed-header > openclaw-settings-save-indicator {
+.native-embed-header > mirally-settings-save-indicator {
   margin-inline-start: auto;
 }
 

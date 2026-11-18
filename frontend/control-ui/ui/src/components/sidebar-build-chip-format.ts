@@ -1,4 +1,4 @@
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import { html, type TemplateResult } from "lit";
 import type { ControlUiBuildInfo } from "../build-info.ts";
 import { t } from "../i18n/index.ts";

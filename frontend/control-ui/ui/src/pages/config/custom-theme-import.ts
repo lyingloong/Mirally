@@ -1,5 +1,5 @@
-import { asNullableRecord as readThemeRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { asNullableRecord as readThemeRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import {
   THEME_ID_PATTERN,
   describeThemeLabel,

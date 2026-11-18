@@ -1,4 +1,4 @@
-import { parseDateStringTimestampMs } from "@openclaw/normalization-core/number-coercion";
+import { parseDateStringTimestampMs } from "@mirally/normalization-core/number-coercion";
 import type {
   SessionCatalogTranscriptItem,
   SessionsCatalogReadResult,
@@ -430,7 +430,7 @@ export abstract class ChatPaneSession extends ChatPaneTaskSuggestions {
             senderLabel: item.sender?.label ?? t("sessionsView.user"),
             ...(item.sender
               ? {
-                  __openclaw: {
+                  __mirally: {
                     senderIdentity: item.sender.identity,
                     senderId: item.sender.identity.id,
                     senderName: item.sender.label,

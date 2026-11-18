@@ -1,4 +1,4 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import type { ChatSelectionAnnotation } from "./chat-types.ts";
 
 /** Reads optional annotation presentation metadata without discarding its file payload. */

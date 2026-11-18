@@ -10,7 +10,7 @@ import {MirallyProduct, projectMessages} from '../kernel/dsh/packages/mirally/mi
 const asModule = source => 'data:text/javascript;base64,' + Buffer.from(stripTypeScriptTypes(source, {mode: 'transform'})).toString('base64');
 const coercion = asModule(readFileSync(new URL('../frontend/control-ui/packages/normalization-core/src/record-coerce.ts', import.meta.url), 'utf8'));
 const identitySource = readFileSync(new URL('../frontend/control-ui/packages/gateway-client/src/session-projection-message-identity.ts', import.meta.url), 'utf8')
-  .replaceAll('"@openclaw/normalization-core/record-coerce"', JSON.stringify(coercion));
+  .replaceAll('"@mirally/normalization-core/record-coerce"', JSON.stringify(coercion));
 const {readSessionMessageIdentity, readSessionMessageSequence} = await import(asModule(identitySource));
 const mergeSource = readFileSync(new URL('../frontend/control-ui/ui/src/pages/chat/history-merge.ts', import.meta.url), 'utf8');
 const receiptStart = mergeSource.indexOf('function isInitialSubmissionReceipt('), receiptEnd = mergeSource.indexOf('\nfunction readChatSubmissionBatch', receiptStart);
@@ -32,8 +32,8 @@ test('native reasoning is preserved separately from visible answers, including r
   assert.deepEqual(rows[1].content, [{type: 'thinking', thinking: '先核对已知条件。'}]);
   assert.equal(rows[2].text, '结果为 42。');
   assert.deepEqual(rows[2].content, [{type: 'thinking', thinking: '再验证结果。'}, {type: 'text', text: '结果为 42。'}]);
-  assert.equal(rows[1].__openclaw.runTerminal, undefined); assert.equal(rows[2].__openclaw.runTerminal, true);
-  assert.deepEqual(rows.slice(1).map(row => row.__openclaw.runId), ['real-run', 'real-run']);
+  assert.equal(rows[1].__mirally.runTerminal, undefined); assert.equal(rows[2].__mirally.runTerminal, true);
+  assert.deepEqual(rows.slice(1).map(row => row.__mirally.runId), ['real-run', 'real-run']);
   assert.equal(JSON.stringify(source), before, 'Displaying reasoning cannot alter native replay content');
 });
 
@@ -50,10 +50,10 @@ test('queued human rows have one stable receipt and assistant ownership follows 
   assert.deepEqual(rows.map(row => row.command_id), ['run-a', 'run-b', 'run-a', 'run-b']);
   assert.equal(rows[0].native_seq, 0); assert.equal(rows[0].seq, 1); assert.equal(rows[0].timestamp, events[0].time);
   assert.equal(rows[1].native_seq, 4); assert.equal(rows[1].seq, 5, 'Consumption must not replace the first durable admission receipt');
-  assert.equal(rows[2].__openclaw.runTerminal, true);
+  assert.equal(rows[2].__mirally.runTerminal, true);
   assert.equal(JSON.stringify(events), before, 'Projection cannot rewrite the native transcript');
   const persisted = readSessionMessageIdentity(rows[0]);
-  const optimistic = readSessionMessageIdentity({role: 'user', content: [{type: 'text', text: '第一条需求'}], __openclaw: {idempotencyKey: 'run-a:user'}});
+  const optimistic = readSessionMessageIdentity({role: 'user', content: [{type: 'text', text: '第一条需求'}], __mirally: {idempotencyKey: 'run-a:user'}});
   assert.equal(persisted.sendId, optimistic.sendId); assert.equal(persisted.runId, 'run-a');
   assert.equal(readSessionMessageSequence(rows[0]), 1);
   assert.equal(isInitialSubmissionReceipt({kind: 'initial', pendingRunId: 'run-a'}, persisted), true);

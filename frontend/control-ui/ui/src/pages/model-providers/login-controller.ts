@@ -285,7 +285,7 @@ export class ModelProviderLoginController implements ReactiveController {
         ].some((text) => text.toLocaleLowerCase().includes(query)),
       );
       return html`
-        <openclaw-modal-dialog
+        <mirally-modal-dialog
           label=${t("modelProviders.login.title")}
           @modal-cancel=${() => this.reset()}
         >
@@ -484,7 +484,7 @@ export class ModelProviderLoginController implements ReactiveController {
               <button class="btn" @click=${() => this.reset()}>${t("common.cancel")}</button>
             </div>
           </div>
-        </openclaw-modal-dialog>
+        </mirally-modal-dialog>
       `;
     }
     return this.wizard.render({ busy: this.mutationActive, refreshWarning: this.refreshWarning });

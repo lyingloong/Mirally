@@ -2,7 +2,7 @@ import type {
   DesktopSource,
   EnvironmentSummary,
   EnvironmentsListResult,
-} from "@openclaw/gateway-protocol";
+} from "@mirally/gateway-protocol";
 import { GatewayRequestError, type GatewayBrowserClient } from "../../api/gateway.ts";
 
 async function requestDesktopEnvironments(

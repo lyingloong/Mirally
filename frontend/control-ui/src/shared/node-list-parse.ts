@@ -1,6 +1,6 @@
 // Node list parsing helpers normalize node inventory records from CLI output.
-import { asRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { asRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import type { NodeListNode, PairedNode, PairingList, PendingRequest } from "./node-list-types.js";
 
 // pending/paired rows are blind-cast from a permissive pairing file, so any scalar can be

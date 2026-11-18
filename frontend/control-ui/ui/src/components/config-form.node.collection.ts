@@ -407,7 +407,7 @@ function renderArrayContent(
           </button>
         </div>
       </div>
-      <openclaw-config-form-collection-draft
+      <mirally-config-form-collection-draft
         id=${draftId}
         .props=${draftProps}
         @config-collection-draft-commit=${(event: CustomEvent<ConfigFormCollectionDraftCommit>) => {
@@ -427,7 +427,7 @@ function renderArrayContent(
             event.preventDefault();
           }
         }}
-      ></openclaw-config-form-collection-draft>
+      ></mirally-config-form-collection-draft>
       ${
         arrayValue.length === 0
           ? params.compact
@@ -448,7 +448,7 @@ function renderArrayContent(
                       uniqueItems,
                       false,
                     );
-                    const removeControl = html` <openclaw-tooltip
+                    const removeControl = html` <mirally-tooltip
                       .content=${t("configForm.removeItem")}
                     >
                       <button
@@ -479,7 +479,7 @@ function renderArrayContent(
                       >
                         ${icons.trash}
                       </button>
-                    </openclaw-tooltip>`;
+                    </mirally-tooltip>`;
                     const valueControl = renderNode({
                       schema: inherited ? schemaWithDefault(itemSchema, item) : itemSchema,
                       value: inherited ? undefined : item,

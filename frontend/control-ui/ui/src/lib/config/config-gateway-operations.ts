@@ -1,6 +1,6 @@
-import { ErrorCodes, isGatewayProtocolResponseError } from "@openclaw/gateway-client/browser";
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
-import { err as failure, ok, type Result } from "@openclaw/normalization-core/result";
+import { ErrorCodes, isGatewayProtocolResponseError } from "@mirally/gateway-client/browser";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
+import { err as failure, ok, type Result } from "@mirally/normalization-core/result";
 import { GatewayRequestError, type GatewayBrowserClient } from "../../api/gateway.ts";
 import type { ConfigSchemaResponse, ConfigSnapshot } from "../../api/types.ts";
 import { t } from "../../i18n/index.ts";

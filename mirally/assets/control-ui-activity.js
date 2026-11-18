@@ -180,7 +180,7 @@
       const node = $('[data-slot="error"]');
       if (node) node.hidden = !value;
     };
-    const context = () => document.querySelector('openclaw-app')?.context;
+    const context = () => document.querySelector('mirally-app')?.context;
     function open() {
       const native = context();
       if (!native?.navigate) return false;
@@ -475,7 +475,7 @@
       const next = isPage(root.location, !!root.__mirallyHost), main = document.querySelector('#control-ui-main');
       if (next && main) {
         if (!panel) createPanel();
-        const outlet = main.querySelector('openclaw-router-outlet');
+        const outlet = main.querySelector('mirally-router-outlet');
         if (outlet && !outlets.has(outlet)) outlets.set(outlet, preserveOutlet(outlet));
         if (outlet && !outlet.hidden) outlet.hidden = true;
         if (panel.parentNode !== main) main.append(panel);

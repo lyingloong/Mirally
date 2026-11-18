@@ -1,5 +1,5 @@
 // Code region helpers expose Markdown Core spans to sanitizer consumers.
-import { expectDefined } from "@openclaw/normalization-core";
+import { expectDefined } from "@mirally/normalization-core";
 import {
   findMarkdownCodeRegions,
   parseMarkdownOwnership,

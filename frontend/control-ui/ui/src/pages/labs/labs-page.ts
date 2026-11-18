@@ -1,5 +1,5 @@
 import { consume } from "@lit/context";
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing } from "lit";
 import { state } from "lit/decorators.js";
 import { titleForRoute } from "../../app-navigation.ts";
@@ -19,7 +19,7 @@ import { resolveEditableSnapshotConfig } from "../../lib/config/config-state-mod
 import { buildExternalLinkRel, EXTERNAL_LINK_TARGET } from "../../lib/external-link.ts";
 import { formatUiError } from "../../lib/format-error.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { renderSettingsSelectRow } from "../config/settings-select-row.ts";
 import {
@@ -30,7 +30,7 @@ import {
   type LabFeature,
 } from "./labs-registry.ts";
 
-class LabsPage extends OpenClawLightDomElement {
+class LabsPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -236,6 +236,6 @@ class LabsPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-labs-page")) {
-  customElements.define("openclaw-labs-page", LabsPage);
+if (!customElements.get("mirally-labs-page")) {
+  customElements.define("mirally-labs-page", LabsPage);
 }

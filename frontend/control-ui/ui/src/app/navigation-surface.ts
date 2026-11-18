@@ -17,12 +17,12 @@ type SidebarAttentionElement = HTMLElement & { dismissPanel(): boolean };
 export function dismissNavigationTransientSurfaces(host: HTMLElement): boolean {
   // Unupgraded elements cannot own transient UI; navigation must not wait for their imports.
   const dismissedPanel = [
-    ...host.querySelectorAll<SidebarAttentionElement>("openclaw-sidebar-attention:defined"),
+    ...host.querySelectorAll<SidebarAttentionElement>("mirally-sidebar-attention:defined"),
   ]
     .map((attention) => attention.dismissPanel())
     .some((dismissed) => dismissed);
   const dismissedMenu = host
-    .querySelector<AppSidebarElement>("openclaw-app-sidebar:defined")
+    .querySelector<AppSidebarElement>("mirally-app-sidebar:defined")
     ?.dismissTransientMenus();
   return dismissedMenu === true || dismissedPanel;
 }
@@ -87,7 +87,7 @@ export function handleNavDrawerKeydown(
 
 export function moveToastToNavDrawer(host: HTMLElement): void {
   const drawer = host.querySelector<HTMLElement>(".shell-nav");
-  const toastHost = host.querySelector<HTMLElement>("openclaw-toast-host");
+  const toastHost = host.querySelector<HTMLElement>("mirally-toast-host");
   if (drawer && toastHost && toastHost.parentElement !== drawer) {
     drawer.append(toastHost);
   }
@@ -95,7 +95,7 @@ export function moveToastToNavDrawer(host: HTMLElement): void {
 
 export function restoreToastFromNavDrawer(host: HTMLElement): void {
   const shell = host.querySelector<HTMLElement>(".shell");
-  const toastHost = host.querySelector<HTMLElement>("openclaw-toast-host");
+  const toastHost = host.querySelector<HTMLElement>("mirally-toast-host");
   if (shell && toastHost?.parentElement?.classList.contains("shell-nav")) {
     shell.append(toastHost);
   }
@@ -162,15 +162,15 @@ export function renderFloatingUpdateCard(params: {
   }
   return html`${
     showAttention
-      ? html`<openclaw-sidebar-attention
+      ? html`<mirally-sidebar-attention
           class="sidebar-attention--floating"
           .onNavigate=${params.onNavigate}
           .onOpenApprovals=${params.onOpenApprovals}
-        ></openclaw-sidebar-attention>`
+        ></mirally-sidebar-attention>`
       : nothing
   }${
     showUpdateCard
-      ? html`<openclaw-sidebar-update-card
+      ? html`<mirally-sidebar-update-card
           class="sidebar-update-card--floating"
           .updateAvailable=${params.updateAvailable}
           .updateSchedule=${params.updateSchedule ?? null}
@@ -190,7 +190,7 @@ export function renderFloatingUpdateCard(params: {
           .onRefresh=${params.onRefresh}
           .onHoldUpdate=${params.onHoldUpdate ?? (async () => false)}
           .onReviewUpdate=${params.onReviewUpdate ?? (() => undefined)}
-        ></openclaw-sidebar-update-card>`
+        ></mirally-sidebar-update-card>`
       : nothing
   }`;
 }

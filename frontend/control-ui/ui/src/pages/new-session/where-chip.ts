@@ -408,7 +408,7 @@ export function renderWhereChip(params: {
             }
             ${
               showAuto
-                ? html`<openclaw-tooltip
+                ? html`<mirally-tooltip
                     class="new-session-page__environment-details"
                     placement="right-start"
                   >
@@ -440,7 +440,7 @@ export function renderWhereChip(params: {
                         <span>${autoHelp}</span>
                       </div>
                     </div>
-                  </openclaw-tooltip>`
+                  </mirally-tooltip>`
                 : nothing
             }
             ${

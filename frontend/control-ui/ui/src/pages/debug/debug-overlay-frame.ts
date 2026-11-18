@@ -25,7 +25,7 @@ export interface DebugOverlayFrameHost {
   togglePendingDebugOverlayMode(): void;
 }
 
-export const debugOverlayTemplate = html`<openclaw-debug-overlay></openclaw-debug-overlay>`;
+export const debugOverlayTemplate = html`<mirally-debug-overlay></mirally-debug-overlay>`;
 
 export function readDebugOverlayMode(
   event: { eventType: string; detail?: object } | null,

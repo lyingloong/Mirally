@@ -292,7 +292,7 @@ function renderWorktreeFields(params: {
             <div class="new-session-page__menu-note">
               ${
                 branchName
-                  ? t("newSession.worktreeBranchNote", { branch: `openclaw/${branchName}` })
+                  ? t("newSession.worktreeBranchNote", { branch: `mirally/${branchName}` })
                   : t("newSession.worktreeBranchFromTitleNote")
               }
             </div>`

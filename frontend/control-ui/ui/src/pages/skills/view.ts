@@ -1,4 +1,4 @@
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 // Control UI page renders skills screen content. The list surfaces follow the
 // settings design language (ui/docs/design-system/settings-design.md): section
 // headings outside one group surface, rows with a control cluster, dot+text
@@ -276,9 +276,9 @@ function renderClawHubDetailDialog(props: SkillsProps) {
   const detailImageUrl = skillIconUrl ?? profileImageUrl;
 
   return html`
-    <openclaw-modal-dialog
+    <mirally-modal-dialog
       label=${detail?.skill?.displayName ?? props.clawhubDetailRef ?? t("skillsPage.notFound")}
-      style="--openclaw-modal-width: min(1040px, calc(100vw - 32px));"
+      style="--mirally-modal-width: min(1040px, calc(100vw - 32px));"
       @modal-cancel=${props.onClawHubDetailClose}
     >
       <div class="exec-approval-card skill-reader-dialog">
@@ -390,7 +390,7 @@ function renderClawHubDetailDialog(props: SkillsProps) {
           }
         </div>
       </div>
-    </openclaw-modal-dialog>
+    </mirally-modal-dialog>
   `;
 }
 
@@ -435,7 +435,7 @@ function renderSkillDetail(skill: SkillStatusEntry, props: SkillsProps) {
   const installOption = skill.install.find((option) =>
     option.bins.some((bin) => missingBins.has(bin)),
   );
-  const showBundledBadge = skill.bundled && skill.source !== "openclaw-bundled";
+  const showBundledBadge = skill.bundled && skill.source !== "mirally-bundled";
   const missing = computeSkillMissing(skill);
   const reasons = computeSkillReasons(skill);
   const verdict = verdictForSkill(skill, props.clawhubVerdicts);
@@ -443,9 +443,9 @@ function renderSkillDetail(skill: SkillStatusEntry, props: SkillsProps) {
     props.detailTab === "card" && skill.skillCard?.present ? "card" : "overview";
 
   return html`
-    <openclaw-modal-dialog
+    <mirally-modal-dialog
       label=${skill.name}
-      style="--openclaw-modal-width: min(1040px, calc(100vw - 32px));"
+      style="--mirally-modal-width: min(1040px, calc(100vw - 32px));"
       @modal-cancel=${props.onDetailClose}
     >
       <div class="exec-approval-card skill-reader-dialog">
@@ -625,7 +625,7 @@ function renderSkillDetail(skill: SkillStatusEntry, props: SkillsProps) {
           </div>
         </div>
       </div>
-    </openclaw-modal-dialog>
+    </mirally-modal-dialog>
   `;
 }
 

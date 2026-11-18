@@ -440,10 +440,10 @@ export function renderAssistantAttachments(
   >
     ${
       comments.length
-        ? html`<openclaw-chat-sent-comments
+        ? html`<mirally-chat-sent-comments
             .sources=${sources}
             .scope=${JSON.stringify([options.sessionKey, options.agentId, options.connectionEpoch, options.resourceBasePath, options.authToken, options.policyKey])}
-          ></openclaw-chat-sent-comments>`
+          ></mirally-chat-sent-comments>`
         : nothing
     }
     ${files.map((item) =>
@@ -568,16 +568,16 @@ export function renderMessageAttachment(
           })
       : undefined;
   if (pastedText) {
-    return html`<openclaw-chat-pasted-text
+    return html`<mirally-chat-pasted-text
       .src=${safeAttachmentUrl && !isCrossOriginHttpSource(safeAttachmentUrl) ? safeAttachmentUrl : undefined}
       .sizeBytes=${media?.sizeBytes ?? attachment.sizeBytes}
       .scope=${JSON.stringify([attachment.url, options.sessionKey, options.agentId, options.connectionEpoch, options.resourceBasePath, options.authToken, options.policyKey])}
       .onOpen=${openAttachmentSidebar}
-    ></openclaw-chat-pasted-text>`;
+    ></mirally-chat-pasted-text>`;
   }
   if (imageAttachment) {
     const title = attachment.label.trim() || t("chat.imageLightbox.untitled");
-    return html`<openclaw-chat-svg-attachment
+    return html`<mirally-chat-svg-attachment
       .src=${attachmentUrl}
       .sourceIdentity=${attachment.url}
       .label=${title}
@@ -588,7 +588,7 @@ export function renderMessageAttachment(
         openResolvedImage(onOpenImage, src, title, release, onRequestOpenImage?.())}
       .onExpand=${openAttachmentSidebar}
       .onMediaLoaded=${onAssistantAttachmentLoaded}
-    ></openclaw-chat-svg-attachment>`;
+    ></mirally-chat-svg-attachment>`;
   }
   if ((attachment.kind === "audio" || attachment.kind === "video") && !safeAttachmentUrl) {
     return renderAssistantAttachmentStatusCard({
@@ -599,7 +599,7 @@ export function renderMessageAttachment(
     });
   }
   if (presentation === "inline" && attachment.kind === "audio") {
-    return html`<openclaw-chat-audio-player
+    return html`<mirally-chat-audio-player
       .src=${safeAttachmentUrl}
       .sourceIdentity=${attachment.url}
       .label=${attachment.label}
@@ -611,10 +611,10 @@ export function renderMessageAttachment(
       .voiceNote=${attachment.isVoiceNote === true}
       .onExpand=${attachment.isVoiceNote ? undefined : openAttachmentSidebar}
       .onMediaLoaded=${onAssistantAttachmentLoaded}
-    ></openclaw-chat-audio-player>`;
+    ></mirally-chat-audio-player>`;
   }
   if (presentation === "inline" && attachment.kind === "video") {
-    return html`<openclaw-chat-video-player
+    return html`<mirally-chat-video-player
       .src=${safeAttachmentUrl}
       .sourceIdentity=${attachment.url}
       .label=${attachment.label}
@@ -627,7 +627,7 @@ export function renderMessageAttachment(
       .onExpand=${openVideoOverlay}
       .onFallbackExpand=${openAttachmentSidebar}
       .onMediaLoaded=${onAssistantAttachmentLoaded}
-    ></openclaw-chat-video-player>`;
+    ></mirally-chat-video-player>`;
   }
   const card = renderCompactAttachmentCard({
     kind: attachment.kind,

@@ -1,4 +1,4 @@
-import { buildDeviceAuthPayload, type ConnectParams } from "@openclaw/gateway-client/browser";
+import { buildDeviceAuthPayload, type ConnectParams } from "@mirally/gateway-client/browser";
 import { loadOrCreateDeviceIdentity, signDevicePayload } from "../lib/nodes/index.ts";
 
 export async function buildGatewayConnectDevice(params: {

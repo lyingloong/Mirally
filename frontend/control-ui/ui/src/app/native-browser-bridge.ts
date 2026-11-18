@@ -1,6 +1,6 @@
 /**
  * Canonical native browser bridge (macOS and Tauri hosts mirror these keys).
- * Handler: window.webkit.messageHandlers.openclawBrowser, Promise reply {ok:true,...}
+ * Handler: window.webkit.messageHandlers.mirallyBrowser, Promise reply {ok:true,...}
  * or {ok:false,error}. Requests use type: open {tabId,url,sessionKey,activate?}, navigate
  * {tabId,url}, back/forward/reload/stop/close/snapshot/download {tabId}, inspect {tabId,x,y},
  * present {scope,tabId,rect:{x,y,width,height}|null,visible}, release-scope {scope}.
@@ -12,7 +12,7 @@
  * The window retains session-owned tabs; empty sessionKey is the non-chat dock.
  * Popups inherit their opener's session. Release-scope never closes tabs. If scopes present the
  * same tab, the most recent presentation wins until it is hidden or released.
- * Push: __OPENCLAW_NATIVE_BROWSER__ plus openclaw:native-browser-state detail,
+ * Push: __MIRALLY_NATIVE_BROWSER__ plus mirally:native-browser-state detail,
  * {revision,tabs:[{id,sessionKey?,url,title,loading,canGoBack,canGoForward,openedBy,openerTabId?,favicon?}]}.
  * Released Mac apps omit sessionKey; these legacy tabs remain window-shared.
  * Keep this bridge transition until supported app/UI releases all carry session keys.
@@ -21,7 +21,7 @@
  * Download saves the current tab through its native host, preserving its browser session;
  * its reply adds cancelled (true when the save panel was dismissed).
  */
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import type { BrowserInspectedNode } from "../components/browser/browser-client.ts";
 import { hasNativeBrowserBridge } from "./native-browser-host.ts";
 
@@ -70,20 +70,20 @@ export type NativeBrowserReply =
   | { ok: false; error: string };
 
 type NativeBrowserWindow = Window & {
-  __OPENCLAW_NATIVE_BROWSER__?: unknown;
+  __MIRALLY_NATIVE_BROWSER__?: unknown;
   webkit?: {
     messageHandlers?: {
-      openclawBrowser?: { postMessage(message: NativeBrowserMessage): Promise<unknown> };
+      mirallyBrowser?: { postMessage(message: NativeBrowserMessage): Promise<unknown> };
     };
   };
 };
-const STATE_EVENT = "openclaw:native-browser-state";
+const STATE_EVENT = "mirally:native-browser-state";
 
 function nativeWindow(): NativeBrowserWindow | undefined {
   return typeof window === "undefined" ? undefined : window;
 }
 function handler() {
-  return nativeWindow()?.webkit?.messageHandlers?.openclawBrowser;
+  return nativeWindow()?.webkit?.messageHandlers?.mirallyBrowser;
 }
 function nonempty(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && value.trim() === value;
@@ -274,7 +274,7 @@ export function readNativeBrowserState(): NativeBrowserState | null {
   if (!hasNativeBrowserBridge()) {
     return null;
   }
-  const value = nativeWindow()?.["__OPENCLAW_NATIVE_BROWSER__"];
+  const value = nativeWindow()?.["__MIRALLY_NATIVE_BROWSER__"];
   return isState(value) ? value : null;
 }
 export function subscribeNativeBrowserState(

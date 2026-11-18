@@ -1,5 +1,5 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
-import { readNonBlankString as normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
+import { readNonBlankString as normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import { normalizeQueueMode } from "../../../../src/auto-reply/reply/queue/normalize.js";
 import { readChatWorkContext } from "../../../../src/chat/work-context.js";
 import { t } from "../../i18n/index.ts";

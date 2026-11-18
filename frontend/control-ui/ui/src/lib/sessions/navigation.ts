@@ -2,7 +2,7 @@ import {
   normalizeLowercaseStringOrEmpty,
   normalizeOptionalLowercaseString,
   normalizeOptionalString,
-} from "@openclaw/normalization-core/string-coerce";
+} from "@mirally/normalization-core/string-coerce";
 import {
   isCronSessionDisplayKey,
   isSystemCreatedSessionRow,

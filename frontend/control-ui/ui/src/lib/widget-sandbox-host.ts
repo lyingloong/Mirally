@@ -1,4 +1,4 @@
-import { toStringifiedError } from "@openclaw/normalization-core";
+import { toStringifiedError } from "@mirally/normalization-core";
 import { generateUUID } from "./uuid.ts";
 
 export const WIDGET_LOAD_TIMEOUT_MS = 10_000;

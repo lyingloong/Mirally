@@ -1,5 +1,5 @@
 // Classifies sensitive config paths for redaction and validation.
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 
 /**
  * Non-sensitive field names that happen to match sensitive patterns.

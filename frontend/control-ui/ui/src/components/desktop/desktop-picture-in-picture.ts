@@ -1,7 +1,7 @@
 import { html, svg, type ReactiveController } from "lit";
 import { t } from "../../i18n/index.ts";
 import { registerDesktopEnglish } from "../../i18n/locales/en-desktop.ts";
-import type { OpenClawLitElement } from "../../lit/openclaw-element.ts";
+import type { MirallyLitElement } from "../../lit/mirally-element.ts";
 import { strokeIcon } from "../icons-tools.ts";
 import type { DesktopPanelState } from "./desktop-panel-state.ts";
 import { renderDesktopNotice } from "./desktop-panel-view.ts";
@@ -15,7 +15,7 @@ type PictureInPictureWindow = Window & {
   };
 };
 
-type DesktopPictureInPictureHost = OpenClawLitElement & {
+type DesktopPictureInPictureHost = MirallyLitElement & {
   available: boolean;
   embedded: boolean;
   presented: boolean;

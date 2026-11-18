@@ -13,7 +13,7 @@ import { t } from "../i18n/index.ts";
 import { getSafeSessionStorage } from "../local-storage.ts";
 import { canReloadControlUiDocument } from "./document-reload-guard.ts";
 
-const RELOAD_GUARD_STORAGE_KEY = "openclaw.controlUi.staleChunkReloadBuildId";
+const RELOAD_GUARD_STORAGE_KEY = "mirally.controlUi.staleChunkReloadBuildId";
 // Bounds document probes across rapid re-renders of the same error state.
 const ATTEMPT_COOLDOWN_MS = 5_000;
 // Keep timeout below the cooldown so a timed-out retry re-render cannot start
@@ -54,7 +54,7 @@ export function isStaleChunkImportError(error: unknown): boolean {
 
 export function reloadControlUiDocument(url = new URL(window.location.href)): void {
   // The pre-app mount recovery strips this one-shot cache buster before bootstrap.
-  url.searchParams.set("openclaw_mount_recovery", String(Date.now()));
+  url.searchParams.set("mirally_mount_recovery", String(Date.now()));
   window.location.replace(url.href);
 }
 
@@ -321,7 +321,7 @@ export function installMissingStylesheetRecovery(
   const isCssApplied =
     deps.isCssApplied ??
     (() =>
-      getComputedStyle(document.documentElement).getPropertyValue("--openclaw-css-ok").trim() ===
+      getComputedStyle(document.documentElement).getPropertyValue("--mirally-css-ok").trim() ===
       "1");
   const schedule = deps.schedule ?? scheduleStaleChunkReload;
   // Single-shot (timeoutMs: 0) keeps the stylesheet banner's existing

@@ -1,4 +1,4 @@
-import type { ProgressCard } from "@openclaw/gateway-protocol";
+import type { ProgressCard } from "@mirally/gateway-protocol";
 import { html, nothing } from "lit";
 import "../mirally/voice-input.ts";
 import { gatewayPresentationScope } from "../../app/gateway-presentation-scope.ts";

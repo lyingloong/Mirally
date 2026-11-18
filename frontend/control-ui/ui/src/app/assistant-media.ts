@@ -1,4 +1,4 @@
-import { normalizeRouteBasePath } from "@openclaw/uirouter";
+import { normalizeRouteBasePath } from "@mirally/ui-router";
 
 export type AssistantMediaContext = { sessionKey?: string; agentId?: string; policyKey?: string };
 
@@ -19,5 +19,5 @@ export function buildAssistantMediaUrl(
   if (context?.agentId) {
     params.set("agentId", context.agentId);
   }
-  return `${normalizeRouteBasePath(resourceBasePath)}/__openclaw__/assistant-media?${params.toString()}`;
+  return `${normalizeRouteBasePath(resourceBasePath)}/__mirally__/assistant-media?${params.toString()}`;
 }

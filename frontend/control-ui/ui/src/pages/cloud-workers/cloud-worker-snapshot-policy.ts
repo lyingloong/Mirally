@@ -1,5 +1,5 @@
 import { consume } from "@lit/context";
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing } from "lit";
 import { state } from "lit/decorators.js";
 import { parseDurationMs } from "../../../../src/cli/parse-duration.js";
@@ -10,7 +10,7 @@ import { registerSettingsEnglish } from "../../i18n/locales/en-settings.ts";
 import { resolveEditableSnapshotConfig } from "../../lib/config/config-state-model.ts";
 import { canCallGatewayMethod } from "../../lib/gateway-methods.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomContentsElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { CloudWorkerConfigSave } from "./cloud-worker-config-save.ts";
 
@@ -18,7 +18,7 @@ registerSettingsEnglish();
 
 type PolicyDraft = { refreshAfter: string; retainUnused: string; keepPrevious: "0" | "1" };
 
-class CloudWorkerSnapshotPolicy extends OpenClawLightDomContentsElement {
+class CloudWorkerSnapshotPolicy extends MirallyLightDomContentsElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
   @state() private draft: PolicyDraft | null = null;
@@ -192,6 +192,6 @@ class CloudWorkerSnapshotPolicy extends OpenClawLightDomContentsElement {
   }
 }
 
-if (!customElements.get("openclaw-cloud-worker-snapshot-policy")) {
-  customElements.define("openclaw-cloud-worker-snapshot-policy", CloudWorkerSnapshotPolicy);
+if (!customElements.get("mirally-cloud-worker-snapshot-policy")) {
+  customElements.define("mirally-cloud-worker-snapshot-policy", CloudWorkerSnapshotPolicy);
 }

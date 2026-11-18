@@ -377,7 +377,7 @@ function mountPortaledHovercard(params: {
   let ancestor: Element | null = params.anchor;
   let owner: Element = document.body;
   while (ancestor) {
-    if (ancestor.localName === "openclaw-modal-dialog") {
+    if (ancestor.localName === "mirally-modal-dialog") {
       owner = ancestor;
       break;
     }

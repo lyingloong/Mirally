@@ -1,4 +1,4 @@
-import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
+import { asOptionalRecord } from "@mirally/normalization-core/record-coerce";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import { t } from "../../i18n/index.ts";
 import { visibleChatHistoryMessages } from "../../lib/chat/message-visibility.ts";
@@ -52,7 +52,7 @@ export function attachHistoryActivity<Result extends ChatHistoryResponse>(result
   const byId = new Map(result.activity.map((entry) => [entry.messageId, entry.items]));
   const withActivity = (message: unknown) => {
     const record = asOptionalRecord(message);
-    const id = record?.messageId ?? asOptionalRecord(record?.["__openclaw"])?.id;
+    const id = record?.messageId ?? asOptionalRecord(record?.["__mirally"])?.id;
     const activity = typeof id === "string" ? byId.get(id) : undefined;
     return record && activity ? { ...record, activity } : message;
   };

@@ -2,8 +2,8 @@ import {
   hasSessionProjectionAcceptedFinal,
   isSessionProjectionErrorMessage,
   reduceSessionProjectionRunEvent,
-} from "@openclaw/gateway-client/browser";
-import { asNullableRecord as asRecord } from "@openclaw/normalization-core/record-coerce";
+} from "@mirally/gateway-client/browser";
+import { asNullableRecord as asRecord } from "@mirally/normalization-core/record-coerce";
 import { t } from "../../i18n/index.ts";
 import { accumulatedStreamText } from "../../lib/chat/chat-types.ts";
 import { isAssistantHeartbeatAckForDisplay } from "../../lib/chat/heartbeat-display.ts";

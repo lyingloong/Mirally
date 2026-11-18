@@ -1,4 +1,4 @@
-import { definePage } from "@openclaw/uirouter";
+import { definePage } from "@mirally/ui-router";
 import { html } from "lit";
 import { routePageSpec } from "../../app-route-paths.ts";
 
@@ -7,6 +7,6 @@ export const page = definePage({
   component: () =>
     import("./portals-page.ts").then(() => ({
       header: true,
-      render: () => html`<openclaw-portals-page></openclaw-portals-page>`,
+      render: () => html`<mirally-portals-page></mirally-portals-page>`,
     })),
 });

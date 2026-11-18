@@ -1,10 +1,10 @@
-const CACHE_PREFIX = "openclaw-control-";
-const EMBEDDED_CACHE_VERSION = "__OPENCLAW_CONTROL_UI_BUILD_ID__";
+const CACHE_PREFIX = "mirally-control-";
+const EMBEDDED_CACHE_VERSION = "__MIRALLY_CONTROL_UI_BUILD_ID__";
 const URL_CACHE_VERSION = new URL(self.location.href).searchParams
   .get("v")
   ?.replace(/[^a-zA-Z0-9._-]/g, "-");
 const CACHE_VERSION =
-  (EMBEDDED_CACHE_VERSION !== "__OPENCLAW_CONTROL_UI_BUILD_ID__"
+  (EMBEDDED_CACHE_VERSION !== "__MIRALLY_CONTROL_UI_BUILD_ID__"
     ? EMBEDDED_CACHE_VERSION
     : URL_CACHE_VERSION) || "dev";
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
@@ -84,7 +84,7 @@ async function reportControlUiHttpFailure(event) {
   try {
     const client = await self.clients.get(event.clientId);
     if (client?.type === "window" && controlUiPathname(new URL(client.url)) !== null) {
-      client.postMessage({ type: "openclaw-http-request-failed" }, []);
+      client.postMessage({ type: "mirally-http-request-failed" }, []);
     }
   } catch {
     // Closing a tab during its request must not replace the HTTP outcome.
@@ -131,7 +131,7 @@ self.addEventListener("fetch", (event) => {
   // Dynamic reads must reach their authority owner, including after an edge
   // login expires. Never replay previously cached metadata or media tickets.
   const cacheable = !(
-    pathname.startsWith("/__openclaw__/") ||
+    pathname.startsWith("/__mirally__/") ||
     pathname.startsWith("/api/") ||
     pathname.startsWith("/rpc") ||
     pathname.startsWith("/plugins/") ||
@@ -160,15 +160,15 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data.json();
   } catch {
-    data = { title: "OpenClaw", body: event.data.text() };
+    data = { title: "Mirally", body: event.data.text() };
   }
 
-  const title = data.title || "OpenClaw";
+  const title = data.title || "Mirally";
   const options = {
     body: data.body || "",
     icon: "./apple-touch-icon.png",
     badge: "./favicon-32.png",
-    tag: data.tag || "openclaw-notification",
+    tag: data.tag || "mirally-notification",
     renotify: data.renotify === true,
     data: {
       url: data.url || self.registration.scope,

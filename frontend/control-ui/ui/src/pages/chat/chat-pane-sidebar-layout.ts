@@ -45,23 +45,23 @@ type LazyElement = readonly [tagName: string, loadModule: () => Promise<unknown>
 
 const LAZY_SIDEBAR_ELEMENTS: Partial<Record<LazyElementKey, LazyElement>> = {
   region: [
-    "openclaw-chat-sidebar-region",
+    "mirally-chat-sidebar-region",
     () => import("./components/chat-sidebar-region.runtime.ts"),
   ],
   terminal: [
-    "openclaw-terminal-panel",
+    "mirally-terminal-panel",
     () => import("../../components/terminal/terminal-panel-registration.ts"),
   ],
   "link-reader": [
-    "openclaw-link-reader-panel",
+    "mirally-link-reader-panel",
     () => import("../../components/link-reader-panel.ts"),
   ],
-  browser: ["openclaw-browser-panel", () => import("../../components/browser/browser-panel.ts")],
-  desktop: ["openclaw-desktop-panel", () => import("../../components/desktop/desktop-panel.ts")],
-  portal: ["openclaw-portals-page", () => import("../portals/portals-page.ts")],
-  companion: ["openclaw-chat-session-rail", () => import("./components/chat-session-rail.ts")],
+  browser: ["mirally-browser-panel", () => import("../../components/browser/browser-panel.ts")],
+  desktop: ["mirally-desktop-panel", () => import("../../components/desktop/desktop-panel.ts")],
+  portal: ["mirally-portals-page", () => import("../portals/portals-page.ts")],
+  companion: ["mirally-chat-session-rail", () => import("./components/chat-session-rail.ts")],
   discussion: [
-    "openclaw-session-discussion",
+    "mirally-session-discussion",
     () => import("./components/session-discussion-panel.ts"),
   ],
 };
@@ -212,7 +212,7 @@ export function renderSidebarRegion(params: {
         ? regionError === null
           ? (regionLoading ?? null)
           : null
-        : html`<openclaw-chat-sidebar-region
+        : html`<mirally-chat-sidebar-region
             .panelIdPrefix=${panelIdPrefix}
             .layout=${params.layout}
             .fetchFavicon=${params.fetchFavicon}
@@ -223,7 +223,7 @@ export function renderSidebarRegion(params: {
             .callbacks=${params.callbacks}
             .narrow=${params.narrow}
             .availableWidth=${params.availableWidth}
-          ></openclaw-chat-sidebar-region>`
+          ></mirally-chat-sidebar-region>`
     }
     <div
       id=${`${panelIdPrefix}-conversation`}

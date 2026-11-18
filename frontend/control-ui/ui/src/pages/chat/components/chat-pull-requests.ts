@@ -1,5 +1,5 @@
 import type WaPopup from "@awesome.me/webawesome/dist/components/popup/popup.js";
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing } from "lit";
 import { ref } from "lit/directives/ref.js";
 import { repeat } from "lit/directives/repeat.js";
@@ -21,7 +21,7 @@ import {
   renderGitHubPublicationDetails,
 } from "./chat-github-publication.ts";
 
-const DISMISSED_STORAGE_KEY = "openclaw.chat.dismissedPullRequests";
+const DISMISSED_STORAGE_KEY = "mirally.chat.dismissedPullRequests";
 // Bounds localStorage growth: dismissals for the oldest sessions fall off
 // once this many sessions have dismissed chips.
 const DISMISSED_SESSION_LIMIT = 20;
@@ -172,12 +172,12 @@ function renderChecks(
             ${renderChecksRow(t("chat.pullRequests.checksRunning"), checks.running, "running")}
             ${renderChecksRow(t("chat.pullRequests.checksSkipped"), checks.skipped, "skipped")}
           </div>
-          <openclaw-chat-ci-details
+          <mirally-chat-ci-details
             .pullRequest=${pullRequest}
             .gateway=${props.gateway}
             .sessionKey=${props.sessionKey ?? ""}
             .presented=${props.presented ?? true}
-          ></openclaw-chat-ci-details>
+          ></mirally-chat-ci-details>
         </div>
       </wa-popup>
     </details>
@@ -225,11 +225,11 @@ function renderStatusWarning(status: ControlUiSessionPullRequestSnapshot["status
     status === "rate-limited" ? "chat.pullRequests.rateLimited" : "chat.pullRequests.unavailable",
   );
   return html`
-    <openclaw-tooltip content=${message}>
+    <mirally-tooltip content=${message}>
       <span class="chat-pr__warning" role="img" aria-label=${message}>
         ${icons.alertTriangle}
       </span>
-    </openclaw-tooltip>
+    </mirally-tooltip>
   `;
 }
 

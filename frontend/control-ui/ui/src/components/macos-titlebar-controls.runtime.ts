@@ -6,11 +6,11 @@ import {
   formatKeyboardShortcutCombo,
   KEYBOARD_SHORTCUT_COMBOS,
 } from "../lib/keyboard-shortcut-contract.ts";
-import { OpenClawLightDomContentsElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../lit/mirally-element.ts";
 import { icons } from "./icons.ts";
 import "./tooltip.ts";
 
-class MacosTitlebarControls extends OpenClawLightDomContentsElement {
+class MacosTitlebarControls extends MirallyLightDomContentsElement {
   @property({ attribute: false }) navCollapsed = false;
   @property({ attribute: false }) historyOnly = false;
   @property({ attribute: false }) canGoBack = false;
@@ -92,7 +92,7 @@ class MacosTitlebarControls extends OpenClawLightDomContentsElement {
     className: string;
   }) {
     return html`
-      <openclaw-tooltip .content=${options.tooltip ?? options.label}>
+      <mirally-tooltip .content=${options.tooltip ?? options.label}>
         <button
           type="button"
           class="topbar-icon-btn macos-titlebar-controls__button ${options.className}"
@@ -105,11 +105,11 @@ class MacosTitlebarControls extends OpenClawLightDomContentsElement {
         >
           ${options.icon}
         </button>
-      </openclaw-tooltip>
+      </mirally-tooltip>
     `;
   }
 }
 
-if (!customElements.get("openclaw-macos-titlebar-controls")) {
-  customElements.define("openclaw-macos-titlebar-controls", MacosTitlebarControls);
+if (!customElements.get("mirally-macos-titlebar-controls")) {
+  customElements.define("mirally-macos-titlebar-controls", MacosTitlebarControls);
 }

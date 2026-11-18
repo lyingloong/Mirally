@@ -1,12 +1,12 @@
-import { readSessionMessageIdentity } from "@openclaw/gateway-client/browser";
-import { isHttpUrl } from "@openclaw/net-policy/url-protocol";
+import { readSessionMessageIdentity } from "@mirally/gateway-client/browser";
+import { isHttpUrl } from "@mirally/net-policy/url-protocol";
 import {
   asNullableObjectRecord as readRecord,
   asNullableRecord,
   isRecord,
-} from "@openclaw/normalization-core/record-coerce";
-import { readNonBlankString } from "@openclaw/normalization-core/string-coerce";
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+} from "@mirally/normalization-core/record-coerce";
+import { readNonBlankString } from "@mirally/normalization-core/string-coerce";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 // Control UI chat domain owns pure tool-card extraction rules.
 import {
   extractCanvasFromDetails,
@@ -32,15 +32,15 @@ function resolveTranscriptMessageId(message: Record<string, unknown>): string | 
   if (typeof message.messageId === "string" && message.messageId.trim()) {
     return message.messageId;
   }
-  const openClawMeta = message["__openclaw"];
-  const transcriptMeta = asNullableRecord(openClawMeta);
+  const mirallyMeta = message["__mirally"];
+  const transcriptMeta = asNullableRecord(mirallyMeta);
   return typeof transcriptMeta?.id === "string" && transcriptMeta.id.trim()
     ? transcriptMeta.id
     : undefined;
 }
 
 function readToolOutputMetadata(value: unknown): ToolOutputMetadata | undefined {
-  const metadata = asNullableRecord(asNullableRecord(value)?.["__openclaw"]);
+  const metadata = asNullableRecord(asNullableRecord(value)?.["__mirally"]);
   const output = asNullableRecord(metadata?.toolOutput);
   return (output?.source === "provider-response" || output?.source === "execution") &&
     output.modelInput === "unverified"
@@ -374,8 +374,8 @@ function extractToolCards(message: unknown): ToolCard[] {
     typeof m.tool_name === "string";
   const content = normalizeContent(m.content);
   const messageIsError = readToolErrorFlag(m);
-  const isLiveToolStream = m["__openclawToolStreamLive"] === true;
-  const liveDiff = readRecord(m["__openclawToolStreamDiffStat"]);
+  const isLiveToolStream = m["__mirallyToolStreamLive"] === true;
+  const liveDiff = readRecord(m["__mirallyToolStreamDiffStat"]);
   const liveDiffStat =
     typeof liveDiff?.added === "number" &&
     Number.isInteger(liveDiff.added) &&
@@ -408,7 +408,7 @@ function extractToolCards(message: unknown): ToolCard[] {
         inputText: serializeToolInput(args),
         ...(details !== undefined ? { details } : {}),
         ...(isLiveToolStream
-          ? { live: true, completed: m["__openclawToolStreamResultReceived"] === true }
+          ? { live: true, completed: m["__mirallyToolStreamResultReceived"] === true }
           : {}),
         ...(liveDiffStat ? { liveDiffStat } : {}),
         messageId: transcriptMessageId,
@@ -431,7 +431,7 @@ function extractToolCards(message: unknown): ToolCard[] {
             !fallbackMatchedCards.has(card),
         );
       const text = extractToolText(item);
-      const resultMetadata = asNullableRecord(item["__openclaw"]);
+      const resultMetadata = asNullableRecord(item["__mirally"]);
       const resultMessageId =
         resultMetadata && Object.hasOwn(resultMetadata, "id")
           ? readNonBlankString(resultMetadata.id)
@@ -440,7 +440,7 @@ function extractToolCards(message: unknown): ToolCard[] {
       const outputTruncated =
         (resultMetadata && Object.hasOwn(resultMetadata, "truncated")
           ? resultMetadata
-          : asNullableRecord(m["__openclaw"])
+          : asNullableRecord(m["__mirally"])
         )?.truncated === true;
       const details = item.details ?? m.details;
       // Browser previews trigger I/O. Nested content cannot override its tool
@@ -518,7 +518,7 @@ function extractToolCards(message: unknown): ToolCard[] {
       completed: isToolResultMessage(message) || role === "tool" || role === "function",
       outputText: text,
       resultMessageId: transcriptMessageId,
-      outputTruncated: asNullableRecord(m["__openclaw"])?.truncated === true,
+      outputTruncated: asNullableRecord(m["__mirally"])?.truncated === true,
       toolOutput: readToolOutputMetadata(m),
       ...(m.details !== undefined ? { details: m.details } : {}),
       messageId: transcriptMessageId,

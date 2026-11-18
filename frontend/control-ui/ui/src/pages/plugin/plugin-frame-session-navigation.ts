@@ -1,8 +1,8 @@
-import { isValidAgentId } from "@openclaw/normalization-core/agent-id";
+import { isValidAgentId } from "@mirally/normalization-core/agent-id";
 import {
   buildControlUiSessionPath,
   parseAgentSessionKeyParts,
-} from "@openclaw/session-url-contract";
+} from "@mirally/session-url-contract";
 import {
   CONTROL_UI_PLUGIN_AUTH_GRANT_TTL_MS,
   resolveControlUiPluginTabPathname,
@@ -28,7 +28,7 @@ import {
  * no session access.
  */
 export type ControlUiPluginSessionOpenMessage = {
-  type: "openclaw-plugin-session-open";
+  type: "mirally-plugin-session-open";
   sessionKey: string;
   agentId?: string;
 };
@@ -39,7 +39,7 @@ function isPluginSessionOpenMessage(value: unknown): value is ControlUiPluginSes
   }
   return (
     "type" in value &&
-    value.type === "openclaw-plugin-session-open" &&
+    value.type === "mirally-plugin-session-open" &&
     "sessionKey" in value &&
     typeof value.sessionKey === "string" &&
     value.sessionKey.length > 0 &&

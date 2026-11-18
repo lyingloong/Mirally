@@ -10,10 +10,10 @@ import {
   resolveKeyboardShortcutSections,
 } from "../lib/keyboard-shortcut-catalog.ts";
 import { readSessionMethodAccess } from "../lib/session-method-access.ts";
-import { OpenClawLitElement } from "../lit/openclaw-element.ts";
+import { MirallyLitElement } from "../lit/mirally-element.ts";
 import "./modal-dialog.ts";
 
-class KeyboardShortcutsDialog extends OpenClawLitElement {
+class KeyboardShortcutsDialog extends MirallyLitElement {
   @property({ attribute: false }) sendShortcut: ChatSendShortcut = "enter";
   @property({ attribute: false }) newSessionHost?: ShellNewSessionHost;
   @state() private open = false;
@@ -21,7 +21,7 @@ class KeyboardShortcutsDialog extends OpenClawLitElement {
   static override styles = css`
     :host {
       display: contents;
-      --openclaw-modal-width: 560px;
+      --mirally-modal-width: 560px;
     }
 
     .dialog {
@@ -129,7 +129,7 @@ class KeyboardShortcutsDialog extends OpenClawLitElement {
 
   private readonly handleKeydown = async (event: KeyboardEvent): Promise<void> => {
     const modal = event.currentTarget;
-    const layers = document.openClawModalLayers;
+    const layers = document.mirallyModalLayers;
     if (
       event.defaultPrevented ||
       event.repeat ||
@@ -178,7 +178,7 @@ class KeyboardShortcutsDialog extends OpenClawLitElement {
       this.open = false;
     };
     return html`
-      <openclaw-modal-dialog
+      <mirally-modal-dialog
         label=${t("shortcutsOverlay.title")}
         @modal-cancel=${close}
         @keydown=${this.handleKeydown}
@@ -218,11 +218,11 @@ class KeyboardShortcutsDialog extends OpenClawLitElement {
             )}
           </div>
         </div>
-      </openclaw-modal-dialog>
+      </mirally-modal-dialog>
     `;
   }
 }
 
-if (!customElements.get("openclaw-keyboard-shortcuts-dialog")) {
-  customElements.define("openclaw-keyboard-shortcuts-dialog", KeyboardShortcutsDialog);
+if (!customElements.get("mirally-keyboard-shortcuts-dialog")) {
+  customElements.define("mirally-keyboard-shortcuts-dialog", KeyboardShortcutsDialog);
 }

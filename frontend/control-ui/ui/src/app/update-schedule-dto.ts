@@ -1,6 +1,6 @@
 // Narrow only rendered fields and tolerate additive fields across Gateway restarts.
 // Schema-parity tests enforce required strings without loading TypeBox at startup.
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { isNonEmptyProtocolString } from "../../../packages/gateway-protocol/src/protocol-value-normalization.js";
 import type { GatewayHelloOk } from "../api/gateway.ts";
 import type { UpdateAvailable, UpdateScheduleState } from "../api/types.ts";

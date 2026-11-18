@@ -2,7 +2,7 @@ import Panzoom, { type PanzoomObject } from "@panzoom/panzoom";
 import { html, nothing, type PropertyValues } from "lit";
 import { property, query, queryAll, state } from "lit/decorators.js";
 import { t } from "../i18n/index.ts";
-import { OpenClawLitElement } from "../lit/openclaw-element.ts";
+import { MirallyLitElement } from "../lit/mirally-element.ts";
 import { icons } from "./icons.ts";
 import { ImageLightboxGalleryController } from "./image-lightbox-gallery.ts";
 import { imageLightboxStyles } from "./image-lightbox.styles.ts";
@@ -32,7 +32,7 @@ function dataUrlMimeType(source: string): string | undefined {
   return mediaType === undefined ? undefined : mimeTypeEssence(mediaType);
 }
 
-class OpenClawImageLightbox extends OpenClawLitElement {
+class MirallyImageLightbox extends MirallyLitElement {
   @property({ attribute: false }) gallery?: ImageLightboxGallery;
   @property({ attribute: false }) loadFullResolution?: ImageLightboxItem["loadFullResolution"];
   @property() mediaKind: "image" | "video" = "image";
@@ -199,7 +199,7 @@ class OpenClawImageLightbox extends OpenClawLitElement {
       ? `width: min(${width}px, 100cqw, calc(100cqh * ${width! / height!}))`
       : nothing;
     return html`
-      <openclaw-modal-dialog
+      <mirally-modal-dialog
         class="mobile-edge-to-edge viewport-edge-to-edge"
         label=${dialogLabel}
         @modal-cancel=${this.emitClose}
@@ -343,7 +343,7 @@ class OpenClawImageLightbox extends OpenClawLitElement {
               : nothing
           }
         </section>
-      </openclaw-modal-dialog>
+      </mirally-modal-dialog>
     `;
   }
 
@@ -709,12 +709,12 @@ class OpenClawImageLightbox extends OpenClawLitElement {
   };
 }
 
-if (!customElements.get("openclaw-image-lightbox")) {
-  customElements.define("openclaw-image-lightbox", OpenClawImageLightbox);
+if (!customElements.get("mirally-image-lightbox")) {
+  customElements.define("mirally-image-lightbox", MirallyImageLightbox);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-image-lightbox": OpenClawImageLightbox;
+    "mirally-image-lightbox": MirallyImageLightbox;
   }
 }

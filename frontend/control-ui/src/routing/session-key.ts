@@ -2,17 +2,17 @@ import {
   isValidAgentId,
   normalizeAgentId,
   normalizeAgentIdStrict,
-} from "@openclaw/normalization-core/agent-id";
+} from "@mirally/normalization-core/agent-id";
 // Routing session key helpers build stable session keys from route targets.
 import {
   normalizeLowercaseStringOrEmpty,
   normalizeOptionalString,
-} from "@openclaw/normalization-core/string-coerce";
+} from "@mirally/normalization-core/string-coerce";
 import {
   buildAgentMainSessionKey,
   DEFAULT_MAIN_KEY,
   normalizeMainKey,
-} from "@openclaw/session-url-contract";
+} from "@mirally/session-url-contract";
 import type { ChatType } from "../channels/chat-type.js";
 import {
   isCronRunSessionKey,

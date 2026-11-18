@@ -16,7 +16,7 @@ registerCodeBlocksEnglish();
 
 type FileSidebarContent = Extract<SidebarContent, { kind: "file" }>;
 
-const FILE_WRAP_PREFERENCE_KEY = "openclaw.control.fileView.wrap.v1";
+const FILE_WRAP_PREFERENCE_KEY = "mirally.control.fileView.wrap.v1";
 
 export function loadFileWrapPreference(): boolean {
   try {
@@ -98,7 +98,7 @@ export type FileViewControls = {
 function renderFileWrapButton(controls: FileViewControls) {
   const label = t(controls.wrap ? "chat.codeBlock.disableWrap" : "chat.codeBlock.enableWrap");
   return html`
-    <openclaw-tooltip .content=${label}>
+    <mirally-tooltip .content=${label}>
       <button
         class="btn btn--sm sidebar-file-view__action sidebar-file-view__wrap"
         type="button"
@@ -108,7 +108,7 @@ function renderFileWrapButton(controls: FileViewControls) {
       >
         ${icons.wrapText}
       </button>
-    </openclaw-tooltip>
+    </mirally-tooltip>
   `;
 }
 
@@ -124,7 +124,7 @@ function renderFileCopyButton(action: FileCopyAction, controls?: FileViewControl
           : "chat.detailPanel.copyContents",
   );
   return html`
-    <openclaw-tooltip .content=${label}>
+    <mirally-tooltip .content=${label}>
       <button
         class="btn btn--sm sidebar-file-view__action ${feedback === "copied" ? "copied" : ""}"
         type="button"
@@ -133,7 +133,7 @@ function renderFileCopyButton(action: FileCopyAction, controls?: FileViewControl
       >
         ${feedback === "copied" ? icons.check : icons.copy}
       </button>
-    </openclaw-tooltip>
+    </mirally-tooltip>
   `;
 }
 
@@ -192,7 +192,7 @@ export function renderSidebarFile(
                           ${
                             content.edit
                               ? html`
-                                  <openclaw-tooltip .content=${t("chat.detailPanel.editFile")}>
+                                  <mirally-tooltip .content=${t("chat.detailPanel.editFile")}>
                                     <button
                                       class="btn btn--sm sidebar-file-view__action"
                                       type="button"
@@ -202,11 +202,11 @@ export function renderSidebarFile(
                                     >
                                       ${icons.edit}
                                     </button>
-                                  </openclaw-tooltip>
+                                  </mirally-tooltip>
                                 `
                               : nothing
                           }
-                          <openclaw-tooltip .content=${t("chat.detailPanel.searchInFile")}>
+                          <mirally-tooltip .content=${t("chat.detailPanel.searchInFile")}>
                             <button
                               class="btn btn--sm sidebar-file-view__action sidebar-file-view__search-toggle"
                               type="button"
@@ -216,11 +216,11 @@ export function renderSidebarFile(
                             >
                               ${icons.search}
                             </button>
-                          </openclaw-tooltip>
+                          </mirally-tooltip>
                           ${
                             controls.onReveal
                               ? html`
-                                  <openclaw-tooltip .content=${t("chat.detailPanel.showInFiles")}>
+                                  <mirally-tooltip .content=${t("chat.detailPanel.showInFiles")}>
                                     <button
                                       class="btn btn--sm sidebar-file-view__action"
                                       type="button"
@@ -229,7 +229,7 @@ export function renderSidebarFile(
                                     >
                                       ${icons.folder}
                                     </button>
-                                  </openclaw-tooltip>
+                                  </mirally-tooltip>
                                 `
                               : nothing
                           }

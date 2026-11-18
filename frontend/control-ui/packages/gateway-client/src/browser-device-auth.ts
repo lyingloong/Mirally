@@ -1,4 +1,4 @@
-import type { ConnectParams, HelloOk } from "@openclaw/gateway-protocol";
+import type { ConnectParams, HelloOk } from "@mirally/gateway-protocol";
 import {
   buildGatewayConnectAuth,
   resolveGatewayConnectScopes,

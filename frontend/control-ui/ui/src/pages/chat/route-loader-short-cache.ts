@@ -1,5 +1,5 @@
-import { controlUiSessionSlug, SESSION_UUID_SUFFIX_RE } from "@openclaw/session-url-contract";
-import type { RouteLocation } from "@openclaw/uirouter";
+import { controlUiSessionSlug, SESSION_UUID_SUFFIX_RE } from "@mirally/session-url-contract";
+import type { RouteLocation } from "@mirally/ui-router";
 import type { GatewaySessionRow } from "../../api/types.ts";
 import type { SessionPathTarget } from "../../app-session-route-paths.ts";
 import {

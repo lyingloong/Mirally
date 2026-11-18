@@ -1,5 +1,5 @@
-import { readSessionMessageIdentity } from "@openclaw/gateway-client/browser";
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
+import { readSessionMessageIdentity } from "@mirally/gateway-client/browser";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
 import type { ChatInputReceipts } from "../../../../packages/gateway-protocol/src/schema/logs-chat.js";
 
 /** Exact custody is independent of display pagination, but stays physical-session scoped. */
@@ -49,7 +49,7 @@ export function findChatSubmissionMessage(
 
 function nativeHistoryMessageSourceIdentity(message: unknown): string | null {
   const record = asNullableRecord(message);
-  const metadata = asNullableRecord(record?.["__openclaw"]);
+  const metadata = asNullableRecord(record?.["__mirally"]);
   const seq = metadata?.seq;
   const id = metadata?.id ?? record?.messageId;
   return typeof seq === "number" && Number.isSafeInteger(seq) && seq > 0
@@ -65,9 +65,9 @@ export function nativeHistoryMessageIdentity(message: unknown): string | null {
     return null;
   }
   const record = asNullableRecord(message);
-  const metadata = asNullableRecord(record?.["__openclaw"]);
+  const metadata = asNullableRecord(record?.["__mirally"]);
   const { recordTimestampMs: _recordTimestampMs, ...projectionMetadata } = metadata ?? {};
-  const projection = metadata ? { ...record, __openclaw: projectionMetadata } : record;
+  const projection = metadata ? { ...record, __mirally: projectionMetadata } : record;
   try {
     // History alone adds recordTimestampMs; delivery metadata is not projection identity.
     // Keep every other projection byte so siblings from one transcript row stay distinct.

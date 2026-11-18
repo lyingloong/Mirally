@@ -34,12 +34,12 @@ import {
 } from "../../lib/sessions/route-navigation.ts";
 import { createManagedWorktree } from "../../lib/worktrees/create-worktree.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 
 const WORKTREES_DOCS_URL = "https://docs.openclaw.ai/concepts/managed-worktrees";
 
 type WorktreesListResult = { worktrees: WorktreeRecord[] };
-class WorktreesPage extends OpenClawLightDomElement {
+class WorktreesPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -470,6 +470,6 @@ class WorktreesPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-worktrees-page")) {
-  customElements.define("openclaw-worktrees-page", WorktreesPage);
+if (!customElements.get("mirally-worktrees-page")) {
+  customElements.define("mirally-worktrees-page", WorktreesPage);
 }

@@ -1,1 +1,1 @@
-export { default as ko } from "virtual:openclaw-control-ui-locale/ko";
+export { default as ko } from "virtual:mirally-control-ui-locale/ko";

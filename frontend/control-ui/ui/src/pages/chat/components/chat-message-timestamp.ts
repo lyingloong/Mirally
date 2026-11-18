@@ -79,7 +79,7 @@ export function renderChatTimestamp(timestamp: number, metadata: TemplateResult[
     </time>
   `;
   return html`
-    <openclaw-tooltip
+    <mirally-tooltip
       class="msg-meta"
       ?open-on-click=${metadata.length > 0}
       content=${metadata.length ? "" : display.label}
@@ -102,7 +102,7 @@ export function renderChatTimestamp(timestamp: number, metadata: TemplateResult[
             </span>`
           : nothing
       }
-    </openclaw-tooltip>
+    </mirally-tooltip>
   `;
 }
 

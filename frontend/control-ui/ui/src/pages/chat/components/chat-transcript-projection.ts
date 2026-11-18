@@ -1,5 +1,5 @@
 // Chat-item projection, expansion, reply hydration, and guarded row rendering.
-import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
+import { asOptionalRecord } from "@mirally/normalization-core/record-coerce";
 import { nothing } from "lit";
 import { classifySessionKind } from "../../../../../src/sessions/classify-session-kind.js";
 import { markdownGitHubAliasSignature } from "../../../components/markdown-github-repositories.ts";
@@ -101,7 +101,7 @@ export function projectChatTranscript(
           return false;
         }
         const sender = resolveMessageSender(
-          asOptionalRecord(asOptionalRecord(message)?.["__openclaw"]),
+          asOptionalRecord(asOptionalRecord(message)?.["__mirally"]),
         );
         return Boolean(
           sender && !(sender.identity?.type === "profile" && sender.identity.id === props.userId),

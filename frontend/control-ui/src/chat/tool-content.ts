@@ -1,6 +1,6 @@
 // Normalizes tool result content for chat transcript rendering.
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 
 const TOOL_USE_ID_FIELDS = [
   "id",

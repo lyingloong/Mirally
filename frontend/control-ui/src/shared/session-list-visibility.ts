@@ -1,4 +1,4 @@
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 
 /** Display/discovery classification; routing validates canonical keys separately. */
 export function isCronSessionDisplayKey(key: string): boolean {

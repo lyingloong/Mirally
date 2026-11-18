@@ -1,20 +1,20 @@
-import type { UiCommandParams } from "@openclaw/gateway-protocol";
+import type { UiCommandParams } from "@mirally/gateway-protocol";
 import {
   KEYBOARD_SHORTCUT_COMBOS,
   matchesShortcutCombo,
 } from "../lib/keyboard-shortcut-contract.ts";
 import type { BrowserTabTarget } from "./browser/browser-target.ts";
 
-export const TERMINAL_PANEL_TOGGLE_EVENT = "openclaw:terminal-toggle";
-export const TERMINAL_PANEL_DOCK_BOTTOM_EVENT = "openclaw:terminal-dock-bottom";
-export const BROWSER_PANEL_TOGGLE_EVENT = "openclaw:browser-toggle";
-export const DESKTOP_PANEL_TOGGLE_EVENT = "openclaw:desktop-toggle";
-export const PORTAL_PANEL_TOGGLE_EVENT = "openclaw:portal-toggle";
-export const HOME_PANEL_TOGGLE_EVENT = "openclaw:home-toggle";
-export const CUSTODIAN_PANEL_TOGGLE_EVENT = "openclaw:custodian-toggle";
-export const DEBUG_OVERLAY_REQUEST_EVENT = "openclaw:debug-overlay-request";
-export const KEYBOARD_SHORTCUTS_REQUEST_EVENT = "openclaw:keyboard-shortcuts-request";
-export const LINK_READER_PANEL_TOGGLE_EVENT = "openclaw:link-reader-panel-toggle";
+export const TERMINAL_PANEL_TOGGLE_EVENT = "mirally:terminal-toggle";
+export const TERMINAL_PANEL_DOCK_BOTTOM_EVENT = "mirally:terminal-dock-bottom";
+export const BROWSER_PANEL_TOGGLE_EVENT = "mirally:browser-toggle";
+export const DESKTOP_PANEL_TOGGLE_EVENT = "mirally:desktop-toggle";
+export const PORTAL_PANEL_TOGGLE_EVENT = "mirally:portal-toggle";
+export const HOME_PANEL_TOGGLE_EVENT = "mirally:home-toggle";
+export const CUSTODIAN_PANEL_TOGGLE_EVENT = "mirally:custodian-toggle";
+export const DEBUG_OVERLAY_REQUEST_EVENT = "mirally:debug-overlay-request";
+export const KEYBOARD_SHORTCUTS_REQUEST_EVENT = "mirally:keyboard-shortcuts-request";
+export const LINK_READER_PANEL_TOGGLE_EVENT = "mirally:link-reader-panel-toggle";
 export type LinkReaderPanelToggleDetail = {
   url?: string;
   newTab?: boolean;
@@ -23,7 +23,7 @@ export type LinkReaderPanelToggleDetail = {
   agentId?: string;
 };
 
-export const UI_COMMAND_EVENT = "openclaw:ui-command";
+export const UI_COMMAND_EVENT = "mirally:ui-command";
 
 export type UiCommandDetail = UiCommandParams;
 

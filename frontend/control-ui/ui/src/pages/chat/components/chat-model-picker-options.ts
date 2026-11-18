@@ -74,7 +74,7 @@ const AGENT_RUNTIME_LABELS: Readonly<Record<string, string>> = {
   codex: "Codex",
   "codex-cli": "Codex",
   "google-gemini-cli": "Gemini CLI",
-  openclaw: "OpenClaw",
+  mirally: "Mirally",
 };
 
 function formatAgentRuntimeLabel(id: string): string {
@@ -246,7 +246,7 @@ export function renderChatModelPickerOption(params: {
     </span>
   </button>`;
   return detail
-    ? html`<openclaw-tooltip .content=${detail}> ${option} </openclaw-tooltip>`
+    ? html`<mirally-tooltip .content=${detail}> ${option} </mirally-tooltip>`
     : option;
 }
 

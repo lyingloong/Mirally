@@ -202,9 +202,9 @@ export function renderChatPanePlacement(props: {
             : placement && (placement.state === "draining" || placement.state === "reconciling")
               ? html`<div class="chat-pane__placement-note" role="status">
                   ${t("sessionsView.syncingCloudFilesDetail")} ·
-                  <openclaw-elapsed-time
+                  <mirally-elapsed-time
                     .startMs=${placement.stateChangedAtMs}
-                  ></openclaw-elapsed-time>
+                  ></mirally-elapsed-time>
                 </div>`
               : nothing
       }

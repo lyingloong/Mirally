@@ -1,7 +1,7 @@
 // Presentation-free by contract: confirmations and secret reveals belong to the owning
 // page, because native window.confirm/window.prompt silently answer in webviews with no
 // dialog bridge and would end the action with no outcome and no recorded reason.
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import type {
   ExecApprovalsNodeSnapshot as GatewayExecApprovalsNodeSnapshot,
   ExecApprovalsSnapshot as GatewayExecApprovalsSnapshot,

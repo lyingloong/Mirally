@@ -1,5 +1,5 @@
-import { ConnectErrorDetailCodes } from "@openclaw/gateway-client/browser";
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { ConnectErrorDetailCodes } from "@mirally/gateway-client/browser";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import type {
   MentionInboxItem,
   MentionsListResult,

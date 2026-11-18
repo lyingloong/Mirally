@@ -1,7 +1,7 @@
-import { asNonNegativeFiniteNumber } from "@openclaw/normalization-core/number-coercion";
-import { asNullableObjectRecord as readCostRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNonNegativeFiniteNumber } from "@mirally/normalization-core/number-coercion";
+import { asNullableObjectRecord as readCostRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing } from "lit";
-import { isTranscriptOnlyOpenClawAssistantMessage } from "../../../../../src/shared/transcript-only-openclaw-assistant.js";
+import { isTranscriptOnlyMirallyAssistantMessage } from "../../../../../src/shared/transcript-only-mirally-assistant.js";
 import type { GatewaySessionRow } from "../../../api/types.ts";
 import { normalizeBasePath } from "../../../app-route-paths.ts";
 import { icons } from "../../../components/icons.ts";
@@ -46,7 +46,7 @@ function latestProviderCostStats(messages: unknown[] | undefined): ProviderCostS
     if (message?.role === "user") {
       return null;
     }
-    if (message?.role !== "assistant" || isTranscriptOnlyOpenClawAssistantMessage(message)) {
+    if (message?.role !== "assistant" || isTranscriptOnlyMirallyAssistantMessage(message)) {
       continue;
     }
     const directCost = readCostRecord(message.cost);
@@ -70,7 +70,7 @@ function latestProviderCostStats(messages: unknown[] | undefined): ProviderCostS
 function latestAssistantProvider(messages: unknown[] | undefined): string | null {
   for (let index = (messages?.length ?? 0) - 1; index >= 0; index -= 1) {
     const message = readCostRecord(messages?.[index]);
-    if (message?.role !== "assistant" || isTranscriptOnlyOpenClawAssistantMessage(message)) {
+    if (message?.role !== "assistant" || isTranscriptOnlyMirallyAssistantMessage(message)) {
       continue;
     }
     return typeof message.provider === "string" ? message.provider.trim() || null : null;

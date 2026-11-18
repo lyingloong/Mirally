@@ -1,8 +1,8 @@
 import {
   normalizeSystemAgentPluginReference,
   type SystemAgentPluginReference,
-} from "@openclaw/gateway-protocol/system-agent-context";
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+} from "@mirally/gateway-protocol/system-agent-context";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import { CUSTODIAN_PANEL_TOGGLE_EVENT } from "../../components/panel-toggle-contract.ts";
 import { t } from "../../i18n/index.ts";
 import { registerPluginManagementEnglish } from "../../i18n/locales/en-plugin-management.ts";

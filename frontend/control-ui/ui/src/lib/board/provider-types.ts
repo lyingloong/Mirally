@@ -1,4 +1,4 @@
-import type { BoardCommandEvent, BoardOp, BoardSnapshot } from "@openclaw/gateway-protocol";
+import type { BoardCommandEvent, BoardOp, BoardSnapshot } from "@mirally/gateway-protocol";
 import type { BoardEventStream, BoardSnapshotSignal } from "./provider-signals.ts";
 import type { BoardWidgetAppViewState } from "./view-types.ts";
 

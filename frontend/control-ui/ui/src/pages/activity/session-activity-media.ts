@@ -11,7 +11,7 @@ import { resolveControlUiAuthToken } from "../../app/control-ui-auth.ts";
 import type { ImageLightboxItem } from "../../components/image-lightbox.types.ts";
 import { t } from "../../i18n/index.ts";
 import { registerActivityEnglish } from "../../i18n/locales/en-activity.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { renderChatImageLightbox } from "../chat/components/chat-image-lightbox.ts";
 import { renderMessageImages } from "../chat/components/chat-message-images.ts";
@@ -88,7 +88,7 @@ async function queued(state: ConnectionImages, key: string, run: () => Promise<v
   }
 }
 
-class ActivitySessionMedia extends OpenClawLightDomElement {
+class ActivitySessionMedia extends MirallyLightDomElement {
   @property({ attribute: false }) context!: ApplicationContext;
   @property() sessionKey = "";
   @property() agentId = "";
@@ -353,6 +353,6 @@ class ActivitySessionMedia extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-activity-session-media")) {
-  customElements.define("openclaw-activity-session-media", ActivitySessionMedia);
+if (!customElements.get("mirally-activity-session-media")) {
+  customElements.define("mirally-activity-session-media", ActivitySessionMedia);
 }

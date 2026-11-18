@@ -9,7 +9,7 @@ import { resolveSessionDisplayName } from "../../lib/session-display.ts";
 import type { SessionCreateOutcome } from "../../lib/sessions/create.ts";
 import { sessionNavigationTarget } from "../../lib/sessions/route-navigation.ts";
 import { showToast } from "../../lib/toast.ts";
-import type { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import type { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import "../../components/web-awesome-popover.ts";
 import "../../styles/new-session.css";
@@ -48,7 +48,7 @@ export class PaletteSessionDraft implements ReactiveController {
   private readonly idPrefix = `palette-session-${++PaletteSessionDraft.nextId}`;
 
   constructor(
-    private readonly host: OpenClawLightDomElement,
+    private readonly host: MirallyLightDomElement,
     private readonly read: () => { context: ApplicationContext | undefined; open: boolean },
     private readonly callbacks: {
       onClose: () => void;

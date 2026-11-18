@@ -10,7 +10,7 @@ import {
 } from "./github-link-eligibility.ts";
 
 export const LINK_READER_HOVERCARD_OPEN_DELAY_MS = 250;
-export const LINK_READER_HOVERCARD_PROVIDER_TAG = "openclaw-link-reader-hovercard-provider";
+export const LINK_READER_HOVERCARD_PROVIDER_TAG = "mirally-link-reader-hovercard-provider";
 
 export type LinkReaderTarget = { href: string; reader: ControlUiLinkReaderDescriptor };
 export const EMPTY_LINK_READERS: readonly ControlUiLinkReaderDescriptor[] = [];
@@ -85,7 +85,7 @@ export function isPreviewAnchor(anchor: HTMLAnchorElement): boolean {
   for (let element: Element | null = anchor; element; element = composedParent(element)) {
     if (
       element.matches(
-        "openclaw-tooltip, openclaw-browser-tab-card, wa-popover, .link-reader-hovercard, .link-hovercard, .session-progress-hovercard, .chat-source-card",
+        "mirally-tooltip, mirally-browser-tab-card, wa-popover, .link-reader-hovercard, .link-hovercard, .session-progress-hovercard, .chat-source-card",
       )
     ) {
       return false;

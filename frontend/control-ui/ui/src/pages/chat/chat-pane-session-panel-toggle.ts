@@ -24,11 +24,11 @@ import { resolveChatAgentId } from "./chat-state-route.ts";
 import { closeSlot, openSlot, setSidebarDock } from "./sidebar-layout.ts";
 
 type PanelTagName =
-  | "openclaw-link-reader-panel"
-  | "openclaw-browser-panel"
-  | "openclaw-desktop-panel"
-  | "openclaw-portals-page"
-  | "openclaw-terminal-panel";
+  | "mirally-link-reader-panel"
+  | "mirally-browser-panel"
+  | "mirally-desktop-panel"
+  | "mirally-portals-page"
+  | "mirally-terminal-panel";
 
 interface ActivePanelOwner {
   renderRoot: ParentNode;
@@ -51,11 +51,11 @@ interface SessionPanelToggleControllerOptions {
 }
 
 const panelToggleEvents = [
-  [TERMINAL_PANEL_TOGGLE_EVENT, "terminal", "openclaw-terminal-panel"],
-  [BROWSER_PANEL_TOGGLE_EVENT, "browser", "openclaw-browser-panel"],
-  [LINK_READER_PANEL_TOGGLE_EVENT, "link-reader", "openclaw-link-reader-panel"],
-  [DESKTOP_PANEL_TOGGLE_EVENT, "desktop", "openclaw-desktop-panel"],
-  [PORTAL_PANEL_TOGGLE_EVENT, "portal", "openclaw-portals-page"],
+  [TERMINAL_PANEL_TOGGLE_EVENT, "terminal", "mirally-terminal-panel"],
+  [BROWSER_PANEL_TOGGLE_EVENT, "browser", "mirally-browser-panel"],
+  [LINK_READER_PANEL_TOGGLE_EVENT, "link-reader", "mirally-link-reader-panel"],
+  [DESKTOP_PANEL_TOGGLE_EVENT, "desktop", "mirally-desktop-panel"],
+  [PORTAL_PANEL_TOGGLE_EVENT, "portal", "mirally-portals-page"],
 ] as const;
 
 /** Owns shell-to-pane panel intent handoff for the active chat presentation. */
@@ -138,8 +138,8 @@ export class ChatPaneSessionPanelToggleController {
     }
     if (slot === "terminal") {
       const intent = terminalToggleIntent(event, resolveChatAgentId(owner.state));
-      const embeddedTerminal = owner.renderRoot.querySelector("openclaw-terminal-panel[embedded]");
-      const terminalConstructor = customElements.get("openclaw-terminal-panel");
+      const embeddedTerminal = owner.renderRoot.querySelector("mirally-terminal-panel[embedded]");
+      const terminalConstructor = customElements.get("mirally-terminal-panel");
       const embeddedTerminalMounted =
         embeddedTerminal !== null &&
         terminalConstructor !== undefined &&
@@ -175,7 +175,7 @@ export class ChatPaneSessionPanelToggleController {
     this.options.pending.set(slot, queue);
     this.options.updateSidebarLayout(layout);
     void Promise.all([
-      customElements.whenDefined("openclaw-chat-sidebar-region"),
+      customElements.whenDefined("mirally-chat-sidebar-region"),
       customElements.whenDefined(tagName),
     ])
       .then(async () => {
@@ -185,8 +185,8 @@ export class ChatPaneSessionPanelToggleController {
           return;
         }
         const region = owner.renderRoot.querySelector<
-          HTMLElementTagNameMap["openclaw-chat-sidebar-region"]
-        >("openclaw-chat-sidebar-region");
+          HTMLElementTagNameMap["mirally-chat-sidebar-region"]
+        >("mirally-chat-sidebar-region");
         await region?.updateComplete;
         if (!isCurrent()) {
           return;

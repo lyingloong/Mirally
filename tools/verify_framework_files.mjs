@@ -15,17 +15,17 @@ const page=await browser.newPage({viewport:{width:1280,height:900}});page.setDef
 const errors=[];page.on('pageerror',error=>errors.push(error.stack || error.message));
 try {
  await page.goto(runtime.url+'/chat/main/'+encodeURIComponent(id)+'#token='+runtime.token);
- await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway.snapshot.phase==='connected');
- const pane=page.locator('openclaw-chat-pane.chat-pane-cache__pane--active');
+ await page.waitForFunction(()=>document.querySelector('mirally-app')?.context?.gateway.snapshot.phase==='connected');
+ const pane=page.locator('mirally-chat-pane.chat-pane-cache__pane--active');
  await pane.locator('.chat-header-session-menu__trigger').click();
  const files=pane.locator('wa-dropdown-item[value="quick:panels:session-files"]');
  await files.locator('..').hover();await files.click();
- const panel=page.locator('openclaw-chat-files-panel');await panel.waitFor();
+ const panel=page.locator('mirally-chat-files-panel');await panel.waitFor();
  await panel.getByText('迁移成果.md',{exact:false}).first().click();
- await page.waitForFunction(()=>document.querySelector('openclaw-chat-files-panel')?.textContent.includes('实际交付'));
+ await page.waitForFunction(()=>document.querySelector('mirally-chat-files-panel')?.textContent.includes('实际交付'));
  await page.screenshot({path:join(output,'original-files.png')});
  const receipts=await page.evaluate(async({id,artifact})=>{
-   const c=document.querySelector('openclaw-app').context.gateway.snapshot.client;
+   const c=document.querySelector('mirally-app').context.gateway.snapshot.client;
    const list=await c.request('artifacts.list',{sessionKey:'agent:main:'+id});
    const download=await c.request('artifacts.download',{artifactId:artifact,sessionKey:'agent:main:'+id});
    const url=download.url??download.downloadUrl;
@@ -39,13 +39,13 @@ try {
  const artifactGroup=panel.locator('details').last();
  if(await artifactGroup.getAttribute('open')===null) await artifactGroup.locator('summary').click();
  await artifactGroup.getByText('迁移成果.md',{exact:false}).first().click();
- await page.waitForFunction(()=>document.querySelector('openclaw-chat-files-panel')?.textContent.includes('实际交付'));
+ await page.waitForFunction(()=>document.querySelector('mirally-chat-files-panel')?.textContent.includes('实际交付'));
  assert.ok(!(await panel.innerText()).includes('Open artifact'));
  await page.screenshot({path:join(output,'original-artifact-preview.png')});
  // Work output authorization must survive the native durable outbox, not a
  // temporary conversation flag. Fail the first HTTP send, then reload/retry.
- const retryKey=await page.evaluate(async()=>{const c=document.querySelector('openclaw-app').context.gateway.snapshot.client;const r=await c.request('sessions.create',{displayName:'文件授权重试验收',idempotencyKey:crypto.randomUUID()});document.querySelector('openclaw-app-shell').selectChatSession(r.key,'main');return r.key;});
- await page.waitForFunction(key=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active')?.state?.sessionKey===key,retryKey);
+ const retryKey=await page.evaluate(async()=>{const c=document.querySelector('mirally-app').context.gateway.snapshot.client;const r=await c.request('sessions.create',{displayName:'文件授权重试验收',idempotencyKey:crypto.randomUUID()});document.querySelector('mirally-app-shell').selectChatSession(r.key,'main');return r.key;});
+ await page.waitForFunction(key=>document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active')?.state?.sessionKey===key,retryKey);
  await pane.locator('textarea[aria-label="聊天输入框"]').waitFor();
  const sends=[];
  await page.route('**/api/sessions/*/messages',async route=>{sends.push(route.request().postDataJSON());if(sends.length===1)await route.abort('connectionfailed');else await route.continue();});
@@ -55,17 +55,17 @@ try {
  await work.locator('[data-work=goal]').fill('create deliverable');
  await work.locator('[data-output=document]').click();
  await work.locator('[data-work=start]').click();
- await page.waitForFunction(()=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active')?.state?.chatQueue?.some(x=>x.mirallyAllowFileWrite===true));
+ await page.waitForFunction(()=>document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active')?.state?.chatQueue?.some(x=>x.mirallyAllowFileWrite===true));
  assert.equal(sends[0]?.allow_file_write,true);
  await page.reload();
- await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway.snapshot.phase==='connected');
+ await page.waitForFunction(()=>document.querySelector('mirally-app')?.context?.gateway.snapshot.phase==='connected');
  await page.waitForTimeout(500);
  const retry=pane.locator('.chat-send-status__retry').first();
  await retry.waitFor({state:'visible',timeout:3000}).catch(()=>{});
  if(await retry.isVisible())await retry.click();
  let delivered=false;
  for(let n=0;n<100;n++){
-   delivered=await page.evaluate(async key=>{const p=document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active');if(p?.state?.sessionKey!==key)return false;const id=__mirallyHost.conversationIdForSession(key);return (await __mirallyHost.request('/api/artifacts?conversation_id='+encodeURIComponent(id))).artifacts.length>0;},retryKey);
+   delivered=await page.evaluate(async key=>{const p=document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active');if(p?.state?.sessionKey!==key)return false;const id=__mirallyHost.conversationIdForSession(key);return (await __mirallyHost.request('/api/artifacts?conversation_id='+encodeURIComponent(id))).artifacts.length>0;},retryKey);
    if(delivered)break;await page.waitForTimeout(200);
  }
  assert.equal(delivered,true,'Retried Work must create an actual artifact');
@@ -74,7 +74,7 @@ try {
  await page.screenshot({path:join(output,'original-work-retry.png')});
  // Both accepted local hostnames must install the same presentation scripts.
  await page.goto(runtime.url.replace('127.0.0.1','localhost')+'/new#token='+runtime.token);
- await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway.snapshot.phase==='connected'&&!!window.__mirallyWork&&!!window.__mirallyCompanion);
+ await page.waitForFunction(()=>document.querySelector('mirally-app')?.context?.gateway.snapshot.phase==='connected'&&!!window.__mirallyWork&&!!window.__mirallyCompanion);
 
  assert.deepEqual(errors,[]);
  console.log('PASS original Files/Work UI: real tool artifacts, file and artifact previews/download, durable file permission after failed send/reload/retry, localhost presentation');

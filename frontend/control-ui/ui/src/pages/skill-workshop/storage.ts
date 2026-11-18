@@ -1,7 +1,7 @@
 import type { SkillWorkshopMode } from "../../lib/skill-workshop/index.ts";
 import { getSafeLocalStorage } from "../../local-storage.ts";
 
-const SKILL_WORKSHOP_MODE_KEY = "openclaw:control-ui:skill-workshop-mode:v1";
+const SKILL_WORKSHOP_MODE_KEY = "mirally:control-ui:skill-workshop-mode:v1";
 
 export function loadSkillWorkshopMode(): SkillWorkshopMode {
   try {

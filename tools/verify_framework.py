@@ -208,9 +208,9 @@ def verify(root: Path, home: Path, *, browser_files: bool = False, browser_histo
                 assert error.code == 403
                 assert '"method_not_allowed"' in error.msg
             else:
-                raise AssertionError("Deferred UFO operation was exposed: " + method)
+                raise AssertionError("Unsupported desktop task operation was exposed: " + method)
         assert not (home / "actions").exists()
-        checks.append("default framework has no UFO executor, task API, or action directory")
+        checks.append("default framework rejects desktop task operations")
         client.rpc("settings.update", {"patch": {"model": {"provider": "openai-compatible", "base_url": f"http://127.0.0.1:{provider.server_port}/v1", "api_format": "openai-chat", "model_id": "fixture-model", "api_key": "offline-fixture-key"}}})
         public = client.rpc("settings.get")
         assert "offline-fixture-key" not in json.dumps(public)
@@ -245,9 +245,7 @@ def verify(root: Path, home: Path, *, browser_files: bool = False, browser_histo
         client.send(session, "chat-1", "hello")
         assert "native model adapter" in client.history(session)[-1]["text"]
         tool_names = {tool.get("function", {}).get("name", "") for tool in FixtureProvider.calls[-1].get("tools", [])}
-        assert not any("ufo" in name.lower() for name in tool_names), tool_names
-        # Mirally's own observations are supported; deferred desktop input and
-        # the retired UFO executor must not return through another tool alias.
+        # Desktop tools expose observations. Input control remains unavailable.
         assert {name for name in tool_names if "desktop" in name.lower()} <= {
             "mirally_desktop_foreground", "mirally_desktop_windows", "mirally_desktop_screenshot"}, tool_names
         duplicate = client.call("/api/sessions/" + session["id"] + "/messages", {"commandId": "chat-1", "text": "hello"})

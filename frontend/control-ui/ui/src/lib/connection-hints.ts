@@ -1,5 +1,5 @@
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 // Connection-failure hint classification shared by the login gate.
 import {
   ConnectErrorDetailCodes,

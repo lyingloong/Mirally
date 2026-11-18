@@ -3,8 +3,8 @@
    ============================================= */
 
 /* Main chat card - flex column layout, transparent background */
-openclaw-chat-page,
-openclaw-pending-session-create {
+mirally-chat-page,
+mirally-pending-session-create {
   display: flex;
   flex: 1 1 0;
   min-width: 0;
@@ -321,7 +321,7 @@ openclaw-pending-session-create {
    item, never to the surface: only the icon, heading and a low-opacity edge
    carry tone while the card keeps the composer's own surface and geometry. */
 :is(.chat-composer-neighbor-card, .session-suggestion, .chat-pr.chat-pr) {
-  border-radius: calc(16px * var(--openclaw-corner-radius-scale));
+  border-radius: calc(16px * var(--mirally-corner-radius-scale));
   corner-shape: superellipse(1.5);
 }
 
@@ -1153,8 +1153,8 @@ openclaw-pending-session-create {
   font-weight: 650;
 }
 
-openclaw-chat-audio-player,
-openclaw-chat-video-player {
+mirally-chat-audio-player,
+mirally-chat-video-player {
   display: block;
   width: 100%;
 }
@@ -1969,7 +1969,7 @@ openclaw-chat-video-player {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  border-radius: calc(16px * var(--openclaw-corner-radius-scale));
+  border-radius: calc(16px * var(--mirally-corner-radius-scale));
   corner-shape: superellipse(1.5);
   background: var(--chat-composer-surface, var(--popover));
   outline: none;
@@ -2424,7 +2424,7 @@ button.chat-pr__diff {
   font-variant-numeric: tabular-nums;
 }
 
-openclaw-chat-ci-details {
+mirally-chat-ci-details {
   display: block;
   min-width: 0;
 }
@@ -3089,7 +3089,7 @@ openclaw-chat-ci-details {
   }
 }
 
-::highlight(openclaw-comment) {
+::highlight(mirally-comment) {
   background: var(--selection-bg);
   color: var(--selection-fg);
 }

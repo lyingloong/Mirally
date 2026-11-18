@@ -3,7 +3,7 @@ import {html, nothing} from 'lit';
 import {state} from 'lit/decorators.js';
 import {applicationContext, type ApplicationContext} from '../../app/context.ts';
 import {renderSettingsSection} from '../../components/settings-ui.ts';
-import {OpenClawLightDomElement} from '../../lit/openclaw-element.ts';
+import {MirallyLightDomElement} from '../../lit/mirally-element.ts';
 import {sessionNavigationTarget} from '../../lib/sessions/route-navigation.ts';
 import {errorMessage, rpcProduct} from './api.ts';
 import './product.css';
@@ -12,7 +12,7 @@ type CalendarEvent = {event_id: string; title: string; start_at_utc_ms: number; 
   time_zone: string; version: number; status: string; notes?:string; all_day?:boolean; conversation_id?: string | null; reminder_offsets_minutes?: number[]};
 type CalendarSettings = {time_zone: string | null; confirmed: boolean; detected_time_zone: string | null};
 
-class MirallyCalendarPanel extends OpenClawLightDomElement {
+class MirallyCalendarPanel extends MirallyLightDomElement {
   @consume({context:applicationContext, subscribe:true}) private context!: ApplicationContext;
   @state() private events: CalendarEvent[] = [];
   @state() private settings: CalendarSettings | null = null;

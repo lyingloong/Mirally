@@ -57,10 +57,10 @@ export function renderIdentitySection(props: IdentitySectionProps) {
           description: t("profilePage.identity.avatarDescription"),
           control: html`
             <span class="identity-avatar-control">
-              <openclaw-viewer-avatar
+              <mirally-viewer-avatar
                 .user=${avatarViewer(props.profile, props.avatarUrl)}
                 variant="profile"
-              ></openclaw-viewer-avatar>
+              ></mirally-viewer-avatar>
               <button
                 type="button"
                 class="btn btn--sm"

@@ -1,4 +1,4 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { isSystemOwnedCronPayloadKind } from "../../../../src/cron/types.js";
 import type { CronJob, CronPayload } from "../../api/types.ts";
 

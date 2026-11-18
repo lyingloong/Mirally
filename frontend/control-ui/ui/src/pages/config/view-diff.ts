@@ -1,4 +1,4 @@
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import { isSensitiveConfigPath } from "../../../../src/config/sensitive-paths.js";
 import type { ConfigUiHints } from "../../api/types.ts";
 import {

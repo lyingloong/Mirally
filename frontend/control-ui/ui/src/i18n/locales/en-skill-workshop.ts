@@ -159,7 +159,7 @@ const enSkillWorkshop = {
     selfLearning: {
       pitchTitle: "Turn on self-learning",
       pitchBody:
-        "OpenClaw learns from completed work and improves reusable skills in the background. Reviews use your configured model.",
+        "Mirally learns from completed work and improves reusable skills in the background. Reviews use your configured model.",
       enable: "Enable self-learning",
       enabling: "Enabling\u2026",
       updateError: "Could not update the self-learning setting.",

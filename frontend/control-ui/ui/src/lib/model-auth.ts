@@ -1,5 +1,5 @@
 // Control UI module implements model auth behavior.
-import { normalizeProviderId } from "@openclaw/model-catalog-core/provider-id";
+import { normalizeProviderId } from "@mirally/model-catalog-core/provider-id";
 import { resolveUsageProviderId } from "../../../src/infra/provider-usage.shared.js";
 import type { GatewayBrowserClient } from "../api/gateway.ts";
 import type { ModelAuthStatusProvider, ModelAuthStatusResult } from "../api/types.ts";

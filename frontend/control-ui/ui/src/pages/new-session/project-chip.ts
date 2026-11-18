@@ -411,9 +411,9 @@ export function renderProjectChip(params: {
                 }
                 ${
                   browseNeedsAdmin
-                    ? html`<openclaw-tooltip .content=${t("newSession.browseRequiresAdmin")}>
+                    ? html`<mirally-tooltip .content=${t("newSession.browseRequiresAdmin")}>
                         ${browseButton}
-                      </openclaw-tooltip>`
+                      </mirally-tooltip>`
                     : browseButton
                 }
               </div>

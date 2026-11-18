@@ -5,11 +5,11 @@ export type ControlUiDevGateway = {
 };
 
 declare global {
-  var OPENCLAW_UI_DEV_GATEWAY: ControlUiDevGateway | undefined;
+  var MIRALLY_UI_DEV_GATEWAY: ControlUiDevGateway | undefined;
 }
 
 export function configuredUiDevGateway(): ControlUiDevGateway | undefined {
-  return globalThis.OPENCLAW_UI_DEV_GATEWAY;
+  return globalThis.MIRALLY_UI_DEV_GATEWAY;
 }
 
 export function isConfiguredUiDevGateway(url: string): boolean {

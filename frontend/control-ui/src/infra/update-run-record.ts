@@ -1,4 +1,4 @@
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import type { z } from "zod";
 import { LEGACY_UPDATE_RUN_EXPIRED_REASON } from "./update-run-legacy-expiry.js";
 import type { UpdateRunRecoveryState } from "./update-run-recovery-state.js";
@@ -12,7 +12,7 @@ export function updateStepDiagnostics(
   const tails = [step.stdoutTail ?? "", stderr];
   if (
     !step.failureFacts?.length ||
-    !/^\[openclaw\] (?:The CLI command failed\.|Reason: )/mu.test(stderr)
+    !/^\[mirally\] (?:The CLI command failed\.|Reason: )/mu.test(stderr)
   ) {
     return { tails };
   }
@@ -20,7 +20,7 @@ export function updateStepDiagnostics(
     step.failureFacts.flatMap((fact) => (fact.message ? [fact.message] : [])),
   );
   const reason =
-    /(?:^|\n)\[openclaw\] Reason: ([\s\S]*?)(?=\n\[openclaw\] (?:Debug: |Stack:|Try: |Help: )|$)/u.exec(
+    /(?:^|\n)\[mirally\] Reason: ([\s\S]*?)(?=\n\[mirally\] (?:Debug: |Stack:|Try: |Help: )|$)/u.exec(
       stderr,
     )?.[1];
   const reasonDetails = reason
@@ -39,10 +39,10 @@ export function updateStepDiagnostics(
     return tail
       .split(/\r?\n/u)
       .filter((line) => {
-        if (/^\[openclaw\] (?:The CLI command failed\.$|Debug: |Try: |Help: )/u.test(line)) {
+        if (/^\[mirally\] (?:The CLI command failed\.$|Debug: |Try: |Help: )/u.test(line)) {
           return false;
         }
-        return !messages.has(line.replace(/^\[openclaw\] Reason: /u, "").trim());
+        return !messages.has(line.replace(/^\[mirally\] Reason: /u, "").trim());
       })
       .join("\n");
   });

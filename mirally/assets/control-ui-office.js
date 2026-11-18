@@ -93,7 +93,7 @@
   }
   function isFinal(message) {
     const reason = String(message.stopReason || '').trim().toLowerCase();
-    if (message.role !== 'assistant' || message.channel === 'commentary' || message.phase === 'commentary' || message.__openclawToolStreamLive) return false;
+    if (message.role !== 'assistant' || message.channel === 'commentary' || message.phase === 'commentary' || message.__mirallyToolStreamLive) return false;
     for (const part of Array.isArray(message.content) ? message.content : []) {
       if (!['text','input_text','output_text'].includes(part.type) || typeof part.textSignature !== 'string') continue;
       try {
@@ -101,7 +101,7 @@
         if (signature.v === 1 && signature.phase === 'commentary') return false;
       } catch { /* Ordinary text signatures are not phase metadata. */ }
     }
-    if (reason === 'error' || ((!reason || reason === 'tooluse') && message.__openclaw?.runTerminal !== true)) return false;
+    if (reason === 'error' || ((!reason || reason === 'tooluse') && message.__mirally?.runTerminal !== true)) return false;
     const text = typeof message.content === 'string' ? message.content : (message.content || [])
       .filter(part => part.type === 'text').map(part => part.text).join('\n');
     return !!text.trim() && text.trim() !== 'NO_REPLY';

@@ -102,12 +102,12 @@ export function renderBoardGrantedCapabilities(
     </div>`;
   }
   return html`
-    <openclaw-tooltip
+    <mirally-tooltip
       .content=${`${t("board.widget.activeCapabilities")}\n${capabilities.join("\n")}`}
     >
       <span class="board-widget__capabilities" data-test-id="board-capabilities-granted">
         ${t("board.widget.granted")}
       </span>
-    </openclaw-tooltip>
+    </mirally-tooltip>
   `;
 }

@@ -6,10 +6,10 @@ import type { LobsterPetPaletteId } from "../../components/lobster-pet-contract.
 import { LOBSTER_PET_PALETTES } from "../../components/lobster-pet-palettes.ts";
 import { renderSettingsWorkspace } from "../../components/settings-workspace.ts";
 import { copyToClipboard } from "../../lib/clipboard.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { renderLobsterdex, type LobsterdexCopyFeedback } from "./view.ts";
 
-class LobsterdexPage extends OpenClawLightDomElement {
+class LobsterdexPage extends MirallyLightDomElement {
   @state() private copyFeedback: LobsterdexCopyFeedback | null = null;
   private copyAttempt = 0;
   private copyResetTimer: number | null = null;
@@ -94,6 +94,6 @@ class LobsterdexPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-lobsterdex-page")) {
-  customElements.define("openclaw-lobsterdex-page", LobsterdexPage);
+if (!customElements.get("mirally-lobsterdex-page")) {
+  customElements.define("mirally-lobsterdex-page", LobsterdexPage);
 }

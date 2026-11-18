@@ -2,7 +2,7 @@ import {
   normalizeLowercaseStringOrEmpty,
   normalizeOptionalLowercaseString,
   normalizeOptionalString,
-} from "@openclaw/normalization-core/string-coerce";
+} from "@mirally/normalization-core/string-coerce";
 import { parseAgentSessionKeyParts, type ParsedAgentSessionKey } from "./session-key.js";
 
 // Signal group IDs (#82853) preserve one colon-free segment.

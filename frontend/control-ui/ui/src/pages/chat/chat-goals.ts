@@ -1,4 +1,4 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { Value } from "typebox/value";
 import {
   SessionsGoalClearParamsSchema,

@@ -3,7 +3,7 @@ import {
   isGatewayProtocolResponseError,
   resolveSafeTimeoutDelayMs,
   type GatewayProtocolRequestOptions,
-} from "@openclaw/gateway-client/browser";
+} from "@mirally/gateway-client/browser";
 import type {
   ModelsListParams,
   ModelsSnapshotEvent,

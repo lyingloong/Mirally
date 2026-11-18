@@ -1,5 +1,5 @@
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import type { ToolApprovalReview } from "./chat-types.ts";
 
 type ToolApprovalReviewOutcome = "approved" | "denied" | "reviewing";

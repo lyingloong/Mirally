@@ -393,14 +393,14 @@ function renderExecApprovalsScope(state: ExecApprovalsState) {
     title: t("devices.execApprovals.scope"),
     stacked: true,
     control: html`
-      <openclaw-agent-select
+      <mirally-agent-select
         class="agent-select--settings"
         .options=${options}
         .value=${state.selectedScope}
         .accessibleLabel=${t("devices.execApprovals.scope")}
         .disabled=${state.disabled}
         .onSelect=${state.onSelectScope}
-      ></openclaw-agent-select>
+      ></mirally-agent-select>
     `,
   });
 }

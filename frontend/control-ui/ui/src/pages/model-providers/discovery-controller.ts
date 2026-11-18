@@ -17,7 +17,7 @@ function renderModelProviderDiscovery(props: {
     return nothing;
   }
   if (props.state === "loading") {
-    return html`<openclaw-modal-dialog
+    return html`<mirally-modal-dialog
       label=${t("modelSetup.discovery.title")}
       @modal-cancel=${props.onCancel}
     >
@@ -27,16 +27,16 @@ function renderModelProviderDiscovery(props: {
           <button class="btn" @click=${props.onCancel}>${t("common.cancel")}</button>
         </div>
       </div>
-    </openclaw-modal-dialog>`;
+    </mirally-modal-dialog>`;
   }
-  return html`<openclaw-model-setup-page
+  return html`<mirally-model-setup-page
     .routeData=${{ firstRun: false }}
     .embedded=${true}
     .onConnectChoice=${props.onConnectChoice}
     .credentialChoices=${props.credentialChoices}
     .agentLabel=${props.agentLabel}
     .onClose=${props.onClose}
-  ></openclaw-model-setup-page>`;
+  ></mirally-model-setup-page>`;
 }
 
 type DiscoveryOwner = {

@@ -4,7 +4,7 @@ import { renderSettingsRow, renderSettingsValue } from "../../components/setting
 import { t } from "../../i18n/index.ts";
 import { summarizeMcpServers } from "../../lib/config/mcp-servers.ts";
 
-const MCP_DOCS_URL = "https://docs.openclaw.ai/tools/mcp";
+const MCP_DOCS_URL = "https://github.com/lyingloong/Mirally/blob/main/docs/architecture/extensions.md";
 
 type McpViewProps = {
   configObject: Record<string, unknown>;
@@ -53,19 +53,19 @@ export function renderMcp(props: McpViewProps) {
           <div class="settings-group">
             <div class="settings-row settings-row--stacked">
               <div class="mcp-command-card__grid">
-                <code>openclaw mcp status --verbose</code>
-                <code>openclaw mcp doctor --probe</code>
-                <code>openclaw mcp login &lt;name&gt;</code>
-                <code>openclaw mcp reload</code>
+                <code>mirally mcp status --verbose</code>
+                <code>mirally mcp doctor --probe</code>
+                <code>mirally mcp login &lt;name&gt;</code>
+                <code>mirally mcp reload</code>
               </div>
             </div>
           </div>
         </section>
 
-        <openclaw-mcp-servers-card
+        <mirally-mcp-servers-card
           .pluginsHref=${props.pluginsHref}
           .docsUrl=${MCP_DOCS_URL}
-        ></openclaw-mcp-servers-card>
+        ></mirally-mcp-servers-card>
       </div>
 
       ${props.editor}

@@ -119,7 +119,7 @@ function presentInputDialog(options: InputDialogOptions): Promise<string | null>
     function paint() {
       render(() => {
         return html`
-          <openclaw-modal-dialog
+          <mirally-modal-dialog
             label=${options.title}
             description=${label}
             @modal-cancel=${handleCancel}
@@ -161,7 +161,7 @@ function presentInputDialog(options: InputDialogOptions): Promise<string | null>
                 </button>
               </div>
             </form>
-          </openclaw-modal-dialog>
+          </mirally-modal-dialog>
         `;
       });
     }

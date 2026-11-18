@@ -1,4 +1,4 @@
-import type { WorkerDesktopAppId } from "@openclaw/gateway-protocol";
+import type { WorkerDesktopAppId } from "@mirally/gateway-protocol";
 import { t } from "../../i18n/index.ts";
 import { icons } from "../icons.ts";
 

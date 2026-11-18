@@ -1,7 +1,7 @@
 import {html, nothing} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
 import {live} from 'lit/directives/live.js';
-import {OpenClawLightDomElement} from '../../lit/openclaw-element.ts';
+import {MirallyLightDomElement} from '../../lit/mirally-element.ts';
 import {renderSettingsSection, renderSettingsRow} from '../../components/settings-ui.ts';
 import {rpcProduct, errorMessage} from './api.ts';
 
@@ -9,7 +9,7 @@ type SpeechSettings = {provider:string; base_url:string; model:string; language:
   api_key_configured:boolean; local_ready:boolean; local_models:{name:string;path:string}[]};
 
 @customElement('mirally-speech-settings')
-export class MirallySpeechSettings extends OpenClawLightDomElement {
+export class MirallySpeechSettings extends MirallyLightDomElement {
   @state() private config:SpeechSettings|null=null;
   @state() private provider='none';
   @state() private url='';

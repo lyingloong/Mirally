@@ -1,5 +1,5 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
-import { stableStringify } from "@openclaw/normalization-core/stable-stringify";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
+import { stableStringify } from "@mirally/normalization-core/stable-stringify";
 import {
   cloneConfigObject,
   isSensitiveLeafValue,

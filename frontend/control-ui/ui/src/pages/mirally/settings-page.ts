@@ -8,7 +8,7 @@ import {
   renderSettingsSection, renderSettingsStatus, renderSettingsToggle, renderSettingsValue,
 } from "../../components/settings-ui.ts";
 import {renderSettingsWorkspace} from "../../components/settings-workspace.ts";
-import {OpenClawLightDomElement} from "../../lit/openclaw-element.ts";
+import {MirallyLightDomElement} from "../../lit/mirally-element.ts";
 import {SubscriptionsController} from "../../lit/subscriptions-controller.ts";
 import {errorMessage, openProductPage, requestProduct, rpcProduct, type ProductData} from "./api.ts";
 import {modelDraft, deepSeekPreset, adoptDiscoveredModel, isDeepSeekEndpoint, modelCapabilityText,
@@ -62,7 +62,7 @@ function workerState(status: ProductStatus | null, name: string): string {
 }
 
 @customElement("mirally-settings-page")
-export class MirallySettingsPage extends OpenClawLightDomElement {
+export class MirallySettingsPage extends MirallyLightDomElement {
   @consume({context: applicationContext, subscribe: true})
   private context!: ApplicationContext;
 

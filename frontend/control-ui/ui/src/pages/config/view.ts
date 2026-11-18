@@ -618,7 +618,7 @@ export function renderConfig(props: ConfigProps) {
                                         blurred ? t("configView.redacted") : t("configView.visible")
                                       }</span
                                     >
-                                    <openclaw-tooltip
+                                    <mirally-tooltip
                                       .content=${
                                         blurred
                                           ? t("configView.revealSensitive")
@@ -638,7 +638,7 @@ export function renderConfig(props: ConfigProps) {
                                       >
                                         ${blurred ? icons.eyeOff : icons.eye}
                                       </button>
-                                    </openclaw-tooltip>`
+                                    </mirally-tooltip>`
                                 : nothing
                             }
                           </span>

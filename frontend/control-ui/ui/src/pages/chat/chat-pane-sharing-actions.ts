@@ -1,4 +1,4 @@
-import { buildControlUiPublicSessionSharePath } from "@openclaw/session-url-contract/public-share";
+import { buildControlUiPublicSessionSharePath } from "@mirally/session-url-contract/public-share";
 import type { SessionPublicShareSetResult } from "../../../../packages/gateway-protocol/src/index.js";
 import type {
   GatewaySessionRow,

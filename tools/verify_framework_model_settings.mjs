@@ -51,7 +51,7 @@ try{
   const page=await browser.newPage({viewport:{width:1280,height:1000}});page.setDefaultTimeout(20000);
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   const test=id=>page.getByTestId('mirally-settings-'+id);
-  const ready=()=>page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected' && document.querySelector('[data-testid="mirally-settings-model-id"]') && document.querySelector('[data-testid="mirally-settings-model"]')?.getAttribute('aria-busy')==='false');
+  const ready=()=>page.waitForFunction(()=>document.querySelector('mirally-app')?.context?.gateway?.snapshot?.phase==='connected' && document.querySelector('[data-testid="mirally-settings-model-id"]') && document.querySelector('[data-testid="mirally-settings-model"]')?.getAttribute('aria-busy')==='false');
   const openParameters=async()=>{const advanced=test('model-advanced');if(!await advanced.evaluate(element=>element.open))await advanced.locator('summary').click();};
   const settings=()=>page.evaluate(()=>window.__mirallyHost.rpc('settings.get'));
   const save=async()=>{await test('model-save').click();await test('notice').filter({hasText:'模型连接已保存'}).waitFor();await ready();};

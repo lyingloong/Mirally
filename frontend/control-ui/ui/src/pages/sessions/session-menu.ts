@@ -1,4 +1,4 @@
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import { html } from "lit";
 import type { GatewaySessionRow } from "../../api/types.ts";
 import type { ApplicationContext } from "../../app/context.ts";
@@ -42,7 +42,7 @@ export function renderSessionManagementMenu(params: {
   );
   const pinnable = isPinnableUiSessionRow(row);
   return html`
-    <openclaw-session-menu
+    <mirally-session-menu
       .session=${{
         label: normalizeOptionalString(row.label) ?? row.key,
         sessionId: normalizeOptionalString(row.sessionId) ?? null,
@@ -78,6 +78,6 @@ export function renderSessionManagementMenu(params: {
       .pluginActions=${pluginSessionMenuActions(context.plugins, row)}
       .onClose=${params.onClose}
       .onAction=${params.onAction}
-    ></openclaw-session-menu>
+    ></mirally-session-menu>
   `;
 }

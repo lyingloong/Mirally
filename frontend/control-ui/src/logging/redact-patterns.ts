@@ -269,7 +269,7 @@ const TELEGRAM_BOT_TOKEN_REDACT_PATTERN = String.raw`\bbot(\d{6,}:[A-Za-z0-9_-]{
 const TELEGRAM_TOKEN_REDACT_PATTERN = String.raw`\b(\d{6,}:[A-Za-z0-9_-]{20,})\b`;
 const CREDENTIAL_STYLE_HEADER_KEYS = "x-goog-api-key|api-key|apikey|x-api-token|x-access-token";
 const GATEWAY_SECURITY_HEADER_KEYS =
-  "X-OpenClaw-Token|x-pomerium-jwt-assertion|X-Api-Key|X-Auth-Token";
+  "X-Mirally-Token|x-pomerium-jwt-assertion|X-Api-Key|X-Auth-Token";
 export const CREDENTIAL_HEADER_FIELD_RE = new RegExp(
   `^(?:${CREDENTIAL_STYLE_HEADER_KEYS}|${GATEWAY_SECURITY_HEADER_KEYS})$`,
   "i",

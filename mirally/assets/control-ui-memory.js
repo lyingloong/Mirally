@@ -8,7 +8,7 @@
   const PROVENANCES={observed:'规则观测记录',model_inference:'模型整理',user_confirmed:'用户确认'};
   const KINDS={episodic:'活动经历',semantic:'事实与线索',working:'近期工作'};
   const text=value=>value==null?'':String(value);
-  const owner=node=>node?.localName==='openclaw-memory-settings'?node.selectedAgentId:node?.agentId;
+  const owner=node=>node?.localName==='mirally-memory-settings'?node.selectedAgentId:node?.agentId;
   function sourceLabel(row){return row?.provenance==='model_inference' ? row.kind==='episodic'?'模型活动总结':'模型推测' : PROVENANCES[row?.provenance] || '来源未标注';}
   function title(row){return {'Observed desktop context':'桌面活动观测','Activity synthesis':'活动记忆总结','Unconfirmed Activity inference':'待核对的活动推测'}[row?.title] || text(row?.title) || '活动记忆';}
   function timestamp(value){if(!Number.isFinite(value))return '';const date=new Date(value);return Number.isFinite(date.getTime())?date.toLocaleString():'';}
@@ -39,7 +39,7 @@
     let query=null,nextOffset=null,currentRead=null,searching=false,reading=false;
     const $=selector=>panel?.querySelector(selector),field=name=>$(`[data-memory-filter="${name}"]`);
     const set=(name,value)=>{const node=$(`[data-memory-slot="${name}"]`);if(node)node.textContent=text(value);};
-    const appContext=()=>document.querySelector('openclaw-app')?.context;
+    const appContext=()=>document.querySelector('mirally-app')?.context;
     const gateway=value=>value?.gateway?.snapshot?.client || value?.runtimeConfig?.state?.client;
     function current(token){return token===epoch && panel?.isConnected && anchor?.isConnected && owner(anchor)==='main' && appContext()===context && gateway(context)===client && root.__mirallyActivity?.memoryBrowser===bridge;}
     function buttons(){if(!panel)return;for(const node of panel.querySelectorAll('button'))node.disabled=searching || reading;}
@@ -111,8 +111,8 @@
     function sync(){
       frame=null;const next=appContext(),nextClient=gateway(next),nextBridge=root.__mirallyActivity?.memoryBrowser;
       if(next!==context || nextClient!==client || nextBridge!==bridge){clear();stopRouter?.();context=next;client=nextClient;bridge=nextBridge;stopRouter=next?.router?.subscribe?.(schedule);}
-      const target=[...document.querySelectorAll('[data-mirally-memory-anchor], openclaw-memory-settings, openclaw-memory-memories, openclaw-agent-memory-panel')].find(node=>node.isConnected && owner(node)==='main' && !node.closest('[hidden], [inert], [aria-hidden="true"]'));
-      const embedded=target?.hasAttribute('data-mirally-memory-anchor') || target?.localName==='openclaw-memory-settings';
+      const target=[...document.querySelectorAll('[data-mirally-memory-anchor], mirally-memory-settings, mirally-memory-memories, mirally-agent-memory-panel')].find(node=>node.isConnected && owner(node)==='main' && !node.closest('[hidden], [inert], [aria-hidden="true"]'));
+      const embedded=target?.hasAttribute('data-mirally-memory-anchor') || target?.localName==='mirally-memory-settings';
       const container=embedded?target.querySelector('.memory-page__panel'):target?.parentNode;
       if(!target || !container || !bridge || !client){if(panel)clear();return;}
       const before=embedded?[...container.childNodes].find(node=>node!==panel) || null:target;

@@ -6,7 +6,7 @@ import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import { t } from "../../i18n/index.ts";
 import { registerSettingsEnglish } from "../../i18n/locales/en-settings.ts";
 import { formatUiError } from "../../lib/format-error.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import "../../styles/memory-memories.css";
 
 registerSettingsEnglish();
@@ -52,7 +52,7 @@ function renderFileContent(content: string, result: SearchResult) {
     ><span>${after.length ? `\n${after.join("\n")}` : ""}</span></pre>`;
 }
 
-class MemoryMemoriesElement extends OpenClawLightDomElement {
+class MemoryMemoriesElement extends MirallyLightDomElement {
   @property({ attribute: false }) client: GatewayBrowserClient | null = null;
   @property({ type: Boolean }) connected = false;
   @property({ type: Boolean }) methodAdvertised = true;
@@ -328,6 +328,6 @@ class MemoryMemoriesElement extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-memory-memories")) {
-  customElements.define("openclaw-memory-memories", MemoryMemoriesElement);
+if (!customElements.get("mirally-memory-memories")) {
+  customElements.define("mirally-memory-memories", MemoryMemoriesElement);
 }

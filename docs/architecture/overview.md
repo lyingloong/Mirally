@@ -2,7 +2,7 @@
 
 更新：2026-10-31，Asia/Shanghai。状态：现行。本文描述默认入口的实际结构；未实现方向和取舍理由见[产品方向](../product/vision.md)与[产品思考记录](../product/product-notes.md)。
 
-Mirally 拥有产品状态、交互规则和能力边界；同仓 `kernel/dsh/` 提供会话、模型循环、工具执行与原生能力；`frontend/control-ui/` 以固定的上游界面源码为视觉与组件基础，由 Mirally 维护自有页面。默认入口不启动 OpenClaw Gateway。
+Mirally 拥有产品状态、交互规则和能力边界；同仓 `kernel/dsh/` 提供会话、模型循环、工具执行与原生能力；`frontend/control-ui/` 以固定的上游界面源码为视觉与组件基础，由 Mirally 维护自有页面。产品由 Mirally 本机宿主启动。
 
 ## 运行结构
 
@@ -44,7 +44,6 @@ flowchart LR
 | `frontend/control-ui/` | Lit 壳、原对话/外观组件与 `pages/mirally/` 自有页面 |
 | `mirally/core/activity`、`runtime/activity` | 观察存储、知识投影、采集器、CLI 与历史浏览器 |
 | `mirally/core/memory`、`runtime/memory` | 持久记忆、投影、维护、召回与 CLI |
-| `mirally/runtime/ufo` | 旧桌面执行适配；默认产品不加载，UFO 子模块源码已移除 |
 
 持久状态各有唯一 owner：
 
@@ -134,7 +133,7 @@ Skill、MCP 和可信插件通过显式配置接入同一 DSH 会话与工具管
 
 ## 已退役实现
 
-当前只提供 Mirally/DSH 启动链路。旧 OpenClaw 启动器、插件集成、旧配置导入和旧档案浏览已移除；历史实现通过 Git 提交 `2eeb778a` 追溯，不在现行代码中保留兼容回退。源码清理不读取、覆盖或删除本机已有的私有配置、凭据和数据。
+当前只提供 Mirally/DSH 启动链路。旧启动器与集成仅通过 Git 提交 `2eeb778a` 追溯。源码清理不读取、覆盖或删除本机已有的私有配置、凭据和数据。
 
 ## 验证
 

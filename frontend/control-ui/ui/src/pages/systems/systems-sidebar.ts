@@ -6,7 +6,7 @@ import { syncDropdownItemRadio } from "../../components/web-awesome.ts";
 import { t } from "../../i18n/index.ts";
 import { registerSystemsEnglish } from "../../i18n/locales/en-systems.ts";
 import { prettifyPlatform } from "../../lib/platform-label.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import type {
   SystemsController,
@@ -96,7 +96,7 @@ export function systemPlatform(row: SystemsInventoryRow): string | undefined {
   return platform ? prettifyPlatform(platform, row.node?.deviceFamily) : undefined;
 }
 
-class SystemsSidebar extends OpenClawLightDomElement {
+class SystemsSidebar extends MirallyLightDomElement {
   @property({ attribute: false }) controller?: SystemsController;
 
   constructor() {
@@ -248,12 +248,12 @@ class SystemsSidebar extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-systems-sidebar")) {
-  customElements.define("openclaw-systems-sidebar", SystemsSidebar);
+if (!customElements.get("mirally-systems-sidebar")) {
+  customElements.define("mirally-systems-sidebar", SystemsSidebar);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-systems-sidebar": SystemsSidebar;
+    "mirally-systems-sidebar": SystemsSidebar;
   }
 }

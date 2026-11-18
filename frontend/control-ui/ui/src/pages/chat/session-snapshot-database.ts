@@ -1,4 +1,4 @@
-export const CHAT_SNAPSHOT_DB_NAME = "openclaw-chat-snapshots";
+export const CHAT_SNAPSHOT_DB_NAME = "mirally-chat-snapshots";
 export const CHAT_SNAPSHOT_STORE_NAME = "snapshots";
 export const CHAT_SNAPSHOT_METADATA_STORE_NAME = "snapshotMetadata";
 const CHAT_SNAPSHOT_DB_VERSION = 2;

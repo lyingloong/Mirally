@@ -78,7 +78,7 @@ Mirally 通过明确接口接入新来源、服务、执行、投递和交互能
 {"id":"my-plugin","type":"plugin","path":"./my-plugin.mjs","config":{"apiVersion":1}}
 ```
 
-模块可导出 `mirally={apiVersion:1}` 与原生 Cordis 插件；不兼容版本拒绝激活，`dependsOn` 声明其他扩展依赖。插件通过 `ctx.mirallyProduct`、`ctx.tools`、`ctx.skills` 等现有服务接入，外部效果必须遵循产品 guard、停止和回执契约。OpenClaw 插件不能不经适配直接加载；其他宿主的同名“插件”也不保证兼容。
+模块可导出 `mirally={apiVersion:1}` 与原生 Cordis 插件；不兼容版本拒绝激活，`dependsOn` 声明其他扩展依赖。插件通过 `ctx.mirallyProduct`、`ctx.tools`、`ctx.skills` 等现有服务接入，外部效果必须遵循产品 guard、停止和回执契约。接入其他宿主的插件时，按能力和版本核对接口契约。
 
 ## 当前范围与验证
 

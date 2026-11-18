@@ -1,9 +1,9 @@
 import {
   readAssistantStreamSegmentIdentity,
   readSessionMessageIdentity,
-} from "@openclaw/gateway-client/browser";
-import { asNullableRecord as asRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+} from "@mirally/gateway-client/browser";
+import { asNullableRecord as asRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import type { ChatItem } from "../../lib/chat/chat-types.ts";
 import {
   userTurnRunId,
@@ -23,7 +23,7 @@ export function transcriptRunId(message: unknown): string | undefined {
   return (
     readLiveTerminalRunId(message) ??
     normalizeOptionalString(record?.runId) ??
-    normalizeOptionalString(asRecord(record?.openclawStreamFallback)?.runId)
+    normalizeOptionalString(asRecord(record?.mirallyStreamFallback)?.runId)
   );
 }
 

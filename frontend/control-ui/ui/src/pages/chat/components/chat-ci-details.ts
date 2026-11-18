@@ -16,7 +16,7 @@ import { formatDurationCompact } from "../../../lib/format-duration.ts";
 import { formatUiError } from "../../../lib/format-error.ts";
 import { createGatewayConnectionLifecycle } from "../../../lib/gateway-connection-lifecycle.ts";
 import { resolveSafeExternalUrl } from "../../../lib/open-external-url.ts";
-import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../../lit/mirally-element.ts";
 
 registerChatCiEnglish();
 
@@ -85,7 +85,7 @@ function duration(item: { startedAt?: string; completedAt?: string }, running: b
 }
 
 /** Presentation-only details: the Gateway owns GitHub discovery, joins, and caching. */
-export class ChatCiDetailsElement extends OpenClawLightDomElement {
+export class ChatCiDetailsElement extends MirallyLightDomElement {
   @property({ attribute: false }) pullRequest?: ControlUiSessionPullRequest;
   @property({ attribute: false }) gateway?: ApplicationGateway;
   @property({ attribute: false }) sessionKey = "";
@@ -477,6 +477,6 @@ export class ChatCiDetailsElement extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-chat-ci-details")) {
-  customElements.define("openclaw-chat-ci-details", ChatCiDetailsElement);
+if (!customElements.get("mirally-chat-ci-details")) {
+  customElements.define("mirally-chat-ci-details", ChatCiDetailsElement);
 }

@@ -1,10 +1,10 @@
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import type { GatewayBrowserClient } from "../api/gateway.ts";
 import { fetchAgentIdentity } from "../lib/agents/identity.ts";
 import { normalizeAssistantIdentity, type AssistantIdentity } from "../lib/assistant-identity.ts";
 import { getSafeLocalStorage } from "../local-storage.ts";
 
-const LOCAL_ASSISTANT_IDENTITY_KEY = "openclaw.control.assistant.v1";
+const LOCAL_ASSISTANT_IDENTITY_KEY = "mirally.control.assistant.v1";
 
 type LocalAssistantIdentity = { avatar: string | null; agentId?: string | null };
 

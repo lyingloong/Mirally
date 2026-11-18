@@ -131,7 +131,7 @@
   }
 }
 
-openclaw-session-owner-chip {
+mirally-session-owner-chip {
   display: inline-flex;
   flex: none;
 }
@@ -168,7 +168,7 @@ openclaw-session-owner-chip {
 /* Center capitals and counts by the font's cap box, excluding its descender space. */
 .session-owner-chip__initials,
 .session-owner-stack__count,
-openclaw-session-owner-chip .viewer-avatar__initials {
+mirally-session-owner-chip .viewer-avatar__initials {
   text-box: trim-both cap alphabetic;
 }
 
@@ -1319,7 +1319,7 @@ openclaw-session-owner-chip .viewer-avatar__initials {
   --app-toast-shell-top: calc(var(--safe-area-top) + var(--rail-header-height) + 12px);
 }
 
-openclaw-toast-host[data-toast-placement="shell"]
+mirally-toast-host[data-toast-placement="shell"]
   .app-toast:not(.app-toast--anchored, .app-toast--bottom) {
   top: var(--app-toast-shell-top, calc(20px + var(--safe-area-top)));
 }
@@ -1518,11 +1518,11 @@ openclaw-toast-host[data-toast-placement="shell"]
   stroke-linejoin: round;
 }
 
-openclaw-link-reader-hovercard-provider {
+mirally-link-reader-hovercard-provider {
   display: contents;
 }
 
-openclaw-session-progress-hovercard-provider {
+mirally-session-progress-hovercard-provider {
   display: contents;
 }
 
@@ -2266,8 +2266,8 @@ select.input {
 }
 
 .lazy-element-loading-modal {
-  --openclaw-modal-width: 360px;
-  --openclaw-modal-backdrop-filter: none;
+  --mirally-modal-width: 360px;
+  --mirally-modal-backdrop-filter: none;
   --wa-color-overlay-modal: color-mix(in srgb, var(--text) 12%, transparent);
 }
 
@@ -3464,7 +3464,7 @@ td.data-table-key-col {
   min-width: 0;
 }
 
-.agent-scope-control openclaw-agent-select {
+.agent-scope-control mirally-agent-select {
   min-width: 150px;
   max-width: min(240px, 40vw);
 }
@@ -3479,7 +3479,7 @@ td.data-table-key-col {
 }
 
 @media (max-width: 640px) {
-  .agent-scope-control openclaw-agent-select {
+  .agent-scope-control mirally-agent-select {
     min-width: 128px;
     max-width: 44vw;
   }
@@ -3888,8 +3888,8 @@ td.data-table-key-col {
 .md-preview-dialog__panel {
   position: relative;
   width: 100%;
-  min-height: min(76dvh, 820px, var(--openclaw-modal-height-limit));
-  max-height: var(--openclaw-modal-height-limit);
+  min-height: min(76dvh, 820px, var(--mirally-modal-height-limit));
+  max-height: var(--mirally-modal-height-limit);
   margin: 0;
   display: flex;
   flex-direction: column;
@@ -4255,7 +4255,7 @@ td.data-table-key-col {
 
 @media (max-width: 768px) {
   .md-preview-dialog__panel {
-    min-height: var(--openclaw-modal-height-limit);
+    min-height: var(--mirally-modal-height-limit);
     border-radius: var(--radius-xl);
   }
 
@@ -4358,7 +4358,7 @@ td.data-table-key-col {
 
   height: fit-content;
   min-height: 0;
-  max-height: var(--openclaw-modal-max-height, calc(100dvh - 2 * var(--space-6)));
+  max-height: var(--mirally-modal-max-height, calc(100dvh - 2 * var(--space-6)));
   padding: 0;
   overflow: hidden;
 }
@@ -4430,7 +4430,7 @@ td.data-table-key-col {
 
 @media (max-width: 640px) {
   .exec-approval-card.skill-reader-dialog {
-    max-height: var(--openclaw-modal-max-height, 90dvh);
+    max-height: var(--mirally-modal-max-height, 90dvh);
   }
 }
 

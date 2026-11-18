@@ -1,13 +1,13 @@
-import { mediaKindFromMime } from "@openclaw/media-core/constants";
+import { mediaKindFromMime } from "@mirally/media-core/constants";
 /**
  * Message normalization utilities for chat rendering.
  */
 import {
   asFiniteNumber,
   asNonNegativeFiniteNumber,
-} from "@openclaw/normalization-core/number-coercion";
-import { asOptionalRecord, readStringField } from "@openclaw/normalization-core/record-coerce";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+} from "@mirally/normalization-core/number-coercion";
+import { asOptionalRecord, readStringField } from "@mirally/normalization-core/record-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import { stripInboundMetadata } from "../../../../src/auto-reply/reply/strip-inbound-meta.js";
 import {
   extractCanvasShortcodes,
@@ -160,7 +160,7 @@ export function resolveMessageSenderLabel(
   }
   // Full normalization already prepared the sender; null is a known absence.
   return formatSenderLabel(
-    sender === undefined ? resolveMessageSender(asOptionalRecord(m?.["__openclaw"])) : sender,
+    sender === undefined ? resolveMessageSender(asOptionalRecord(m?.["__mirally"])) : sender,
   );
 }
 
@@ -469,7 +469,7 @@ export function normalizeMessage(message: unknown): NormalizedMessage {
   const contentRaw = m.content;
   const contentItems = Array.isArray(contentRaw) ? contentRaw : null;
   const isAssistantMessage = role === "assistant";
-  const delivery = isAssistantMessage ? readMessageDelivery(m.openclawDelivery) : undefined;
+  const delivery = isAssistantMessage ? readMessageDelivery(m.mirallyDelivery) : undefined;
   // History's structured blocks retain sandbox and dashboard metadata that
   // an assistant shortcode cannot carry. Keep that representation when both exist.
   const projectedCanvasPreviews = (contentItems ?? []).flatMap((value) => {
@@ -594,15 +594,15 @@ export function normalizeMessage(message: unknown): NormalizedMessage {
 
   const timestamp = asFiniteNumber(m.timestamp) ?? Date.now();
   const id = readStringField(m, "id");
-  const openClawMeta = asOptionalRecord(m["__openclaw"]);
-  const structuredReplyToId = readStringField(openClawMeta, "replyToId")?.trim() ?? "";
+  const mirallyMeta = asOptionalRecord(m["__mirally"]);
+  const structuredReplyToId = readStringField(mirallyMeta, "replyToId")?.trim() ?? "";
   if (structuredReplyToId) {
     replyTarget = { kind: "id", id: structuredReplyToId };
   }
-  const replyPreviewRecord = asOptionalRecord(openClawMeta?.replyToPreview);
+  const replyPreviewRecord = asOptionalRecord(mirallyMeta?.replyToPreview);
   const replyPreviewText = readStringField(replyPreviewRecord, "text")?.trim() ?? "";
   const replyPreviewSender = readStringField(replyPreviewRecord, "senderLabel")?.trim() ?? "";
-  const metaSender = resolveMessageSender(openClawMeta);
+  const metaSender = resolveMessageSender(mirallyMeta);
   const senderLabel = resolveMessageSenderLabel(m, metaSender);
   const sender = metaSender ?? (senderLabel ? { name: senderLabel } : null);
   const sourceClients = role === "user" ? readMessageClientSources(m) : [];

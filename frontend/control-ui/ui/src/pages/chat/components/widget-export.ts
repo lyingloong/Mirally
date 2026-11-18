@@ -1,8 +1,8 @@
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import { beginClipboardCopy } from "../../../lib/clipboard.ts";
 
-const WIDGET_SNAPSHOT_REQUEST_TYPE = "openclaw:widget-snapshot-request";
-const WIDGET_SNAPSHOT_REPLY_TYPE = "openclaw:widget-snapshot";
+const WIDGET_SNAPSHOT_REQUEST_TYPE = "mirally:widget-snapshot-request";
+const WIDGET_SNAPSHOT_REPLY_TYPE = "mirally:widget-snapshot";
 const WIDGET_SNAPSHOT_TIMEOUT_MS = 5_000;
 const WIDGET_SNAPSHOT_MAX_DATA_URL_CHARS = 32 * 1024 * 1024;
 

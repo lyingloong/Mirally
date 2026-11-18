@@ -1,4 +1,4 @@
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
 import { hasTerminalControl } from "../../../../packages/terminal-core/src/safe-text.js";
 import type { GatewaySessionRow } from "../../api/types.ts";
 
@@ -47,7 +47,7 @@ function normalizeWorkspaceResultConflict(value: unknown): WorkspaceResultConfli
   if (
     paths.length !== record.paths.length ||
     typeof record.stagedResultRef !== "string" ||
-    !/^refs\/openclaw\/worker-results\/[A-Za-z0-9-]+$/u.test(record.stagedResultRef) ||
+    !/^refs\/mirally\/worker-results\/[A-Za-z0-9-]+$/u.test(record.stagedResultRef) ||
     (record.totalCount !== undefined &&
       (!Number.isSafeInteger(record.totalCount) || (record.totalCount as number) < paths.length))
   ) {

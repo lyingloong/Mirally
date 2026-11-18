@@ -1,5 +1,5 @@
-import { asNullableRecord as asRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { asNullableRecord as asRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 import { messageClientSourcesKey } from "../../../../src/chat/message-client-source.js";
 import {
   extractAssistantTextForPhase,
@@ -118,7 +118,7 @@ export function groupMessages(items: ChatItem[]): Array<ChatItem | MessageGroup>
     const userTurnIdentity = role === "user" ? (steerTarget ?? userTurnRunId(item.message)) : null;
     const shouldSplitBySender = role === "user" || role === "assistant";
     const startsProjectedTurn =
-      asRecord(asRecord(item.message)?.["__openclaw"])?.turnBoundary === true;
+      asRecord(asRecord(item.message)?.["__mirally"])?.turnBoundary === true;
     const splitsAssistantKind =
       role === "assistant" &&
       currentGroup?.role === "assistant" &&

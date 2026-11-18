@@ -4,7 +4,7 @@ import { repeat } from "lit/directives/repeat.js";
 import { icons } from "../../../components/icons.ts";
 import { t } from "../../../i18n/index.ts";
 import { registerChatMessageMetadataEnglish } from "../../../i18n/locales/en-chat-message-metadata.ts";
-import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../../lit/mirally-element.ts";
 import type { ChatAttachmentControlsProps } from "./chat-attachment-controls.types.ts";
 import { chatCommentLineEnd, resolveChatCommentAnchor } from "./chat-comment-anchor.ts";
 import { currentChatComments } from "./chat-comment-controller.ts";
@@ -13,7 +13,7 @@ import "../../../styles/chat/selection-annotations.css";
 registerChatMessageMetadataEnglish();
 
 /** Draft attachments own the data; this transcript-local view owns source pins. */
-class ChatCommentPins extends OpenClawLightDomElement {
+class ChatCommentPins extends MirallyLightDomElement {
   @property({ attribute: false }) props!: ChatAttachmentControlsProps;
   @property() sessionKey = "";
   private root: HTMLElement | null = null;
@@ -129,7 +129,7 @@ class ChatCommentPins extends OpenClawLightDomElement {
           event.stopPropagation();
           if (event.currentTarget instanceof HTMLElement) {
             event.currentTarget.dispatchEvent(
-              new CustomEvent("openclaw-comment-action", {
+              new CustomEvent("mirally-comment-action", {
                 bubbles: true,
                 composed: true,
                 detail: { id: attachment.id, action: "edit" },
@@ -144,4 +144,4 @@ class ChatCommentPins extends OpenClawLightDomElement {
   }
 }
 
-customElements.define("openclaw-chat-comment-pins", ChatCommentPins);
+customElements.define("mirally-chat-comment-pins", ChatCommentPins);

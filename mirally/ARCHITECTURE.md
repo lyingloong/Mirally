@@ -2,7 +2,7 @@
 
 更新：2026-10-31，Asia/Shanghai。状态：现行。完整架构与验证边界见[系统概览](../docs/architecture/overview.md)。
 
-默认入口：`python -m mirally` → `framework_host.py` → `kernel/dsh/packages/mirally/mirally-product/start.mjs`。旧 OpenClaw 运行与兼容入口已移除。
+默认入口：`python -m mirally` → `framework_host.py` → `kernel/dsh/packages/mirally/mirally-product/start.mjs`。
 
 ## 产品层
 
@@ -42,7 +42,6 @@
 - `runtime/activity/`：Windows 采集器、CLI、历史浏览器和隔离 worker。
 - `runtime/memory/`：后台维护、语义整理、召回、保留和 CLI。
 - `platform/`：Windows 捕获隔离、Raw Input、焦点和任务栏适配。
-- `runtime/ufo/`：旧桌面执行适配，默认产品不加载；`UFO/` 子模块源码已移除，设计参考见 [UFO 复盘](../docs/product/research-2026-10-31-ufo.md)。
 
 ## 前端层
 
@@ -58,4 +57,4 @@
 
 ## 已退役实现
 
-旧 OpenClaw 路线仅通过 Git 提交 `2eeb778a` 追溯；当前代码不再提供旧宿主、配置迁移或旧档案兼容服务。本机用户数据与凭据不因源码退役自动清理。
+历史宿主可通过 Git 提交 `2eeb778a` 追溯。本机用户数据与凭据不因源码退役自动清理。

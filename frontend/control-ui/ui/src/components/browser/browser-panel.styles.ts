@@ -1,4 +1,4 @@
-// Styles for <openclaw-browser-panel>. Kept beside the component to keep the
+// Styles for <mirally-browser-panel>. Kept beside the component to keep the
 // panel logic readable; visual language mirrors the operator terminal dock.
 import { css } from "lit";
 

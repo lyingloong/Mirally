@@ -82,14 +82,14 @@ function renderDetail(result: PluginDiscoveryDetailResult, props: PluginCatalogD
       plugin.local.action === "install" || installing
         ? renderReasonedDisabledControl(
             props.installBlockedReason,
-            html`<openclaw-plugin-install-action
+            html`<mirally-plugin-install-action
               .buttonClass=${"btn oc-action plugin-catalog-detail__install"}
               .primary=${true}
               .disabled=${!props.canInstall}
               .busy=${Boolean(props.busy)}
               .progress=${props.installProgress}
               .onInstall=${props.onInstall}
-            ></openclaw-plugin-install-action>`,
+            ></mirally-plugin-install-action>`,
           )
         : nothing
     }${renderPluginAskAction(props.onAskPlugin, plugin.local.action !== "install" && !installing)}`,

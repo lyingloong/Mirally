@@ -1098,7 +1098,7 @@ img.chat-avatar {
 
 /* ── Message metadata (tokens, cost, model, context %) ── */
 .msg-meta {
-  --openclaw-tooltip-max-width: min(36rem, calc(100vw - 32px));
+  --mirally-tooltip-max-width: min(36rem, calc(100vw - 32px));
 }
 
 .msg-meta__summary {
@@ -1300,7 +1300,7 @@ img.chat-avatar {
   .chat-thread
     .chat-group.assistant:not(.chat-group--forwarded)
     .chat-bubble:not(.chat-bubble--tool-shell)
-    :is(.chat-assistant-attachments, .chat-message-images, openclaw-chat-clawhub-card):not(
+    :is(.chat-assistant-attachments, .chat-message-images, mirally-chat-clawhub-card):not(
       .chat-assistant-attachments *
     ) {
     max-width: 90%;

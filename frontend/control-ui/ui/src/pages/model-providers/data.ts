@@ -1,5 +1,5 @@
-import { normalizeProviderId } from "@openclaw/model-catalog-core/provider-id";
-import { asNullableRecord as asRecord } from "@openclaw/normalization-core/record-coerce";
+import { normalizeProviderId } from "@mirally/model-catalog-core/provider-id";
+import { asNullableRecord as asRecord } from "@mirally/normalization-core/record-coerce";
 import { splitTrailingAuthProfile } from "../../../../src/agents/model-ref-profile.js";
 // Merges gateway provider signals (auth status, live usage/quota, local session
 // cost) into one card list for the Models settings page.

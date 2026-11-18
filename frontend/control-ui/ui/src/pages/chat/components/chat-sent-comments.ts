@@ -1,7 +1,7 @@
 import { html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { property, state } from "lit/decorators.js";
 import { t } from "../../../i18n/index.ts";
-import { OpenClawLightDomContentsElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../../../lit/mirally-element.ts";
 import { readAttachmentText } from "./chat-attachment-text-reader.ts";
 import {
   parseCommentAttachment,
@@ -28,7 +28,7 @@ type SentCommentSource = {
   fallback: TemplateResult | typeof nothing;
 };
 
-class ChatSentComments extends OpenClawLightDomContentsElement {
+class ChatSentComments extends MirallyLightDomContentsElement {
   @property({ attribute: false }) sources: SentCommentSource[] = [];
   @property() scope = "";
   @state() private revealed = false;
@@ -105,4 +105,4 @@ class ChatSentComments extends OpenClawLightDomContentsElement {
   }
 }
 
-customElements.define("openclaw-chat-sent-comments", ChatSentComments);
+customElements.define("mirally-chat-sent-comments", ChatSentComments);

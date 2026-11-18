@@ -15,7 +15,7 @@ type SessionNavigationHandoffOwner = {
 };
 
 const SESSION_NAVIGATION_HANDOFF_TTL_MS = 2_000;
-export const SESSION_NAVIGATION_INTENT_EVENT = "openclaw:session-navigation-intent";
+export const SESSION_NAVIGATION_INTENT_EVENT = "mirally:session-navigation-intent";
 export type SessionNavigationIntent = {
   commit: () => boolean;
   face: BoardFace;

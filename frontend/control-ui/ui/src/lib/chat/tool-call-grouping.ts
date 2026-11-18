@@ -3,7 +3,7 @@
  * "Ran 13 commands, read 6 files, edited 9 files, created a file".
  */
 
-import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
+import { asOptionalRecord } from "@mirally/normalization-core/record-coerce";
 import { Value } from "typebox/value";
 import {
   AgentActivityItemSchema,

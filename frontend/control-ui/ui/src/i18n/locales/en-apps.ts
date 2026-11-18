@@ -3,7 +3,7 @@ import { en } from "./en.ts";
 
 const enApps = {
   appsPage: {
-    heroTitle: "Take OpenClaw everywhere",
+    heroTitle: "Take Mirally everywhere",
     heroTagline:
       "Companion apps for your phone, watch, desktop, and browser — plus plugins to extend what your agent can do.",
     sectionMobile: "On your phone",
@@ -29,11 +29,11 @@ const enApps = {
     cards: {
       ios: {
         title: "iPhone",
-        desc: "Chat, talk, approve actions, and share into OpenClaw from iOS.",
+        desc: "Chat, talk, approve actions, and share into Mirally from iOS.",
       },
       android: {
         title: "Android",
-        desc: "Your Android phone as a full OpenClaw device — chat, camera, and Canvas.",
+        desc: "Your Android phone as a full Mirally device — chat, camera, and Canvas.",
       },
       appleWatch: {
         title: "Apple Watch",
@@ -41,7 +41,7 @@ const enApps = {
       },
       wearOs: {
         title: "Wear OS",
-        desc: "The Android companion extends OpenClaw to your watch.",
+        desc: "The Android companion extends Mirally to your watch.",
       },
       macos: {
         title: "macOS",
@@ -49,7 +49,7 @@ const enApps = {
       },
       windows: {
         title: "Windows",
-        desc: "The Windows companion connects your PC as an OpenClaw device.",
+        desc: "The Windows companion connects your PC as an Mirally device.",
       },
       linux: {
         title: "Linux",
@@ -57,11 +57,11 @@ const enApps = {
       },
       chrome: {
         title: "Chrome extension",
-        desc: "Let OpenClaw drive your existing Chrome — tabs, pages, and forms.",
+        desc: "Let Mirally drive your existing Chrome — tabs, pages, and forms.",
       },
       plugins: {
         title: "Plugins & ClawHub",
-        desc: "Extend OpenClaw with channels, tools, and skills from the community.",
+        desc: "Extend Mirally with channels, tools, and skills from the community.",
       },
     },
   },

@@ -67,5 +67,5 @@ export function renderCompactAttachmentFile(
       ${options?.metadata ?? html`<span class="chat-attachment-file__type">${extensionLabel}</span>`}
     </span>
   </div>`;
-  return options ? content : html`<openclaw-tooltip .content=${name}>${content}</openclaw-tooltip>`;
+  return options ? content : html`<mirally-tooltip .content=${name}>${content}</mirally-tooltip>`;
 }

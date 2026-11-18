@@ -1,4 +1,4 @@
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 import { stripAnsi } from "../../../../packages/terminal-core/src/ansi.js";
 import { parseLogLine as parseCoreLogLine } from "../../../../src/logging/parse-log-line.js";
 

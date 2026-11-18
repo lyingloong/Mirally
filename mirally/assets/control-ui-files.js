@@ -28,7 +28,7 @@
         if(!path){if(code)link.replaceWith(code);continue;}
         link.setAttribute('data-file-path',path);link.setAttribute('aria-label','打开文件：'+code.textContent);
       }
-      for(const code of document.querySelectorAll('openclaw-chat-pane .chat-group.assistant .chat-text code')){
+      for(const code of document.querySelectorAll('mirally-chat-pane .chat-group.assistant .chat-text code')){
         if(code.closest('a, pre') || !code.closest('.chat-group')?.classList.contains('assistant'))continue;
         const path=relativeFilePath(code.textContent);if(!path)continue;
         // The native transcript owns clicks/keyboard handling and resolves this

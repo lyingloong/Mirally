@@ -1,4 +1,4 @@
-import { normalizeRouteBasePath } from "@openclaw/uirouter";
+import { normalizeRouteBasePath } from "@mirally/ui-router";
 import {
   CONTROL_UI_BOOTSTRAP_CONFIG_PATH,
   CONTROL_UI_ENVIRONMENT_ATTRIBUTE,

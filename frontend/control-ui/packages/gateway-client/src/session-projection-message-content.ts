@@ -1,5 +1,5 @@
-import { GATEWAY_ASSISTANT_ERROR_FALLBACK_TEXT } from "@openclaw/gateway-protocol/gateway-error-details";
-import { asNullableRecord as readRecord } from "@openclaw/normalization-core/record-coerce";
+import { GATEWAY_ASSISTANT_ERROR_FALLBACK_TEXT } from "@mirally/gateway-protocol/gateway-error-details";
+import { asNullableRecord as readRecord } from "@mirally/normalization-core/record-coerce";
 import { readSessionProjectionString as readNonemptyString } from "./session-projection-message-identity.js";
 
 export function readSessionMessageDisplayContent(message: unknown): {
@@ -9,7 +9,7 @@ export function readSessionMessageDisplayContent(message: unknown): {
 } {
   const record = readRecord(message);
   const content = typeof message === "string" ? message : record?.content;
-  const media = readRecord(record?.["__openclaw"])?.media;
+  const media = readRecord(record?.["__mirally"])?.media;
   let hasNonText = Array.isArray(media) && media.length > 0;
   const texts: string[] = [];
   for (const block of Array.isArray(content) ? content : [content]) {
@@ -42,7 +42,7 @@ export function projectSessionTerminalReplyMessage(message: unknown): unknown {
     return message;
   }
   const content = record.content.filter(
-    (block) => readRecord(block)?.openclawStatusNotice !== true,
+    (block) => readRecord(block)?.mirallyStatusNotice !== true,
   );
   if (content.length === record.content.length || content.length === 0) {
     return message;

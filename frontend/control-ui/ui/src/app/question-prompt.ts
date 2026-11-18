@@ -1,9 +1,9 @@
 import {
   asSafeIntegerInRange,
   resolveTimerTimeoutMs,
-} from "@openclaw/normalization-core/number-coercion";
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeNullableString as readNonEmptyString } from "@openclaw/normalization-core/string-coerce";
+} from "@mirally/normalization-core/number-coercion";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeNullableString as readNonEmptyString } from "@mirally/normalization-core/string-coerce";
 import type {
   Question,
   QuestionAnswers,

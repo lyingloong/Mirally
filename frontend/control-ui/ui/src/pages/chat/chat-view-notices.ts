@@ -120,7 +120,7 @@ ${displayError}</pre>
 export function renderChatTopbarNotices(props: ChatViewNoticesProps) {
   const dismiss = props.onDismissError
     ? html`
-        <openclaw-tooltip .content=${t("chat.actions.dismissError")}>
+        <mirally-tooltip .content=${t("chat.actions.dismissError")}>
           <button
             class="chat-error__dismiss"
             type="button"
@@ -129,7 +129,7 @@ export function renderChatTopbarNotices(props: ChatViewNoticesProps) {
           >
             ${icons.x}
           </button>
-        </openclaw-tooltip>
+        </mirally-tooltip>
       `
     : nothing;
   return html`
@@ -139,7 +139,7 @@ export function renderChatTopbarNotices(props: ChatViewNoticesProps) {
       ${
         props.focusMode && props.onToggleFocusMode
           ? html`
-              <openclaw-tooltip .content=${t("chat.actions.exitFocusMode")}>
+              <mirally-tooltip .content=${t("chat.actions.exitFocusMode")}>
                 <button
                   class="chat-focus-exit"
                   type="button"
@@ -148,7 +148,7 @@ export function renderChatTopbarNotices(props: ChatViewNoticesProps) {
                 >
                   ${icons.x}
                 </button>
-              </openclaw-tooltip>
+              </mirally-tooltip>
             `
           : nothing
       }

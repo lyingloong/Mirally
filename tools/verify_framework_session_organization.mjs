@@ -15,8 +15,8 @@ await mkdir(output,{recursive:true});
 const browser=await chromium.launch({channel:'msedge',headless:true});
 const page=await browser.newPage({viewport:{width:1280,height:900}});page.setDefaultTimeout(15000);
 const errors=[],checks=[];page.on('pageerror',error=>errors.push(error.message));
-const ready=()=>page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected');
-const active='openclaw-chat-pane.chat-pane-cache__pane--active';
+const ready=()=>page.waitForFunction(()=>document.querySelector('mirally-app')?.context?.gateway?.snapshot?.phase==='connected');
+const active='mirally-chat-pane.chat-pane-cache__pane--active';
 async function api(path,body,method='GET') {
   const response=await page.request.fetch(runtime.url+path,{method,headers:{authorization:'Bearer '+runtime.token},...(body===undefined?{}:{data:body})});
   assert.ok(response.ok(),`${method} ${path}: ${response.status()} ${await response.text()}`);
@@ -28,25 +28,25 @@ async function until(check,label) {
   throw new Error('Timed out: '+label);
 }
 let key,id;
-const row=()=>page.locator(`openclaw-app-sidebar .sidebar-recent-session[data-session-key="${key}"]`);
+const row=()=>page.locator(`mirally-app-sidebar .sidebar-recent-session[data-session-key="${key}"]`);
 const metadata=async()=> (await api('/api/sessions?archived=all')).sessions.find(value=>value.id===id);
-async function selectSession(){await page.evaluate(key=>document.querySelector('openclaw-app-shell').selectChatSession(key,'main'),key);await page.locator(active+' textarea').waitFor();}
+async function selectSession(){await page.evaluate(key=>document.querySelector('mirally-app-shell').selectChatSession(key,'main'),key);await page.locator(active+' textarea').waitFor();}
 async function sidebarAction(value) {
   await row().click({button:'right'});
-  const item=page.locator(`openclaw-session-menu wa-dropdown-item[value="${value}"]`);
+  const item=page.locator(`mirally-session-menu wa-dropdown-item[value="${value}"]`);
   await item.waitFor();assert.equal(await item.getAttribute('disabled'),null,`${value} must be enabled`);await item.click();
 }
 async function headerAction(value) {
   await page.locator(active+' .chat-header-session-menu__trigger').click();
-  const item=page.locator(active+` openclaw-chat-header-session-menu wa-dropdown-item[value="${value}"]`);
+  const item=page.locator(active+` mirally-chat-header-session-menu wa-dropdown-item[value="${value}"]`);
   await item.waitFor();assert.equal(await item.getAttribute('disabled'),null,`${value} must be enabled`);await item.click();
 }
 async function submitRename(label) {
-  const input=page.locator('openclaw-modal-dialog input[name=value]');await input.waitFor();await input.fill(label);await input.press('Enter');
+  const input=page.locator('mirally-modal-dialog input[name=value]');await input.waitFor();await input.fill(label);await input.press('Enter');
   await input.waitFor({state:'detached'});
 }
 async function statusFilter(value) {
-  await page.locator('openclaw-app-sidebar button.sidebar-session-sort').first().click();
+  await page.locator('mirally-app-sidebar button.sidebar-session-sort').first().click();
   await page.locator(`wa-dropdown.sidebar-session-sort-menu wa-dropdown-item[value="status:${value}"]`).click();
 }
 try {
@@ -69,10 +69,10 @@ try {
   assert.equal((await metadata()).session_id,original.session_id);checks.push('reload preserves title, pin and native conversation');
 
   await selectSession();await sidebarAction('rename');
-  const draft=page.locator('openclaw-modal-dialog input[name=value]');await draft.fill('不能覆盖并发修改');
+  const draft=page.locator('mirally-modal-dialog input[name=value]');await draft.fill('不能覆盖并发修改');
   const beforeConflict=await metadata();
   await api('/api/sessions/'+id,{expected_version:beforeConflict.metadata_version,patch:{title:'另一客户端确认的标题'}},'PATCH');
-  await draft.press('Enter');await page.locator('openclaw-modal-dialog [role=alert]').waitFor();
+  await draft.press('Enter');await page.locator('mirally-modal-dialog [role=alert]').waitFor();
   assert.equal(await draft.inputValue(),'不能覆盖并发修改');assert.equal((await metadata()).title,'另一客户端确认的标题');
   await page.keyboard.press('Escape');await draft.waitFor({state:'detached'});checks.push('stale rename is visibly rejected and retains draft');
 

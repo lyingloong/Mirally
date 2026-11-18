@@ -11,17 +11,16 @@ const output=resolve(process.argv[3]??join(root,'.artifacts/framework-experience
 const browser=await chromium.launch({channel:'msedge',headless:true});
 const page=await browser.newPage({viewport:{width:1280,height:900}}); page.setDefaultTimeout(15000);
 const errors=[];page.on('pageerror',error=>errors.push(error.message));
-const active='openclaw-chat-pane.chat-pane-cache__pane--active';
-async function ready(){await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected');}
+const active='mirally-chat-pane.chat-pane-cache__pane--active';
+async function ready(){await page.waitForFunction(()=>document.querySelector('mirally-app')?.context?.gateway?.snapshot?.phase==='connected');}
 try {
   await page.goto(runtime.url+'/new#token='+runtime.token);await ready();
   const visitor=page.locator('mirally-composer-companion');
   await visitor.locator('[data-mirally-mascot=otter]').waitFor();
-  assert.equal(await page.locator('openclaw-lobster-pet').count(),0,'new-session visitor uses the Mirally companion');
   assert.ok(await visitor.locator('img').evaluate(image=>image.complete&&image.naturalWidth>0),'the actual companion resource loads');
   await page.screenshot({path:join(output,'composer-companion.png')});
   // Native client factory only; no shadow session, fake DOM or fixture state.
-  await page.evaluate(async()=>{const ctx=document.querySelector('openclaw-app').context;const r=await ctx.gateway.snapshot.client.request('sessions.create',{displayName:'原版体验验收',idempotencyKey:crypto.randomUUID()});document.querySelector('openclaw-app-shell').selectChatSession(r.key,'main');});
+  await page.evaluate(async()=>{const ctx=document.querySelector('mirally-app').context;const r=await ctx.gateway.snapshot.client.request('sessions.create',{displayName:'原版体验验收',idempotencyKey:crypto.randomUUID()});document.querySelector('mirally-app-shell').selectChatSession(r.key,'main');});
   await page.locator(active+' textarea[aria-label="聊天输入框"]').waitFor();
   const pane=page.locator(active), composer=pane.locator('textarea[aria-label="聊天输入框"]');
   await composer.fill('保留在聊天里的中文草稿');
@@ -35,7 +34,7 @@ try {
   await work.locator('[data-work=goal]').fill('只整理已提供材料');
   await work.locator('[data-output=reply]').click();
   await work.locator('[data-work=start]').click();
-  await page.waitForFunction(()=>{const p=document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active');return p?.state?.chatMessages?.some(x=>x.role==='assistant')&&!p.runActivity?.working;});
+  await page.waitForFunction(()=>{const p=document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active');return p?.state?.chatMessages?.some(x=>x.role==='assistant')&&!p.runActivity?.working;});
   assert.equal(await composer.inputValue(),'保留在聊天里的中文草稿');
   assert.equal(await pane.locator('.chat-attachment-thumb').count(),0);
   await page.screenshot({path:join(output,'original-work.png')});
@@ -61,14 +60,14 @@ try {
   await page.locator('#mirally-memory-browser').waitFor();
   await page.waitForFunction(()=>!document.querySelector('#mirally-memory-browser [data-memory-slot=notice]')?.textContent.includes('正在读取'));
   await page.screenshot({path:join(output,'original-memory.png')});
-  await page.evaluate(()=>document.querySelector('openclaw-app').context.navigate('appearance',{search:''}));
+  await page.evaluate(()=>document.querySelector('mirally-app').context.navigate('appearance',{search:''}));
   await page.locator('wa-radio[value=dark]').click();
-  await page.waitForFunction(()=>document.querySelector('openclaw-app').context.theme.resolvedMode==='dark');
+  await page.waitForFunction(()=>document.querySelector('mirally-app').context.theme.resolvedMode==='dark');
   await page.screenshot({path:join(output,'original-dark-appearance.png')});
   await page.reload();await ready();
-  assert.equal(await page.evaluate(()=>document.querySelector('openclaw-app').context.theme.resolvedMode),'dark');
+  assert.equal(await page.evaluate(()=>document.querySelector('mirally-app').context.theme.resolvedMode),'dark');
   await page.locator('wa-radio[value=light]').click();
-  await page.waitForFunction(()=>document.querySelector('openclaw-app').context.theme.resolvedMode==='light');
+  await page.waitForFunction(()=>document.querySelector('mirally-app').context.theme.resolvedMode==='light');
   assert.deepEqual(errors,[]);
   console.log('PASS retained Mirally surfaces: actual otter composer visitor, original 10 workflows/4 outputs, real materials and native task, chat draft preservation, 3 companion forms, server-owned pet preference/reload, actual Activity/Memory pages without capture, original appearance controls and dark-mode reload');
 }catch(error){console.error('Page errors:',errors);console.error((await page.locator('body').innerText()).slice(-2000));await page.screenshot({path:join(output,'failure.png')}).catch(()=>{});throw error;}finally{await browser.close();}

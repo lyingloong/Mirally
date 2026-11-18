@@ -1,5 +1,5 @@
 import { initialState, Task, TaskStatus } from "@lit/task";
-import { asNullableRecord as asRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableRecord as asRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing, type ReactiveControllerHost } from "lit";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import type { ApplicationContext } from "../../app/context.ts";
@@ -295,7 +295,7 @@ export class InstalledAgentsController {
               blockedReason ? html`<br />${blockedReason}` : nothing
             }`,
             actions: html`
-              <openclaw-tooltip .content=${checkLabel}>
+              <mirally-tooltip .content=${checkLabel}>
                 <button
                   type="button"
                   class="btn btn--icon btn--ghost btn--xs model-providers__refresh-button"
@@ -308,7 +308,7 @@ export class InstalledAgentsController {
                 >
                   ${icons.refresh}
                 </button>
-              </openclaw-tooltip>
+              </mirally-tooltip>
             `,
           },
           rows,

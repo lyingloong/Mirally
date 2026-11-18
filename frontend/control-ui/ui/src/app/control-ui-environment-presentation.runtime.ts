@@ -119,19 +119,19 @@ export function syncControlUiFavicon(): void {
   for (const icon of document.querySelectorAll<HTMLLinkElement>('link[rel="icon"]')) {
     if (!baseSvg && !color) {
       faviconRequests.delete(icon);
-      if (icon.dataset.openclawOriginalFavicon) {
-        restoreFavicon(icon, JSON.parse(icon.dataset.openclawOriginalFavicon));
-        delete icon.dataset.openclawOriginalFavicon;
+      if (icon.dataset.mirallyOriginalFavicon) {
+        restoreFavicon(icon, JSON.parse(icon.dataset.mirallyOriginalFavicon));
+        delete icon.dataset.mirallyOriginalFavicon;
       }
       continue;
     }
     // Snapshot only the static asset; theme and environment bases are rebuilt from the palette.
-    icon.dataset.openclawOriginalFavicon ??= JSON.stringify([
+    icon.dataset.mirallyOriginalFavicon ??= JSON.stringify([
       icon.getAttribute("href"),
       icon.getAttribute("type"),
     ]);
     const original: [string | null, string | null] = JSON.parse(
-      icon.dataset.openclawOriginalFavicon,
+      icon.dataset.mirallyOriginalFavicon,
     );
     const href = baseSvg ?? original[0];
     const type = baseSvg ? "image/svg+xml" : original[1];
@@ -157,7 +157,7 @@ export function syncControlUiFavicon(): void {
         if (faviconRequests.get(icon) === request) {
           faviconRequests.delete(icon);
           restoreFavicon(icon, [href, type]);
-          console.warn("[openclaw] favicon status could not be composed", error);
+          console.warn("[mirally] favicon status could not be composed", error);
         }
       },
     );

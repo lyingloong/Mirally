@@ -109,7 +109,7 @@ function renderSessionAttentionTooltip(
   trigger: TemplateResult,
 ) {
   const { status, preview, more } = sessionAttentionTooltipParts(attention);
-  return html`<openclaw-tooltip .content=${preview ? "" : status} open-on-click>
+  return html`<mirally-tooltip .content=${preview ? "" : status} open-on-click>
     ${trigger}
     ${
       preview
@@ -120,7 +120,7 @@ function renderSessionAttentionTooltip(
           </span>`
         : nothing
     }
-  </openclaw-tooltip>`;
+  </mirally-tooltip>`;
 }
 
 export function renderSessionIdleState(session: SidebarRecentSession) {

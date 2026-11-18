@@ -2,7 +2,7 @@ import type {
   createTerminalDefaultColorQueryResponder,
   CreateGhosttyTerminalOptions,
   GhosttyTerminalController,
-} from "@openclaw/libterminal/browser";
+} from "@mirally/terminal-runtime/browser";
 import type { ReactiveControllerHost } from "lit";
 import { parseCatalogSessionKey, type CatalogSessionKey } from "../../lib/sessions/catalog-key.ts";
 import type { TerminalGatewayClient } from "./terminal-connection.ts";

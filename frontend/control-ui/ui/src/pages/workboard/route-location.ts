@@ -1,5 +1,5 @@
-import type { RouteLocation } from "@openclaw/uirouter";
-import { isValidWorkboardBoardId } from "@openclaw/workboard-contract";
+import type { RouteLocation } from "@mirally/ui-router";
+import { isValidWorkboardBoardId } from "@mirally/workboard-contract";
 import {
   INTERNAL_WORKBOARD_PATH_PARAM,
   pathForRoute,

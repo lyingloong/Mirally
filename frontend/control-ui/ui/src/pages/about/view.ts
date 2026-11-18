@@ -1,4 +1,4 @@
-import { expectDefined } from "@openclaw/normalization-core";
+import { expectDefined } from "@mirally/normalization-core";
 import { html, nothing, type TemplateResult } from "lit";
 import type { ControlUiBuildInfo } from "../../build-info.ts";
 import { icons } from "../../components/icons.ts";
@@ -136,7 +136,7 @@ function renderCommit(props: AboutProps) {
     <span class="about-commit">
       <code dir="ltr" title=${commit}>${commit.slice(0, SHORT_COMMIT_LENGTH)}</code>
       ${renderCommitAge(props.buildInfo.commitAt)}
-      <openclaw-tooltip .content=${label}>
+      <mirally-tooltip .content=${label}>
         <button
           type="button"
           class="about-commit__copy"
@@ -147,7 +147,7 @@ function renderCommit(props: AboutProps) {
         >
           <span aria-hidden="true">${props.copyState === "copied" ? icons.check : icons.copy}</span>
         </button>
-      </openclaw-tooltip>
+      </mirally-tooltip>
       <span class="sr-only" role="status" aria-live="polite">${copyStatus(props.copyState)}</span>
     </span>
   `;

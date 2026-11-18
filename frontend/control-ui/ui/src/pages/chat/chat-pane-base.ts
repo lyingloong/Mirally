@@ -41,7 +41,7 @@ import {
 } from "../../lib/sessions/session-key.ts";
 import type { SwarmRosterHydrator } from "../../lib/sessions/swarm-roster.ts";
 import { SessionUnreadPatchGuard } from "../../lib/sessions/unread.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { PollController } from "../../lit/poll-controller.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { ChatComposerCapabilityHost } from "./chat-composer-capability-host.ts";
@@ -77,7 +77,7 @@ import { resolveChatSnapshotKey } from "./session-snapshot-key.ts";
 import type { SessionSnapshotStore } from "./session-snapshot-store.ts";
 import type { SidebarLayout } from "./sidebar-layout-types.ts";
 
-export abstract class ChatPaneBase extends OpenClawLightDomElement {
+export abstract class ChatPaneBase extends MirallyLightDomElement {
   private paneLifecycleRoot: Element | null = null;
   // The first Lit update must render even while hidden; later hidden work parks.
   // Disconnect releases the waiter so reconnect can schedule in its new lifecycle.
@@ -105,7 +105,7 @@ export abstract class ChatPaneBase extends OpenClawLightDomElement {
     }
   };
   override connectedCallback() {
-    this.paneLifecycleRoot = this.closest("openclaw-app-shell") ?? this.parentElement;
+    this.paneLifecycleRoot = this.closest("mirally-app-shell") ?? this.parentElement;
     document.addEventListener("visibilitychange", this.handleVisibilityChange);
     super.connectedCallback();
     this.addEventListener(

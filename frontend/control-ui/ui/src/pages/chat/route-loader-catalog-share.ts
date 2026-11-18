@@ -1,9 +1,9 @@
-import { matchControlUiCatalogSharePath } from "@openclaw/session-url-contract/parse";
+import { matchControlUiCatalogSharePath } from "@mirally/session-url-contract/parse";
 import {
   buildControlUiCatalogSharePath,
   isControlUiCatalogShareId,
-} from "@openclaw/session-url-contract/share-build";
-import type { RouteLocation } from "@openclaw/uirouter";
+} from "@mirally/session-url-contract/share-build";
+import type { RouteLocation } from "@mirally/ui-router";
 import type { SessionsCatalogListResult } from "../../../../packages/gateway-protocol/src/index.js";
 import { INTERNAL_SESSION_PATH_PARAM } from "../../app-route-paths.ts";
 import { waitForGatewayClient } from "../../app/gateway-readiness.ts";

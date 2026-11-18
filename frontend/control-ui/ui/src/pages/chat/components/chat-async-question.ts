@@ -1,5 +1,5 @@
-import { readSessionMessageIdentity } from "@openclaw/gateway-client/browser";
-import { asNullableRecord, isRecord } from "@openclaw/normalization-core/record-coerce";
+import { readSessionMessageIdentity } from "@mirally/gateway-client/browser";
+import { asNullableRecord, isRecord } from "@mirally/normalization-core/record-coerce";
 import { resolveAssistantMessagePhase } from "../../../../../src/shared/chat-message-content.js";
 import { t } from "../../../i18n/index.ts";
 import type { ChatQueueItem } from "../../../lib/chat/chat-types.ts";
@@ -34,12 +34,12 @@ export { renderAsyncQuestionSummary } from "./chat-async-question-summary.ts";
 
 function terminalOutcome(message: unknown): "successful" | "settled" | null {
   const record = asNullableRecord(message);
-  const metadata = asNullableRecord(record?.["__openclaw"]);
+  const metadata = asNullableRecord(record?.["__mirally"]);
   const phase = resolveAssistantMessagePhase(message);
   const stopReason = typeof record?.stopReason === "string" ? record.stopReason.toLowerCase() : "";
   if (
     record?.role !== "assistant" ||
-    record.openclawAsyncDelivery ||
+    record.mirallyAsyncDelivery ||
     isKeyedAssistantStreamFallbackMessage(message) ||
     asNullableRecord(record.provenance)?.kind === "inter_session" ||
     stopReason === "tooluse"
@@ -48,7 +48,7 @@ function terminalOutcome(message: unknown): "successful" | "settled" | null {
   }
   const failed =
     readLiveTerminalDisposition(message) !== null ||
-    asNullableRecord(record.openclawAbort)?.aborted === true ||
+    asNullableRecord(record.mirallyAbort)?.aborted === true ||
     ["aborted", "cancelled", "canceled", "timeout", "timed_out", "error"].includes(stopReason);
   if (
     metadata?.runTerminal === true ||
@@ -124,7 +124,7 @@ function questionHistory(messages: readonly unknown[]) {
       if (text) {
         // A canonical reply identifies the question even when edited text or quoted
         // headings prevent splitting its answers. Unlinked duplicate titles stay ambiguous.
-        const rawReplyToId = asNullableRecord(record?.["__openclaw"])?.replyToId;
+        const rawReplyToId = asNullableRecord(record?.["__mirally"])?.replyToId;
         const replyToId = typeof rawReplyToId === "string" ? rawReplyToId.trim() : "";
         const matches = [...questions.values()]
           .filter(
@@ -535,7 +535,7 @@ export function readAsyncQuestions(message: unknown): AsyncQuestions | null {
   if (!isRecord(message) || message.role !== "assistant") {
     return null;
   }
-  const metadata = message.openclawAsyncDelivery;
+  const metadata = message.mirallyAsyncDelivery;
   if (
     !isRecord(metadata) ||
     !boundedText(metadata.itemId, 256) ||

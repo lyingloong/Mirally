@@ -121,11 +121,11 @@ export function renderComposerPastedText(att: ChatAttachment, props: ChatAttachm
         </button>`,
     });
   };
-  return html`<openclaw-chat-pasted-text
+  return html`<mirally-chat-pasted-text
     .src=${getChatAttachmentDataUrl(att)}
     .sizeBytes=${att.sizeBytes}
     .scope=${att.id}
     .onOpen=${open}
     .composerAction=${renderRestoreAction()}
-  ></openclaw-chat-pasted-text>`;
+  ></mirally-chat-pasted-text>`;
 }

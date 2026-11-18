@@ -1,5 +1,5 @@
 // Channels page shared view helpers.
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing } from "lit";
 import type { ChannelAccountSnapshot } from "../../api/types.ts";
 import { icons } from "../../components/icons.ts";
@@ -173,7 +173,7 @@ export function renderChannelRefreshAction(params: {
   const updatedLabel = params.updatedAt
     ? t("channels.hub.updatedAgo", { ago: formatRelativeTimestamp(params.updatedAt) })
     : t("common.na");
-  return html`<openclaw-tooltip .content=${updatedLabel}>
+  return html`<mirally-tooltip .content=${updatedLabel}>
     <button
       type="button"
       class="btn btn--xs btn--icon"
@@ -183,7 +183,7 @@ export function renderChannelRefreshAction(params: {
     >
       ${icons.refresh}
     </button>
-  </openclaw-tooltip>`;
+  </mirally-tooltip>`;
 }
 
 /** One account inside a multi-account channel group. */

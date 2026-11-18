@@ -1,4 +1,4 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import type { RuntimeConfigState } from "../../lib/config/config-state-model.ts";
 
 export function readConfigValue(config: unknown, path: readonly (string | number)[]): unknown {

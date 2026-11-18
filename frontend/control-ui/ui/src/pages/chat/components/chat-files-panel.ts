@@ -9,7 +9,7 @@ import {
 import { renderPanelLoadingSkeleton } from "../../../components/panel-loading-skeleton.ts";
 import { renderPanelTabStrip } from "../../../components/panel-tab-strip.ts";
 import { t } from "../../../i18n/index.ts";
-import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../../lit/mirally-element.ts";
 import { renderAttachmentFileIcon } from "./chat-attachment-file-icon.ts";
 import type { SessionWorkspacePreview } from "./chat-session-workspace-types.ts";
 import type { SidebarContent } from "./chat-sidebar-content-types.ts";
@@ -22,7 +22,7 @@ function nextFilesPanelId(): string {
 }
 
 /** Projection of the workspace controller; tab order and selection have no second store here. */
-class ChatFilesPanel extends OpenClawLightDomElement {
+class ChatFilesPanel extends MirallyLightDomElement {
   private readonly contentId = nextFilesPanelId();
   private hostedTabsChangeKey = "";
   @property({ attribute: false }) previews: SessionWorkspacePreview[] = [];
@@ -136,12 +136,12 @@ class ChatFilesPanel extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-chat-files-panel")) {
-  customElements.define("openclaw-chat-files-panel", ChatFilesPanel);
+if (!customElements.get("mirally-chat-files-panel")) {
+  customElements.define("mirally-chat-files-panel", ChatFilesPanel);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-chat-files-panel": ChatFilesPanel;
+    "mirally-chat-files-panel": ChatFilesPanel;
   }
 }

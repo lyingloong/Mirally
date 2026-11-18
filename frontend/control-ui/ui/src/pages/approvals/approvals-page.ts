@@ -30,7 +30,7 @@ import {
 import { renderSettingsWorkspace } from "../../components/settings-workspace.ts";
 import { i18n, t } from "../../i18n/index.ts";
 import { formatUiError } from "../../lib/format-error.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 
 const APPROVAL_HISTORY_PAGE_SIZE = 50;
@@ -157,7 +157,7 @@ function resolverLabel(item: TerminalApprovalSnapshot): string {
   return item.resolver.id ? `${item.resolver.kind} · ${item.resolver.id}` : item.resolver.kind;
 }
 
-class ApprovalsPage extends OpenClawLightDomElement {
+class ApprovalsPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -580,6 +580,6 @@ class ApprovalsPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-approvals-page")) {
-  customElements.define("openclaw-approvals-page", ApprovalsPage);
+if (!customElements.get("mirally-approvals-page")) {
+  customElements.define("mirally-approvals-page", ApprovalsPage);
 }

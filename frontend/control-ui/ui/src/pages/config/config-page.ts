@@ -1,7 +1,7 @@
 import "../../styles/config.css";
 import { consume } from "@lit/context";
 import { initialState, Task, TaskStatus } from "@lit/task";
-import { asNullableRecord as asConfigRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableRecord as asConfigRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import type {
@@ -56,7 +56,7 @@ import {
   GatewayPageController,
   type GatewayPageChange,
 } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { PollController } from "../../lit/poll-controller.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import {
@@ -155,13 +155,13 @@ function renderConfigPageSubtitle(pageId: ConfigPageId) {
     case "appearance":
       return html`调整 Mirally 的主题、字体、语言和聊天显示方式。`;
     case "mcp":
-      return html`${t("mcpPage.intro")} ${renderLearnMoreLink("https://docs.openclaw.ai/tools/mcp")}`;
+      return html`${t("mcpPage.intro")} ${renderLearnMoreLink("https://github.com/lyingloong/Mirally/blob/main/docs/architecture/extensions.md")}`;
     case "security":
       return html`${t("quickSettings.security.intro")}
-      ${renderLearnMoreLink("https://docs.openclaw.ai/gateway/security")}`;
+      ${renderLearnMoreLink("https://github.com/lyingloong/Mirally/blob/main/docs/reference/capabilities.md")}`;
     case "talk":
       return html`${t("talkPage.intro")}
-      ${renderLearnMoreLink("https://docs.openclaw.ai/nodes/talk")}`;
+      ${renderLearnMoreLink("https://github.com/lyingloong/Mirally/blob/main/docs/architecture/channels.md")}`;
     case "updates":
       return t("updates.page.intro");
     default:
@@ -223,7 +223,7 @@ function applyTextScale(value: unknown) {
   );
 }
 
-export class ConfigPage extends OpenClawLightDomElement {
+export class ConfigPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -1371,7 +1371,7 @@ export class ConfigPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-config-page")) {
-  customElements.define("openclaw-config-page", ConfigPage);
+if (!customElements.get("mirally-config-page")) {
+  customElements.define("mirally-config-page", ConfigPage);
 }
 /* oxlint-disable max-lines -- TODO: split this grandfathered oversized file. */

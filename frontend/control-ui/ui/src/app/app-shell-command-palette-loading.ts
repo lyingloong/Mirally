@@ -10,7 +10,7 @@ import {
   type CommandPaletteOpenInput,
 } from "../components/command-palette-contract.ts";
 import { renderCommandPaletteInput } from "../components/command-palette-input.ts";
-import type { OpenClawModalDialog } from "../components/modal-dialog.ts";
+import type { MirallyModalDialog } from "../components/modal-dialog.ts";
 import { t } from "../i18n/index.ts";
 import {
   KEYBOARD_SHORTCUT_COMBOS,
@@ -235,7 +235,7 @@ export class CommandPaletteLoadingState {
     this.#input = element;
     const draft = this.#draft;
     element
-      .closest<OpenClawModalDialog>("openclaw-modal-dialog")
+      .closest<MirallyModalDialog>("mirally-modal-dialog")
       ?.setReturnFocusTarget(this.#returnFocus ?? null);
     // The shared renderer binds value before this ref; the modal alone owns
     // autofocus. Restoring selection here cannot steal a later picker focus.
@@ -336,7 +336,7 @@ export class CommandPaletteLoadingState {
     const mentionTrigger = this.#mentionTrigger;
     // Retiring the loader must not restore the original field between the two
     // palette inputs. The replacement dialog inherits that original target.
-    this.#input?.closest<OpenClawModalDialog>("openclaw-modal-dialog")?.setReturnFocusTarget(null);
+    this.#input?.closest<MirallyModalDialog>("mirally-modal-dialog")?.setReturnFocusTarget(null);
     this.clear();
     this.#host.requestUpdate();
     return {
@@ -371,7 +371,7 @@ export function renderCommandPaletteLoading(
   onClose: () => void,
 ) {
   const label = t("palette.placeholder");
-  return html`<openclaw-modal-dialog
+  return html`<mirally-modal-dialog
     class="cmd-palette-overlay palette"
     label=${label}
     style=${COMMAND_PALETTE_DIALOG_STYLE}
@@ -394,5 +394,5 @@ export function renderCommandPaletteLoading(
       })}
       <div class="cmd-palette__empty" role="status">${t("common.loading")}</div>
     </div>
-  </openclaw-modal-dialog>`;
+  </mirally-modal-dialog>`;
 }

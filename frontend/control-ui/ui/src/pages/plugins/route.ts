@@ -3,7 +3,7 @@ import {
   redirect,
   type RouteLoaderOptions,
   type RouteLocation,
-} from "@openclaw/uirouter";
+} from "@mirally/ui-router";
 import { html } from "lit";
 import { routePageSpec } from "../../app-route-paths.ts";
 import type { ApplicationContext } from "../../app/context.ts";
@@ -67,10 +67,10 @@ function definePluginsPage(routeId: "plugins" | "plugin-settings", surface: Plug
       import("./plugins-page.ts").then(() => ({
         header: true,
         render: (data: PluginsRouteData | undefined) =>
-          html`<openclaw-plugins-page
+          html`<mirally-plugins-page
             .routeData=${data}
             .surface=${surface}
-          ></openclaw-plugins-page>`,
+          ></mirally-plugins-page>`,
       })),
   });
 }

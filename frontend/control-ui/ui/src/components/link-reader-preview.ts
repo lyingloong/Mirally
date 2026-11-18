@@ -1,6 +1,6 @@
-import { parseCanonicalIpAddress } from "@openclaw/net-policy/ip";
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
-import { readNonBlankString } from "@openclaw/normalization-core/string-coerce";
+import { parseCanonicalIpAddress } from "@mirally/net-policy/ip";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
+import { readNonBlankString } from "@mirally/normalization-core/string-coerce";
 import { html, nothing, render, type TemplateResult } from "lit";
 import type { ControlUiLinkReaderPreview } from "../../../src/shared/control-ui-link-reader.js";
 import type { GatewayBrowserClient } from "../api/gateway.ts";

@@ -28,7 +28,7 @@ export function renderDockDestinations<Dock extends string>(params: {
   }
   return html`<span class=${params.groupClass} role="group" aria-label=${params.groupLabel}>
     ${alternatives.map(
-      (option) => html`<openclaw-tooltip .content=${option.label}>
+      (option) => html`<mirally-tooltip .content=${option.label}>
         <button
           class=${`rail-header__action ${option.className ?? ""}`}
           type="button"
@@ -37,7 +37,7 @@ export function renderDockDestinations<Dock extends string>(params: {
         >
           ${option.icon}
         </button>
-      </openclaw-tooltip>`,
+      </mirally-tooltip>`,
     )}
   </span>`;
 }

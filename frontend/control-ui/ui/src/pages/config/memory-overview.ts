@@ -188,7 +188,7 @@ function renderSchedule(dreaming: DreamingStatus) {
         title: t("memoryPage.overview.schedule.learnMore"),
         control: html`<a
           class="memory-page__link"
-          href="https://docs.openclaw.ai/concepts/dreaming"
+          href="https://github.com/lyingloong/Mirally/blob/main/docs/architecture/memory.md"
           target="_blank"
           rel="noreferrer noopener"
           >${t("memoryPage.overview.schedule.openDocs")}</a

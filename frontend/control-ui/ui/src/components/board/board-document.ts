@@ -2,7 +2,7 @@ import {
   GATEWAY_SERVER_CAPS,
   type BoardGetParams,
   type BoardSnapshot,
-} from "@openclaw/gateway-protocol";
+} from "@mirally/gateway-protocol";
 import { html, nothing, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import type { GatewaySessionRow } from "../../api/types.ts";
@@ -22,7 +22,7 @@ import {
   isGatewayCapabilityAdvertised,
   isGatewayMethodAdvertised,
 } from "../../lib/gateway-methods.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { renderPanelLoadingSkeleton } from "../panel-loading-skeleton.ts";
 import "../../styles/board-document.css";
 import "./board-view.ts";
@@ -41,7 +41,7 @@ type ProviderBinding = {
   capabilityKey: string;
 };
 
-export class OpenClawBoardDocument extends OpenClawLightDomElement {
+export class MirallyBoardDocument extends MirallyLightDomElement {
   @property({ attribute: false }) gatewaySnapshot?: ApplicationGatewaySnapshot;
   @property({ attribute: false }) sessionKey: string | null = null;
   @property({ attribute: false }) preparedSession: BoardGetParams | null = null;
@@ -149,7 +149,7 @@ export class OpenClawBoardDocument extends OpenClawLightDomElement {
 
   private async bindProvider(
     binding: ProviderBinding,
-    capabilities: ReturnType<OpenClawBoardDocument["providerCapabilities"]>,
+    capabilities: ReturnType<MirallyBoardDocument["providerCapabilities"]>,
     generation: number,
     preparedSession: BoardGetParams | null,
   ): Promise<void> {
@@ -315,7 +315,7 @@ export class OpenClawBoardDocument extends OpenClawLightDomElement {
           ),
         }
       : snapshot;
-    return html`<openclaw-board-view
+    return html`<mirally-board-view
       .active=${true}
       .bridgeEnabled=${!this.passive}
       .fitAutoContent=${true}
@@ -326,7 +326,7 @@ export class OpenClawBoardDocument extends OpenClawLightDomElement {
       .callbacks=${callbacks}
       .canMutate=${!this.passive && provider.canMutate}
       .canGrant=${!this.passive && provider.canGrant}
-    ></openclaw-board-view>`;
+    ></mirally-board-view>`;
   }
 
   override render() {
@@ -351,12 +351,12 @@ export class OpenClawBoardDocument extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-board-document")) {
-  customElements.define("openclaw-board-document", OpenClawBoardDocument);
+if (!customElements.get("mirally-board-document")) {
+  customElements.define("mirally-board-document", MirallyBoardDocument);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-board-document": OpenClawBoardDocument;
+    "mirally-board-document": MirallyBoardDocument;
   }
 }

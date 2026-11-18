@@ -34,7 +34,7 @@ type HubTabsProps<T extends string> = {
 const PENDING_FOCUS_WINDOW_MS = 2000;
 // Web Awesome selects its first tab when `active` is empty. A truthy value that
 // matches no panel preserves an intentional no-selection state.
-const NO_ACTIVE_TAB = "__openclaw-hub-tabs-no-active__";
+const NO_ACTIVE_TAB = "__mirally-hub-tabs-no-active__";
 let pendingFocus: { hubId: string; tab: string; at: number; source: Element } | null = null;
 
 function reclaimFocus(hubId: string, tab: string, element: Element | undefined) {

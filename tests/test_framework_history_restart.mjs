@@ -96,7 +96,7 @@ test('real native attachment bytes and tool receipts restore after refresh, rota
   const stable = row => ({id: row.id, content: row.content.map(block=>block.type==='image'
     ? {...block,url:new URL(block.url).pathname} : block.type==='attachment'
       ? {...block,attachment:{...block.attachment,url:new URL(block.attachment.url).pathname}} : block),
-    owner: row.__openclaw.runId, native: row.native_session_id});
+    owner: row.__mirally.runId, native: row.native_session_id});
   const before = history.messages.map(stable);
   clients.forEach(value => value.stop());
   await api('/api/shutdown', {}); await until(() => child.exitCode !== null, 'first Host exits');

@@ -85,7 +85,7 @@ export class MirallyBrowserClient {
     return [...entries].filter(([, entry]) => entry.text && !history.some(message => entry.nativeSeq !== undefined
       && message.native_session_id === entry.nativeSessionId && message.native_seq === entry.nativeSeq))
       .map(([attemptId, entry]) => ({id: `mirally-reasoning:${attemptId}`, role: 'assistant', timestamp: entry.timestamp,
-        __openclaw: {runId}, __mirallyTransient: true, content: [{type: 'thinking', thinking: entry.text}]}));
+        __mirally: {runId}, __mirallyTransient: true, content: [{type: 'thinking', thinking: entry.text}]}));
   }
   requestScopeUpgrade() { return Promise.reject(new Error("本机 Mirally 使用产品授权确认，不提供 Gateway scope 升级。")); }
   cancelScopeUpgrade() {}
@@ -163,7 +163,7 @@ export class MirallyBrowserClient {
       await new Promise<void>((resolve, reject) => { const script = document.createElement("script"); script.id = id; script.src = src; script.onload = () => resolve(); script.onerror = () => {script.remove(); reject(new Error("原界面资源未能加载"));}; document.head.append(script); });
     }
     (window as any).__mirallyFramework = {showPage: async (page: string) => {
-      const context = (document.querySelector("openclaw-app") as any)?.context;
+      const context = (document.querySelector("mirally-app") as any)?.context;
       if (page === "work") return (window as any).__mirallyWork?.open();
       if (page === "activity") return (window as any).__mirallyActivity?.open();
       const route = ({chat: "new-session", settings: "config", model: "model-providers", memory: "memory", extensions: "plugins", reminders: "cron", inbox: "custodian"} as Data)[page];
@@ -217,7 +217,7 @@ export class MirallyBrowserClient {
       modelProvider: modelProvider(s.model_selection?.connection_id ?? defaultConnection), model: s.model_selection?.model_id ?? model.model_id,
       modelOverrideSource: s.model_selection ? 'user' : null}));
   }
-  private message(message: Data) { return {id: message.id, role: message.role, timestamp: message.time, __openclaw: message.__openclaw,
+  private message(message: Data) { return {id: message.id, role: message.role, timestamp: message.time, __mirally: message.__mirally,
     ...(['desktop', 'weixin', 'mobile', 'schedule'].includes(message.input_origin) && message.role === 'user' ? {input_origin: message.input_origin} : {}),
     native_session_id: message.native_session_id, native_seq: message.native_seq, ...(message.toolCallId ? {toolCallId: message.toolCallId} : {}),
     content: Array.isArray(message.content) ? message.content.filter((block: Data) => block.type === 'text' && typeof block.text === 'string'
@@ -250,7 +250,7 @@ export class MirallyBrowserClient {
       try {
         const history = await this.history(id);
         if (this.stopped || generation !== this.generation) return;
-        const message = history.messages.find((item: Data) => item.role === 'user' && item.__openclaw?.runId === event.command_id);
+        const message = history.messages.find((item: Data) => item.role === 'user' && item.__mirally?.runId === event.command_id);
         if (message) this.emit('session.message', {key: key(id), agentId: 'main', message});
       } catch { /* History will be recovered on the next explicit refresh. */ }
       return;
@@ -295,10 +295,10 @@ export class MirallyBrowserClient {
       ...(event.state !== "running" && Object.hasOwn(event, "result") ? {result: event.result} : {}),
     }});
     if (["done", "error"].includes(event.type)) {
-      const history = await this.history(id), message = history.messages.filter((m: Data) => m.role === "assistant" && (!runId || m.__openclaw?.runId === runId)).at(-1);
+      const history = await this.history(id), message = history.messages.filter((m: Data) => m.role === "assistant" && (!runId || m.__mirally?.runId === runId)).at(-1);
       if (this.stopped || generation !== this.generation) return;
       // A queued input may only become durable after the original session event.
-      const userMessage = runId && history.messages.find((item: Data) => item.role === 'user' && item.__openclaw?.runId === runId);
+      const userMessage = runId && history.messages.find((item: Data) => item.role === 'user' && item.__mirally?.runId === runId);
       if (userMessage) this.emit('session.message', {key: key(id), agentId: 'main', message: userMessage});
       if (runId) this.forgetRun(id, runId);
       this.reasoningStreams.delete(partialKey); this.assistantAttempts.delete(partialKey);

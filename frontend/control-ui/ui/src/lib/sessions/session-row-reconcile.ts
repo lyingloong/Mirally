@@ -1,5 +1,5 @@
-import { asNullableRecord as recordOrNull } from "@openclaw/normalization-core/record-coerce";
-import { normalizeOptionalString as stringValue } from "@openclaw/normalization-core/string-coerce";
+import { asNullableRecord as recordOrNull } from "@mirally/normalization-core/record-coerce";
+import { normalizeOptionalString as stringValue } from "@mirally/normalization-core/string-coerce";
 import type { GatewaySessionRow, SessionRunStatus } from "../../api/types.ts";
 import { isSessionRunActive } from "../session-run-state.ts";
 import { sessionMatchesArchivedFilter, type SessionArchivedFilter } from "./navigation.ts";

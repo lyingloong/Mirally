@@ -1,4 +1,4 @@
-import { asNullableRecord as asRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableRecord as asRecord } from "@mirally/normalization-core/record-coerce";
 import { html } from "lit";
 import { GatewayRequestError, type GatewayEventFrame } from "../../api/gateway.ts";
 import { t } from "../../i18n/index.ts";

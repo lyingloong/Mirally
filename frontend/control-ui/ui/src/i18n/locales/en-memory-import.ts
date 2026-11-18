@@ -34,13 +34,13 @@ const enMemoryImport = {
     confirmDescription: "Copy {count} selected memory files into this agent workspace.",
     confirmReplace:
       "Existing destination files will be backed up in the migration report before replacement.",
-    confirmBackup: "OpenClaw creates a verified pre-import backup before copying memory.",
+    confirmBackup: "Mirally creates a verified pre-import backup before copying memory.",
     confirmImport: "Import memory",
     disconnected: "Connect to the gateway to import memory.",
     adminRequired: "Memory import requires operator.admin access.",
     title: "Import assistant memory",
     subtitle:
-      "Review Codex consolidated memory and Claude Code auto-memory before copying it into OpenClaw.",
+      "Review Codex consolidated memory and Claude Code auto-memory before copying it into Mirally.",
     agent: "Destination agent",
     replaceExisting: "Replace existing imports",
     replaceHint: "Preview conflicts again and preserve item backups before replacement.",

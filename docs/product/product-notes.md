@@ -698,7 +698,7 @@
 - 类型：研究 / 待评估
 - 来源：用户要求仔细核对 UFO 框架，评估 Mirally 可借鉴的 Windows 桌面能力。
 - 要点：借 UIA 控件快照、紧凑目标列表、标注截图、目标校验和动作后核对；补 Office/PDF 结构化 API（PDF 文本先复用现有材料提取）；不接 UFO 的 Host/App 双循环、Blackboard、Galaxy/AIP 运行时。先做只读快照，再单步动作。
-- 边界：默认产品不加载 UFO；UIA 覆盖率、延迟和 token 成本未实测；微信与桌面共用能力开关和动作审批，不额外设渠道限制；真实桌面与微信行为未验收。见[UFO 框架复盘](research-2026-10-31-ufo.md)。
+- 边界：此处的 UIA 覆盖率、延迟和 token 成本未实测；真实桌面与微信行为未验收。完整复盘见 [Git 中的研究记录](https://github.com/lyingloong/Mirally/blob/1ebd64560749b18c8b281511c5a691b3d2d43589/docs/product/research-2026-10-31-ufo.md)。
 
 ## PN-0083 · 2026-11-01 00:55 +08:00 · 按功能定位开发入口
 
@@ -719,7 +719,7 @@
 - 类型：用户决定 / 更新 PN-0021、PN-0084
 - 来源：用户要求移除 UFO 子模块与仅依赖它的测试/依赖，清理本地全量验证噪声。
 - 决定：删除 UFO submodule（`.gitmodules`、gitlink `UFO`）及其专用依赖清单；删除 4 个 `tests/test_ufo_*.py` 与 2 个专用夹具（`ufo_startup_probe.py`、`native_execution_scenarios.py`）。完整 Python 测试不再需要初始化子模块或安装 UFO 依赖。
-- 边界：`mirally/runtime/ufo/` 产品适配、`config/mirally/ufo/` 配置与 [UFO 复盘](research-2026-10-31-ufo.md) 保留，供未来自研 Windows 适配参考；不恢复 UFO 执行链、不整体接入 UFO；子模块源码由 Git 历史追溯，需要时可回滚恢复。
+- 当时保留适配、配置与复盘作为参考；是否保留由 PN-0095 更新。
 
 ## PN-0086 · 2026-11-06 01:43 +08:00 · 全界面的视觉与易用性持续改进
 
@@ -793,3 +793,17 @@
 - 来源：用户批准 dev-0024 首发 A，并于 2026-11-12 要求实施。[批准记录](https://github.com/lyingloong/Mirally/pull/24#issuecomment-6758857068)
 - 决定：用户明确要求才写入，意图不清先问。首发同时提供自由记事、查找、纠错、撤销、删除、目录整理和私密过滤。桌面和微信共用同一套规则。
 - 边界：记事与记忆召回分开。凭据管理另做，账本和导出留待后续。[现行设计](../architecture/notebook.md)
+
+## PN-0095 · 2026-11-18 +08:00 · 退役 UFO 参考适配
+
+- 类型：用户决定，更新 PN-0085。
+- 来源：用户明确表示以后不会接入 UFO，可以在需要时借鉴设计。
+- 决定：移除仓库中的 UFO 适配、配置、旧桌面任务链和专用测试。设计复盘通过 PN-0082 查阅，历史代码可从 [Git 基线](https://github.com/lyingloong/Mirally/tree/1ebd64560749b18c8b281511c5a691b3d2d43589/mirally/runtime/ufo) 追溯。
+- 边界：Windows 能力围绕 Mirally 自有接口演进。保留当前桌面观察、截图、伙伴和活动采集；源码清理不涉及用户本机配置或数据。
+
+## PN-0096 · 2026-11-18 +08:00 · 产品与前端统一使用 Mirally 名称
+
+- 类型：用户决定
+- 来源：用户明确要求清理旧宿主命名，产品统一叫 Mirally。
+- 决定：产品界面、组件、构建、配置和内部事件采用 Mirally 身份。仍使用的工具展示等能力迁入现行组件。
+- 边界：保留真实第三方许可、源文件归属和外部服务协议。微信授权页由腾讯控制。

@@ -18,7 +18,7 @@ import { currentConfigObject } from "../../../lib/config/config-state-model.ts";
 import { formatTimeMs } from "../../../lib/format.ts";
 import { isPluginEnabledInConfigSnapshot } from "../../../lib/plugin-activation.ts";
 import { GatewayPageController } from "../../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../../lit/subscriptions-controller.ts";
 import {
   backfillDreamDiary,
@@ -112,7 +112,7 @@ function readWikiPagePreview(value: unknown, lookup: string): WikiPagePreview {
   };
 }
 
-class AgentMemoryPanel extends OpenClawLightDomElement {
+class AgentMemoryPanel extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -545,6 +545,6 @@ class AgentMemoryPanel extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-agent-memory-panel")) {
-  customElements.define("openclaw-agent-memory-panel", AgentMemoryPanel);
+if (!customElements.get("mirally-agent-memory-panel")) {
+  customElements.define("mirally-agent-memory-panel", AgentMemoryPanel);
 }

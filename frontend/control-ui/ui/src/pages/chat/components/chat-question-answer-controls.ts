@@ -1,4 +1,4 @@
-import type { Question } from "@openclaw/gateway-protocol";
+import type { Question } from "@mirally/gateway-protocol";
 import { html, nothing } from "lit";
 import { ifDefined } from "lit/directives/if-defined.js";
 import type { QuestionDraft } from "../../../app/question-prompt.ts";

@@ -1,4 +1,4 @@
-import type { RouteMatch, Router, RouterState } from "@openclaw/uirouter";
+import type { RouteMatch, Router, RouterState } from "@mirally/ui-router";
 
 const DEFAULT_PENDING_DELAY_MS = 1_000;
 

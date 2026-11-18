@@ -11,7 +11,7 @@ function fixture() {
   const sandbox={html:(strings,...values)=>({strings,values}),nothing:Symbol(),live:value=>value,
     customElement:()=>target=>target,state:()=>()=>{},property:()=>()=>{},consume:()=>()=>{},applicationContext:{},
     eventOptions:options=>(_target,_name,descriptor)=>Object.assign(descriptor.value,options),
-    HTMLElement:Element,OpenClawLightDomElement:class{},SubscriptionsController:class{watch(){return this;}},
+    HTMLElement:Element,MirallyLightDomElement:class{},SubscriptionsController:class{watch(){return this;}},
     renderSettingsSection:(_options,content)=>content,renderSettingsRow:options=>options.control,
     renderSettingsEmpty:()=>'',isDeepSeekEndpoint:()=>false};
   vm.runInNewContext(source+'\nglobalThis.Page=MirallySettingsPage;',sandbox);

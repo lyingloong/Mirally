@@ -86,7 +86,7 @@ export function renderSidebarIdentityMenu(params: SidebarIdentityMenuParams) {
       ></button>
       <wa-dropdown-item class="sidebar-customize-menu__item sidebar-identity-menu__header" value="command:profile">
         <span slot="icon" class="sidebar-identity-menu__avatar" aria-hidden="true">
-          <openclaw-viewer-avatar .user=${avatarUser} variant="footer"></openclaw-viewer-avatar>
+          <mirally-viewer-avatar .user=${avatarUser} variant="footer"></mirally-viewer-avatar>
         </span>
         <span class="sidebar-identity-menu__identity">
           <span class="sidebar-identity-menu__name" title=${profileName}>${profileName}</span>
@@ -129,7 +129,7 @@ export function renderSidebarIdentityMenu(params: SidebarIdentityMenuParams) {
             params.onNavigate("about");
           }}
         ><span class="sidebar-footer-build__text">Mirally</span></a>
-        <span class="sidebar-mode-switch"><openclaw-theme-mode-toggle .mode=${params.themeMode}></openclaw-theme-mode-toggle></span>
+        <span class="sidebar-mode-switch"><mirally-theme-mode-toggle .mode=${params.themeMode}></mirally-theme-mode-toggle></span>
       </div>
     </wa-dropdown>
   `;

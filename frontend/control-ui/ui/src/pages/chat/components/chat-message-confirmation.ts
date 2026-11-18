@@ -7,7 +7,7 @@ import { getSafeLocalStorage } from "../../../local-storage.ts";
 registerChatMessageMetadataEnglish();
 
 // Persisted preference key: renaming it would reset users' "Don't ask again" choice.
-const SKIP_REWIND_CONFIRM_PREFERENCE = "openclaw:skip-rewind-confirm";
+const SKIP_REWIND_CONFIRM_PREFERENCE = "mirally:skip-rewind-confirm";
 const CONFIRMED_ACTION_VIEWPORT_MARGIN_PX = 8;
 const CONFIRMED_ACTION_TRIGGER_GAP_PX = 6;
 
@@ -125,7 +125,7 @@ export function renderRewindButton(onRewind: () => void) {
   };
   return html`
     <span class="chat-confirm-wrap chat-rewind-wrap">
-      <openclaw-tooltip .content=${label}>
+      <mirally-tooltip .content=${label}>
         <button
           class="chat-group-rewind"
           aria-label=${label}
@@ -134,7 +134,7 @@ export function renderRewindButton(onRewind: () => void) {
         >
           ${icons.refresh}
         </button>
-      </openclaw-tooltip>
+      </mirally-tooltip>
     </span>
   `;
 }

@@ -2,7 +2,7 @@ import { html } from "lit";
 import { property } from "lit/decorators.js";
 import { t } from "../i18n/index.ts";
 import { copyToClipboard } from "../lib/clipboard.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import { DropdownMenuController } from "./dropdown-menu-controller.ts";
 import { icons } from "./icons.ts";
 import { activateMenuShortcut, menuShortcutHint } from "./menu-shortcuts.ts";
@@ -11,7 +11,7 @@ import "./web-awesome.ts";
 
 export type NativeLinkMenuAction = "inline" | "external" | "copy";
 
-export class NativeLinkMenu extends OpenClawLightDomElement {
+export class NativeLinkMenu extends MirallyLightDomElement {
   @property({ attribute: false }) x = 0;
   @property({ attribute: false }) y = 0;
   @property({ attribute: false }) trigger: HTMLAnchorElement | null = null;
@@ -104,7 +104,7 @@ export class NativeLinkMenu extends OpenClawLightDomElement {
 
 function menuContainer(path: EventTarget[]): HTMLElement {
   const modalHost = path.find(
-    (target) => target instanceof HTMLElement && target.localName === "openclaw-modal-dialog",
+    (target) => target instanceof HTMLElement && target.localName === "mirally-modal-dialog",
   );
   if (modalHost instanceof HTMLElement) {
     return modalHost;
@@ -133,7 +133,7 @@ export function mountNativeLinkMenu(options: {
     return null;
   }
   // SAFETY: This module registers the tag; createElement uses its retained constructor after HMR.
-  const menu = document.createElement("openclaw-native-link-menu") as NativeLinkMenu;
+  const menu = document.createElement("mirally-native-link-menu") as NativeLinkMenu;
   menu.x = options.x;
   menu.y = options.y;
   menu.trigger = options.anchor;
@@ -152,6 +152,6 @@ export function mountNativeLinkMenu(options: {
   return menu;
 }
 
-if (!customElements.get("openclaw-native-link-menu")) {
-  customElements.define("openclaw-native-link-menu", NativeLinkMenu);
+if (!customElements.get("mirally-native-link-menu")) {
+  customElements.define("mirally-native-link-menu", NativeLinkMenu);
 }

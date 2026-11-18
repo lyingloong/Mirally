@@ -54,7 +54,7 @@ type DefaultModelsViewProps = {
   onCatalogRetry: () => void;
 };
 
-const AUTOMATIC_UTILITY_VALUE = "__openclaw_automatic_utility__";
+const AUTOMATIC_UTILITY_VALUE = "__mirally_automatic_utility__";
 const UTILITY_MODEL_PICKER_ID = "model-providers-utility-model";
 const UTILITY_MODEL_HELP_ID = "model-providers-utility-help";
 const THINKING_HELP_ID = "model-providers-thinking-help";
@@ -113,7 +113,7 @@ function renderHelpTitle(params: {
     <span class="model-providers__label-with-help">
       <span>${params.title}</span>
       <span class="settings-section__docs">
-        <openclaw-tooltip open-on-click>
+        <mirally-tooltip open-on-click>
           <button
             id=${params.triggerId}
             type="button"
@@ -128,7 +128,7 @@ function renderHelpTitle(params: {
             ${icons.info}
           </button>
           <div slot="content" class="settings-section__help-panel">${params.body}</div>
-        </openclaw-tooltip>
+        </mirally-tooltip>
       </span>
     </span>
   `;
@@ -138,7 +138,7 @@ function renderDefaultOption(params: { label: string; help: string }): TemplateR
   return html`
     <span class="model-providers__segment-label">
       <span>${params.label}</span>
-      <openclaw-tooltip open-on-click .content=${params.help}>
+      <mirally-tooltip open-on-click .content=${params.help}>
         <button
           type="button"
           class="model-providers__segment-info"
@@ -152,7 +152,7 @@ function renderDefaultOption(params: { label: string; help: string }): TemplateR
         >
           ${icons.info}
         </button>
-      </openclaw-tooltip>
+      </mirally-tooltip>
     </span>
   `;
 }

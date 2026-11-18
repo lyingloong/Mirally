@@ -10,7 +10,7 @@
   background: var(--panel);
 }
 
-.new-session-attachment-panel > openclaw-chat-detail-panel {
+.new-session-attachment-panel > mirally-chat-detail-panel {
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -19,7 +19,7 @@
 }
 
 @media (max-width: 768px) {
-  openclaw-new-session-page:has(> .new-session-attachment-panel) {
+  mirally-new-session-page:has(> .new-session-attachment-panel) {
     flex-direction: column;
   }
 

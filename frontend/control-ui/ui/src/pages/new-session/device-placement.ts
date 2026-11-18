@@ -35,10 +35,7 @@ function unavailableReason(
 ): string | undefined {
   const updateIssue = environment.issues?.find((issue) => issue.code === "update-required");
   if (updateIssue) {
-    return t("newSession.nodeUpdateRequired", {
-      updateCommand: updateIssue.updateCommand,
-      restartCommand: updateIssue.headlessReconnectCommand,
-    });
+    return t("newSession.nodeUpdateRequired");
   }
   if (environment.status !== "available") {
     return t("newSession.deviceUnavailable");

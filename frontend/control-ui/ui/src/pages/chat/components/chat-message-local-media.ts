@@ -5,7 +5,7 @@ import {
 
 export function isLocalAssistantAttachmentSource(source: string): boolean {
   const trimmed = source.trim();
-  if (/^\/(?:__openclaw__|media|api\/chat\/media\/outgoing)\//.test(trimmed)) {
+  if (/^\/(?:__mirally__|media|api\/chat\/media\/outgoing)\//.test(trimmed)) {
     return false;
   }
   return (

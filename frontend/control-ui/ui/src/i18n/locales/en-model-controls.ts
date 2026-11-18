@@ -14,9 +14,9 @@ const enModelControls = {
             "Runs through Claude Code, using its native login or a selected saved account. An explicitly selected API-key account has separate API billing; CLI does not mean free or subscription-only.",
         },
         anthropicApi: {
-          label: "API · OpenClaw",
+          label: "API · Mirally",
           detail:
-            "Uses the configured Anthropic API connection with OpenClaw's runtime. API-key usage is billed separately from a Claude subscription.",
+            "Uses the configured Anthropic API connection with Mirally's runtime. API-key usage is billed separately from a Claude subscription.",
         },
         anthropicConfigured: {
           label: "Configured route",
@@ -77,7 +77,7 @@ const enModelControls = {
       title: "Use {runtime}’s native permissions?",
       confirm: "Continue for this chat",
       confirmMessage:
-        "{runtime} will run on the Gateway host under its own permissions. OpenClaw’s optional native tool and sandbox restrictions, including workspace-only restrictions, will not be enforced for this harness. Only this chat is changed; other chats and global configuration stay unchanged. OpenClaw-hosted tools keep their own policy checks.",
+        "{runtime} will run on the Gateway host under its own permissions. Mirally’s optional native tool and sandbox restrictions, including workspace-only restrictions, will not be enforced for this harness. Only this chat is changed; other chats and global configuration stay unchanged. Mirally-hosted tools keep their own policy checks.",
       retryMessage: "Continue will retry the message you just sent.",
       chooseAnother: "Choose another model to keep this chat’s current execution restrictions.",
       failed: "Could not change this chat’s execution permissions: {error}",
@@ -85,11 +85,11 @@ const enModelControls = {
         "The model and permissions were saved, but refreshing this chat failed: {error}",
       reasons: {
         "sandbox-required": "{runtime} cannot run because this chat requires a sandbox.",
-        sandbox: "{runtime} uses native tools that cannot run inside the OpenClaw sandbox.",
+        sandbox: "{runtime} uses native tools that cannot run inside the Mirally sandbox.",
         "workspace-only":
-          "{runtime} cannot enforce this chat’s OpenClaw workspace-only restriction.",
+          "{runtime} cannot enforce this chat’s Mirally workspace-only restriction.",
         "permission-mode": "{runtime} cannot enforce this chat’s current execution permissions.",
-        "tool-policy": "{runtime} cannot enforce this chat’s OpenClaw native tool restrictions.",
+        "tool-policy": "{runtime} cannot enforce this chat’s Mirally native tool restrictions.",
         "remote-execution": "{runtime} cannot use this chat’s remote execution target.",
       },
     },

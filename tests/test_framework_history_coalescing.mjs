@@ -23,7 +23,7 @@ test('original UI coalesces durable and late live tool projections by the exact 
     {seq: 2, time: 3, type: 'tool/result', sourceEventSeqs: [1], data: {turn: 1, step: 1, message: {toolCallId: 'provider-reused', isError: false, content: [{type: 'text', text: '真实结果'}]}}}];
   const rows = projectMessages(log, [{command_id: 'run', runtime_request_id: 'user'}], 0, {nativeSessionId: 'native-one'});
   const durable = rows[1], live = {role: 'assistant', runId: 'run', toolCallId: durable.toolCallId, timestamp: 2,
-    __openclawToolStreamLive: true, __openclawToolStreamResultReceived: false,
+    __mirallyToolStreamLive: true, __mirallyToolStreamResultReceived: false,
     content: [{type: 'toolcall', name: 'mirally_reminders', arguments: {}}]};
   const item = (message, key) => ({kind: 'message', key, message});
   for (const sequence of [[live, durable], [durable, live]]) {
@@ -34,7 +34,7 @@ test('original UI coalesces durable and late live tool projections by the exact 
     assert.equal(result.length, 1); assert.equal(result[0].text, '真实结果');
     const call=tools[0].message.content.find(block=>['toolcall','tool_call'].includes(block.type));
     assert.deepEqual({...call.arguments}, {query:'校园班车',count:10}, 'Persisted arguments must win over an empty live projection');
-    assert.equal(tools[0].message.__openclawToolStreamResultReceived, true, 'A late running echo cannot resurrect the spinner');
+    assert.equal(tools[0].message.__mirallyToolStreamResultReceived, true, 'A late running echo cannot resurrect the spinner');
   }
   const other = projectMessages(log, [{command_id: 'run', runtime_request_id: 'user'}], 10, {nativeSessionId: 'native-two'})[1];
   const both = coalesceToolActivityMessages([item(rows[0], 'user'), item(durable, 'old'), item(other, 'new')]);

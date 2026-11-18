@@ -1,4 +1,4 @@
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import type { ReactiveController, ReactiveControllerHost } from "lit";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import type { ApplicationContext } from "../../app/context.ts";
@@ -133,7 +133,7 @@ export class NewSessionTitleController implements ReactiveController {
   private input(): DraftTitleInput | null {
     const { context, data, place, submission, dictating } = this.read();
     const snapshot = context?.gateway.snapshot;
-    // Native prompts belong to the selected CLI, never OpenClaw title inference.
+    // Native prompts belong to the selected CLI, never Mirally title inference.
     if (
       !this.connected ||
       isTarget(data) ||

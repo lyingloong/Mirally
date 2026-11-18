@@ -35,7 +35,7 @@ from pathlib import Path
 from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[1]
-SKIP_PARTS = {"node_modules", ".venv", ".git", "output", ".artifacts", "UFO", "dsh"}
+SKIP_PARTS = {"node_modules", ".venv", ".git", "output", ".artifacts", "dsh"}
 # The kernel tree is upstream source, but this one file is maintained by Mirally.
 FORCE_CHECK = {ROOT / "kernel" / "dsh" / "UPSTREAM.md"}
 LINK = re.compile(r"!?\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)")

@@ -1,4 +1,4 @@
-import { parseAgentSessionKeyParts } from "@openclaw/session-url-contract";
+import { parseAgentSessionKeyParts } from "@mirally/session-url-contract";
 import type { ReactiveControllerHost } from "lit";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import {

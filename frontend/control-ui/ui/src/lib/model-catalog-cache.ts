@@ -1,4 +1,4 @@
-import type { GatewayProtocolRequestOptions } from "@openclaw/gateway-client/browser";
+import type { GatewayProtocolRequestOptions } from "@mirally/gateway-client/browser";
 import type { ModelsListParams } from "../../../packages/gateway-protocol/src/index.js";
 import type { GatewayBrowserClient } from "../api/gateway.ts";
 import type { ModelCatalogResult } from "../api/types.ts";

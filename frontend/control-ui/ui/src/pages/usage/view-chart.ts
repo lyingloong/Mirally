@@ -1,5 +1,5 @@
-import { expectDefined } from "@openclaw/normalization-core";
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { expectDefined } from "@mirally/normalization-core";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 import { html, nothing } from "lit";
 import { createEmptyCostUsageTotals } from "../../../../src/infra/session-cost-usage-totals.js";
 import { renderSettingsSegmented } from "../../components/settings-ui.ts";
@@ -206,7 +206,7 @@ export function renderDailyChartCompact(
               const costLabel = formatAnalysisCost(d.totalCost);
               const segmentTotal = segments.reduce((sum, segment) => sum + segment.value, 0) || 1;
               return html`
-                <openclaw-tooltip
+                <mirally-tooltip
                   .content=${[dateLabel, tokensLabel, costLabel, ...breakdownLines].join("\n")}
                 >
                   <div
@@ -252,7 +252,7 @@ export function renderDailyChartCompact(
                     }
                     <div class="${labelClass}">${shortLabel}</div>
                   </div>
-                </openclaw-tooltip>
+                </mirally-tooltip>
               `;
             })}
           </div>

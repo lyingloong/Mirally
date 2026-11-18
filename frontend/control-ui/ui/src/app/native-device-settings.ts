@@ -31,7 +31,7 @@ const nativeDeviceSettingsSnapshotSchema = z.object({
     modelName: z.string().optional(),
     appVersion: z.string(), // CFBundleShortVersionString
     appBuild: z.string(), // CFBundleVersion
-    profileName: z.string().nullable(), // OPENCLAW_PROFILE name when active, else null
+    profileName: z.string().nullable(), // MIRALLY_PROFILE name when active, else null
   }),
   app: z
     .object({
@@ -247,17 +247,17 @@ export type NativeDeviceSettingsCapability = {
 };
 
 type NativeDeviceSettingsWindow = Window & {
-  __OPENCLAW_NATIVE_DEVICE_SETTINGS__?: unknown;
+  __MIRALLY_NATIVE_DEVICE_SETTINGS__?: unknown;
   webkit?: {
     messageHandlers?: {
-      openclawDeviceSettings?: {
+      mirallyDeviceSettings?: {
         postMessage: (message: NativeDeviceSettingsMessage) => Promise<unknown>;
       };
     };
   };
 };
 
-const CHANGE_EVENT = "openclaw:native-device-settings-changed";
+const CHANGE_EVENT = "mirally:native-device-settings-changed";
 
 export function createNativeDeviceSettingsCapability(): NativeDeviceSettingsCapability | null {
   if (typeof window === "undefined") {
@@ -265,20 +265,20 @@ export function createNativeDeviceSettingsCapability(): NativeDeviceSettingsCapa
   }
   // SAFETY: the host adds optional WebKit fields; the handler and snapshot are validated below.
   const nativeWindow = window as NativeDeviceSettingsWindow;
-  const handler = nativeWindow.webkit?.messageHandlers?.openclawDeviceSettings;
+  const handler = nativeWindow.webkit?.messageHandlers?.mirallyDeviceSettings;
   if (typeof handler?.postMessage !== "function") {
     return null;
   }
   const postMessage = handler.postMessage;
   const post = postMessage.bind(handler);
   const initial = nativeDeviceSettingsSnapshotSchema.safeParse(
-    nativeWindow["__OPENCLAW_NATIVE_DEVICE_SETTINGS__"],
+    nativeWindow["__MIRALLY_NATIVE_DEVICE_SETTINGS__"],
   );
   let snapshot = initial.success ? initial.data : null;
   let disposed = false;
   const isCurrent = () =>
     !disposed &&
-    nativeWindow.webkit?.messageHandlers?.openclawDeviceSettings === handler &&
+    nativeWindow.webkit?.messageHandlers?.mirallyDeviceSettings === handler &&
     handler.postMessage === postMessage;
   const listeners = new Set<(snapshot: NativeDeviceSettingsSnapshot) => void>();
   const acceptSnapshot = (next: NativeDeviceSettingsSnapshot) => {

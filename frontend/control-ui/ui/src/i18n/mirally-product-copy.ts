@@ -11,8 +11,8 @@ const EN: Record<string, string> = {
   "configView.themes.claw.label": "Mirally",
   "configView.themes.claw.description": "Neutral surfaces with Mirally blue accents.",
   "configView.appearance.accents.claw": "Coral red",
-  "nav.askOpenClaw": "Ask Mirally",
-  "chat.catalog.openInOpenClaw": "Open in Mirally",
+  "nav.askMirally": "Ask Mirally",
+  "chat.catalog.openInMirally": "Open in Mirally",
   "chat.progressLabels.thinking": "Thinking",
   "chat.progressLabels.considering": "Considering",
   "chat.progressLabels.working": "Working",
@@ -28,11 +28,11 @@ const ZH: Record<string, string> = {
   "chat.welcome.suggestions.summarizeRecentSessions": "帮我整理最近的对话",
   "chat.welcome.suggestions.configureChannel": "帮我安排今天的事情",
   "chat.welcome.suggestions.checkSystemHealth": "你想了解我的哪些偏好？",
-  "configView.themes.claw.label": "Mirally",
+  "configView.themes.claw.label": "晴空蓝",
   "configView.themes.claw.description": "中性底色，蓝色点缀。",
   "configView.appearance.accents.claw": "珊瑚红",
-  "nav.askOpenClaw": "询问 Mirally",
-  "chat.catalog.openInOpenClaw": "在 Mirally 中打开",
+  "nav.askMirally": "询问 Mirally",
+  "chat.catalog.openInMirally": "在 Mirally 中打开",
   "chat.progressLabels.thinking": "思考中",
   "chat.progressLabels.considering": "斟酌中",
   "chat.progressLabels.working": "处理中",
@@ -43,5 +43,5 @@ const ZH: Record<string, string> = {
 export function mirallyProductTranslation(key: string, locale: string, value: unknown): string | undefined {
   const override = (locale.startsWith("zh") ? ZH : EN)[key];
   if (override !== undefined) return override;
-  return typeof value === "string" ? value.replace(/\bOpenClaw\b/g, "Mirally") : undefined;
+  return typeof value === "string" ? value : undefined;
 }

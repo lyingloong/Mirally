@@ -1,6 +1,6 @@
 import { consume } from "@lit/context";
-import type { CanvasDocumentViewResult } from "@openclaw/gateway-protocol";
-import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
+import type { CanvasDocumentViewResult } from "@mirally/gateway-protocol";
+import { asOptionalRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
@@ -10,7 +10,7 @@ import { getCanvasWidgetFrameConnectionGeneration } from "../lib/chat/canvas-wid
 import { formatUiError } from "../lib/format-error.ts";
 import { WidgetSandboxHost, WIDGET_LOAD_TIMEOUT_MS } from "../lib/widget-sandbox-host.ts";
 import { registerWidgetThemeFrame, postWidgetTheme } from "../lib/widget-theme.ts";
-import { OpenClawLightDomContentsElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../lit/mirally-element.ts";
 import { allowWidgetPrompt, dispatchWidgetPrompt } from "./mcp-app-security.ts";
 import { resolveSandboxHostUrl } from "./sandbox-host.ts";
 
@@ -53,7 +53,7 @@ function loadCanvasView(binding: ViewBinding): Promise<CanvasDocumentViewResult>
   return request;
 }
 
-export class OpenClawCanvasWidgetView extends OpenClawLightDomContentsElement {
+export class MirallyCanvasWidgetView extends MirallyLightDomContentsElement {
   @consume({ context: applicationContext, subscribe: true })
   private context?: ApplicationContext;
 
@@ -203,7 +203,7 @@ export class OpenClawCanvasWidgetView extends OpenClawLightDomContentsElement {
       return;
     }
     postWidgetTheme(frame, this.sandboxOrigin);
-    frame.contentWindow?.postMessage({ type: "openclaw:widget-chat-host" }, this.sandboxOrigin);
+    frame.contentWindow?.postMessage({ type: "mirally:widget-chat-host" }, this.sandboxOrigin);
   }
 
   private readonly handleMessage = (event: MessageEvent): void => {
@@ -219,7 +219,7 @@ export class OpenClawCanvasWidgetView extends OpenClawLightDomContentsElement {
     }
     host.handleMessage(event);
     const data = asOptionalRecord(event.data);
-    if (data?.type === "openclaw:widget-runtime-error") {
+    if (data?.type === "mirally:widget-runtime-error") {
       if (!this.sessionKey || typeof data.message !== "string") {
         return;
       }
@@ -264,18 +264,18 @@ export class OpenClawCanvasWidgetView extends OpenClawLightDomContentsElement {
       return;
     }
     if (
-      data?.type === "openclaw:widget-size" &&
+      data?.type === "mirally:widget-size" &&
       typeof data.height === "number" &&
       Number.isFinite(data.height) &&
       data.height > 0
     ) {
       this.contentHeight = Math.min(8000, Math.max(48, Math.trunc(data.height)));
     }
-    if (data?.type === "openclaw:widget-bridge-ready") {
+    if (data?.type === "mirally:widget-bridge-ready") {
       this.postHostState();
     }
-    if (data?.type !== "openclaw:widget-prompt-offer") {
-      if (data?.type === "openclaw:widget-bridge-port-offer") {
+    if (data?.type !== "mirally:widget-prompt-offer") {
+      if (data?.type === "mirally:widget-bridge-port-offer") {
         event.ports[0]?.close();
       }
       return;
@@ -292,7 +292,7 @@ export class OpenClawCanvasWidgetView extends OpenClawLightDomContentsElement {
       if (
         this.isCurrent(binding) &&
         this.promptPort === port &&
-        message.data?.type === "openclaw:widget-prompt"
+        message.data?.type === "mirally:widget-prompt"
       ) {
         dispatchWidgetPrompt(
           host.frame,
@@ -302,7 +302,7 @@ export class OpenClawCanvasWidgetView extends OpenClawLightDomContentsElement {
       }
     });
     port.start();
-    port.postMessage({ type: "openclaw:widget-prompt-host-ready" });
+    port.postMessage({ type: "mirally:widget-prompt-host-ready" });
   };
 
   override render() {
@@ -360,12 +360,12 @@ export class OpenClawCanvasWidgetView extends OpenClawLightDomContentsElement {
   }
 }
 
-if (!customElements.get("openclaw-canvas-widget-view")) {
-  customElements.define("openclaw-canvas-widget-view", OpenClawCanvasWidgetView);
+if (!customElements.get("mirally-canvas-widget-view")) {
+  customElements.define("mirally-canvas-widget-view", MirallyCanvasWidgetView);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-canvas-widget-view": OpenClawCanvasWidgetView;
+    "mirally-canvas-widget-view": MirallyCanvasWidgetView;
   }
 }

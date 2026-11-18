@@ -35,7 +35,6 @@ class CheckDependenciesTests(unittest.TestCase):
     def base_tree(self) -> Path:
         root = self.temp_root()
         self.write(root, "requirements-framework.txt", "# product runtime\nrequests==2.31.0\npywebview==6.1\n")
-        self.write(root, "requirements-ufo.txt", "# optional\n-r requirements-framework.txt\n")
         self.write(root, "kernel/dsh/.github/review-ownership/requirements.txt", "Pygments==2.21.0\n")
         self.write(root, "tools/testing/package.json",
                    '{"devDependencies": {"playwright-core": "1.63.0"}}')
@@ -55,14 +54,12 @@ class CheckDependenciesTests(unittest.TestCase):
         by_path = self.manifests_by_path(root)
         self.assertEqual(by_path["requirements-framework.txt"]["kind"], "runtime")
         self.assertEqual(by_path["requirements-framework.txt"]["environment"], "product-venv")
-        self.assertEqual(by_path["requirements-ufo.txt"]["kind"], "optional")
         self.assertEqual(by_path["kernel/dsh/.github/review-ownership/requirements.txt"]["kind"], "ci")
         self.assertEqual(by_path["tools/testing/package.json"]["environment"], "test-tools")
         self.assertEqual(by_path["frontend/control-ui/package.json"]["kind"], "upstream")
         self.assertEqual([(item["name"], item["constraint"])
                           for item in by_path["requirements-framework.txt"]["dependencies"]],
                          [("requests", "==2.31.0"), ("pywebview", "==6.1")])
-        self.assertEqual(by_path["requirements-ufo.txt"]["dependencies"], [])
         self.assertEqual([(item["name"], item["constraint"])
                           for item in by_path["tools/testing/package.json"]["dependencies"]],
                          [("playwright-core", "1.63.0")])
@@ -116,7 +113,8 @@ class CheckDependenciesTests(unittest.TestCase):
 
     def test_same_environment_conflict_is_a_finding(self) -> None:
         root = self.base_tree()
-        self.write(root, "requirements-ufo.txt", "-r requirements-framework.txt\nrequests>=2.0\n")
+        with (root / "requirements-framework.txt").open("a", encoding="utf-8") as stream:
+            stream.write("requests>=2.0\n")
         report = check_dependencies.audit(root)
         conflict = next(item for item in report["duplicates"] if item["name"] == "requests")
         self.assertEqual(conflict["environment"], "product-venv")
@@ -159,7 +157,8 @@ class CheckDependenciesTests(unittest.TestCase):
         self.assertEqual(payload["findings"], [])
         self.assertEqual(payload["summary"]["findings"], 0)
 
-        self.write(root, "requirements-ufo.txt", "-r requirements-framework.txt\nrequests>=2.0\n")
+        with (root / "requirements-framework.txt").open("a", encoding="utf-8") as stream:
+            stream.write("requests>=2.0\n")
         output = io.StringIO()
         with redirect_stdout(output):
             self.assertEqual(check_dependencies.main(["--root", str(root), "--json"]), 1)
@@ -167,21 +166,11 @@ class CheckDependenciesTests(unittest.TestCase):
         self.assertEqual(payload["findings"][0]["kind"], "duplicate-constraint")
         self.assertEqual(payload["summary"]["findings"], 1)
 
-    def test_absent_optional_manifest_is_not_required(self) -> None:
-        """requirements-ufo.txt was removed from the repo; its absence must not warn."""
+    def test_missing_runtime_manifest_is_reported(self) -> None:
         root = self.base_tree()
-        (root / "requirements-ufo.txt").unlink()
-        report = check_dependencies.audit(root)
-        self.assertEqual([warning for warning in report["warnings"] if "requirements-ufo" in warning], [],
-                         report["warnings"])
-        self.assertNotIn("requirements-ufo.txt",
-                         {manifest["path"] for manifest in report["manifests"]})
-        # Required manifests still warn when they disappear.
         (root / "requirements-framework.txt").unlink()
         report = check_dependencies.audit(root)
         self.assertIn("missing expected manifest: requirements-framework.txt", report["warnings"])
-        self.assertFalse([warning for warning in report["warnings"] if "requirements-ufo" in warning],
-                         report["warnings"])
 
     def test_malformed_manifest_types_warn_and_keep_auditing(self) -> None:
         """Valid JSON with unexpected types becomes a path-qualified warning (Codex P2)."""

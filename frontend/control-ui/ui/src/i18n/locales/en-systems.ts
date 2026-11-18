@@ -32,12 +32,12 @@ const enSystems = {
     screenSharingNeeded: "Turn on Screen Sharing",
     desktopServerNeeded: "Set up a desktop server",
     desktopSetupAttention: "Screen sharing needs attention",
-    desktopSetupEnableHint: "Enable desktop access to view and control this machine in OpenClaw.",
+    desktopSetupEnableHint: "Enable desktop access to view and control this machine in Mirally.",
     screenSharingSetupHint:
       "On this Mac, open System Settings → General → Sharing. Turn on Screen Sharing, or allow this account to Observe and Control in Remote Management, then check again.",
     desktopServerSetupHint:
       "Set up a password-protected VNC server on this machine, or configure a managed desktop on Linux, then check again.",
-    enableDesktopAccess: "Enable desktop access in OpenClaw",
+    enableDesktopAccess: "Enable desktop access in Mirally",
     desktopSetupEnabling: "Enabling desktop access…",
     desktopSetupEnabled: "Desktop access is enabled",
     desktopSetupConnecting: "Waiting for desktop access to become available.",

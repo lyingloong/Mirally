@@ -1,7 +1,6 @@
 import { html, nothing } from "lit";
-import { quoteCliArg } from "../../../../src/cli/quote-cli-arg.js";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
-import { renderConnectCommand } from "../../components/connect-command.ts";
+import { renderCopyButton } from "../../components/copy-button.ts";
 import { icons } from "../../components/icons.ts";
 import "../../components/modal-dialog.ts";
 import { t } from "../../i18n/index.ts";
@@ -128,13 +127,12 @@ export function renderConnectMachineDialog(props: ConnectMachineDialogProps) {
   }
   const title = t("newSession.connectMachineTitle");
   const joinUrl = props.setup?.joinUrl?.trim();
-  const command = joinUrl ? `npx openclaw connect ${quoteCliArg(joinUrl)}` : null;
   const expiresAt = props.setup?.expiresAtMs
     ? formatTimeMs(props.setup.expiresAtMs, { hour: "numeric", minute: "2-digit" }, "")
     : "";
 
   return html`
-    <openclaw-modal-dialog
+    <mirally-modal-dialog
       class="connect-machine-dialog"
       label=${title}
       description=${t("newSession.connectMachineDescription")}
@@ -158,7 +156,7 @@ export function renderConnectMachineDialog(props: ConnectMachineDialogProps) {
 
         <div class="connect-machine-dialog__body">
           ${
-            props.loading && !command
+            props.loading && !joinUrl
               ? html`<p class="connect-machine-dialog__status" role="status">
                   ${t("newSession.connectMachineGenerating")}
                 </p>`
@@ -172,9 +170,9 @@ export function renderConnectMachineDialog(props: ConnectMachineDialogProps) {
               : nothing
           }
           ${
-            command
+            joinUrl
               ? html`
-                  ${renderConnectCommand(command)}
+                  <div class="login-gate__command"><code translate="no">${joinUrl}</code>${renderCopyButton(joinUrl, t("common.copy"))}</div>
                   <p class="connect-machine-dialog__hint">
                     ${t("newSession.connectMachineTeamHint")}
                   </p>
@@ -192,7 +190,7 @@ export function renderConnectMachineDialog(props: ConnectMachineDialogProps) {
 
         <footer class="exec-approval-actions connect-machine-dialog__actions">
           ${
-            command || props.error
+            joinUrl || props.error
               ? html`<button
                   class="btn"
                   type="button"
@@ -213,6 +211,6 @@ export function renderConnectMachineDialog(props: ConnectMachineDialogProps) {
           </button>
         </footer>
       </section>
-    </openclaw-modal-dialog>
+    </mirally-modal-dialog>
   `;
 }

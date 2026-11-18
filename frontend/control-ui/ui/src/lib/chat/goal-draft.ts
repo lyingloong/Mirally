@@ -1,4 +1,4 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import type { ChatGoalDraftMode } from "./chat-types.ts";
 
 /** Browser drafts keep their interpretation with their text, including after reload. */
