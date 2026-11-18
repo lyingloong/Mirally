@@ -1,4 +1,4 @@
-import {html, nothing, type PropertyValues} from 'lit';
+import {html, nothing} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
 import {live} from 'lit/directives/live.js';
 import {unsafeHTML} from 'lit/directives/unsafe-html.js';
@@ -61,7 +61,6 @@ export class MirallyMobileApp extends OpenClawLightDomElement {
   private readonly visibilityChanged=()=>{this.clearPoll();if(!document.hidden&&this.token)void this.refresh();};
   override connectedCallback(){super.connectedCallback();document.addEventListener('visibilitychange',this.visibilityChanged);if(location.hash)history.replaceState(null,'',location.pathname+location.search);if(this.token)void this.boot();}
   override disconnectedCallback(){++this.epoch;this.clearPoll();document.removeEventListener('visibilitychange',this.visibilityChanged);super.disconnectedCallback();}
-  protected override updated(changed:PropertyValues){if(changed.has('view')&&this.token){writeSession(LAST_VIEW_KEY,this.view);void this.refresh();}}
   private clearPoll(){if(this.timer!==undefined)clearTimeout(this.timer);this.timer=undefined;}
   private schedule(){this.clearPoll();if(this.isConnected&&this.token&&!document.hidden)this.timer=setTimeout(()=>void this.refresh(),3500);}
   private fail(error:unknown,action=false){this.connected=false;this.actionError=action;this.error=error instanceof Error?error.message:'操作未完成，请刷新。';if(error instanceof MobileApiError&&error.status===401){this.token='';storeMobileToken('');++this.epoch;this.clearPoll();}}
@@ -71,7 +70,8 @@ export class MirallyMobileApp extends OpenClawLightDomElement {
     this.inbox=[];this.inboxUnreadOnly=false;this.inboxCursors=[null];this.nextInboxCursor=null;
     try{const preferences=await this.rpc<Data>('mobile.preferences.get');if(!this.isConnected||epoch!==this.epoch)return;
       this.acceptPreferences(preferences);this.device=preferences.device_info||this.device;
-      const last=readSession(LAST_VIEW_KEY);this.view=(this.preferences.home==='last'&&last in LABELS?last:'conversations') as View;
+      const last=readSession(LAST_VIEW_KEY);
+      this.view=(this.preferences.home==='last'&&Object.hasOwn(LABELS,last)?last:'conversations') as View;
       this.connected=true;this.lastContact=Date.now();if(!this.actionError)this.error='';
     }catch(error){if(this.isConnected&&epoch===this.epoch)this.fail(error);}
     finally{if(this.isConnected&&epoch===this.epoch){this.loading=false;void this.refresh();}}
@@ -81,9 +81,14 @@ export class MirallyMobileApp extends OpenClawLightDomElement {
     try{const result=await pairMobile(this.code.trim(),this.deviceName.trim()||'我的手机');this.token=result.token;storeMobileToken(this.token);this.rpc=createMobileRpc(this.token);this.device=result.device;this.code='';await this.boot();}
     catch(error){this.fail(error);}finally{this.busy=false;}
   }
-  private navigate(view:View){this.view=view;this.moreOpen=false;this.error='';this.notice='';if(view==='settings')void this.loadSettings();}
-  private async loadSettings(){try{const preferences=await this.rpc<Data>('mobile.preferences.get');this.acceptPreferences(preferences);this.connected=true;this.lastContact=Date.now();}catch(error){this.fail(error);}}
+  private navigate(view:View){
+    if(!this.token||this.loading)return;
+    this.view=view;this.moreOpen=false;this.error='';this.notice='';
+    writeSession(LAST_VIEW_KEY,view);
+    void this.refresh();
+  }
   private async refresh(){
+    if(this.loading)return;
     if(!this.token||!this.isConnected||document.hidden||this.busy){this.schedule();return;}
     const epoch=++this.epoch,view=this.view,id=this.currentConversation;
     try{
@@ -136,7 +141,7 @@ export class MirallyMobileApp extends OpenClawLightDomElement {
   }
   private openConversation(id:string){++this.epoch;this.currentConversation=id;this.currentConversationMeta=null;this.messages=[];this.history={};this.editingTitle=false;this.draft=readSession(draftKey(id));
     let saved:Data={};try{saved=JSON.parse(readSession(draftKey(id)+'.command')||'{}');}catch{}
-    this.commandId=typeof saved.id==='string'?saved.id:'';this.commandText=typeof saved.text==='string'?saved.text:'';this.navigate('conversations');void this.refresh();}
+    this.commandId=typeof saved.id==='string'?saved.id:'';this.commandText=typeof saved.text==='string'?saved.text:'';this.navigate('conversations');}
   private async older(){if(this.busy||!this.history.has_more)return;await this.act(async()=>{
     const result=await this.rpc<Data>('conversation.history',{conversation_id:this.currentConversation,limit:50,before_seq:this.messages[0]?.seq});
     const ids=new Set(this.messages.map(item=>item.seq));this.messages=[...(result.messages||[]).filter((item:Data)=>!ids.has(item.seq)),...this.messages];this.history={...this.history,has_more:result.has_more};
@@ -215,6 +220,6 @@ export class MirallyMobileApp extends OpenClawLightDomElement {
       <main class="mirally-mobile-main">${this.error?html`<p class="callout danger" role="alert">${this.error}</p>`:nothing}${this.notice?html`<p class="callout" role="status">${this.notice}</p>`:nothing}${this.loading?html`<p role="status">正在读取电脑上的状态…</p>`:nothing}
       ${this.view==='conversations'?this.conversationsView():this.view==='inbox'?this.inboxView():this.settingsView()}</main>
       ${this.moreOpen?html`<div class="mirally-mobile-more" role="group" aria-label="更多入口">${hidden.map(id=>html`<button class="btn" @click=${()=>this.navigate(id as View)}>${LABELS[id]}</button>`)}</div>`:nothing}
-      <nav class="mirally-mobile-nav" aria-label="主要导航">${navigation.map(id=>html`<button class="btn" aria-current=${this.view===id?'page':nothing} @click=${()=>this.navigate(id as View)}>${LABELS[id]}</button>`)}${hidden.length?html`<button class="btn" aria-expanded=${this.moreOpen} @click=${()=>this.moreOpen=!this.moreOpen}>更多</button>`:nothing}</nav></div>`;
+      <nav class="mirally-mobile-nav" aria-label="主要导航">${navigation.map(id=>html`<button class="btn" aria-current=${this.view===id?'page':nothing} ?disabled=${this.loading} @click=${()=>this.navigate(id as View)}>${LABELS[id]}</button>`)}${hidden.length?html`<button class="btn" aria-expanded=${this.moreOpen} ?disabled=${this.loading} @click=${()=>this.moreOpen=!this.moreOpen}>更多</button>`:nothing}</nav></div>`;
   }
 }

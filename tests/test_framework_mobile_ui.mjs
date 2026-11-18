@@ -42,10 +42,28 @@ test('hidden entries keep settings reachable and navigation repairs duplicate ID
   const f=fixture('mobile/api.ts');const result=f.run("mobileNavigation({...DEFAULT_MOBILE_PREFERENCES,navigation:['inbox','inbox','bogus'],hidden:['work','conversations','settings']})");
   assert.deepEqual(Array.from(result),['inbox','settings']);
 });
-test('boot honors conversation or per-browser last-page preference without selecting Weixin route',async()=>{
-  const f=mobile(async method=>method==='mobile.preferences.get'?{effective:{home:'last'},revision:3}: {conversations:[]});
-  f.storage.set('mirally.mobile.view.v1','conversations');f.app.token='phone';await f.app.boot();await settle();
+test('conversation home ignores a saved last page without selecting Weixin route',async()=>{
+  const f=mobile(async method=>method==='mobile.preferences.get'?{effective:{home:'conversations'},revision:3}: {conversations:[]});
+  f.storage.set('mirally.mobile.view.v1','inbox');f.app.token='phone';await f.app.boot();await settle();
   assert.equal(f.app.view,'conversations');assert.ok(f.calls.every(call=>!call.method.startsWith('weixin.')));
+});
+test('paired reload restores the saved view before the first page request',async()=>{
+  let releasePreferences;
+  const preferences=new Promise(resolve=>{releasePreferences=resolve;});
+  const f=mobile(async method=>method==='mobile.preferences.get'?preferences:{items:[],next_cursor:null});
+  const key='mirally.mobile.view.v1';
+  f.storage.set(key,'inbox');f.app.token='phone';
+  f.app.connectedCallback();
+  f.app.updated?.(new Map([['view',undefined]]));
+  await f.app.refresh(); // a visibility change or manual refresh while preferences are in flight
+  assert.equal(f.storage.get(key),'inbox');
+  assert.deepEqual(f.calls.map(call=>call.method),['mobile.preferences.get']);
+  releasePreferences({effective:{home:'last'},revision:3});await settle();
+  assert.equal(f.app.view,'inbox');
+  assert.deepEqual(f.calls.map(call=>call.method),['mobile.preferences.get','inbox.list']);
+  f.app.navigate('settings');await settle();
+  assert.equal(f.storage.get(key),'settings');
+  assert.deepEqual(f.calls.map(call=>call.method),['mobile.preferences.get','inbox.list','mobile.preferences.get']);
 });
 test('phone inbox keeps its cursor during polling and restarts when filtering unread',async()=>{
   const f=mobile(async(method,params)=>{
