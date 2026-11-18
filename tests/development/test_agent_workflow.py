@@ -98,8 +98,9 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config["quota"]["retry_after_minutes"], 30)
         self.assertEqual(config["quota"]["backoff_minutes"], [30, 60, 120])
         self.assertEqual(config["quota"]["fallback"]["mode"], "quota_restart_only")
-        self.assertEqual(config["quota"]["fallback"]["provider"], "deepseek-account")
-        self.assertEqual(config["primary_route"]["provider"], "ustc")
+        self.assertFalse(config["quota"]["fallback"]["enabled"])
+        self.assertIsNone(config["quota"]["fallback"]["provider"])
+        self.assertEqual(config["primary_route"], {"provider": None, "model": None})
         self.assertEqual(config["config_version"], 2)
 
     def test_config_upgrade_is_explicit_and_preserves_custom_values(self):
@@ -205,10 +206,26 @@ class ConfigTests(unittest.TestCase):
             wf.validate_config(make_config(concurrency=0))
 
     def test_fallback_is_only_for_quota_restart(self):
-        config = make_config()
-        config["quota"]["fallback"]["mode"] = "always"
+        config = make_config(quota={"fallback": {"enabled": True, "mode": "always",
+                                                 "provider": "backup", "model": "local-model"}})
         with self.assertRaises(wf.WorkflowError):
             wf.validate_config(config)
+
+    def test_local_routes_survive_default_changes_and_require_both_names(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            primary = {"provider": "my-primary", "model": "primary-model"}
+            fallback = {"enabled": True, "provider": "my-backup", "model": "backup-model"}
+            wf.write_json(path, {"primary_route": primary, "quota": {"fallback": fallback}})
+            config = wf.load_config(path)
+            self.assertEqual(config["primary_route"], primary)
+            self.assertEqual(config["quota"]["fallback"], {**fallback, "mode": "quota_restart_only"})
+            self.assertEqual(wf.read_json(path)["primary_route"], primary)
+
+        for incomplete in (make_config(primary_route={"provider": "my-primary"}),
+                           make_config(quota={"fallback": {"enabled": True}})):
+            with self.subTest(config=incomplete), self.assertRaises(wf.WorkflowError):
+                wf.validate_config(incomplete)
 
 
 class StateTests(unittest.TestCase):
@@ -332,6 +349,22 @@ class SummaryTests(unittest.TestCase):
         # A waiting merge is a fresh decision: it must be shown before discovery.
         self.assertEqual(summary["merge_queue_state"], "new")
         self.assertEqual(summary["action"], "ask_user_merge")
+
+    def test_review_pass_binds_the_review_to_the_registered_pr_and_head(self):
+        point = self.add_user()
+        point.update(pr=12, head_sha="a" * 40)
+        advance_to_reviewing(self.state, self.config, point["id"])
+        with self.assertRaises(wf.WorkflowError):
+            wf.review_pass(self.state, self.config, point["id"], expected_head="b" * 40)
+        self.assertEqual(point["status"], "reviewing")
+        self.assertIsNone(point["reviewed_head_sha"])
+
+        wf.review_pass(self.state, self.config, point["id"], expected_head="a" * 40)
+        self.assertEqual((point["reviewed_pr"], point["reviewed_head_sha"]), (12, "a" * 40))
+        point.update(pr=13, head_sha="b" * 40)
+        self.assertEqual((point["reviewed_pr"], point["reviewed_head_sha"]), (12, "a" * 40))
+        wf.review_fail(self.state, self.config, point["id"])
+        self.assertIsNone(point["reviewed_head_sha"])
 
     def test_second_merge_ready_point_counts_toward_concurrency(self):
         first = self.add_user("first")
@@ -845,19 +878,21 @@ class QuotaTests(unittest.TestCase):
         wf.start_point(self.state, self.config, self.point["id"])
 
     def test_quota_block_uses_30_minutes_and_marks_fallback(self):
-        point, result = wf.block_point(self.state, self.config, self.point["id"], reason="quota")
+        config = make_config(quota={"fallback": {"enabled": True, "provider": "backup", "model": "local-model"}})
+        point, result = wf.block_point(self.state, config, self.point["id"], reason="quota")
         self.assertEqual(point["status"], "blocked")
         self.assertEqual(point["blocked_from_status"], "specifying")
         self.assertEqual(point["quota_retries"], 1)
         self.assertEqual(result["wait_minutes"], 30)
-        self.assertEqual(result["fallback"]["provider"], "deepseek-account")
+        self.assertEqual(result["fallback"]["provider"], "backup")
         self.assertTrue(result["fallback"]["active"])
-        summary = wf.build_summary(self.state, self.config)
+        summary = wf.build_summary(self.state, config)
         self.assertTrue(summary["paused"])
         self.assertEqual(summary["action"], "wait_quota")
 
     def test_resume_restores_previous_status_and_primary_route(self):
-        wf.block_point(self.state, self.config, self.point["id"], reason="quota")
+        _, result = wf.block_point(self.state, self.config, self.point["id"], reason="quota")
+        self.assertIsNone(result["fallback"])
         wf.resume_point(self.state, self.config, self.point["id"])
         self.assertEqual(self.point["status"], "specifying")
         self.assertIsNone(self.point["fallback"])
