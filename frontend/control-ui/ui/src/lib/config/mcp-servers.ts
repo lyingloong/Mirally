@@ -1,5 +1,5 @@
-import { redactSensitiveUrlLikeString } from "@openclaw/net-policy/redact-sensitive-url";
-import { asNullableRecord as asRecord } from "@openclaw/normalization-core/record-coerce";
+import { redactSensitiveUrlLikeString } from "@mirally/net-policy/redact-sensitive-url";
+import { asNullableRecord as asRecord } from "@mirally/normalization-core/record-coerce";
 import { collectBaseArrayPaths } from "../../../../src/config/patch-replace-paths.js";
 import { t } from "../../i18n/index.ts";
 import { formatUiError } from "../format-error.ts";

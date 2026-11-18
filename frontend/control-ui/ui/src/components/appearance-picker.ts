@@ -5,12 +5,12 @@ import type {
   ControlUiAppearanceGlyphProps,
   ControlUiAppearancePickerProps,
 } from "../../../src/plugin-sdk/control-ui-components.js";
-import { OpenClawLightDomElement, OpenClawLitElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement, MirallyLitElement } from "../lit/mirally-element.ts";
 import { resolveSessionIconGraphic } from "./session-icon-glyph-registry.ts";
 import { handleAppearanceGridKeydown, renderAppearancePicker } from "./session-icon-picker.ts";
 import "../styles/sidebar-menus.css";
 
-export class AppearancePicker extends OpenClawLightDomElement {
+export class AppearancePicker extends MirallyLightDomElement {
   @property({ attribute: false }) props!: ControlUiAppearancePickerProps;
   @state() private mode: "grid" | "custom" = "grid";
   @state() private customIcon = "";
@@ -71,7 +71,7 @@ export class AppearancePicker extends OpenClawLightDomElement {
   }
 }
 
-export class AppearanceGlyph extends OpenClawLitElement {
+export class AppearanceGlyph extends MirallyLitElement {
   @property({ attribute: false }) props!: ControlUiAppearanceGlyphProps;
 
   static override styles = css`
@@ -99,9 +99,9 @@ export class AppearanceGlyph extends OpenClawLitElement {
   }
 }
 
-if (!customElements.get("openclaw-appearance-picker")) {
-  customElements.define("openclaw-appearance-picker", AppearancePicker);
+if (!customElements.get("mirally-appearance-picker")) {
+  customElements.define("mirally-appearance-picker", AppearancePicker);
 }
-if (!customElements.get("openclaw-appearance-glyph")) {
-  customElements.define("openclaw-appearance-glyph", AppearanceGlyph);
+if (!customElements.get("mirally-appearance-glyph")) {
+  customElements.define("mirally-appearance-glyph", AppearanceGlyph);
 }

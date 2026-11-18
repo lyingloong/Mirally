@@ -12,7 +12,7 @@ const composerPickerDismissals = new WeakMap<
 >();
 const POINTER_RESTORED_FOCUS_ATTRIBUTE = "data-chat-pointer-restored-focus";
 const POINTER_OPENED_PICKER_ATTRIBUTE = "data-chat-pointer-opened-picker";
-const CHAT_COMPOSER_DISMISS_INVOCATIONS_EVENT = "openclaw-composer-dismiss-invocations";
+const CHAT_COMPOSER_DISMISS_INVOCATIONS_EVENT = "mirally-composer-dismiss-invocations";
 
 function composerPickerIsOpen(picker: HTMLElement): boolean {
   if (picker instanceof HTMLDetailsElement) {

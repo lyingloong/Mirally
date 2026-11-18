@@ -1,4 +1,4 @@
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import { isRenderableAvatarImageDataUrl } from "../../../src/shared/avatar-limits.js";
 import type { AgentIdentityResult } from "../api/types.ts";
 import { DEFAULT_ASSISTANT_AVATAR } from "./assistant-identity.ts";

@@ -17,10 +17,10 @@ const server=http.createServer((request,response)=>{
   if(request.url==='/companion.css'){response.setHeader('Content-Type','text/css');response.end(css);return;}
   if(request.url==='/companion.js'){response.setHeader('Content-Type','text/javascript; charset=utf-8');response.end(script.replaceAll('__MIRALLY_ORIGIN__',JSON.stringify(origin)).replaceAll('__MIRALLY_MARK__',JSON.stringify('data:image/svg+xml,'+encodeURIComponent(svg))).replaceAll('__MIRALLY_PETS__',JSON.stringify({otter:svg,fox:svg})));return;}
   if(request.url==='/office.js'){response.setHeader('Content-Type','text/javascript; charset=utf-8');response.end(office.replaceAll('__MIRALLY_ORIGIN__',JSON.stringify(origin)));return;}
-  response.setHeader('Content-Type','text/html; charset=utf-8');response.end(`<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/companion.css"></head><body><openclaw-app></openclaw-app><openclaw-chat-pane class="chat-pane-cache__pane--active"></openclaw-chat-pane><script>
+  response.setHeader('Content-Type','text/html; charset=utf-8');response.end(`<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/companion.css"></head><body><mirally-app></mirally-app><mirally-chat-pane class="chat-pane-cache__pane--active"></mirally-chat-pane><script>
     window.chrome=window.chrome||{};window.chrome.webview={postMessage:()=>{}};
-    document.querySelector('openclaw-app').context={};
-    window.fixturePane=document.querySelector('openclaw-chat-pane');fixturePane.paneId='fixture';fixturePane.paneTitle='第一轮会话名';
+    document.querySelector('mirally-app').context={};
+    window.fixturePane=document.querySelector('mirally-chat-pane');fixturePane.paneId='fixture';fixturePane.paneTitle='第一轮会话名';
     fixturePane.state={sessionKey:'session-a',connected:true,chatMessage:'',chatMessages:[{role:'user',content:'第一轮旧请求。请分析旧资料。'},{role:'assistant',content:'第一轮已经完成。',stopReason:'stop'}],handleSendChat:()=>{},handleChatDraftChange:value=>fixturePane.state.chatMessage=value};
   </script><script src="/office.js"></script><script src="/companion.js"></script></body></html>`);
 });

@@ -12,7 +12,7 @@ import {
   projectPresenceViewers,
   type PresenceViewer,
 } from "../lib/presence-users.ts";
-import { OpenClawLightDomContentsElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../lit/mirally-element.ts";
 import {
   identityAvatarClass,
   renderAgentIdentityAvatar,
@@ -41,7 +41,7 @@ function renderViewerAvatar(view: IdentityAvatarView) {
 
 type ViewerAvatarVariant = "session" | "footer" | "profile";
 
-class ViewerAvatar extends OpenClawLightDomContentsElement {
+class ViewerAvatar extends MirallyLightDomContentsElement {
   @property({ attribute: false }) user: PresenceViewer | null = null;
   @property() variant: ViewerAvatarVariant = "session";
   @property({ attribute: false }) identity?: SessionParticipantIdentity;
@@ -91,7 +91,7 @@ function renderFacepileAgentAvatar(
   >`;
 }
 
-class ViewerFacepile extends OpenClawLightDomContentsElement {
+class ViewerFacepile extends MirallyLightDomContentsElement {
   @property({ attribute: false }) presencePayload: unknown;
   @property({ attribute: false }) selfUser?: AuthenticatedUser | null;
   @property({ attribute: false }) selfInstanceId?: string;
@@ -143,17 +143,17 @@ class ViewerFacepile extends OpenClawLightDomContentsElement {
       aria-label=${users.map(presenceViewerLabel).join(", ")}
     >
       ${visible.map(
-        (user) => html`<openclaw-tooltip .content=${presenceViewerLabel(user)}>
+        (user) => html`<mirally-tooltip .content=${presenceViewerLabel(user)}>
           <span class="viewer-facepile__tooltip-anchor">
             ${renderStandalonePersonLink(
               user.identity?.type === "agent"
                 ? renderFacepileAgentAvatar(user, user.identity, !this.staticParticipants)
-                : html`<openclaw-viewer-avatar
+                : html`<mirally-viewer-avatar
                     .user=${user}
                     .identity=${user.identity}
                     .markAsViewer=${!this.staticParticipants}
                     variant="session"
-                  ></openclaw-viewer-avatar>`,
+                  ></mirally-viewer-avatar>`,
               user.identity?.type === "profile"
                 ? personActivityLink(
                     user.identity.id,
@@ -163,15 +163,15 @@ class ViewerFacepile extends OpenClawLightDomContentsElement {
                 : null,
             )}
           </span>
-        </openclaw-tooltip>`,
+        </mirally-tooltip>`,
       )}
       ${
         overflowCount > 0
-          ? html`<openclaw-tooltip .content=${overflowLabel}>
+          ? html`<mirally-tooltip .content=${overflowLabel}>
               <span class="viewer-avatar viewer-avatar--overflow" aria-label=${overflowLabel}
                 >+${overflowCount}</span
               >
-            </openclaw-tooltip>`
+            </mirally-tooltip>`
           : nothing
       }
     </span>`;
@@ -179,17 +179,17 @@ class ViewerFacepile extends OpenClawLightDomContentsElement {
 }
 
 if (globalThis.customElements) {
-  if (!customElements.get("openclaw-viewer-avatar")) {
-    customElements.define("openclaw-viewer-avatar", ViewerAvatar);
+  if (!customElements.get("mirally-viewer-avatar")) {
+    customElements.define("mirally-viewer-avatar", ViewerAvatar);
   }
-  if (!customElements.get("openclaw-viewer-facepile")) {
-    customElements.define("openclaw-viewer-facepile", ViewerFacepile);
+  if (!customElements.get("mirally-viewer-facepile")) {
+    customElements.define("mirally-viewer-facepile", ViewerFacepile);
   }
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-viewer-avatar": ViewerAvatar;
-    "openclaw-viewer-facepile": ViewerFacepile;
+    "mirally-viewer-avatar": ViewerAvatar;
+    "mirally-viewer-facepile": ViewerFacepile;
   }
 }

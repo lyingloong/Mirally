@@ -1,8 +1,8 @@
-import { asNullableObjectRecord as readRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableObjectRecord as readRecord } from "@mirally/normalization-core/record-coerce";
 import {
   normalizeNullableString as toTrimmedString,
   normalizeLowercaseStringOrEmpty,
-} from "@openclaw/normalization-core/string-coerce";
+} from "@mirally/normalization-core/string-coerce";
 import type { ExecApprovalRequest } from "../../app/exec-approval.ts";
 import type { ChatQueueItem } from "../../lib/chat/chat-types.ts";
 import { formatUiError, formatUiExternalText } from "../../lib/format-error.ts";

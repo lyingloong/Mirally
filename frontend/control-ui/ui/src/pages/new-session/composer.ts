@@ -55,7 +55,7 @@ function renderStartControl(options: NewSessionComposerOptions) {
     ? t("newSession.starting")
     : t(options.nativeTerminal ? "newSession.startInTerminal" : "newSession.start");
   const reasonedBlock = !options.canSubmit && options.submitDisabledReason !== undefined;
-  return html` <openclaw-tooltip content=${options.submitDisabledReason ?? startLabel}>
+  return html` <mirally-tooltip content=${options.submitDisabledReason ?? startLabel}>
     <button
       type="button"
       class="chat-send-btn new-session-page__start-submit ${
@@ -75,7 +75,7 @@ function renderStartControl(options: NewSessionComposerOptions) {
             : icons.arrowUp
       }
     </button>
-  </openclaw-tooltip>`;
+  </mirally-tooltip>`;
 }
 
 function handleComposerKeydown(
@@ -335,7 +335,7 @@ export function renderNewSessionComposer(options: NewSessionComposerOptions) {
         class="agent-chat__input agent-chat__input--mobile-toolbar${
           options.dictationActive ? " agent-chat__input--dictating" : ""
         }"
-        @openclaw-composer-dismiss-invocations=${() => {
+        @mirally-composer-dismiss-invocations=${() => {
           mentionMenu.close();
           emojiMenu.dismiss(options.textareaController.getTextarea());
           options.requestUpdate();

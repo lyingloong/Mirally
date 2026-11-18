@@ -1,4 +1,4 @@
-import { definePage } from "@openclaw/uirouter";
+import { definePage } from "@mirally/ui-router";
 import { html } from "lit";
 import { routePageSpec } from "../../app-route-paths.ts";
 import type { ApplicationContext } from "../../app/context.ts";
@@ -22,6 +22,6 @@ export const page = definePage({
   component: () =>
     import("./channels-page.ts").then(() => ({
       header: true,
-      render: () => html`<openclaw-channels-page></openclaw-channels-page>`,
+      render: () => html`<mirally-control-channels-page></mirally-control-channels-page>`,
     })),
 });

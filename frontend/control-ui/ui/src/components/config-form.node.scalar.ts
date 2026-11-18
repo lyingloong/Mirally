@@ -1,5 +1,5 @@
 // Control UI renderers for scalar config form nodes.
-import { formatInternationalPhoneNumberForDisplay } from "@openclaw/normalization-core/phone-presentation";
+import { formatInternationalPhoneNumberForDisplay } from "@mirally/normalization-core/phone-presentation";
 import { html, nothing, type TemplateResult } from "lit";
 import { ref } from "lit/directives/ref.js";
 import { i18n, t } from "../i18n/index.ts";

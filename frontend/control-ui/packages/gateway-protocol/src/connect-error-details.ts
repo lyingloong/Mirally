@@ -4,7 +4,7 @@
  * These details cross client/server boundaries, so readers normalize untrusted
  * payloads before using them in reconnect decisions or user-facing messages.
  */
-import { normalizeOptionalTrimmedStringList } from "@openclaw/normalization-core/string-normalization";
+import { normalizeOptionalTrimmedStringList } from "@mirally/normalization-core/string-normalization";
 import {
   isProtocolRecord,
   normalizeOptionalProtocolString,
@@ -449,21 +449,21 @@ export function readConnectPairingRequiredMessage(
 }
 
 const PAIRING_APPROVAL_REMEDIATION =
-  "Run `openclaw devices approve --latest` to preview the pending request, then rerun the printed " +
-  "`openclaw devices approve <requestId>` command and reconnect (pass the same --url and " +
+  "Run `mirally devices approve --latest` to preview the pending request, then rerun the printed " +
+  "`mirally devices approve <requestId>` command and reconnect (pass the same --url and " +
   "--token/--password flags if you connected with explicit credentials).";
 const DEVICE_TOKEN_REMEDIATION =
-  "Rotate the paired-device token with `openclaw devices rotate --device <deviceId> --role operator`, then reconnect.";
+  "Rotate the paired-device token with `mirally devices rotate --device <deviceId> --role operator`, then reconnect.";
 const SHARED_TOKEN_REMEDIATION =
   "Verify `gateway.remote.token` matches `gateway.auth.token`. If a paired-device token is stale, " +
-  "rotate it with `openclaw devices rotate --device <deviceId> --role operator`, then reconnect.";
+  "rotate it with `mirally devices rotate --device <deviceId> --role operator`, then reconnect.";
 const SCOPE_MISMATCH_REMEDIATION =
-  "Review approved scopes with `openclaw devices list`; if an upgrade is pending, preview it with " +
-  "`openclaw devices approve --latest`, approve the printed request, then reconnect.";
+  "Review approved scopes with `mirally devices list`; if an upgrade is pending, preview it with " +
+  "`mirally devices approve --latest`, approve the printed request, then reconnect.";
 const RATE_LIMITED_REMEDIATION =
   "Wait for the temporary authentication lockout to expire, then retry.";
 const IDENTITY_PROXY_REMEDIATION =
-  "An identity-aware proxy rejected the WebSocket upgrade. Configure gateway.remote.edgeAuth for the configured Gateway origin, then reconnect. See https://docs.openclaw.ai/gateway/remote#gateway-behind-an-identity-aware-proxy.";
+  "An identity-aware proxy rejected the WebSocket upgrade. Configure gateway.remote.edgeAuth for the configured Gateway origin, then reconnect.";
 const CLOUDFLARE_ACCESS_REMEDIATION =
   "Cloudflare Access detected: configure its token header or service-token headers in gateway.remote.edgeAuth.";
 const IDENTITY_PROXY_HTTP_STATUSES = new Set([301, 302, 303, 307, 308, 401, 403]);

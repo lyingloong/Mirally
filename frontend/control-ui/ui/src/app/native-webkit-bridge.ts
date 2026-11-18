@@ -1,15 +1,15 @@
 export type WebKitHostMessages = {
-  openclawLink: { type: "open-link"; url: string; target: "external" };
-  openclawUpdate: { type: "start-update" };
-  openclawNav: { type: "nav-state"; collapsed: boolean; width: number };
-  openclawWindowDrag: { type: "window-drag" };
-  openclawGateways:
+  mirallyLink: { type: "open-link"; url: string; target: "external" };
+  mirallyUpdate: { type: "start-update" };
+  mirallyNav: { type: "nav-state"; collapsed: boolean; width: number };
+  mirallyWindowDrag: { type: "window-drag" };
+  mirallyGateways:
     | {
         type: "select" | "open-window" | "set-primary" | "reconnect" | "reconnect-cancel";
         id: string;
       }
     | { type: "open-settings" };
-  openclawNotifications:
+  mirallyNotifications:
     | { type: "status" | "request-permission" | "send-test" }
     | {
         type: "background-session-completed";

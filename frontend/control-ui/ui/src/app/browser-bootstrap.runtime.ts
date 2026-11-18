@@ -1,10 +1,10 @@
-import { gatewayCredentialScope } from "@openclaw/gateway-client/browser";
-import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
+import { gatewayCredentialScope } from "@mirally/gateway-client/browser";
+import { asOptionalRecord } from "@mirally/normalization-core/record-coerce";
 import { ConnectErrorDetailCodes } from "../../../packages/gateway-protocol/src/connect-error-details.js";
 import { readResponseTextWithLimit } from "../lib/response-body.ts";
 import type { ApplicationGateway, ApplicationGatewaySnapshot } from "./gateway.ts";
 
-const BROWSER_BOOTSTRAP_PATH = "/.well-known/openclaw/browser-bootstrap";
+const BROWSER_BOOTSTRAP_PATH = "/.well-known/mirally/browser-bootstrap";
 // A host handoff may verify identity and mint a credential in separate bounded operations.
 const BROWSER_BOOTSTRAP_TIMEOUT_MS = 45_000;
 

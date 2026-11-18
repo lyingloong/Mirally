@@ -1,8 +1,8 @@
 import {
   readAssistantStreamSegmentIdentity,
   readSessionMessageIdentity,
-} from "@openclaw/gateway-client/browser";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+} from "@mirally/gateway-client/browser";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import { stripInlineDirectiveTagsForDelivery } from "../../../../src/utils/directive-tags.js";
 import {
   accumulatedStreamText,

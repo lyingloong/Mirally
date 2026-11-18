@@ -76,7 +76,7 @@ export function resolveTypefaces(
 // Load faces only when selected or previewed; retain them so switching slots
 // or reopening specimens never replaces an already loaded stylesheet.
 function loadTypefaceStylesheet(face: TypefaceId): void {
-  const id = `openclaw-typeface-${face}`;
+  const id = `mirally-typeface-${face}`;
   const asset = TYPEFACES[face].asset;
   if (!asset || document.getElementById(id)) {
     return;

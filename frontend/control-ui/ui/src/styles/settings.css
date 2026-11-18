@@ -923,7 +923,7 @@ textarea.settings-input {
 }
 
 @media (pointer: coarse), (max-width: 640px) {
-  :is(.shell--settings, openclaw-skills-page, openclaw-cron-page) {
+  :is(.shell--settings, mirally-skills-page, mirally-cron-page) {
     --settings-control-height: 44px;
 
     :is(button, .btn, summary, wa-switch, .settings-segmented__btn) {
@@ -1003,7 +1003,7 @@ textarea.settings-input {
     min-width: 0;
   }
 
-  :is(.shell--settings, .shell--embed-settings, openclaw-skills-page, openclaw-cron-page) {
+  :is(.shell--settings, .shell--embed-settings, mirally-skills-page, mirally-cron-page) {
     .settings-section__actions {
       max-width: 100%;
       flex-wrap: wrap;

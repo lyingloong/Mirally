@@ -13,7 +13,7 @@ export function renderBackfillConfirmation(props: {
     return nothing;
   }
   return html`
-    <openclaw-modal-dialog
+    <mirally-modal-dialog
       label=${t("memoryImport.backfill.rollbackConfirmTitle")}
       description=${t("memoryImport.backfill.rollbackConfirmDescription")}
       @modal-cancel=${props.onBackfillRollbackCancel}
@@ -48,6 +48,6 @@ export function renderBackfillConfirmation(props: {
           </button>
         </div>
       </div>
-    </openclaw-modal-dialog>
+    </mirally-modal-dialog>
   `;
 }

@@ -18,7 +18,7 @@ import {
 import { t } from "../../i18n/index.ts";
 import { registerGitHubEnglish } from "../../i18n/locales/en-github.ts";
 import { currentConfigObject } from "../../lib/config/config-state-model.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { PROFILE_SETTINGS_TARGET_IDS } from "../../pages/config/settings-targets.ts";
 import { GitHubIdentityController } from "./github-identity-controller.ts";
 import {
@@ -30,7 +30,7 @@ import {
 } from "./github-identity-view.ts";
 
 /** Profile credentials have their own read-scoped lifecycle, independent of users.self edits. */
-export class GitHubConnections extends OpenClawLightDomElement {
+export class GitHubConnections extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: false })
   private context!: ApplicationContext;
   @state() private purpose: "personal" | "system" = "personal";
@@ -413,8 +413,8 @@ export class GitHubConnections extends OpenClawLightDomElement {
     </div>`;
   }
 }
-if (!customElements.get("openclaw-github-connections")) {
-  customElements.define("openclaw-github-connections", GitHubConnections);
+if (!customElements.get("mirally-github-connections")) {
+  customElements.define("mirally-github-connections", GitHubConnections);
 }
 
 registerGitHubEnglish();

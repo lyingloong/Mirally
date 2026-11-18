@@ -2,8 +2,8 @@
   --cpu-main: var(--accent-2);
   --cpu-workers: var(--info);
   --cpu-other: var(--muted);
-  --openclaw-tooltip-max-width: min(300px, calc(100vw - 16px));
-  --openclaw-tooltip-padding: 12px;
+  --mirally-tooltip-max-width: min(300px, calc(100vw - 16px));
+  --mirally-tooltip-padding: 12px;
 }
 
 .gateway-cpu-trigger {

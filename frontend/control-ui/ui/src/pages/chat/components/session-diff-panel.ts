@@ -24,7 +24,7 @@ import { parseSessionDiffPatch, type ParsedFilePatch } from "../../../lib/chat/s
 import type { DiffLine } from "../../../lib/chat/tool-call-diff.ts";
 import { openEditor } from "../../../lib/editor-links.ts";
 import { formatUiError } from "../../../lib/format-error.ts";
-import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../../lit/mirally-element.ts";
 import { getSafeLocalStorage } from "../../../local-storage.ts";
 import { renderDiffBlock, renderDiffStatChips } from "./chat-diff-render.ts";
 import type {
@@ -50,7 +50,7 @@ type SessionDiffTaskResult = {
 };
 
 type SessionDiffPreferences = { split: boolean; wrap: boolean };
-const PREFERENCES_KEY = "openclaw.control.sessionDiff.v1";
+const PREFERENCES_KEY = "mirally.control.sessionDiff.v1";
 
 function loadPreferences(): SessionDiffPreferences {
   try {
@@ -149,7 +149,7 @@ function taskResult(result: SessionsDiffResult): SessionDiffTaskResult {
   };
 }
 
-class SessionDiffPanel extends OpenClawLightDomElement {
+class SessionDiffPanel extends MirallyLightDomElement {
   @property({ attribute: false }) execNode: string | null = null;
   @property({ attribute: false }) loader: SessionDiffLoader | null = null;
   @property({ attribute: false }) loadFileText: SessionDiffFileTextLoader | null = null;
@@ -307,7 +307,7 @@ class SessionDiffPanel extends OpenClawLightDomElement {
               </button>`
             : nothing
         }
-        <openclaw-tooltip .content=${t("chat.sessionDiff.viewOptions")}>
+        <mirally-tooltip .content=${t("chat.sessionDiff.viewOptions")}>
           <button
             class="btn btn--ghost btn--icon session-diff__toolbar-icon"
             type="button"
@@ -321,8 +321,8 @@ class SessionDiffPanel extends OpenClawLightDomElement {
           >
             ${icons.moreHorizontal}
           </button>
-        </openclaw-tooltip>
-        <openclaw-tooltip .content=${t("chat.sessionDiff.refresh")}>
+        </mirally-tooltip>
+        <mirally-tooltip .content=${t("chat.sessionDiff.refresh")}>
           <button
             class="btn btn--ghost btn--icon session-diff__refresh"
             type="button"
@@ -332,7 +332,7 @@ class SessionDiffPanel extends OpenClawLightDomElement {
           >
             ${icons.refresh}
           </button>
-        </openclaw-tooltip>
+        </mirally-tooltip>
       </div>
     `;
   }
@@ -663,13 +663,13 @@ class SessionDiffPanel extends OpenClawLightDomElement {
           this.menu
             ? keyed(
                 this.menu,
-                html`<openclaw-session-diff-menu
+                html`<mirally-session-diff-menu
                   .menu=${this.menu}
                   .onAction=${(action: SessionDiffMenuAction) => this.handleMenuAction(action)}
                   .onClose=${() => {
                     this.menu = null;
                   }}
-                ></openclaw-session-diff-menu>`,
+                ></mirally-session-diff-menu>`,
               )
             : nothing
         }
@@ -678,12 +678,12 @@ class SessionDiffPanel extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-session-diff")) {
-  customElements.define("openclaw-session-diff", SessionDiffPanel);
+if (!customElements.get("mirally-session-diff")) {
+  customElements.define("mirally-session-diff", SessionDiffPanel);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-session-diff": SessionDiffPanel;
+    "mirally-session-diff": SessionDiffPanel;
   }
 }

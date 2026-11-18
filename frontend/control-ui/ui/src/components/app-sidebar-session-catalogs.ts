@@ -1,4 +1,4 @@
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import type {
   SessionCatalog,
   SessionCatalogHost,
@@ -92,7 +92,7 @@ export function findCatalogSessionHovercardRow(params: {
   return params.liveRow;
 }
 
-/** Session keys already adopted into OpenClaw sessions; the regular list hides
+/** Session keys already adopted into Mirally sessions; the regular list hides
     these so each adopted session stays a single selectable catalog row. */
 export function adoptedCatalogSessionKeys(catalogs: readonly SessionCatalog[]): Set<string> {
   const keys = new Set<string>();

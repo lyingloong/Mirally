@@ -286,7 +286,7 @@ export function renderChat(props: ChatProps) {
           props.transcript.scrollElement
             ?.closest(".chat")
             ?.querySelector<HTMLElement>(
-              "openclaw-plugin-view[data-plugin-composer], .agent-chat__composer-combobox > textarea",
+              "mirally-plugin-view[data-plugin-composer], .agent-chat__composer-combobox > textarea",
             )
             ?.focus({ preventScroll: true }),
       },
@@ -368,12 +368,12 @@ export function renderChat(props: ChatProps) {
         props.onResolveSessionSuggestion?.(suggestion, resolution),
     })}
     ${props.swarm ? renderChatSwarmProgress(props.swarm) : nothing}
-    <openclaw-plugin-contributions
+    <mirally-plugin-contributions
       .kind=${"composer"}
       .sessionKey=${props.sessionKey}
       .agentId=${props.currentAgentId}
       .presented=${props.presented ?? true}
-    ></openclaw-plugin-contributions>`;
+    ></mirally-plugin-contributions>`;
   // The composer keeps the outbox queue; only the transcript includes the
   // placement initial turn, whose retry action belongs to startup.
   const notices = renderChatComposerNotices(props);
@@ -535,12 +535,12 @@ export function renderChat(props: ChatProps) {
       ${
         props.suggestionComposer
           ? nothing
-          : html`<openclaw-chat-comment-controller
+          : html`<mirally-chat-comment-controller
               .paneId=${props.paneId}
               .props=${{ ...props, disabled: !canCompose }}
               .sessionKey=${props.sessionKey}
               .presented=${props.presented ?? true}
-            ></openclaw-chat-comment-controller>`
+            ></mirally-chat-comment-controller>`
       }
       <div class="chat-workbench">
         <div class="chat-workbench__main">
@@ -548,12 +548,12 @@ export function renderChat(props: ChatProps) {
             <div class="chat-main">
               <div class="chat-main__conversation-column">
                 ${props.header ?? nothing} ${renderChatTopbarNotices(props)}
-                <openclaw-plugin-contributions
+                <mirally-plugin-contributions
                   .kind=${"header"}
                   .sessionKey=${props.sessionKey}
                   .agentId=${props.currentAgentId}
                   .presented=${props.presented ?? true}
-                ></openclaw-plugin-contributions>
+                ></mirally-plugin-contributions>
                 ${renderTranscriptSearch(props.paneId, requestUpdate)}
                 <div class="chat-main__conversation-frame">
                   <!-- Chromium can crash when DevTools inspects a blocking Lit object listener. -->

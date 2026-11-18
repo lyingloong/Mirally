@@ -30,7 +30,7 @@ export function createRuntimeUpdateRecoverySteps(params: {
     return [
       {
         kind: "deployment",
-        instruction: `Pull or build an OpenClaw image with version ${targetVersion} and Node ${nodeVersion}, then recreate or redeploy the container with the same state/config mounts. In-container package changes are not durable.`,
+        instruction: `Pull or build an Mirally image with version ${targetVersion} and Node ${nodeVersion}, then recreate or redeploy the container with the same state/config mounts. In-container package changes are not durable.`,
       },
     ];
   }
@@ -46,7 +46,7 @@ export function createRuntimeUpdateRecoverySteps(params: {
     {
       kind: "preserve-context",
       instruction:
-        "Use the same service account and keep the existing OPENCLAW_STATE_DIR and OPENCLAW_CONFIG_PATH overrides throughout recovery.",
+        "Use the same service account and keep the existing MIRALLY_STATE_DIR and MIRALLY_CONFIG_PATH overrides throughout recovery.",
     },
     ...(params.contextCommand
       ? [{ kind: "preserve-context" as const, command: params.contextCommand }]
@@ -68,7 +68,7 @@ export function createRuntimeUpdateRecoverySteps(params: {
       : {
           kind: "continue-update",
           instruction:
-            "Run this installation's absolute openclaw.mjs launcher with the selected Node and the update command to recheck package and service ownership before installation.",
+            "Run this installation's absolute mirally.mjs launcher with the selected Node and the update command to recheck package and service ownership before installation.",
         },
   ];
 }
@@ -85,18 +85,18 @@ export const UPDATE_ENVIRONMENT_FAILURE_REASONS: ReadonlySet<string> = new Set([
 export function formatUpdateActivationTimeoutGuidance(
   command: (value: string) => string = (value) => value,
 ): string {
-  return `Inspect \`${command("openclaw update status")}\` and \`${command("openclaw doctor")}\`. Wait for the owning updater and its child processes to stop before running \`${command("openclaw update repair")}\`. The timeout does not make rollback or removal of retained update state safe.`;
+  return `Inspect \`${command("mirally update status")}\` and \`${command("mirally doctor")}\`. Wait for the owning updater and its child processes to stop before running \`${command("mirally update repair")}\`. The timeout does not make rollback or removal of retained update state safe.`;
 }
 
 export const UPDATE_INSTALL_SKIP_GUIDANCE: Readonly<Record<string, string>> = {
   "external-supervisor-update-required":
-    "This Gateway is managed by an external supervisor. Use your server or deployment's update workflow to update OpenClaw and restart the Gateway. The Control UI and `openclaw update` cannot update this installation. No package changes or Gateway restart were attempted.",
+    "This Gateway is managed by an external supervisor. Use your server or deployment's update workflow to update Mirally and restart the Gateway. The Control UI and `mirally update` cannot update this installation. No package changes or Gateway restart were attempted.",
   "container-image-install":
     "Pull or build the target Docker/container image, then redeploy it with the same state/config mounts. No package changes or Gateway restart were attempted.",
   "unmanaged-package-install":
     "No npm, pnpm, or Bun global owner was detected. Reinstall using the original method; use Yarn for Yarn global installs. No package changes or Gateway restart were attempted.",
   "package-update-requires-cli":
-    "Run `openclaw update` through this install's npm, pnpm, or Bun global launcher. No package changes or Gateway restart were attempted.",
+    "Run `mirally update` through this install's npm, pnpm, or Bun global launcher. No package changes or Gateway restart were attempted.",
 };
 
 export const SKIPPED_UPDATE_OUTCOMES: Readonly<Record<string, "pending" | "noop">> = {

@@ -15,10 +15,10 @@ export {
   DEFAULT_PREAUTH_HANDSHAKE_TIMEOUT_MS,
   resolveSafeTimeoutDelayMs,
 } from "./timeouts.js";
-export * from "@openclaw/gateway-protocol/client-info";
-export * from "@openclaw/gateway-protocol/connect-error-details";
-export * from "@openclaw/gateway-protocol/gateway-error-details";
-export * from "@openclaw/gateway-protocol/startup-unavailable";
-export * from "@openclaw/gateway-protocol/version";
-export { GATEWAY_SERVER_CAPS } from "@openclaw/gateway-protocol/frame-guards";
-export type { ConnectParams, ErrorShape, EventFrame, HelloOk } from "@openclaw/gateway-protocol";
+export * from "@mirally/gateway-protocol/client-info";
+export * from "@mirally/gateway-protocol/connect-error-details";
+export * from "@mirally/gateway-protocol/gateway-error-details";
+export * from "@mirally/gateway-protocol/startup-unavailable";
+export * from "@mirally/gateway-protocol/version";
+export { GATEWAY_SERVER_CAPS } from "@mirally/gateway-protocol/frame-guards";
+export type { ConnectParams, ErrorShape, EventFrame, HelloOk } from "@mirally/gateway-protocol";

@@ -1,5 +1,5 @@
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import { html, nothing } from "lit";
 import { CHAT_PENDING_INPUT_MESSAGE_PREFIX } from "../../../../../packages/gateway-protocol/src/schema/chat-history-constants.js";
 import { renderCopyAsMarkdownButton } from "../../../components/copy-button.ts";
@@ -46,7 +46,7 @@ export function prepareChatMessageRender(message: unknown) {
   const normalizedMessage = normalizeMessage(message);
   const displayMarkdown = resolveMessageDisplayMarkdown(message, normalizedMessage);
   const record = asNullableRecord(message);
-  const metadata = asNullableRecord(record?.["__openclaw"]);
+  const metadata = asNullableRecord(record?.["__mirally"]);
   let humanMentions: ReturnType<typeof readHumanMentions>;
   if (record?.role === "user" && metadata?.humanMentions) {
     const source =
@@ -148,7 +148,7 @@ export function renderReplyButton(
   onReply: (target: MessageReplyTarget) => void,
 ) {
   return html`
-    <openclaw-tooltip .content=${t("chat.messages.reply")}>
+    <mirally-tooltip .content=${t("chat.messages.reply")}>
       <button
         class="chat-reply-btn"
         type="button"
@@ -157,6 +157,6 @@ export function renderReplyButton(
       >
         ${icons.messageSquare}
       </button>
-    </openclaw-tooltip>
+    </mirally-tooltip>
   `;
 }

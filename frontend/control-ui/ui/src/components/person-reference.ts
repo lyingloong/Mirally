@@ -25,7 +25,7 @@ import {
   resolveUiDefaultAgentId,
 } from "../lib/sessions/session-key.ts";
 import { GatewayPageController } from "../lit/gateway-page-controller.ts";
-import { OpenClawLightDomContentsElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../lit/mirally-element.ts";
 import {
   identityAvatarClass,
   renderIdentityAvatarImage,
@@ -40,7 +40,7 @@ import "../styles/chat/person-reference.css";
 let nextCardId = 0;
 
 /** Explicit transcript selections only. The directory remains Gateway-owned, not a UI name index. */
-class PersonReference extends OpenClawLightDomContentsElement {
+class PersonReference extends MirallyLightDomContentsElement {
   private static readonly active = new WeakMap<Document, PersonReference>();
   @property({ attribute: "profile-id" }) profileId = "";
   @property() label = "";
@@ -135,7 +135,7 @@ class PersonReference extends OpenClawLightDomContentsElement {
     PersonReference.active.get(this.ownerDocument)?.close();
     PersonReference.active.set(this.ownerDocument, this);
     const card = createPortaledHovercard(
-      "openclaw-person-reference-" + ++nextCardId,
+      "mirally-person-reference-" + ++nextCardId,
       "session-progress-hovercard person-activity-hovercard",
     );
     this.portal.markTrigger(trigger);
@@ -360,12 +360,12 @@ class PersonReference extends OpenClawLightDomContentsElement {
   }
 }
 
-if (!customElements.get("openclaw-person-reference")) {
-  customElements.define("openclaw-person-reference", PersonReference);
+if (!customElements.get("mirally-person-reference")) {
+  customElements.define("mirally-person-reference", PersonReference);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-person-reference": PersonReference;
+    "mirally-person-reference": PersonReference;
   }
 }

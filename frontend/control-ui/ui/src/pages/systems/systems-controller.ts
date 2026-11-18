@@ -1,5 +1,5 @@
-import type { SystemInfoResult } from "@openclaw/gateway-protocol";
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import type { SystemInfoResult } from "@mirally/gateway-protocol";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import type { NodeListNode } from "../../../../src/shared/node-list-types.js";
 import type { ApplicationContext } from "../../app/context.ts";
 import { gatewayPresentationScope } from "../../app/gateway-presentation-scope.ts";

@@ -13,11 +13,11 @@ await mkdir(output,{recursive:true});
 const browser=await chromium.launch({channel:'msedge',headless:true});
 const page=await browser.newPage({viewport:{width:1280,height:900}});page.setDefaultTimeout(20000);
 const errors=[];page.on('pageerror',error=>errors.push(error.message));
-const active='openclaw-chat-pane.chat-pane-cache__pane--active';
-async function ready(){await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected');}
+const active='mirally-chat-pane.chat-pane-cache__pane--active';
+async function ready(){await page.waitForFunction(()=>document.querySelector('mirally-app')?.context?.gateway?.snapshot?.phase==='connected');}
 async function idle(count){await page.waitForFunction(({active,count})=>{const p=document.querySelector(active);return p?.state?.chatMessages?.filter(x=>x.role==='assistant').length>=count&&!p.runActivity?.working;},{active,count},{timeout:60000});}
 async function showReasoning(){
-  const menu=page.locator(active+' openclaw-chat-header-session-menu');
+  const menu=page.locator(active+' mirally-chat-header-session-menu');
   await menu.locator('button[slot=trigger]').click();
   const option=menu.locator('wa-dropdown-item[value="view:reasoning"]');
   if(!await option.evaluate(item=>item.checked)){
@@ -28,7 +28,7 @@ async function showReasoning(){
 }
 try{
   await page.goto(runtime.url+'/new#token='+runtime.token);await ready();
-  const session=await page.evaluate(async()=>{const c=document.querySelector('openclaw-app').context;const r=await c.gateway.snapshot.client.request('sessions.create',{displayName:'Isolated reasoning presentation check',idempotencyKey:crypto.randomUUID()});document.querySelector('openclaw-app-shell').selectChatSession(r.key,'main');return r.key;});
+  const session=await page.evaluate(async()=>{const c=document.querySelector('mirally-app').context;const r=await c.gateway.snapshot.client.request('sessions.create',{displayName:'Isolated reasoning presentation check',idempotencyKey:crypto.randomUUID()});document.querySelector('mirally-app-shell').selectChatSession(r.key,'main');return r.key;});
   await page.locator(active+' textarea[aria-label="聊天输入框"]').waitFor();
   await showReasoning();
   await page.evaluate(active=>{

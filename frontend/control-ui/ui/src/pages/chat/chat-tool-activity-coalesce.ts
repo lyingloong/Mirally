@@ -1,8 +1,8 @@
 // Reconcile invocation projections before grouping so summaries and expanded
 // cards consume the same calls, regardless of history/live delivery order.
-import { readSessionMessageIdentity } from "@openclaw/gateway-client/browser";
-import { asNullableRecord as asRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { readSessionMessageIdentity } from "@mirally/gateway-client/browser";
+import { asNullableRecord as asRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import {
   isToolCallContentType,
   isToolResultContentType,
@@ -53,7 +53,7 @@ function resultBlock(card: ToolCard): Record<string, unknown> {
     details: card.details,
     isError: card.isError,
     exitCode: card.exitCode,
-    __openclaw: {
+    __mirally: {
       id: card.resultMessageId,
       toolOutput: card.toolOutput,
       truncated: card.outputTruncated,
@@ -125,7 +125,7 @@ function readProjections(item: MessageItem, index: number): Projection[] {
     const raw = asRecord(block)!;
     const id = resolveToolBlockId(raw, message)!;
     const call = isToolCallContentType(raw.type);
-    const live = message["__openclawToolStreamLive"] === true;
+    const live = message["__mirallyToolStreamLive"] === true;
     const [card] = extractToolCardsCached({ ...message, content: [raw] });
     return {
       source,
@@ -148,7 +148,7 @@ function readProjections(item: MessageItem, index: number): Projection[] {
           : 2
         : !live
           ? 3
-          : message["__openclawToolStreamResultReceived"] === true
+          : message["__mirallyToolStreamResultReceived"] === true
             ? 2
             : 1,
       block: {
@@ -159,7 +159,7 @@ function readProjections(item: MessageItem, index: number): Projection[] {
           : {
               text: card?.outputText,
               // Preserve the result owner when the call becomes the grouped row.
-              __openclaw: {
+              __mirally: {
                 id: card?.resultMessageId,
                 toolOutput: card?.toolOutput,
                 truncated: card?.outputTruncated,
@@ -257,7 +257,7 @@ function coalesceTurn(items: ChatItem[]): ChatItem[] {
     } else {
       invocation.result = preferProjection(invocation.result, projection);
     }
-    if (projection.source.message["__openclawToolStreamLive"] === true) {
+    if (projection.source.message["__mirallyToolStreamLive"] === true) {
       invocation.live = projection.source.message;
     }
     if (projection.source.standalone) {
@@ -289,7 +289,7 @@ function coalesceTurn(items: ChatItem[]): ChatItem[] {
       continue;
     }
     const message = owner.source.message;
-    const metadata = asRecord(message["__openclaw"]);
+    const metadata = asRecord(message["__mirally"]);
     // History already composed durable activity. An earlier live echo must not
     // drag it across an intervening stream or above its parent call.
     const index = readTranscriptDisplayPosition(metadata?.transcriptPosition)?.activity
@@ -301,7 +301,7 @@ function coalesceTurn(items: ChatItem[]): ChatItem[] {
       message.messageId ??
       metadata?.id ??
       result?.source.message.messageId ??
-      asRecord(result?.source.message["__openclaw"])?.id;
+      asRecord(result?.source.message["__mirally"])?.id;
     const content = [
       ...(invocation.call ? [{ ...invocation.call.block, name: invocation.call.name }] : []),
       ...(result ? [{ ...result.block, name: invocation.call?.name ?? result.name }] : []),
@@ -315,8 +315,8 @@ function coalesceTurn(items: ChatItem[]): ChatItem[] {
       Boolean(invocation.live),
       completed,
       transcript,
-      invocation.live?.["__openclawToolStreamDiffStat"],
-      invocation.live?.["__openclawToolStreamReceivedAt"],
+      invocation.live?.["__mirallyToolStreamDiffStat"],
+      invocation.live?.["__mirallyToolStreamReceivedAt"],
       (names.get(identity(owner))?.size ?? 0) > 1 ? owner.name : undefined,
     ]);
     const bundle = bundles.get(bundleKey);
@@ -362,12 +362,12 @@ function coalesceTurn(items: ChatItem[]): ChatItem[] {
         ...(transcript ? { messageId: transcript } : {}),
         ...(invocation.live
           ? {
-              __openclawToolStreamLive: true,
-              __openclawToolStreamResultReceived: completed,
-              __openclawToolStreamDiffStat: completed
+              __mirallyToolStreamLive: true,
+              __mirallyToolStreamResultReceived: completed,
+              __mirallyToolStreamDiffStat: completed
                 ? undefined
-                : invocation.live["__openclawToolStreamDiffStat"],
-              __openclawToolStreamReceivedAt: invocation.live["__openclawToolStreamReceivedAt"],
+                : invocation.live["__mirallyToolStreamDiffStat"],
+              __mirallyToolStreamReceivedAt: invocation.live["__mirallyToolStreamReceivedAt"],
             }
           : {}),
       },

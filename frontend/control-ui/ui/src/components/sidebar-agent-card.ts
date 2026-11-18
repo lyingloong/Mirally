@@ -4,14 +4,14 @@ import type { ControlUiEnvironment } from "../../../src/gateway/control-ui-boots
 import { t } from "../i18n/index.ts";
 import { renderHoverMarquee } from "../lib/hover-marquee.ts";
 import { IdentityAvatarController } from "../lib/identity-avatar-loader.ts";
-import { OpenClawLightDomContentsElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../lit/mirally-element.ts";
 import { icons } from "./icons.ts";
 import { renderAgentIdentityAvatar } from "./identity-avatar-view.ts";
 
 /** Sidebar identity row: who you're talking to. The whole body opens the
     agent menu (switcher + utilities) — the conversation itself lives on the
     Home page row, so this row carries profile semantics only. */
-class SidebarAgentCard extends OpenClawLightDomContentsElement {
+class SidebarAgentCard extends MirallyLightDomContentsElement {
   @property({ attribute: false }) agentId = "";
   @property({ attribute: false }) agentName = "";
   @property({ attribute: false }) avatarUrl: string | null = null;
@@ -104,6 +104,6 @@ class SidebarAgentCard extends OpenClawLightDomContentsElement {
   }
 }
 
-if (!customElements.get("openclaw-sidebar-agent-card")) {
-  customElements.define("openclaw-sidebar-agent-card", SidebarAgentCard);
+if (!customElements.get("mirally-sidebar-agent-card")) {
+  customElements.define("mirally-sidebar-agent-card", SidebarAgentCard);
 }

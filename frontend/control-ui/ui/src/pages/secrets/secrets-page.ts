@@ -21,12 +21,12 @@ import {
   type SecretsStoreState,
 } from "../../lib/secrets-store/index.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { renderSecretsStore, type SecretsDialogMode } from "./view.ts";
 
 const MAX_VALUE_BYTES = 64 * 1024;
 
-class SecretsPage extends OpenClawLightDomElement {
+class SecretsPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -359,6 +359,6 @@ class SecretsPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-secrets-page")) {
-  customElements.define("openclaw-secrets-page", SecretsPage);
+if (!customElements.get("mirally-secrets-page")) {
+  customElements.define("mirally-secrets-page", SecretsPage);
 }

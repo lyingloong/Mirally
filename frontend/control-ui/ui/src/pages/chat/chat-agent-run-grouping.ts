@@ -1,5 +1,5 @@
-import { readSessionMessageIdentity } from "@openclaw/gateway-client/browser";
-import { asNullableRecord as asRecord } from "@openclaw/normalization-core/record-coerce";
+import { readSessionMessageIdentity } from "@mirally/gateway-client/browser";
+import { asNullableRecord as asRecord } from "@mirally/normalization-core/record-coerce";
 import { resolveAssistantMessagePhase } from "../../../../src/shared/chat-message-content.js";
 import type { MessageGroup } from "../../lib/chat/chat-types.ts";
 import { extractTextCached } from "../../lib/chat/message-extract.ts";
@@ -58,7 +58,7 @@ function messageIsInterrupted(message: unknown): boolean {
   const stopReason = typeof record?.stopReason === "string" ? record.stopReason.toLowerCase() : "";
   return (
     readLiveTerminalDisposition(message) !== null ||
-    asRecord(record?.openclawAbort)?.aborted === true ||
+    asRecord(record?.mirallyAbort)?.aborted === true ||
     ["aborted", "cancelled", "canceled", "timeout", "timed_out"].includes(stopReason)
   );
 }
@@ -114,7 +114,7 @@ function messageCanOwnCompletedFrame(message: unknown, explicitOnly: boolean): b
   const record = asRecord(message);
   const phase = resolveAssistantMessagePhase(message);
   const stopReason = record?.stopReason;
-  const metadata = asRecord(record?.["__openclaw"]);
+  const metadata = asRecord(record?.["__mirally"]);
   if (
     !(extractTextCached(message)?.trim() || extractMessageMediaText(message)) ||
     isKeyedAssistantStreamFallbackMessage(message) ||

@@ -289,7 +289,7 @@ export class ChatProviderReviewController implements ReactiveController {
       }
     };
     return html`
-      <openclaw-modal-dialog label=${t("chat.providerReview.review")} @modal-cancel=${close}>
+      <mirally-modal-dialog label=${t("chat.providerReview.review")} @modal-cancel=${close}>
         <section class="exec-approval-card chat-provider-review-dialog">
           <h2 class="exec-approval-title">
             ${t(canContinue ? "chat.providerReview.pausedTitle" : "chat.providerReview.stoppedTitle")}
@@ -323,7 +323,7 @@ export class ChatProviderReviewController implements ReactiveController {
             ${canContinue ? html`<button type="button" class="btn primary" ?disabled=${!this.canWrite || binding.pending || binding.submitted} @click=${() => void this.acknowledge(binding)}>${t(binding.pending && !binding.submitted ? "chat.providerReview.continuing" : "chat.providerReview.acknowledge")}</button>` : nothing}
           </div>
         </section>
-      </openclaw-modal-dialog>
+      </mirally-modal-dialog>
     `;
   }
 }

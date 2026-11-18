@@ -2,13 +2,13 @@ import {
   projectSessionTerminalReplyMessage,
   readAssistantStreamSegmentIdentity,
   readSessionMessageIdentity,
-} from "@openclaw/gateway-client/browser";
-import { asFiniteNumber } from "@openclaw/normalization-core/number-coercion";
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
+} from "@mirally/gateway-client/browser";
+import { asFiniteNumber } from "@mirally/normalization-core/number-coercion";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
 import {
   normalizeLowercaseStringOrEmpty,
   normalizeOptionalString,
-} from "@openclaw/normalization-core/string-coerce";
+} from "@mirally/normalization-core/string-coerce";
 import {
   accumulatedStreamText,
   advanceAccumulatedStreamText,
@@ -149,7 +149,7 @@ function buildAssistantStreamMessage(
     role: "assistant",
     content: [{ type: "text", text: stream }],
     timestamp,
-    openclawStreamFallback: {
+    mirallyStreamFallback: {
       replacementText,
       source,
       ...(itemId ? { itemId } : {}),
@@ -161,7 +161,7 @@ function buildAssistantStreamMessage(
 }
 
 function streamFallbackMetadata(message: unknown): Record<string, unknown> | null {
-  const metadata = asNullableRecord(asNullableRecord(message)?.openclawStreamFallback);
+  const metadata = asNullableRecord(asNullableRecord(message)?.mirallyStreamFallback);
   return metadata;
 }
 

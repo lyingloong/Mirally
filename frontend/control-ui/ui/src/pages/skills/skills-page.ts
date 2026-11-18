@@ -34,7 +34,7 @@ import {
   type SkillMessageMap,
 } from "../../lib/skills/index.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { PluginIconController } from "../plugins/plugin-icon-controller.ts";
 import { renderPluginsHubHeader } from "../plugins/plugins-hub-header.ts";
@@ -56,7 +56,7 @@ export type SkillsRouteData = {
   clawhubRef?: string;
 };
 
-class SkillsPage extends OpenClawLightDomElement {
+class SkillsPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -560,6 +560,6 @@ class SkillsPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-skills-page")) {
-  customElements.define("openclaw-skills-page", SkillsPage);
+if (!customElements.get("mirally-skills-page")) {
+  customElements.define("mirally-skills-page", SkillsPage);
 }

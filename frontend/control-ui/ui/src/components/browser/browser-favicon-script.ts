@@ -1,5 +1,5 @@
 // Page function serialized into native WebKit reading tabs.
-export const browserFaviconScript = String.raw`async function openclawReadBrowserFavicon(maxBytes, timeoutMs) {
+export const browserFaviconScript = String.raw`async function mirallyReadBrowserFavicon(maxBytes, timeoutMs) {
   let timeout;
   try {
     const controller = new AbortController();

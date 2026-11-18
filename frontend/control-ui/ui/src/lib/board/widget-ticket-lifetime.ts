@@ -1,4 +1,4 @@
-import type { BoardWidget } from "@openclaw/gateway-protocol";
+import type { BoardWidget } from "@mirally/gateway-protocol";
 
 type BoardWidgetTicketIdentity = object & Pick<BoardWidget, "viewTicket" | "viewTicketTtlMs">;
 

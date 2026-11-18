@@ -64,8 +64,8 @@ export function renderSessionGlyph(options: {
     ${badge}
   </span>`;
   return running && runningLabel
-    ? html`<openclaw-tooltip .content=${runningLabel} .describe=${false}
-        >${glyph}</openclaw-tooltip
+    ? html`<mirally-tooltip .content=${runningLabel} .describe=${false}
+        >${glyph}</mirally-tooltip
       >`
     : glyph;
 }

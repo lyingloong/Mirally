@@ -42,7 +42,7 @@ export function renderNewSessionIncognitoControl(
       ${
         draftAvailable
           ? html`
-              <openclaw-tooltip
+              <mirally-tooltip
                 class="new-session-page__draft-tooltip"
                 .content=${t("newSession.draftDescription")}
               >
@@ -69,11 +69,11 @@ export function renderNewSessionIncognitoControl(
                       : nothing
                   }
                 </button>
-              </openclaw-tooltip>
+              </mirally-tooltip>
             `
           : nothing
       }
-      <openclaw-tooltip .content=${description}>
+      <mirally-tooltip .content=${description}>
         <button
           type="button"
           class="shell-chrome-controls__button new-session-page__incognito-toggle ${
@@ -92,7 +92,7 @@ export function renderNewSessionIncognitoControl(
         >
           ${shredderIcon}
         </button>
-      </openclaw-tooltip>
+      </mirally-tooltip>
     </div>
   `;
 }

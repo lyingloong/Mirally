@@ -10,7 +10,7 @@ import { t } from "../i18n/index.ts";
 import { registerSidebarAttentionEnglish } from "../i18n/locales/en-sidebar-attention.ts";
 import { canCallGatewayMethod } from "../lib/gateway-methods.ts";
 import { createIdleImport } from "../lib/idle-import.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import { SubscriptionsController } from "../lit/subscriptions-controller.ts";
 import "../styles/sidebar-attention-floating.css";
 import { icons } from "./icons.ts";
@@ -34,7 +34,7 @@ type UpdateProgressWatcher = (listener: (progress: UpdateProgress) => void) => (
 // Display is stylesheet-owned (layout.css `display: contents` in the footer,
 // flex when floating): the LightDomContents base's inline display would defeat
 // the floating override, re-piling the collapsed-nav cluster at the origin.
-class SidebarAttention extends OpenClawLightDomElement {
+class SidebarAttention extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context?: ApplicationContext;
 
@@ -221,7 +221,7 @@ class SidebarAttention extends OpenClawLightDomElement {
     const { custodianAlertStore } = await import("../pages/custodian/custodian-alert-store.ts");
     custodianAlertStore.present(item.action.alert);
     const snapshot = this.context?.gateway.snapshot;
-    if (canCallGatewayMethod(snapshot, "openclaw.chat", "operator.admin")) {
+    if (canCallGatewayMethod(snapshot, "mirally.chat", "operator.admin")) {
       window.dispatchEvent(
         new CustomEvent(CUSTODIAN_PANEL_TOGGLE_EVENT, { detail: { open: true } }),
       );
@@ -366,6 +366,6 @@ class SidebarAttention extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-sidebar-attention")) {
-  customElements.define("openclaw-sidebar-attention", SidebarAttention);
+if (!customElements.get("mirally-sidebar-attention")) {
+  customElements.define("mirally-sidebar-attention", SidebarAttention);
 }

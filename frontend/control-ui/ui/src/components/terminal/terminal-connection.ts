@@ -4,7 +4,7 @@ import type {
   EventFrame,
   SessionsCatalogStartTerminalParams,
   TerminalOpenParams,
-} from "@openclaw/gateway-protocol";
+} from "@mirally/gateway-protocol";
 import { BoundedBuffer } from "../../../../src/shared/bounded-buffer.ts";
 
 type TerminalRequestOptions = { timeoutMs?: number | null; signal?: AbortSignal };

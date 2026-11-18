@@ -16,12 +16,12 @@ import { readSessionMethodAccess, type SessionMethodAccess } from "../lib/sessio
 import { prepareSessionNavigationHandoff } from "../lib/sessions/navigation-handoff.ts";
 import { SESSION_NAVIGATION_KEY_PARAM } from "../lib/sessions/route-navigation.ts";
 import { parseAgentSessionKey, resolveUiConfiguredMainKey } from "../lib/sessions/session-key.ts";
-import { OpenClawLightDomContentsElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../lit/mirally-element.ts";
 import type { NewSessionTarget } from "../pages/new-session/location.ts";
 import type { ContextualSidebar } from "./sidebar-context-state.ts";
 
 /** Stable custom-element inputs. Behavior is layered in focused sidebar modules. */
-export abstract class AppSidebarBase extends OpenClawLightDomContentsElement {
+export abstract class AppSidebarBase extends MirallyLightDomContentsElement {
   @property({ attribute: false }) basePath = "";
   @property({ attribute: false }) activeRouteId?: NavigationRouteId;
   @property({ attribute: false }) router?: Pick<

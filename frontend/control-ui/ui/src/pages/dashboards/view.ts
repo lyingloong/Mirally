@@ -59,12 +59,12 @@ function renderDashboardPreview(
   error: string | null,
 ) {
   return html`<div class="dashboard-preview" aria-hidden="true" inert>
-    <openclaw-dashboard-preview
+    <mirally-dashboard-preview
       .gatewaySnapshot=${gatewaySnapshot}
       .sessionKey=${row.key}
       .agentId=${row.agentId}
       .error=${error}
-    ></openclaw-dashboard-preview>
+    ></mirally-dashboard-preview>
   </div>`;
 }
 

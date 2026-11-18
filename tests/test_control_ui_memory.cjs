@@ -3,17 +3,17 @@ const assert=require('node:assert/strict');
 const {parseHTML}=require('../tools/testing/dependencies.cjs').loadLinkedom();
 const memory=require('../mirally/assets/control-ui-memory.js');
 
-function fixture(tag='openclaw-memory-settings',agent='main'){
-  const content=tag==='openclaw-memory-settings'?'<section class="memory-page"><header id="native-heading">Memory title and tabs</header><div class="memory-page__panel"><div id="native">Native memory stays</div></div></section>':'<div id="native">Native memory stays</div>';
-  const {window}=parseHTML(`<html><body><openclaw-app></openclaw-app><main><${tag}>${content}</${tag}></main></body></html>`);
+function fixture(tag='mirally-memory-settings',agent='main'){
+  const content=tag==='mirally-memory-settings'?'<section class="memory-page"><header id="native-heading">Memory title and tabs</header><div class="memory-page__panel"><div id="native">Native memory stays</div></div></section>':'<div id="native">Native memory stays</div>';
+  const {window}=parseHTML(`<html><body><mirally-app></mirally-app><main><${tag}>${content}</${tag}></main></body></html>`);
   const proto=Object.getPrototypeOf(window.document.createElement('select'));
   if(!Object.getOwnPropertyDescriptor(proto,'value')?.set)Object.defineProperty(proto,'value',{configurable:true,get(){return this._value ?? this.querySelector('option')?.value ?? '';},set(value){this._value=value;}});
-  const native=window.document.querySelector(tag);if(tag==='openclaw-memory-settings')native.selectedAgentId=agent;else native.agentId=agent;
+  const native=window.document.querySelector(tag);if(tag==='mirally-memory-settings')native.selectedAgentId=agent;else native.agentId=agent;
   const requests=[],frames=new Map(),events=new Map(),pending=new Set();let sequence=0,cancels=0;
   const bridge={search:args=>request('search',args),read:args=>request('read',args),cancel(){cancels++;for(const item of pending)item.reject(Error('cancelled'));pending.clear();}};
   function request(action,args){return new Promise((resolve,reject)=>{const item={action,args,resolve:value=>{pending.delete(item);resolve(value);},reject};requests.push(item);pending.add(item);});}
   const context={gateway:{snapshot:{client:{}}},router:{subscribe:()=>()=>{}},navigate:(route,options)=>requests.push({action:'navigate',route,options})};
-  window.document.querySelector('openclaw-app').context=context;
+  window.document.querySelector('mirally-app').context=context;
   const root={document:window.document,MutationObserver:window.MutationObserver,__mirallyActivity:{memoryBrowser:bridge},requestAnimationFrame:fn=>{const id=++sequence;frames.set(id,fn);return id;},cancelAnimationFrame:id=>frames.delete(id),addEventListener:(name,fn)=>events.set(name,fn)};
   const api=memory.install(root),document=window.document;
   const flush=async()=>{for(let i=0;i<10;i++){await Promise.resolve();const items=[...frames.values()];frames.clear();items.forEach(fn=>fn());}};
@@ -44,10 +44,10 @@ test('source, kinds, candidates and local date filters become server-side bounde
 });
 
 test('native Memory overview, memories and Agents memory all preserve native content and show owner activity memory',async()=>{
-  for(const tag of ['openclaw-memory-settings','openclaw-memory-memories','openclaw-agent-memory-panel']){
+  for(const tag of ['mirally-memory-settings','mirally-memory-memories','mirally-agent-memory-panel']){
     const f=fixture(tag);try{await f.flush();assert.ok(f.document.querySelector('#mirally-memory-browser'));
       const card=f.document.querySelector('#mirally-memory-browser');
-      if(tag==='openclaw-memory-settings'){
+      if(tag==='mirally-memory-settings'){
         assert.equal(card.parentNode.className,'memory-page__panel');
         assert.equal(card.parentNode.previousElementSibling.id,'native-heading');
         assert.equal(card.nextElementSibling.id,'native');
@@ -59,7 +59,7 @@ test('native Memory overview, memories and Agents memory all preserve native con
 });
 
 test('other agents and hidden native panels never expose owner activity memory',async()=>{
-  const f=fixture('openclaw-memory-settings','other');try{
+  const f=fixture('mirally-memory-settings','other');try{
     await f.flush();assert.equal(f.requests.length,0);assert.equal(f.document.querySelector('#mirally-memory-browser'),null);
     f.native.selectedAgentId='main';f.native.hidden=true;f.api.sync();await f.flush();assert.equal(f.requests.length,0);
     f.native.hidden=false;f.api.sync();await f.flush();assert.equal(f.requests.length,1);
@@ -87,9 +87,9 @@ test('native content rerenders restore the contribution below its heading withou
     await f.flush();await f.reply({memories:[row()]});f.field('query').value='未提交的筛选';
     const card=f.document.querySelector('#mirally-memory-browser'),count=f.requests.length;
     const content=f.native.querySelector('.memory-page__panel');
-    content.replaceChildren(f.document.createElement('openclaw-memory-memories'));
+    content.replaceChildren(f.document.createElement('mirally-memory-memories'));
     f.api.sync();await f.flush();
-    assert.equal(content.firstChild,card);assert.equal(card.nextElementSibling.localName,'openclaw-memory-memories');
+    assert.equal(content.firstChild,card);assert.equal(card.nextElementSibling.localName,'mirally-memory-memories');
     assert.equal(content.previousElementSibling.id,'native-heading');
     assert.equal(f.field('query').value,'未提交的筛选');assert.equal(f.requests.length,count);
   }finally{f.api.dispose();await f.flush();}
@@ -159,7 +159,7 @@ test('fresh searches invalidate old detail replies and context changes retire al
     const oldRead=f.requests.at(-1);f.submit();await f.reply({memories:[]});oldRead.resolve({memory:row(),text:'late detail'});await f.flush();
     assert.equal(f.slot('detail').hidden,true);
     f.click('refresh');const oldSearch=f.requests.at(-1);
-    f.document.querySelector('openclaw-app').context={...f.context,gateway:{snapshot:{client:{}}}};f.api.sync();await f.flush();
+    f.document.querySelector('mirally-app').context={...f.context,gateway:{snapshot:{client:{}}}};f.api.sync();await f.flush();
     oldSearch.resolve({memories:[row({title:'OLD'})]});await f.flush();assert.doesNotMatch(f.slot('list').textContent,/OLD/);
     await f.reply({memories:[row({title:'NEW'})]});assert.match(f.slot('list').textContent,/NEW/);assert.ok(f.cancels()>0);
     f.native.remove();f.api.sync();await f.flush();assert.equal(f.document.querySelector('#mirally-memory-browser'),null);
@@ -168,7 +168,7 @@ test('fresh searches invalidate old detail replies and context changes retire al
 
 test('refresh errors remain visible and native replacement remounts exactly one contribution',async()=>{
   const f=fixture();try{await f.flush();f.requests.at(-1).reject(Error('offline'));await f.flush();assert.match(f.slot('notice').textContent,/读取失败.*offline/);
-    const replacement=f.document.createElement('openclaw-memory-settings');replacement.selectedAgentId='main';replacement.innerHTML='<header>Native heading</header><div class="memory-page__panel"><p>Native content</p></div>';f.native.replaceWith(replacement);f.api.sync();await f.flush();
+    const replacement=f.document.createElement('mirally-memory-settings');replacement.selectedAgentId='main';replacement.innerHTML='<header>Native heading</header><div class="memory-page__panel"><p>Native content</p></div>';f.native.replaceWith(replacement);f.api.sync();await f.flush();
     assert.equal(f.document.querySelectorAll('#mirally-memory-browser').length,1);await f.reply({memories:[]});
     f.click('refresh');assert.equal(f.requests.at(-1).action,'search');
   }finally{f.api.dispose();await f.flush();}

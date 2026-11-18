@@ -17,7 +17,7 @@ export function openShellNewSession(
   if (
     host.onboardingMode ||
     (source === "shortcut" &&
-      (document.openClawModalLayers?.size ||
+      (document.mirallyModalLayers?.size ||
         document.querySelector(".shell-nav[aria-modal='true']")))
   ) {
     return false;
@@ -38,7 +38,7 @@ export function openShellNewSession(
   host.openNewSession(context.agentSelection.state.selectedId ?? "");
   if (source === "shortcut") {
     host
-      .querySelector<HTMLElement & { focusComposer(): void }>("openclaw-new-session-page")
+      .querySelector<HTMLElement & { focusComposer(): void }>("mirally-new-session-page")
       ?.focusComposer();
   }
   return true;

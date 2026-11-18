@@ -348,7 +348,7 @@ export function renderTranscriptSearch(
           requestUpdate();
         }}
       />
-      <openclaw-tooltip .content=${t("chat.thread.closeSearch")}>
+      <mirally-tooltip .content=${t("chat.thread.closeSearch")}>
         <button
           class="btn btn--ghost"
           aria-label=${t("chat.thread.closeSearch")}
@@ -356,7 +356,7 @@ export function renderTranscriptSearch(
         >
           ${icons.x}
         </button>
-      </openclaw-tooltip>
+      </mirally-tooltip>
     </div>
   `;
 }
@@ -456,7 +456,7 @@ function createMessageActionContextButton(params: {
   label.textContent = params.label;
   button.append(label);
   button.addEventListener("click", params.onClick);
-  const tooltip = document.createElement("openclaw-tooltip");
+  const tooltip = document.createElement("mirally-tooltip");
   tooltip.content = params.tooltip;
   tooltip.append(button);
   return { element: tooltip, button };
@@ -656,7 +656,7 @@ export function handleTranscriptContextMenu(event: MouseEvent, props: Transcript
   }
   // Expanded tables live in a native modal. Its context menu must stay inside
   // that top layer, otherwise the browser makes the body portal inert.
-  (target.closest("openclaw-modal-dialog, dialog") ?? document.body).appendChild(menu);
+  (target.closest("mirally-modal-dialog, dialog") ?? document.body).appendChild(menu);
   const owner = { element: menu, paneId: props.paneId, listeners: new AbortController() };
   activeReplyContextMenu = owner;
 

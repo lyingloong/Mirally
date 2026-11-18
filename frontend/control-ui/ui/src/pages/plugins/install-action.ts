@@ -8,13 +8,13 @@ import { t } from "../../i18n/index.ts";
 import { registerPluginManagementEnglish } from "../../i18n/locales/en-plugin-management.ts";
 import { formatUnit } from "../../lib/format.ts";
 import { generateUUID } from "../../lib/uuid.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import type { PluginInstallProgress } from "./install-progress.ts";
 import "./install-action.css";
 
 registerPluginManagementEnglish();
 
-export class PluginInstallAction extends OpenClawLightDomElement {
+export class PluginInstallAction extends MirallyLightDomElement {
   @property({ attribute: false }) progress?: PluginInstallProgress;
   @property({ attribute: false }) busy = false;
   @property({ attribute: false }) disabled = false;
@@ -177,11 +177,11 @@ export class PluginInstallAction extends OpenClawLightDomElement {
     </span>`;
   }
 }
-if (!customElements.get("openclaw-plugin-install-action")) {
-  customElements.define("openclaw-plugin-install-action", PluginInstallAction);
+if (!customElements.get("mirally-plugin-install-action")) {
+  customElements.define("mirally-plugin-install-action", PluginInstallAction);
 }
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-plugin-install-action": PluginInstallAction;
+    "mirally-plugin-install-action": PluginInstallAction;
   }
 }

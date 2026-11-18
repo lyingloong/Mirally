@@ -128,13 +128,13 @@ export function renderConnectMachineDialog(props: ConnectMachineDialogProps) {
   }
   const title = t("newSession.connectMachineTitle");
   const joinUrl = props.setup?.joinUrl?.trim();
-  const command = joinUrl ? `npx openclaw connect ${quoteCliArg(joinUrl)}` : null;
+  const command = joinUrl ? `npx mirally connect ${quoteCliArg(joinUrl)}` : null;
   const expiresAt = props.setup?.expiresAtMs
     ? formatTimeMs(props.setup.expiresAtMs, { hour: "numeric", minute: "2-digit" }, "")
     : "";
 
   return html`
-    <openclaw-modal-dialog
+    <mirally-modal-dialog
       class="connect-machine-dialog"
       label=${title}
       description=${t("newSession.connectMachineDescription")}
@@ -213,6 +213,6 @@ export function renderConnectMachineDialog(props: ConnectMachineDialogProps) {
           </button>
         </footer>
       </section>
-    </openclaw-modal-dialog>
+    </mirally-modal-dialog>
   `;
 }

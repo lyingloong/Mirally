@@ -1,4 +1,4 @@
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
 import { t } from "../../i18n/index.ts";
 import { stripThinkingTags } from "../strip-thinking-tags.ts";
 import type { NormalizedMessage } from "./chat-types.ts";
@@ -8,7 +8,7 @@ export function resolveMessageDisplayMarkdown(
   message: unknown,
   normalizedMessage: NormalizedMessage,
 ): string {
-  const metadata = asNullableRecord(asNullableRecord(message)?.["__openclaw"]);
+  const metadata = asNullableRecord(asNullableRecord(message)?.["__mirally"]);
   if (metadata?.truncated === true && metadata.reason === "oversized") {
     return t("chat.messages.tooLargeToDisplay");
   }

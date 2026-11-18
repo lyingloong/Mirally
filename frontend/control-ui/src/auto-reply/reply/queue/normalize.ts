@@ -1,5 +1,5 @@
 // Normalizes queue config values from user and persisted settings.
-import { normalizeOptionalLowercaseString } from "@openclaw/normalization-core/string-coerce";
+import { normalizeOptionalLowercaseString } from "@mirally/normalization-core/string-coerce";
 import type { QueueMode } from "../../../../packages/gateway-protocol/src/schema/logs-chat.js";
 import type { QueueDropPolicy } from "./types.js";
 

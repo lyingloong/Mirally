@@ -36,7 +36,7 @@ export function renderLazyElementModal(controller: {
   }
   const close = () => controller.close();
   const loading = state.status === "loading";
-  return html`<openclaw-modal-dialog
+  return html`<mirally-modal-dialog
     class=${loading ? "lazy-element-loading-modal" : nothing}
     label=${state.element.label}
     @modal-cancel=${close}
@@ -67,7 +67,7 @@ export function renderLazyElementModal(controller: {
           </section>`
         : renderLazyElementState(state, () => controller.retry(), close)
     }
-  </openclaw-modal-dialog>`;
+  </mirally-modal-dialog>`;
 }
 
 export function renderLazyViewError({

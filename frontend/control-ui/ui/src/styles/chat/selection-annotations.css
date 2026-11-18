@@ -36,16 +36,16 @@
   height: 16px;
 }
 
-.chat-thread:has(> openclaw-chat-comment-pins) {
+.chat-thread:has(> mirally-chat-comment-pins) {
   position: relative;
 }
 
 /* Reserve a narrow gutter for pins even when a selected line fills the viewport. */
-.chat-thread:has(> openclaw-chat-comment-pins) .chat-thread-inner {
+.chat-thread:has(> mirally-chat-comment-pins) .chat-thread-inner {
   padding-inline-end: 28px;
 }
 
-openclaw-chat-comment-pins {
+mirally-chat-comment-pins {
   position: absolute;
   top: 0;
   left: 0;
@@ -71,12 +71,12 @@ openclaw-chat-comment-pins {
 }
 
 .chat-comment-preview {
-  --openclaw-tooltip-max-width: min(360px, calc(100vw - 24px));
-  --openclaw-tooltip-padding: 12px;
-  --openclaw-tooltip-background-color: var(--session-hovercard-surface);
-  --openclaw-tooltip-border-color: var(--border);
-  --openclaw-tooltip-border-radius: var(--radius-lg);
-  --openclaw-tooltip-shadow: var(--shadow-lg);
+  --mirally-tooltip-max-width: min(360px, calc(100vw - 24px));
+  --mirally-tooltip-padding: 12px;
+  --mirally-tooltip-background-color: var(--session-hovercard-surface);
+  --mirally-tooltip-border-color: var(--border);
+  --mirally-tooltip-border-radius: var(--radius-lg);
+  --mirally-tooltip-shadow: var(--shadow-lg);
 }
 
 .chat-comment-preview__scroll {

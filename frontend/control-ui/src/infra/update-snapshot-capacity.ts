@@ -1,4 +1,4 @@
-import { formatByteSize } from "@openclaw/normalization-core";
+import { formatByteSize } from "@mirally/normalization-core";
 import type { UpdateSnapshotCapacity } from "./update-snapshot-capacity-schema.js";
 
 export type { UpdateSnapshotCapacity } from "./update-snapshot-capacity-schema.js";

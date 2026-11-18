@@ -42,7 +42,7 @@ import { loadModelCatalog, modelCatalogRefreshError } from "../../lib/model-cata
 import { shouldHandleNavigationClick } from "../../lib/navigation-click.ts";
 import { resolveSessionNavigationAgentId } from "../../lib/sessions/route-navigation.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { CronEditorClearance } from "./editor-clearance.ts";
 import { buildCronSuggestions, THINKING_SUGGESTIONS } from "./form-suggestions.ts";
@@ -53,7 +53,7 @@ import { renderCron } from "./view.ts";
 
 registerCronEnglish();
 
-class CronPage extends OpenClawLightDomElement {
+class CronPage extends MirallyLightDomElement {
   constructor() {
     super();
     void new CronEditorClearance(this);
@@ -691,12 +691,12 @@ class CronPage extends OpenClawLightDomElement {
 
 export const cronPageComponent = {
   header: true,
-  render: (search: unknown) => html`<openclaw-cron-page
+  render: (search: unknown) => html`<mirally-cron-page
     .routeSearch=${typeof search === "string" ? search : ""}
-  ></openclaw-cron-page>`,
+  ></mirally-cron-page>`,
 };
 
 // Module re-evaluation can retain the shared registry (for example, in Vitest).
-if (!customElements.get("openclaw-cron-page")) {
-  customElements.define("openclaw-cron-page", CronPage);
+if (!customElements.get("mirally-cron-page")) {
+  customElements.define("mirally-cron-page", CronPage);
 }

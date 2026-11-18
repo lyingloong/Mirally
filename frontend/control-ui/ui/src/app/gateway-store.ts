@@ -2,8 +2,8 @@ import {
   gatewayCredentialScope,
   isRetryableGatewayStartupUnavailableError,
   readControlUiBuildMismatchId,
-} from "@openclaw/gateway-client/browser";
-import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
+} from "@mirally/gateway-client/browser";
+import { asOptionalRecord } from "@mirally/normalization-core/record-coerce";
 import type { ModelCatalogTarget } from "../../../packages/gateway-protocol/src/index.js";
 import {
   isGatewayRestartUnavailableError,
@@ -233,7 +233,7 @@ export function createApplicationGateway(
       setSnapshot({
         phase: "offline",
         lastError:
-          "This development server targets a different Gateway. Restart ui:dev with OPENCLAW_UI_DEV_GATEWAY_URL set to that Gateway, or reconnect to the configured Gateway.",
+          "This development server targets a different Gateway. Restart ui:dev with MIRALLY_UI_DEV_GATEWAY_URL set to that Gateway, or reconnect to the configured Gateway.",
       });
       return;
     }
@@ -336,7 +336,7 @@ export function createApplicationGateway(
         : undefined,
       bootstrapProfile: nextConnection.bootstrapProfile,
       password: nextConnection.password.trim() ? nextConnection.password : undefined,
-      clientName: options.clientOptions?.clientName ?? "openclaw-control-ui",
+      clientName: options.clientOptions?.clientName ?? "mirally-control-ui",
       clientVersion: CONTROL_UI_BUILD_INFO.version ?? "dev",
       clientBuildId: CONTROL_UI_BUILD_INFO.buildId,
       platform: options.clientOptions?.platform,

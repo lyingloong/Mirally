@@ -5,7 +5,7 @@ import { readDeletedSessionStartup } from "../../app/deleted-session-startup.ts"
 import type { ImageLightboxItem } from "../../components/image-lightbox.types.ts";
 import { t } from "../../i18n/index.ts";
 import { registerNewSessionSetupEnglish } from "../../i18n/locales/en-new-session-setup.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { renderNewSessionBody } from "../new-session/draft-body.ts";
 import { chatStartupStatusLabel } from "./chat-run-startup.ts";
@@ -15,7 +15,7 @@ import { buildLocalUserMessage } from "./user-message-content.ts";
 registerNewSessionSetupEnglish();
 
 /** Admission preview owns display only; real pane controllers mount after acceptance. */
-class PendingSessionCreate extends OpenClawLightDomElement {
+class PendingSessionCreate extends MirallyLightDomElement {
   @property({ attribute: false }) context!: ApplicationContext;
   @property() sessionKey = "";
   @state() private image: ImageLightboxItem | null = null;
@@ -117,6 +117,6 @@ class PendingSessionCreate extends OpenClawLightDomElement {
       ${renderChatImageLightbox(this.image, this.closeImage)}`;
   }
 }
-if (!customElements.get("openclaw-pending-session-create")) {
-  customElements.define("openclaw-pending-session-create", PendingSessionCreate);
+if (!customElements.get("mirally-pending-session-create")) {
+  customElements.define("mirally-pending-session-create", PendingSessionCreate);
 }

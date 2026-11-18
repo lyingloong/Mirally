@@ -1,4 +1,4 @@
-import type { SessionsCatalogStartTerminalParams } from "@openclaw/gateway-protocol";
+import type { SessionsCatalogStartTerminalParams } from "@mirally/gateway-protocol";
 import { BoundedBuffer } from "../../../../src/shared/bounded-buffer.ts";
 import {
   TerminalConnection,

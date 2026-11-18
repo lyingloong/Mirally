@@ -262,14 +262,14 @@ function renderSidebarSessionIndicators(
         >${
           session.runtimeMs != null
             ? session.hasActiveRun
-              ? html`<openclaw-elapsed-time
+              ? html`<mirally-elapsed-time
                   .startMs=${session.runtimeSampledAt! - session.runtimeMs}
-                ></openclaw-elapsed-time>`
+                ></mirally-elapsed-time>`
               : (formatDurationCompact(session.runtimeMs) ?? "0ms")
-            : html`<openclaw-elapsed-time
+            : html`<mirally-elapsed-time
                 .startMs=${session.startedAt!}
                 .endMs=${session.endedAt ?? null}
-              ></openclaw-elapsed-time>`
+              ></mirally-elapsed-time>`
         }</span
       >`
     : nothing;
@@ -282,7 +282,7 @@ function renderSidebarSessionIndicators(
     originIndicators,
     childrenExpanded,
     content: html` <span class="sidebar-recent-session__details-endcap">
-      <openclaw-viewer-facepile
+      <mirally-viewer-facepile
         .presencePayload=${host.sessionData.presencePayload}
         .selfUser=${host.sessionDataContext?.gateway.snapshot.selfUser}
         .selfInstanceId=${host.sessionData.presenceInstanceId}
@@ -290,7 +290,7 @@ function renderSidebarSessionIndicators(
         .excludeIdentities=${renderedIdentities ?? []}
         .maxVisible=${3}
         variant="session"
-      ></openclaw-viewer-facepile>
+      ></mirally-viewer-facepile>
       ${team ? originIndicators : nothing}
       ${session.backgroundJobCount && session.backgroundJobCount > 0 ? html`<span class="session-row-badge" role="img" aria-label="后台作业运行中" title="后台作业运行中">${icons.terminal}</span>` : nothing}
       ${team && (session.workSession || session.acpSession) && !session.workspaceKind && !pullRequest ? html`<span class="session-row-badge" role="img" aria-label=${t("chat.sidebar.coding")} title=${session.subtitle ?? t("chat.sidebar.coding")}>${icons.terminal}</span>` : nothing}
@@ -540,7 +540,7 @@ export function renderRecentSession(params: {
                   ${icons.pin}
                 </button>`
           }
-          <openclaw-tooltip
+          <mirally-tooltip
             .content=${archiveAccess.allowed ? archiveLabel : archiveAccess.reason}
             .describe=${false}
           >
@@ -561,7 +561,7 @@ export function renderRecentSession(params: {
             >
               ${session.archived ? icons.archiveRestore : icons.archive}
             </button>
-          </openclaw-tooltip>
+          </mirally-tooltip>
           <button
             class="session-action session-action--touch-menu"
             data-sidebar-session-menu="true"

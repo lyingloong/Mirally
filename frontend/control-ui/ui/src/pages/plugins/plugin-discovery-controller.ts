@@ -186,7 +186,7 @@ export class PluginDiscoveryController {
         intent: params.intent,
         ...(params.category ? { category: params.category } : {}),
         ...(params.query ? { query: params.query } : {}),
-        ...(params.manual ? { searchSource: "openclaw-control-ui" } : {}),
+        ...(params.manual ? { searchSource: "mirally-control-ui" } : {}),
         ...(params.cursor ? { cursor: params.cursor } : {}),
         pageSize: CATALOG_PAGE_SIZE,
       },

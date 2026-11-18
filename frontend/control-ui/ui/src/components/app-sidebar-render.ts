@@ -79,7 +79,7 @@ function renderSidebarAgentCard(host: AppSidebarRenderHost) {
       gateway.connection.password.trim()),
   );
   return html`
-    <openclaw-sidebar-agent-card
+    <mirally-sidebar-agent-card
       .agentName=${cardName}
       .agentId=${cardAgentId}
       .avatarUrl=${
@@ -104,7 +104,7 @@ function renderSidebarAgentCard(host: AppSidebarRenderHost) {
         const trigger = card.querySelector<HTMLElement>(".sidebar-agent-card__main") ?? card;
         host.sidebarMenus.toggleAgentMenu(trigger);
       }}
-    ></openclaw-sidebar-agent-card>
+    ></mirally-sidebar-agent-card>
   `;
 }
 
@@ -183,7 +183,7 @@ export function renderAppSidebarBrand(
     <div class="sidebar-brand">
       ${host.sidebarAgentsMode === "roster" ? renderSidebarWorkspaceHeader(host) : renderSidebarAgentCard(host)}
       <div class="sidebar-brand__actions">
-        <openclaw-tooltip
+        <mirally-tooltip
           .content=${`${collapseLabel} (${formatKeyboardShortcutCombo(KEYBOARD_SHORTCUT_COMBOS.toggleSidebar)})`}
         >
           <button
@@ -196,8 +196,8 @@ export function renderAppSidebarBrand(
           >
             ${icons.panelLeftClose}
           </button>
-        </openclaw-tooltip>
-        <openclaw-tooltip
+        </mirally-tooltip>
+        <mirally-tooltip
           .content=${`${t("chat.openCommandPalette")} (${formatKeyboardShortcutCombo(KEYBOARD_SHORTCUT_COMBOS.commandPalette)})`}
         >
           <button
@@ -209,7 +209,7 @@ export function renderAppSidebarBrand(
           >
             ${icons.search}
           </button>
-        </openclaw-tooltip>
+        </mirally-tooltip>
         ${
           host.sidebarAgentsMode === "roster"
             ? renderSidebarSessionFilter(host, "sidebar-brand__icon sidebar-brand__header-control")
@@ -392,10 +392,10 @@ export function renderAppSidebarOnline(host: AppSidebarRenderHost) {
             ${
               collapsed
                 ? html`<span class="sidebar-online__facepile">
-                    <openclaw-viewer-facepile
+                    <mirally-viewer-facepile
                       .staticUsers=${users}
                       .maxVisible=${2}
-                    ></openclaw-viewer-facepile>
+                    ></mirally-viewer-facepile>
                   </span>`
                 : nothing
             }
@@ -434,12 +434,12 @@ export function renderAppSidebarOnline(host: AppSidebarRenderHost) {
                       name: presenceViewerLabel(user),
                     })}
                   >
-                    <openclaw-viewer-avatar
+                    <mirally-viewer-avatar
                       .user=${user}
                       .markAsViewer=${false}
                       variant="footer"
                       aria-hidden="true"
-                    ></openclaw-viewer-avatar>
+                    ></mirally-viewer-avatar>
                     <span class="sidebar-online__person-name">${presenceViewerLabel(user)}</span>
                     <span class="sidebar-online__person-action" aria-hidden="true"
                       >${icons.chevronRight}</span
@@ -482,7 +482,7 @@ export function renderAppSidebarFooterBar(host: AppSidebarRenderHost) {
         @click=${(event: MouseEvent) =>
           host.sidebarMenus.toggleIdentityMenu(event.currentTarget as HTMLElement)}
       >
-        <openclaw-viewer-avatar .user=${avatarUser} variant="footer"></openclaw-viewer-avatar>
+        <mirally-viewer-avatar .user=${avatarUser} variant="footer"></mirally-viewer-avatar>
         <span class="sidebar-identity-card__text">
           ${renderHoverMarquee(selfLabel, "sidebar-identity-card__name", { loop: true, delay: 300, speed: 35 })}
           ${
@@ -502,7 +502,7 @@ export function renderAppSidebarFooterBar(host: AppSidebarRenderHost) {
       <span class="sidebar-footer-actions">
         ${
           isHomePanelAvailable(host.sessionDataContext?.gateway)
-            ? html`<openclaw-tooltip
+            ? html`<mirally-tooltip
                 .content=${`${t("assistantPanel.toggle")} (${formatKeyboardShortcutCombo(KEYBOARD_SHORTCUT_COMBOS.homePanel)})`}
                 ><button
                   type="button"
@@ -511,7 +511,7 @@ export function renderAppSidebarFooterBar(host: AppSidebarRenderHost) {
                   @click=${() => window.dispatchEvent(new CustomEvent(HOME_PANEL_TOGGLE_EVENT))}
                 >
                   ${icons.home}
-                </button></openclaw-tooltip
+                </button></mirally-tooltip
               >`
             : nothing
         }
@@ -542,10 +542,10 @@ export function renderAppSidebarZoneEntry(
       : pluginTab
         ? renderAppSidebarPluginTab(host, pluginTab)
         : entry.type === "plugin"
-          ? html`<openclaw-plugin-contributions
+          ? html`<mirally-plugin-contributions
               .kind=${"navigation"}
               .navigationKey=${entry.key}
-            ></openclaw-plugin-contributions>`
+            ></mirally-plugin-contributions>`
           : sessionRows.has(entry.key)
             ? host.renderPinnedSidebarSession(sessionRows.get(entry.key)!)
             : nothing;
@@ -594,9 +594,9 @@ function renderAppSidebarPluginTab(host: AppSidebarRenderHost, tab: GatewayContr
 }
 
 function renderAppSidebarAttention(host: AppSidebarRenderHost) {
-  return html`<openclaw-sidebar-attention
+  return html`<mirally-sidebar-attention
     .activeRouteId=${host.activeRouteId}
     .onNavigate=${host.onNavigate}
     .watchUpdateProgress=${host.watchUpdateProgress}
-  ></openclaw-sidebar-attention>`;
+  ></mirally-sidebar-attention>`;
 }

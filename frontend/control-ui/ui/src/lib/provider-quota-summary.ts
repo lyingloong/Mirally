@@ -1,5 +1,5 @@
 // Control UI module implements provider quota summary behavior.
-import { asDateTimestampMs } from "@openclaw/normalization-core/number-coercion";
+import { asDateTimestampMs } from "@mirally/normalization-core/number-coercion";
 import type { ModelAuthStatusProvider, ModelAuthStatusResult } from "../api/types.ts";
 
 export function formatQuotaReset(resetAt?: number): string | null {

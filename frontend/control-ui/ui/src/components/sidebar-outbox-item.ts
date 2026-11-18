@@ -78,7 +78,7 @@ export function renderSidebarOutboxItem(params: {
           ${offline ? html`<span class="sidebar-outbox-row__offline"><span aria-hidden="true">·</span> ${t("attention.outbox.offline")}</span>` : nothing}
         </span>
       </div>
-      <openclaw-tooltip .content=${guidance}>
+      <mirally-tooltip .content=${guidance}>
         <a
           class="sidebar-issues-panel__action sidebar-outbox-row__review"
           href=${target.href}
@@ -107,7 +107,7 @@ export function renderSidebarOutboxItem(params: {
           }}
           >${t("attention.outbox.reviewShort")}</a
         >
-      </openclaw-tooltip>
+      </mirally-tooltip>
     </div>
   </article>`;
 }

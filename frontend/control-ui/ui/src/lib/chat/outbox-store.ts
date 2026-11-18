@@ -1,6 +1,6 @@
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import {
   DEFAULT_AGENT_ID,
   DEFAULT_MAIN_KEY,
@@ -18,10 +18,10 @@ import {
 } from "./outbox-store-codec.ts";
 import { observeDraftRevision, rememberDraftRevision } from "./outbox-store-draft-state.ts";
 
-const LEGACY_STORAGE_KEY_PREFIX = "openclaw.control.chatComposer.v1:";
-const PREVIOUS_STORAGE_KEY_PREFIX = "openclaw.control.chatComposer.v2:";
-const BLOB_STORAGE_KEY_PREFIX = "openclaw.control.chatComposer.v3:";
-const STORAGE_KEY_PREFIX = "openclaw.control.chatComposer.v4:";
+const LEGACY_STORAGE_KEY_PREFIX = "mirally.control.chatComposer.v1:";
+const PREVIOUS_STORAGE_KEY_PREFIX = "mirally.control.chatComposer.v2:";
+const BLOB_STORAGE_KEY_PREFIX = "mirally.control.chatComposer.v3:";
+const STORAGE_KEY_PREFIX = "mirally.control.chatComposer.v4:";
 const UNRESOLVED_GLOBAL_AGENT_SCOPE = "@unresolved";
 const storedChatOutboxChangeListeners = new Set<() => void>();
 let storageChangeListenerInstalled = false;
@@ -98,7 +98,7 @@ export function notifyStoredChatOutboxChanges(): void {
     try {
       listener();
     } catch (error) {
-      console.error("[openclaw] stored chat outbox listener failed", error);
+      console.error("[mirally] stored chat outbox listener failed", error);
     }
   }
 }

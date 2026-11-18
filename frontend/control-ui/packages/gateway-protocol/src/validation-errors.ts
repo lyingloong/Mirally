@@ -1,4 +1,4 @@
-import type { TypeBoxValidationError } from "@openclaw/normalization-core/json-schema";
+import type { TypeBoxValidationError } from "@mirally/normalization-core/json-schema";
 
 /** Normalized validation error shape exposed by every protocol validator. */
 export type ValidationError = TypeBoxValidationError;

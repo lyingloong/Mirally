@@ -180,7 +180,7 @@ export const PluginApprovalPresentationSchema = closedObject({
   externalResolution: Type.Optional(PluginApprovalExternalResolutionSchema),
 });
 
-/** Reviewer-safe OpenClaw system change. Exact operation stays host-local. */
+/** Reviewer-safe Mirally system change. Exact operation stays host-local. */
 export const SystemAgentApprovalPresentationSchema = closedObject({
   kind: Type.Literal("system-agent"),
   title: Type.String({ minLength: 1, maxLength: 80 }),

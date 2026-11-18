@@ -1,7 +1,7 @@
-import { readSessionMessageIdentity } from "@openclaw/gateway-client/browser";
-import { asFiniteNumber } from "@openclaw/normalization-core/number-coercion";
-import { asNullableRecord as asRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { readSessionMessageIdentity } from "@mirally/gateway-client/browser";
+import { asFiniteNumber } from "@mirally/normalization-core/number-coercion";
+import { asNullableRecord as asRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 import { CHAT_PENDING_INPUT_MESSAGE_PREFIX } from "../../../../packages/gateway-protocol/src/schema/chat-history-constants.js";
 import { resolveToolUseId } from "../../../../src/chat/tool-content.js";
 import type { ChatItem, ChatQueueItem, ToolCard } from "../../lib/chat/chat-types.ts";
@@ -277,7 +277,7 @@ export function resolveToolBlockId(
 }
 
 export function isPendingSendMessage(message: unknown): boolean {
-  return asRecord(asRecord(message)?.["__openclaw"])?.kind === "pending-send";
+  return asRecord(asRecord(message)?.["__mirally"])?.kind === "pending-send";
 }
 
 export function readPendingSendStatus(message: unknown): {
@@ -285,7 +285,7 @@ export function readPendingSendStatus(message: unknown): {
   id: string;
   state: "failed" | "unconfirmed" | "held" | "waiting-reconnect";
 } | null {
-  const metadata = asRecord(asRecord(message)?.["__openclaw"]);
+  const metadata = asRecord(asRecord(message)?.["__mirally"]);
   const state = metadata?.state;
   const id = metadata?.id;
   if (

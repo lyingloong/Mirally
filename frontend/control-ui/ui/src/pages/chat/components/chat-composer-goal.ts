@@ -84,7 +84,7 @@ function renderChatGoalActionButton(options: {
   onClick: () => void;
 }): TemplateResult {
   return html`
-    <openclaw-tooltip content=${options.label}>
+    <mirally-tooltip content=${options.label}>
       <button
         class="agent-chat__goal-action ${options.className}"
         type="button"
@@ -94,7 +94,7 @@ function renderChatGoalActionButton(options: {
         ${options.icon}
         <span class="agent-chat__goal-action-label">${options.chipLabel}</span>
       </button>
-    </openclaw-tooltip>
+    </mirally-tooltip>
   `;
 }
 
@@ -132,11 +132,11 @@ export function renderChatGoal(
           >${goalStatusIcons[goal.status]}</span
         >
         <span class="agent-chat__goal-copy">
-          <openclaw-tooltip .content=${pauseReason ?? ""} ?disabled=${!pauseReason}>
+          <mirally-tooltip .content=${pauseReason ?? ""} ?disabled=${!pauseReason}>
             <span class="agent-chat__goal-label" tabindex=${pauseReason ? "0" : nothing}
               >${formatGoalStatusLabel(goal.status)}</span
             >
-          </openclaw-tooltip>
+          </mirally-tooltip>
           <span class="agent-chat__goal-objective">${goal.objective}</span>
         </span>
         <span class="agent-chat__goal-elapsed" ${ref(createGoalElapsedRef(goal))}></span>

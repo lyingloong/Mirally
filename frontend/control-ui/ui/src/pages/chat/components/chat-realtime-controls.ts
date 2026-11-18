@@ -1,4 +1,4 @@
-import type { TalkVoiceSelection } from "@openclaw/gateway-protocol";
+import type { TalkVoiceSelection } from "@mirally/gateway-protocol";
 import { html, nothing } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import { renderPicker } from "../../../components/select-picker.ts";

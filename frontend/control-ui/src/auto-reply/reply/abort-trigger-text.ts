@@ -1,5 +1,5 @@
 // Pure stop-word policy shared by inbound command routing and browser admission.
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 
 const ABORT_TRIGGERS = new Set([
   "stop",
@@ -30,8 +30,8 @@ const ABORT_TRIGGERS = new Set([
   "hoer auf",
   "stopp",
   "pare",
-  "stop openclaw",
-  "openclaw stop",
+  "stop mirally",
+  "mirally stop",
   "stop action",
   "stop current action",
   "stop run",

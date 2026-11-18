@@ -1,5 +1,5 @@
 import { consume } from "@lit/context";
-import { asNullableRecord as asConfigRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableRecord as asConfigRecord } from "@mirally/normalization-core/record-coerce";
 import { html, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
@@ -14,7 +14,7 @@ import { isGatewayMethodAdvertised } from "../../lib/gateway-methods.ts";
 import * as modelCatalog from "../../lib/model-catalog-store.ts";
 import { normalizeAgentId } from "../../lib/sessions/session-key.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { UsageRefreshPolicy } from "../usage/refresh-policy.ts";
 import type { ModelAccountUsage } from "./account-usage.ts";
@@ -64,7 +64,7 @@ import {
 
 type DefaultsDraft = DefaultModelSelection & ModelBehaviorConfig;
 
-export class ModelProvidersPage extends OpenClawLightDomElement {
+export class ModelProvidersPage extends MirallyLightDomElement {
   private readonly mutationBlockedReason = (): string | null =>
     modelProviderConfigMutationBlockedReason(this.context) ??
     (this.selectedAgentId ? null : t("agents.noAgents"));
@@ -106,7 +106,7 @@ export class ModelProvidersPage extends OpenClawLightDomElement {
       this.coreCatalogGeneration = this.catalogDiscovery.generation;
       this.supplemental.beginCoreRefresh(reason === "forced");
       if (reason === "forced") {
-        this.querySelectorAll<ModelAccountUsage>("openclaw-model-account-usage").forEach(
+        this.querySelectorAll<ModelAccountUsage>("mirally-model-account-usage").forEach(
           (account) => account.refreshUsage(),
         );
       }
@@ -736,6 +736,6 @@ export class ModelProvidersPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-model-providers-page")) {
-  customElements.define("openclaw-model-providers-page", ModelProvidersPage);
+if (!customElements.get("mirally-model-providers-page")) {
+  customElements.define("mirally-model-providers-page", ModelProvidersPage);
 }

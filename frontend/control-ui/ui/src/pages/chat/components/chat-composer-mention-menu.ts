@@ -1,5 +1,5 @@
-import { ConnectErrorDetailCodes } from "@openclaw/gateway-client/browser";
-import type { UsersMentionableParams, UsersMentionableResult } from "@openclaw/gateway-protocol";
+import { ConnectErrorDetailCodes } from "@mirally/gateway-client/browser";
+import type { UsersMentionableParams, UsersMentionableResult } from "@mirally/gateway-protocol";
 import { html, nothing } from "lit";
 import {
   GatewayRequestError,

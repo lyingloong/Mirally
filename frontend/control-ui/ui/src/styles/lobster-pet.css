@@ -1,5 +1,5 @@
 /* All visitor species share measured, obstacle-free composer lanes. */
-openclaw-lobster-pet {
+mirally-lobster-pet {
   position: absolute;
   inset: 0;
   display: block;
@@ -9,7 +9,7 @@ openclaw-lobster-pet {
   pointer-events: none;
 }
 
-openclaw-lobster-pet .lobster-pet {
+mirally-lobster-pet .lobster-pet {
   top: var(--lob-y, 0px);
   bottom: auto;
   transform: translate(-50%, -100%);
@@ -87,7 +87,7 @@ openclaw-lobster-pet .lobster-pet {
 }
 
 /* Departure/dismissal: duck down behind the ledge and fade. */
-openclaw-lobster-pet .lobster-pet--away {
+mirally-lobster-pet .lobster-pet--away {
   opacity: 0;
   visibility: hidden;
   transform: translate(-50%, -45%);
@@ -116,7 +116,7 @@ openclaw-lobster-pet .lobster-pet--away {
   --lob-glint: var(--lob-glint-seed, #00e5cc);
 }
 
-openclaw-lobster-pet .lobster-bottle {
+mirally-lobster-pet .lobster-bottle {
   top: -20px;
   bottom: auto;
 }
@@ -133,7 +133,7 @@ wa-dropdown.lobster-pet-dismiss-menu {
 
 /* Completed Lobsterdex: a quiet golden trim along the ledge, earned once
    every palette has visited this browser. */
-openclaw-lobster-pet[data-dex-complete]::after {
+mirally-lobster-pet[data-dex-complete]::after {
   content: "";
   position: absolute;
   left: 8%;
@@ -592,7 +592,7 @@ openclaw-lobster-pet[data-dex-complete]::after {
   }
 }
 
-/* Retro: homage to the classic OpenClaw logo — white sticker outline around
+/* Retro: homage to the classic Mirally logo — white sticker outline around
    the whole sprite (the halo is two stacked 1px drop-shadows). */
 .lobster-pet--palette-retro .lobster-pet__svg,
 .lobster-pet--palette-goldenretro .lobster-pet__svg {
@@ -1398,11 +1398,11 @@ openclaw-lobster-pet[data-dex-complete]::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  openclaw-lobster-pet .lobster-pet__motion,
-  openclaw-lobster-pet .lobster-pet,
-  openclaw-lobster-pet .lobster-pet *,
-  openclaw-lobster-pet .lobster-bottle,
-  openclaw-lobster-pet .lobster-bottle * {
+  mirally-lobster-pet .lobster-pet__motion,
+  mirally-lobster-pet .lobster-pet,
+  mirally-lobster-pet .lobster-pet *,
+  mirally-lobster-pet .lobster-bottle,
+  mirally-lobster-pet .lobster-bottle * {
     animation: none !important;
     transition: none !important;
   }

@@ -1,5 +1,5 @@
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
-import { normalizeStringEntries } from "@openclaw/normalization-core/string-normalization";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
+import { normalizeStringEntries } from "@mirally/normalization-core/string-normalization";
 import { html, nothing } from "lit";
 import {
   normalizeToolList,

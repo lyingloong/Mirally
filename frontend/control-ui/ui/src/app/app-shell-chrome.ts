@@ -139,11 +139,11 @@ export class ShellChromeOwner {
       [KEYBOARD_SHORTCUTS_REQUEST_EVENT, this.handleKeyboardShortcutsRequest],
       ["resize", this.handleWindowResize],
       [NATIVE_HISTORY_STATE_EVENT, this.handleNativeHistoryState],
-      ["openclaw:native-toggle-sidebar", this.handleNativeToggleSidebar],
-      ["openclaw:native-open-search", this.handleNativeOpenSearch],
-      ["openclaw:native-toggle-search", this.handleNativeToggleSearch],
-      ["openclaw:native-new-session", this.handleNativeNewSession],
-      ["openclaw:native-navigate", this.handleNativeNavigate],
+      ["mirally:native-toggle-sidebar", this.handleNativeToggleSidebar],
+      ["mirally:native-open-search", this.handleNativeOpenSearch],
+      ["mirally:native-toggle-search", this.handleNativeToggleSearch],
+      ["mirally:native-new-session", this.handleNativeNewSession],
+      ["mirally:native-navigate", this.handleNativeNavigate],
       [TERMINAL_PANEL_TOGGLE_EVENT, this.panels.handleDeferredTerminalToggle],
       [BROWSER_PANEL_TOGGLE_EVENT, this.panels.handleDeferredBrowserToggle],
       [LINK_READER_PANEL_TOGGLE_EVENT, this.panels.handleDeferredLinkReaderToggle],
@@ -160,8 +160,8 @@ export class ShellChromeOwner {
     }
     // Document load can be a proxy sign-in page; the listener owner records readiness.
     nativeCommandsOwner = this.listeners;
-    Object.assign(window, { __OPENCLAW_NATIVE_COMMANDS_READY__: true });
-    window.dispatchEvent(new Event("openclaw:native-commands-state"));
+    Object.assign(window, { __MIRALLY_NATIVE_COMMANDS_READY__: true });
+    window.dispatchEvent(new Event("mirally:native-commands-state"));
   }
 
   disconnect(): void {
@@ -172,8 +172,8 @@ export class ShellChromeOwner {
     this.navDrawerSwipe.disconnect();
     if (listenerOwner && nativeCommandsOwner === listenerOwner) {
       nativeCommandsOwner = undefined;
-      Object.assign(window, { __OPENCLAW_NATIVE_COMMANDS_READY__: false });
-      window.dispatchEvent(new Event("openclaw:native-commands-state"));
+      Object.assign(window, { __MIRALLY_NATIVE_COMMANDS_READY__: false });
+      window.dispatchEvent(new Event("mirally:native-commands-state"));
     }
   }
 
@@ -362,7 +362,7 @@ export class ShellChromeOwner {
     if (event.defaultPrevented || !matchesShortcutCombo(KEYBOARD_SHORTCUT_COMBOS.escape, event)) {
       return;
     }
-    if (host.navDrawerOpen && isMobileNavLayout() && !document.openClawModalLayers?.size) {
+    if (host.navDrawerOpen && isMobileNavLayout() && !document.mirallyModalLayers?.size) {
       event.preventDefault();
       host.closeNavDrawer({ restoreFocus: true });
     } else if (
@@ -391,7 +391,7 @@ export class ShellChromeOwner {
     if (this.palette.handlePendingShortcut(event)) {
       return;
     }
-    if (document.openClawModalLayers?.size) {
+    if (document.mirallyModalLayers?.size) {
       return;
     }
     if (host.navDrawerOpen && isMobileNavLayout()) {
@@ -540,14 +540,14 @@ export class ShellChromeOwner {
 
   private readonly handleAssistantToggleBeforeMount = (event: Event): void => {
     const host = this.host;
-    if (host.querySelector("openclaw-assistant-panel")) {
+    if (host.querySelector("mirally-assistant-panel")) {
       return;
     }
     const home = event.type === HOME_PANEL_TOGGLE_EVENT;
     if (
       home
         ? !isHomePanelAvailable(host.context?.gateway)
-        : !canCallGatewayMethod(host.context?.gateway.snapshot, "openclaw.chat", "operator.admin")
+        : !canCallGatewayMethod(host.context?.gateway.snapshot, "mirally.chat", "operator.admin")
     ) {
       event.preventDefault();
       return;
@@ -585,7 +585,7 @@ export class ShellChromeOwner {
         ?.isOpen ||
       overlaySnapshot?.devicePairSetupOpen ||
       host.approvalOverlay?.dialogOpen === true ||
-      document.openClawModalLayers?.size
+      document.mirallyModalLayers?.size
     ) {
       return true;
     }
@@ -637,8 +637,8 @@ export class ShellChromeOwner {
       [BROWSER_PANEL_TOGGLE_EVENT]: host.browserPanelElement.tagName,
       [LINK_READER_PANEL_TOGGLE_EVENT]: host.linkReaderPanelElement.tagName,
       [DESKTOP_PANEL_TOGGLE_EVENT]: host.desktopPanelElement.tagName,
-      [CUSTODIAN_PANEL_TOGGLE_EVENT]: "openclaw-assistant-panel",
-      [HOME_PANEL_TOGGLE_EVENT]: "openclaw-assistant-panel",
+      [CUSTODIAN_PANEL_TOGGLE_EVENT]: "mirally-assistant-panel",
+      [HOME_PANEL_TOGGLE_EVENT]: "mirally-assistant-panel",
       [SHELL_APPROVALS_OPEN_EVENT]: host.execApprovalElement.tagName,
     };
     return elements[eventType];

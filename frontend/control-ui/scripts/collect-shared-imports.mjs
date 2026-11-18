@@ -7,6 +7,7 @@ import ts from 'typescript';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const tree=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
 const blobs=new Set(tree.tree.filter(item=>item.type==='blob').map(item=>item.path));
+const manifest=JSON.parse(fs.readFileSync(path.join(root,'upstream-files.json'),'utf8'));
 const needed=new Set();
 const visited=new Set();
 const queue=[];
@@ -15,7 +16,8 @@ walk(path.join(root,'ui/src'));
 function resolveSource(relative) {
   const normalized=path.posix.normalize(relative.replaceAll('\\','/'));
   for(const candidate of [normalized,normalized.replace(/\.[cm]?js$/,'.ts'),normalized+'.ts',normalized+'/index.ts']) {
-    if(blobs.has(candidate)) return candidate;
+    const upstreamPath=manifest.files[candidate]?.upstreamPath ?? candidate;
+    if(blobs.has(upstreamPath)) return candidate;
   }
   return null;
 }
@@ -24,8 +26,8 @@ function accept(specifier,file) {
   let candidate;
   if(specifier.startsWith('.')) candidate=resolveSource(path.posix.join(path.relative(root,path.dirname(file)).replaceAll('\\','/'),specifier));
   else {
-    const match=/^@openclaw\/([^/]+)(?:\/(.+))?$/.exec(specifier);
-    if(match&&!['uirouter','libterminal'].includes(match[1]))candidate=resolveSource(`packages/${match[1]}/src/${match[2]??(match[1]==='mermaid-renderer'?'renderer':'index')}.ts`);
+    const match=/^@mirally\/([^/]+)(?:\/(.+))?$/.exec(specifier);
+    if(match&&!['ui-router','terminal-runtime'].includes(match[1]))candidate=resolveSource(`packages/${match[1]}/src/${match[2]??(match[1]==='mermaid-renderer'?'renderer':'index')}.ts`);
   }
   if(!candidate || candidate.startsWith('ui/'))return;
   const absolute=path.join(root,candidate);

@@ -1,4 +1,4 @@
-import { expectDefined } from "@openclaw/normalization-core";
+import { expectDefined } from "@mirally/normalization-core";
 import { takeGraphemes } from "../../lib/graphemes.ts";
 
 export function resolvePluginCatalogIconUrl(

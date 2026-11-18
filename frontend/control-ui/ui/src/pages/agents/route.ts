@@ -1,5 +1,5 @@
-import type { RouteLocation } from "@openclaw/uirouter";
-import { definePage } from "@openclaw/uirouter";
+import type { RouteLocation } from "@mirally/ui-router";
+import { definePage } from "@mirally/ui-router";
 import type { AgentsListResult } from "../../api/types.ts";
 import { routePageSpec } from "../../app-route-paths.ts";
 import type { ApplicationContext, ApplicationGatewaySnapshot } from "../../app/context.ts";

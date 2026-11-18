@@ -284,7 +284,7 @@ export function renderCommandPalette(readProps: () => CommandPaletteProps) {
   // Keep the outgoing search DOM stable while it collapses; the wrapper retires
   // focus/accessibility immediately, and keyboard selection uses the empty items.
   return html`
-    <openclaw-modal-dialog
+    <mirally-modal-dialog
       class="cmd-palette-overlay palette"
       label=${paletteLabel}
       style=${COMMAND_PALETTE_DIALOG_STYLE}
@@ -334,7 +334,7 @@ export function renderCommandPalette(readProps: () => CommandPaletteProps) {
               ? undefined
               : "cmd-palette-keys",
           actions: html`
-            <openclaw-tooltip content=${startReason ?? t("palette.startSessionBackground")}>
+            <mirally-tooltip content=${startReason ?? t("palette.startSessionBackground")}>
               <button
                 type="button"
                 class="cmd-palette__create"
@@ -349,7 +349,7 @@ export function renderCommandPalette(readProps: () => CommandPaletteProps) {
               >
                 ${startLabel}<kbd>${startShortcut}</kbd>
               </button>
-            </openclaw-tooltip>
+            </mirally-tooltip>
             ${props.draft.renderControls()}
           `,
         })}
@@ -488,7 +488,7 @@ export function renderCommandPalette(readProps: () => CommandPaletteProps) {
         }
         ${props.draft.renderRecovery() !== nothing ? html`<div class="cmd-palette__footer">${props.draft.renderRecovery()}</div>` : nothing}
       </div>
-    </openclaw-modal-dialog>
+    </mirally-modal-dialog>
     ${props.draft.renderAuxiliary()}
   `;
 }

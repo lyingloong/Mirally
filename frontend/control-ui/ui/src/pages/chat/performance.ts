@@ -115,7 +115,7 @@ export function recordControlUiPerformanceEvent(
     return;
   }
   const logger = opts?.warn === true ? console.warn : console.debug;
-  logger(`[openclaw] ${event}`, payload);
+  logger(`[mirally] ${event}`, payload);
 }
 
 export function scheduleControlUiAfterPaint(

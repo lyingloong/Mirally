@@ -1,4 +1,4 @@
-import { asNullableRecord as asRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableRecord as asRecord } from "@mirally/normalization-core/record-coerce";
 import { resolveGatewayWebSocketUrl } from "../../lib/gateway-websocket-url.ts";
 
 export type BrowserScreencastMeta = { url: string; title: string };

@@ -1,4 +1,4 @@
-import { asNullableRecord as asConfigRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableRecord as asConfigRecord } from "@mirally/normalization-core/record-coerce";
 
 export function dreamingConfigPath(pluginId: string, path: readonly string[]) {
   return ["plugins", "entries", pluginId, "config", "dreaming", ...path];

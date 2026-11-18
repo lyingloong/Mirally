@@ -7,7 +7,7 @@ import type {
 } from "../../../api/types.ts";
 import { renderAgentIdentityAvatar } from "../../../components/identity-avatar-view.ts";
 import { t } from "../../../i18n/index.ts";
-import "../../../components/openclaw-mascot.ts";
+import "../../../components/mirally-mascot.ts";
 import { registerCommandPaletteEnglish } from "../../../i18n/locales/en-command-palette.ts";
 import { resolveAgentTextAvatar } from "../../../lib/agents/display.ts";
 import {
@@ -121,8 +121,8 @@ function selectWelcomeRecentSessions(
 
 function renderWelcomeCompanion() {
   return html`
-    <div class="agent-chat__welcome-clawd" aria-hidden="true">
-      <openclaw-mascot mood="idle" .size=${112}></openclaw-mascot>
+    <div class="agent-chat__welcome-mascot" aria-hidden="true">
+      <mirally-mascot mood="idle" .size=${112}></mirally-mascot>
     </div>
   `;
 }

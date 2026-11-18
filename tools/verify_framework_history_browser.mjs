@@ -14,8 +14,8 @@ await mkdir(output, {recursive: true});
 const browser = await chromium.launch({channel: 'msedge', headless: true});
 const page = await browser.newPage({viewport: {width: 1280, height: 900}}); page.setDefaultTimeout(20000);
 const errors = []; page.on('pageerror', error => errors.push(error.message));
-const active = 'openclaw-chat-pane.chat-pane-cache__pane--active';
-const ready = async target => target.waitForFunction(() => document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase === 'connected');
+const active = 'mirally-chat-pane.chat-pane-cache__pane--active';
+const ready = async target => target.waitForFunction(() => document.querySelector('mirally-app')?.context?.gateway?.snapshot?.phase === 'connected');
 async function verify(target) {
   await ready(target);
   await target.waitForFunction(active => {
@@ -55,9 +55,9 @@ async function verify(target) {
 try {
   await page.goto(runtime.url + '/new#token=' + runtime.token); await ready(page);
   await page.evaluate(() => {
-    const context = document.querySelector('openclaw-app').context;
+    const context = document.querySelector('mirally-app').context;
     return context.gateway.snapshot.client.request('sessions.create', {displayName: 'Isolated material and tool history', idempotencyKey: crypto.randomUUID()})
-      .then(result => document.querySelector('openclaw-app-shell').selectChatSession(result.key, 'main'));
+      .then(result => document.querySelector('mirally-app-shell').selectChatSession(result.key, 'main'));
   });
   const pane = page.locator(active); await pane.locator('textarea[aria-label="聊天输入框"]').waitFor();
   await pane.locator('input.agent-chat__file-input').setInputFiles([

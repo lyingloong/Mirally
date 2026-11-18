@@ -1,16 +1,16 @@
-import type { MediaKind } from "@openclaw/media-core/constants";
+import type { MediaKind } from "@mirally/media-core/constants";
 import {
   getFileExtension,
   kindFromMime,
   mimeTypeFromFilePath,
   normalizeMimeType,
-} from "@openclaw/media-core/mime";
+} from "@mirally/media-core/mime";
 import {
   asFiniteNumberInRange,
   asPositiveSafeInteger as normalizePositiveInteger,
-} from "@openclaw/normalization-core/number-coercion";
-import { asNonArrayRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+} from "@mirally/normalization-core/number-coercion";
+import { asNonArrayRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import type { PromptImageOrderEntry } from "./prompt-image-order.js";
 
 /** One ordered runtime attachment; array position is its alignment identity. */
@@ -41,7 +41,7 @@ export type MediaFactInput = {
   [Key in keyof MediaFact]?: MediaFact[Key] | null;
 };
 
-const RUNTIME_PROMPT_MEDIA_FACTS = Symbol.for("openclaw.runtimePromptMediaFacts");
+const RUNTIME_PROMPT_MEDIA_FACTS = Symbol.for("mirally.runtimePromptMediaFacts");
 
 function normalizeNonNegativeNumber(value: number | null | undefined): number | undefined {
   return asFiniteNumberInRange(value, { min: 0 });
@@ -76,7 +76,7 @@ export function readPersistedMediaFacts(message: object): MediaFact[] | undefine
 }
 
 function readPersistedMediaFactInputs(message: object): Array<MediaFactInput | null> | undefined {
-  const metadata = asNonArrayRecord(asNonArrayRecord(message)["__openclaw"]);
+  const metadata = asNonArrayRecord(asNonArrayRecord(message)["__mirally"]);
   return Array.isArray(metadata.media)
     ? (metadata.media as Array<MediaFactInput | null>)
     : undefined;
@@ -253,14 +253,14 @@ export function canonicalizePersistedUserMessageMedia<T extends object>(
   for (const key of PERSISTED_LEGACY_MEDIA_KEYS) {
     delete next[key];
   }
-  const openclaw = { ...asNonArrayRecord(record["__openclaw"]) };
+  const mirally = { ...asNonArrayRecord(record["__mirally"]) };
   if (media.length > 0 || canonical !== undefined || topLevelMedia !== undefined) {
-    openclaw.media = media;
+    mirally.media = media;
   }
-  if (Object.keys(openclaw).length > 0) {
-    next["__openclaw"] = openclaw;
+  if (Object.keys(mirally).length > 0) {
+    next["__mirally"] = mirally;
   } else {
-    delete next["__openclaw"];
+    delete next["__mirally"];
   }
   return {
     changed: JSON.stringify(next) !== JSON.stringify(record),

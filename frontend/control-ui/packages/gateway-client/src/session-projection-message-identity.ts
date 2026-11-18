@@ -1,4 +1,4 @@
-import { asNullableRecord as readRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableRecord as readRecord } from "@mirally/normalization-core/record-coerce";
 
 export type SessionMessageEnvelope = {
   /** An unsequenced continuation follows this row; null denotes an unsequenced boundary. */
@@ -35,7 +35,7 @@ export function readSessionMessageSequence(
   message: unknown,
   envelope?: SessionMessageEnvelope,
 ): number | null {
-  const metadata = readRecord(readRecord(message)?.["__openclaw"]);
+  const metadata = readRecord(readRecord(message)?.["__mirally"]);
   return readPositiveSafeInteger(metadata?.seq) ?? readPositiveSafeInteger(envelope?.messageSeq);
 }
 
@@ -55,7 +55,7 @@ export function readSessionMessageIdentity(
   if (!record || !role) {
     return null;
   }
-  const metadata = readRecord(record["__openclaw"]);
+  const metadata = readRecord(record["__mirally"]);
   const importedFrom = readSessionProjectionString(metadata?.importedFrom);
   const cliSessionId = readSessionProjectionString(metadata?.cliSessionId);
   const externalId = readSessionProjectionString(metadata?.externalId);
@@ -78,7 +78,7 @@ export function readSessionMessageIdentity(
   const envelopeRunId = normalizeSessionProjectionRunId(envelope?.runId);
   const metadataRunId = normalizeSessionProjectionRunId(metadata?.runId);
   const fallbackRunId = normalizeSessionProjectionRunId(
-    readRecord(record.openclawStreamFallback)?.runId,
+    readRecord(record.mirallyStreamFallback)?.runId,
   );
   const mirroredMessage = readSessionProjectionString(metadata?.mirrorOrigin) !== null;
   // CLI persistence namespaces assistant send keys; the suffix is the
@@ -121,7 +121,7 @@ export function readAssistantStreamSegmentIdentity(
   if (readSessionProjectionString(record?.role)?.toLowerCase() !== "assistant") {
     return undefined;
   }
-  const fallback = readRecord(record?.openclawStreamFallback);
+  const fallback = readRecord(record?.mirallyStreamFallback);
   const itemId = readSessionProjectionString(fallback?.itemId);
   if (!itemId) {
     return undefined;
@@ -156,10 +156,10 @@ export function isLocallyOptimisticSessionMessage(message: unknown): boolean {
   if (role !== "user" && role !== "assistant") {
     return false;
   }
-  if (readRecord(record?.openclawStreamFallback)) {
+  if (readRecord(record?.mirallyStreamFallback)) {
     return false;
   }
-  const metadata = readRecord(record?.["__openclaw"]);
+  const metadata = readRecord(record?.["__mirally"]);
   return !metadata || Object.keys(metadata).every((key) => key === "idempotencyKey");
 }
 
@@ -203,7 +203,7 @@ export function createSessionProjectionEntry(
   options?: { envelope?: SessionMessageEnvelope; live?: boolean; pendingRunId?: string | null },
 ): SessionProjectionEntry {
   const identity = readSessionMessageIdentity(message, options?.envelope);
-  const fallback = readRecord(readRecord(message)?.openclawStreamFallback);
+  const fallback = readRecord(readRecord(message)?.mirallyStreamFallback);
   const provisionalFallback = Boolean(
     fallback && identity?.role === "assistant" && !identity.id && identity.sequence === null,
   );

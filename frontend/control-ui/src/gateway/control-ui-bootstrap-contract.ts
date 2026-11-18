@@ -7,12 +7,12 @@ export const CONTROL_UI_OWNER_BOOTSTRAP_PROFILE_HINT = "owner";
 export type ControlUiBootstrapProfileHint = typeof CONTROL_UI_OWNER_BOOTSTRAP_PROFILE_HINT;
 
 /** Carries the gateway-configured Control UI mount path into browser bootstrap. */
-export const CONTROL_UI_BASE_PATH_ATTRIBUTE = "data-openclaw-control-ui-base-path";
+export const CONTROL_UI_BASE_PATH_ATTRIBUTE = "data-mirally-control-ui-base-path";
 
 /** Marks whether the served document CSP permits the terminal WASM runtime. */
-export const CONTROL_UI_TERMINAL_ENABLED_ATTRIBUTE = "data-openclaw-terminal-enabled";
+export const CONTROL_UI_TERMINAL_ENABLED_ATTRIBUTE = "data-mirally-terminal-enabled";
 
-export const CONTROL_UI_ENVIRONMENT_ATTRIBUTE = "data-openclaw-environment";
+export const CONTROL_UI_ENVIRONMENT_ATTRIBUTE = "data-mirally-environment";
 export const CONTROL_UI_ENVIRONMENT_COLORS = [
   "teal",
   "amber",

@@ -42,7 +42,7 @@ export function scopeControlUiHost(host: ControlUiHost, signal: AbortSignal): Co
         try {
           dispose();
         } catch (error) {
-          console.error("[openclaw] plugin UI cleanup failed", error);
+          console.error("[mirally] plugin UI cleanup failed", error);
         }
       }
       disposers.clear();

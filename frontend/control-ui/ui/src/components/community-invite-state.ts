@@ -1,7 +1,7 @@
-import { err, ok, type Result } from "@openclaw/normalization-core/result";
+import { err, ok, type Result } from "@mirally/normalization-core/result";
 import { getSafeLocalStorage } from "../local-storage.ts";
 
-export const COMMUNITY_INVITE_KEY = "openclaw:control-ui:community-invite";
+export const COMMUNITY_INVITE_KEY = "mirally:control-ui:community-invite";
 
 // A failed save must still dismiss across sidebar remounts in this page.
 let unpersistedDismissal = false;

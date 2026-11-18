@@ -8,83 +8,103 @@
   "files": {
     "zh-CN": {
       "sourceChunk": "zh-CN-CHg4D7GR.js",
-      "sha256": "e250cbeb3c411224987da78b2d2cd2a59529458eb3fd0c7e0613fdd584116141"
+      "sha256": "e250cbeb3c411224987da78b2d2cd2a59529458eb3fd0c7e0613fdd584116141",
+      "localSha256": "e9cf734649d25881681bb9bfbceb4aa7d1029f07c3bbc3888bda0c182f4924b9"
     },
     "zh-TW": {
       "sourceChunk": "zh-TW-CwScxFb_.js",
-      "sha256": "f6bc612c179d73f183f2244f396e8687dfdc9275fa49e834b79689a932c81e07"
+      "sha256": "f6bc612c179d73f183f2244f396e8687dfdc9275fa49e834b79689a932c81e07",
+      "localSha256": "0c7b7ba1696ba01f886e791b95bd34306fa06980898b66f17c73a1beef698a78"
     },
     "pt-BR": {
       "sourceChunk": "pt-BR-JmkP8kt6.js",
-      "sha256": "ac9a2ef516002a632f98eace017dc8220b896634c96d86d16aba14c97523e216"
+      "sha256": "ac9a2ef516002a632f98eace017dc8220b896634c96d86d16aba14c97523e216",
+      "localSha256": "f9cadf76d40e5f2bb1bc4d0e253eb234a3da5f8bd55f8e9660553b2cae802ce4"
     },
     "de": {
       "sourceChunk": "de-DNQ2-o7Y.js",
-      "sha256": "5db7287306c52dc84d147b92e35a6704b9ece8d620269a7f96c0c8b739edfffd"
+      "sha256": "5db7287306c52dc84d147b92e35a6704b9ece8d620269a7f96c0c8b739edfffd",
+      "localSha256": "f5a1176a1438e24bc8e57ba3fa52b5ed7a34abef3318d7d2d3d259d839ef54b2"
     },
     "es": {
       "sourceChunk": "es-DLM0BtQe.js",
-      "sha256": "797098144c0dbbfd1fa748ab53422533744b5a8d7e7a514f2c326b127988f7b8"
+      "sha256": "797098144c0dbbfd1fa748ab53422533744b5a8d7e7a514f2c326b127988f7b8",
+      "localSha256": "922bb54e7b032468c6f5394e9ad539100878a5db2b17a3f900c26424f38a8332"
     },
     "ja-JP": {
       "sourceChunk": "ja-JP-BMucerBQ.js",
-      "sha256": "0cb551d48874ffec011a26d6f2b0202bfcb7cda72a2345bb61b8520ac1f7f2fa"
+      "sha256": "0cb551d48874ffec011a26d6f2b0202bfcb7cda72a2345bb61b8520ac1f7f2fa",
+      "localSha256": "3654ce882f1b1238d5bb7d3b462fbb5424c156d161212261b3b4e5e8453367d6"
     },
     "ko": {
       "sourceChunk": "ko-CqJznzBp.js",
-      "sha256": "48d989b8d1a329e604b9b66811c1bd9fa31981e5edbfaa4fe065a3925d9222b2"
+      "sha256": "48d989b8d1a329e604b9b66811c1bd9fa31981e5edbfaa4fe065a3925d9222b2",
+      "localSha256": "1a3230b94adf5e8f1df5285832f06a6974c704616b175769cc9d0af8145a6c28"
     },
     "fr": {
       "sourceChunk": "fr-BVSGsoM2.js",
-      "sha256": "545b994130f4299f71298d75c14b1ceb9b58ed62ed6724e7ea99475f9f1da0c9"
+      "sha256": "545b994130f4299f71298d75c14b1ceb9b58ed62ed6724e7ea99475f9f1da0c9",
+      "localSha256": "d4c70ffb852b7b2c3c91bacc123223685d150576454fc1ff74fbba076beef3f2"
     },
     "hi": {
       "sourceChunk": "hi-DMS0b2jQ.js",
-      "sha256": "aa72f09440783912f434a378f20dcaed147c4334701152027a16c67d51729b60"
+      "sha256": "aa72f09440783912f434a378f20dcaed147c4334701152027a16c67d51729b60",
+      "localSha256": "e652e36e390e544304dd6ec833c8034d0c4c289a559bc96f80e16eb166fcba54"
     },
     "ar": {
       "sourceChunk": "ar-T27N95rD.js",
-      "sha256": "53f301084b12c31b2798e465493b90390c1001c3d6a7cdf381fb04830bfc0e2c"
+      "sha256": "53f301084b12c31b2798e465493b90390c1001c3d6a7cdf381fb04830bfc0e2c",
+      "localSha256": "41d3b246c69048349c765088587f4382aec96e3839b6d213442dd5117b6d05cd"
     },
     "it": {
       "sourceChunk": "it-B9-jM0fZ.js",
-      "sha256": "7f32e3883fc6af19b9934d7b62ca7b96621ac25b956792a74557c172fda6d1f7"
+      "sha256": "7f32e3883fc6af19b9934d7b62ca7b96621ac25b956792a74557c172fda6d1f7",
+      "localSha256": "ab71129188f86859df063612315a2f3d997e50bb89e5091713139b9c565218e3"
     },
     "tr": {
       "sourceChunk": "tr-qH7Ubg_C.js",
-      "sha256": "734c2aff67f5fdefc64761d514e111392a4102ede65dcba11157dd427aee0e28"
+      "sha256": "734c2aff67f5fdefc64761d514e111392a4102ede65dcba11157dd427aee0e28",
+      "localSha256": "3a60e89c9f5c5fb00e57ed2542528f7e21e6f0bfbf879923028c3376e43f632f"
     },
     "uk": {
       "sourceChunk": "uk-CRmjez5q.js",
-      "sha256": "a1f7ea524531cc72b1c3ffb24b72056aa964ef1b8a1c1d49686587c1ef6e9df1"
+      "sha256": "a1f7ea524531cc72b1c3ffb24b72056aa964ef1b8a1c1d49686587c1ef6e9df1",
+      "localSha256": "6ff65d47432346a189645f434da2529ff389a15ac676a7b6dafc544a699259ad"
     },
     "id": {
       "sourceChunk": "id-CGfglkb_.js",
-      "sha256": "43f548d4e4d2977da07a55c6ea87e5207b55552803f7f38764b81923855878a0"
+      "sha256": "43f548d4e4d2977da07a55c6ea87e5207b55552803f7f38764b81923855878a0",
+      "localSha256": "f49409e663ca75efc5e384803a73ce25a1741266e5f788635fc3492d78c64e69"
     },
     "pl": {
       "sourceChunk": "pl-DErz2GTK.js",
-      "sha256": "7e16ee0dfa85c19fa584ac33cddc20ae54d81f54c057ec2810a783c0974b6be4"
+      "sha256": "7e16ee0dfa85c19fa584ac33cddc20ae54d81f54c057ec2810a783c0974b6be4",
+      "localSha256": "f58b16faab762c59e5f0f10f338e733ba9d3aadf7cadb43d5208c0d46feb94c9"
     },
     "th": {
       "sourceChunk": "th-DsgI0jed.js",
-      "sha256": "07efea966ac7cc514cd5536d35c817dca6e8d6da2d40b436d27658be5cfdf356"
+      "sha256": "07efea966ac7cc514cd5536d35c817dca6e8d6da2d40b436d27658be5cfdf356",
+      "localSha256": "2fbf4c4ad833b0d57f2bd1a488cf2d919c0b24c2e755b80bff61d70abc56a668"
     },
     "vi": {
       "sourceChunk": "vi-BXg-Th2a.js",
-      "sha256": "762ae529cb74d40a7eb7ea4ba712bbaddebfed31db5e315e977e4464e96c3b76"
+      "sha256": "762ae529cb74d40a7eb7ea4ba712bbaddebfed31db5e315e977e4464e96c3b76",
+      "localSha256": "06c09e93bf25afa617ec4b2c55c8bb6e22cb24b6b78fc37995bf0bf95716d148"
     },
     "nl": {
       "sourceChunk": "nl-PULAXUzq.js",
-      "sha256": "a3439fa3b0fb5f2c879e25d6c48d8f34bf5874aa07d11d66086fead2750d0882"
+      "sha256": "a3439fa3b0fb5f2c879e25d6c48d8f34bf5874aa07d11d66086fead2750d0882",
+      "localSha256": "e1ea0f8682174d232ca20c15c2bb9a2e3c8c1d5dcadc3114ee6a1fdf1ba588e5"
     },
     "fa": {
       "sourceChunk": "fa-DPHIPFE7.js",
-      "sha256": "bc8b78ee0de0ea7bd33d25d3663483063476c637006b219c63051bd8ffc64587"
+      "sha256": "bc8b78ee0de0ea7bd33d25d3663483063476c637006b219c63051bd8ffc64587",
+      "localSha256": "a6b3d2a431b66d39863bcb9246e260db6dc6d7b594cf7fc5e0d77e1ac5096572"
     },
     "ru": {
       "sourceChunk": "ru-KUdHl0wh.js",
-      "sha256": "97d05737e073747c2b9cbeb16172415950be4f7fb737a1eeeeb6ad0f00c86a3b"
+      "sha256": "97d05737e073747c2b9cbeb16172415950be4f7fb737a1eeeeb6ad0f00c86a3b",
+      "localSha256": "9e4b7548caf2a3fa70146c171dc17d0a6b85674df420633494fca9d78f8120d4"
     }
   }
 }

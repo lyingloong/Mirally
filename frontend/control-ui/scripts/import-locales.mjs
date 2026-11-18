@@ -3,6 +3,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { productCatalog } from './locale-identity.mjs';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
 const source = process.argv[2];
@@ -21,9 +22,14 @@ for (const locale of locales) {
   const module = await import(pathToFileURL(path.join(assets, name)));
   const catalog = module[locale.replaceAll('-', '_')];
   if (!catalog || typeof catalog !== 'object') throw new Error(`Missing locale export ${name}`);
-  const bytes = JSON.stringify(catalog) + '\n';
+  const upstream = JSON.stringify(catalog) + '\n';
+  const bytes = JSON.stringify(productCatalog(catalog)) + '\n';
   await fs.writeFile(path.join(root, 'locales', locale + '.json'), bytes);
-  provenance.files[locale] = { sourceChunk: name, sha256: createHash('sha256').update(bytes).digest('hex') };
+  provenance.files[locale] = {
+    sourceChunk: name,
+    sha256: createHash('sha256').update(upstream).digest('hex'),
+    localSha256: createHash('sha256').update(bytes).digest('hex'),
+  };
 }
 await fs.writeFile(path.join(root,'locales','upstream.json'), JSON.stringify(provenance,null,2)+'\n');
-console.log(`Materialized ${locales.length} exact-release locale catalogs`);
+console.log(`Materialized ${locales.length} Mirally locale catalogs from the pinned release`);

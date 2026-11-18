@@ -112,7 +112,7 @@ export function renderMapField(
         </div>
       </div>
 
-      <openclaw-config-form-collection-draft
+      <mirally-config-form-collection-draft
         id=${draftId}
         .props=${draftProps}
         @config-collection-draft-commit=${(event: CustomEvent<ConfigFormCollectionDraftCommit>) => {
@@ -126,7 +126,7 @@ export function renderMapField(
             event.preventDefault();
           }
         }}
-      ></openclaw-config-form-collection-draft>
+      ></mirally-config-form-collection-draft>
       ${
         visibleEntries.length === 0
           ? nothing
@@ -188,7 +188,7 @@ export function renderMapField(
                         />
                       </div>
                       <div class="settings-row__control">
-                        <openclaw-tooltip .content=${t("configForm.removeEntry")}>
+                        <mirally-tooltip .content=${t("configForm.removeEntry")}>
                           <button
                             type="button"
                             class="btn btn--icon"
@@ -203,7 +203,7 @@ export function renderMapField(
                           >
                             ${icons.trash}
                           </button>
-                        </openclaw-tooltip>
+                        </mirally-tooltip>
                       </div>
                     </div>
                     ${

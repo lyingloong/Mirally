@@ -3,13 +3,13 @@ import { html, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 import { applicationContext, type ApplicationContext } from "../app/context.ts";
 import { t } from "../i18n/index.ts";
-import { OpenClawLightDomContentsElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../lit/mirally-element.ts";
 import { SubscriptionsController } from "../lit/subscriptions-controller.ts";
 import type { ControlUiPluginCapability } from "./control-ui-capability.ts";
 import { renderCustomPluginUiDisabled } from "./control-ui-disabled.ts";
 import "../components/modal-dialog.ts";
 
-class ControlUiPluginManagerDialog extends OpenClawLightDomContentsElement {
+class ControlUiPluginManagerDialog extends MirallyLightDomContentsElement {
   @consume({ context: applicationContext, subscribe: true }) private context?: ApplicationContext;
   @property({ attribute: false }) runtime?: ControlUiPluginCapability;
   @property({ type: Boolean }) open = false;
@@ -33,7 +33,7 @@ class ControlUiPluginManagerDialog extends OpenClawLightDomContentsElement {
     }
     const replacements = runtime.registrations("replacements");
     const surfaces = [...new Set(replacements.map((entry) => entry.value.surface))];
-    return html`<openclaw-modal-dialog .label=${t("pluginUi.customize")}>
+    return html`<mirally-modal-dialog .label=${t("pluginUi.customize")}>
       <section class="card">
         <h2>${t("pluginUi.customize")}</h2>
         <p>${t("pluginUi.selectionScope")}</p>
@@ -96,10 +96,10 @@ class ControlUiPluginManagerDialog extends OpenClawLightDomContentsElement {
         <button class="btn" @click=${() => void runtime.refresh()}>${t("common.retry")}</button>
         <button class="btn" @click=${this.close}>${t("common.close")}</button>
       </section>
-    </openclaw-modal-dialog>`;
+    </mirally-modal-dialog>`;
   }
 }
 
-if (!customElements.get("openclaw-plugin-manager-dialog")) {
-  customElements.define("openclaw-plugin-manager-dialog", ControlUiPluginManagerDialog);
+if (!customElements.get("mirally-plugin-manager-dialog")) {
+  customElements.define("mirally-plugin-manager-dialog", ControlUiPluginManagerDialog);
 }

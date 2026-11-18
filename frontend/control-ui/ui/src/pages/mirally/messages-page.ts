@@ -5,7 +5,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import { applicationContext, type ApplicationContext } from '../../app/context.ts';
 import { renderSettingsPage, renderSettingsPageHeader, renderSettingsSection } from '../../components/settings-ui.ts';
 import { renderSettingsWorkspace } from '../../components/settings-workspace.ts';
-import { OpenClawLightDomElement } from '../../lit/openclaw-element.ts';
+import { MirallyLightDomElement } from '../../lit/mirally-element.ts';
 import { sessionNavigationTarget } from '../../lib/sessions/route-navigation.ts';
 import { errorMessage, rpcProduct } from './api.ts';
 import './product.css';
@@ -26,7 +26,7 @@ const draftKey='mirally.reminder.draft.v1';
 function readDraft() { try {const value=JSON.parse(sessionStorage.getItem(draftKey)||'{}');return value&&typeof value==='object'?value:{};}catch{return {};} }
 
 /** Messages and reminders are projections of the product owner, never chat copies. */
-class MirallyMessagesPage extends OpenClawLightDomElement {
+class MirallyMessagesPage extends MirallyLightDomElement {
   @consume({context: applicationContext, subscribe: true}) private context!: ApplicationContext;
   @property() page: 'inbox'|'reminders' = 'inbox';
   @state() private items: Item[] = [];

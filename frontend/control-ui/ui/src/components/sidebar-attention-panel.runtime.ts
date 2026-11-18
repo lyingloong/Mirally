@@ -146,7 +146,7 @@ export function renderSidebarAttentionPanel(params: SidebarAttentionPanelParams)
       aria-label=${t("common.close")}
       @click=${() => params.onClose(true)}
     ></button>
-    <openclaw-menu-surface>
+    <mirally-menu-surface>
       <section
         id="sidebar-issues-panel"
         class="sidebar-issues-panel"
@@ -182,7 +182,7 @@ export function renderSidebarAttentionPanel(params: SidebarAttentionPanelParams)
             >
               ${t("attention.dismissShown")}
             </button>
-            <openclaw-tooltip .content=${t("attention.mentions.notifications")}>
+            <mirally-tooltip .content=${t("attention.mentions.notifications")}>
               <a
                 class="sidebar-brand__icon"
                 aria-label=${t("attention.mentions.notifications")}
@@ -196,7 +196,7 @@ export function renderSidebarAttentionPanel(params: SidebarAttentionPanelParams)
                 }}
                 >${icons.settings}</a
               >
-            </openclaw-tooltip>
+            </mirally-tooltip>
             <button
               type="button"
               class="sidebar-brand__icon sidebar-issues-panel__mobile-close"
@@ -300,5 +300,5 @@ export function renderSidebarAttentionPanel(params: SidebarAttentionPanelParams)
             : nothing
         }
       </section>
-    </openclaw-menu-surface>`;
+    </mirally-menu-surface>`;
 }

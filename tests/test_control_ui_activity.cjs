@@ -13,7 +13,7 @@ const status = overrides => ({
 });
 
 function fixture(marker = true) {
-  const {window} = parseHTML('<html><body><openclaw-app></openclaw-app><aside class="settings-sidebar"><nav class="settings-sidebar__nav"><a class="settings-sidebar__item" href="/settings/appearance">外观</a></nav></aside><main id="control-ui-main"><openclaw-router-outlet><div id="native-content">原生设置</div></openclaw-router-outlet></main></body></html>');
+  const {window} = parseHTML('<html><body><mirally-app></mirally-app><aside class="settings-sidebar"><nav class="settings-sidebar__nav"><a class="settings-sidebar__item" href="/settings/appearance">外观</a></nav></aside><main id="control-ui-main"><mirally-router-outlet><div id="native-content">原生设置</div></mirally-router-outlet></main></body></html>');
   const frames = new Map(), timers = new Map(), messages = [], events = new Map();
   let sequence = 0, routeListener;
   const root = {document:window.document, MutationObserver:window.MutationObserver,
@@ -27,11 +27,11 @@ function fixture(marker = true) {
     addEventListener:(name,callback)=>events.set(name,callback),
   };
   const navigateCalls = [];
-  root.document.querySelector('openclaw-app').context = {basePath:'',
+  root.document.querySelector('mirally-app').context = {basePath:'',
     router:{subscribe:callback=>{routeListener=callback;return ()=>{routeListener=null;};}},
     navigate:(route,options)=>{navigateCalls.push({route,options});root.location={pathname:'/settings/'+(route==='config'?'appearance':route),search:route==='config'?'?section=__appearance__':options.search};routeListener?.();},
   };
-  const outlet = root.document.querySelector('openclaw-router-outlet');
+  const outlet = root.document.querySelector('mirally-router-outlet');
   outlet.hidden = outlet.inert = false;
   const api = activity.install(root);
   const document = root.document;
@@ -82,7 +82,7 @@ test('read-only memory browser uses its independent fixed bridge across Activity
   await f.receive('memory-search',{memories:[]});assert.deepEqual(await pending,{memories:[]});
   const read=f.api.memoryBrowser.read({memory_id:'record',from_line:101,line_count:100,action:'start'});
   const rejected=assert.rejects(read,/已离开/);
-  f.document.querySelector('openclaw-app').context={};await f.route('/chat');await rejected;
+  f.document.querySelector('mirally-app').context={};await f.route('/chat');await rejected;
 });
 
 test('Activity settings link navigates to native Memory instead of keeping a second detail browser',async()=>{
@@ -103,7 +103,7 @@ test('model bridge validates writes and cancels reads on disposal or Gateway rep
   f.api.modelSettings.cancel();await rejected;
   const stale=f.api.modelSettings.read();
   const retired=assert.rejects(stale,/已离开/);
-  f.root.document.querySelector('openclaw-app').context={router:{subscribe:()=>()=>{}}};
+  f.root.document.querySelector('mirally-app').context={router:{subscribe:()=>()=>{}}};
   await f.route('/settings/model-providers');await retired;
   assert.equal(f.api.receive({requestId:f.messages.at(-1).requestId,result:{canSave:true}}),false);
 });
@@ -591,7 +591,7 @@ test('first page visit reads only status and preserves the existing native outle
   assert.equal(f.outlet.hidden,true);
   assert.equal(f.outlet.inert,true);
   assert.equal(f.document.querySelector('#native-content').textContent,'原生设置');
-  assert.equal(f.document.querySelectorAll('openclaw-router-outlet').length,1);
+  assert.equal(f.document.querySelectorAll('mirally-router-outlet').length,1);
   assert.equal(f.document.querySelectorAll('.mirally-activity').length,1);
   assert.equal(f.document.querySelector('.mirally-activity__entry').getAttribute('aria-current'),'page');
   await f.receive('status',status());
@@ -635,7 +635,7 @@ test('cached status remains explicitly stale and locked after a disconnected ref
 test('a different Gateway context cannot reuse cached presentation or an earlier status reply', async () => {
   const f=fixture();await f.flush();await f.receive('status',semanticStatus());
   f.click('[data-action="refresh"]');const old=f.messages.at(-1);
-  const app=f.document.querySelector('openclaw-app');
+  const app=f.document.querySelector('mirally-app');
   app.context={...app.context};
   await f.route('/settings/appearance','?mirally=activity');
   assert.equal(f.document.querySelector('[data-status="collector"]').textContent,'—');

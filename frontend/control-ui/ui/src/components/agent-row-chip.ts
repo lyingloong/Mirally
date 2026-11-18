@@ -6,16 +6,16 @@ import { normalizeAgentLabel, resolveAgentTextAvatar } from "../lib/agents/displ
 import { resolveAgentAvatarUrl } from "../lib/avatar.ts";
 import { IdentityAvatarController } from "../lib/identity-avatar-loader.ts";
 import { resolveUiDefaultAgentId } from "../lib/sessions/session-key.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import { SubscriptionsController } from "../lit/subscriptions-controller.ts";
 import { renderAgentIdentityAvatar } from "./identity-avatar-view.ts";
 import "../styles/agent-row-chip.css";
 
 export function renderAgentRowChip(agentId?: string) {
-  return html`<openclaw-agent-row-chip .agentId=${agentId}></openclaw-agent-row-chip>`;
+  return html`<mirally-agent-row-chip .agentId=${agentId}></mirally-agent-row-chip>`;
 }
 
-class AgentRowChip extends OpenClawLightDomElement {
+class AgentRowChip extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   @property({ attribute: false })
   private context: Pick<ApplicationContext, "agents" | "agentIdentity" | "gateway"> | undefined;
@@ -68,12 +68,12 @@ class AgentRowChip extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-agent-row-chip")) {
-  customElements.define("openclaw-agent-row-chip", AgentRowChip);
+if (!customElements.get("mirally-agent-row-chip")) {
+  customElements.define("mirally-agent-row-chip", AgentRowChip);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-agent-row-chip": AgentRowChip;
+    "mirally-agent-row-chip": AgentRowChip;
   }
 }

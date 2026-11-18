@@ -108,7 +108,7 @@ const enNewSessionSetup = {
     created: "Session created",
     startInTerminal: "Start in terminal",
     nativeTerminalHint:
-      "Start the native CLI on the selected machine using its own account and configuration. This does not create an OpenClaw Chat.",
+      "Start the native CLI on the selected machine using its own account and configuration. This does not create an Mirally Chat.",
     chooseNativeHost: "Choose a native CLI host",
     nativeHostsUnavailable:
       "No native CLI is available. Install it on the Gateway or connect a machine with CLI access, then reconnect to the Gateway.",
@@ -177,12 +177,12 @@ const enNewSessionSetup = {
       "Native CLI host unavailable. Check that the CLI is installed and the node is connected with its fresh-start command approved, then retry the catalog.",
     terminalDisabled: "Enable CLI agents and terminals in Gateway settings to start a native CLI.",
     terminalPlacementUnsupported:
-      "Native CLI sessions use a specific host, not OpenClaw worker placement. Reset this draft and choose a native host.",
+      "Native CLI sessions use a specific host, not Mirally worker placement. Reset this draft and choose a native host.",
     terminalNeedsFolder: "Pick a folder before starting in a terminal.",
     noSessionHosts: "No session hosts are paired. Connect a machine with session hosting enabled.",
     deviceUnavailable: "Device unavailable. Reconnect it and try again.",
     sessionHostingDisabled:
-      "Session hosting is disabled. Run openclaw connect --service --session-host on the device.",
+      "Session hosting is disabled. Run mirally connect --service --session-host on the device.",
     deviceCapacityUnavailable:
       "Worker capacity is unavailable. Restart the device session host and try again.",
     deviceNoSlots: "No worker slots are available. Wait for a slot or pick another device.",

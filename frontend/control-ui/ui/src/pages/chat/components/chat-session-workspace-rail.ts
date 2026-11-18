@@ -1,4 +1,4 @@
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import { html, nothing, type TemplateResult } from "lit";
 import { keyed } from "lit/directives/keyed.js";
 import { renderCopyButton } from "../../../components/copy-button.ts";
@@ -51,7 +51,7 @@ function renderRailHeaderAction({
 }) {
   return onClick
     ? html`
-        <openclaw-tooltip .content=${label}>
+        <mirally-tooltip .content=${label}>
           <button
             type="button"
             class="rail-header__action chat-workspace-rail__terminal ${className}"
@@ -60,7 +60,7 @@ function renderRailHeaderAction({
           >
             ${icon}
           </button>
-        </openclaw-tooltip>
+        </mirally-tooltip>
       `
     : nothing;
 }
@@ -100,9 +100,9 @@ function renderRailRow({
       >
         <span class="chat-workspace-rail__file-icon">${icon}</span>
         <span class="chat-workspace-rail__file-main">
-          <openclaw-tooltip .content=${tooltip}>
+          <mirally-tooltip .content=${tooltip}>
             <span class="chat-workspace-rail__file-name">${name}</span>
-          </openclaw-tooltip>
+          </mirally-tooltip>
           ${meta ? html`<span class="chat-workspace-rail__file-meta">${meta}</span>` : nothing}
         </span>
       </button>
@@ -175,7 +175,7 @@ export function renderSessionWorkspaceRail(
       role="group"
       aria-label=${t("chat.workspaceFiles.actions")}
     >
-      <openclaw-tooltip .content=${t("chat.workspaceFiles.preview")}>
+      <mirally-tooltip .content=${t("chat.workspaceFiles.preview")}>
         <button
           class="chat-workspace-rail__row-action"
           type="button"
@@ -187,7 +187,7 @@ export function renderSessionWorkspaceRail(
         >
           ${icons.eye}
         </button>
-      </openclaw-tooltip>
+      </mirally-tooltip>
       ${
         path === undefined
           ? nothing
@@ -364,7 +364,7 @@ export function renderSessionWorkspaceRail(
                   sessionWorkspace.narrowLayout
                     ? nothing
                     : html`
-                        <openclaw-tooltip
+                        <mirally-tooltip
                           .content=${
                             dock === "bottom"
                               ? t("chat.workspaceFiles.dockRight")
@@ -384,10 +384,10 @@ export function renderSessionWorkspaceRail(
                           >
                             ${dock === "bottom" ? icons.panelRightOpen : icons.panelBottomOpen}
                           </button>
-                        </openclaw-tooltip>
+                        </mirally-tooltip>
                       `
                 }
-                <openclaw-tooltip .content=${t("chat.workspaceFiles.refresh")}>
+                <mirally-tooltip .content=${t("chat.workspaceFiles.refresh")}>
                   <button
                     class="rail-header__action chat-workspace-rail__refresh"
                     type="button"
@@ -397,8 +397,8 @@ export function renderSessionWorkspaceRail(
                   >
                     ${icons.refresh}
                   </button>
-                </openclaw-tooltip>
-                <openclaw-tooltip
+                </mirally-tooltip>
+                <mirally-tooltip
                   .content=${`${t("chat.workspaceFiles.collapse")} (${formatKeyboardShortcutCombo(KEYBOARD_SHORTCUT_COMBOS.workspaceFiles)})`}
                 >
                   <button
@@ -413,16 +413,16 @@ export function renderSessionWorkspaceRail(
                       >${dock === "bottom" ? icons.panelBottomClose : icons.panelRightClose}</span
                     >
                   </button>
-                </openclaw-tooltip>
+                </mirally-tooltip>
               </div>
             </div>`
       }
       ${
         sessionWorkspace.list?.root
           ? html`
-              <openclaw-tooltip .content=${sessionWorkspace.list.root}>
+              <mirally-tooltip .content=${sessionWorkspace.list.root}>
                 <div class="chat-workspace-rail__path">${sessionWorkspace.list.root}</div>
-              </openclaw-tooltip>
+              </mirally-tooltip>
             `
           : nothing
       }

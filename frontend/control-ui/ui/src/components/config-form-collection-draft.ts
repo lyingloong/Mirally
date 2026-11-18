@@ -1,7 +1,7 @@
 import { html, nothing, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import { t } from "../i18n/index.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import { configValuesEqual, isSupportedConfigValueValid } from "./config-form.constraints.ts";
 import { coerceConfigFormNumberString } from "./config-form.numeric.ts";
 import { schemaMayAcceptString, schemaType, type JsonSchema } from "./config-form.shared.ts";
@@ -31,12 +31,12 @@ export function openCollectionDraft(event: Event, draftId: string): void {
   const block = target.closest(".cfg-block");
   // Nested collection drafts belong to their own block, not this control.
   const draft = Array.from(
-    block?.getElementsByTagName("openclaw-config-form-collection-draft") ?? [],
+    block?.getElementsByTagName("mirally-config-form-collection-draft") ?? [],
   ).find((child) => child.parentElement === block && child.id === draftId);
   draft?.openDraft?.();
 }
 
-export class ConfigFormCollectionDraft extends OpenClawLightDomElement {
+export class ConfigFormCollectionDraft extends MirallyLightDomElement {
   @property({ attribute: false }) props?: ConfigFormCollectionDraftProps;
 
   @state() private draftOpen = false;
@@ -308,12 +308,12 @@ export class ConfigFormCollectionDraft extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-config-form-collection-draft")) {
-  customElements.define("openclaw-config-form-collection-draft", ConfigFormCollectionDraft);
+if (!customElements.get("mirally-config-form-collection-draft")) {
+  customElements.define("mirally-config-form-collection-draft", ConfigFormCollectionDraft);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-config-form-collection-draft": ConfigFormCollectionDraft;
+    "mirally-config-form-collection-draft": ConfigFormCollectionDraft;
   }
 }

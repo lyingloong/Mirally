@@ -106,7 +106,7 @@
 .agent-chat__composer-status {
   width: 100%;
   border: 1px solid color-mix(in srgb, var(--border) 16%, transparent);
-  border-radius: calc(16px * var(--openclaw-corner-radius-scale));
+  border-radius: calc(16px * var(--mirally-corner-radius-scale));
   corner-shape: superellipse(1.5);
   overflow: hidden;
   background: var(--composer-attached-surface, var(--chat-composer-surface));
@@ -698,7 +698,7 @@
   background: var(--chat-composer-group-hover);
 }
 
-.chat-talk-control > openclaw-tooltip {
+.chat-talk-control > mirally-tooltip {
   display: inline-flex;
 }
 
@@ -1257,7 +1257,7 @@
 
 @supports (corner-shape: superellipse(1.5)) {
   .agent-chat__input .slash-menu.slash-menu {
-    border-radius: calc(20px * var(--openclaw-corner-radius-scale));
+    border-radius: calc(20px * var(--mirally-corner-radius-scale));
     corner-shape: superellipse(1.5);
   }
 }
@@ -1469,7 +1469,7 @@
 }
 
 .chat-attachment-thumb {
-  --chat-attachment-radius: calc(14px * var(--openclaw-corner-radius-scale));
+  --chat-attachment-radius: calc(14px * var(--mirally-corner-radius-scale));
 
   position: relative;
   flex: 0 0 auto;
@@ -3446,8 +3446,8 @@ html[dir="rtl"] .chat-attachment-loading > span {
   object-fit: cover;
 }
 
-/* The 120x120 Clawd canvas stays centered in the existing hero slot. */
-.agent-chat__welcome-clawd {
+/* The mascot stays centered in the existing hero slot. */
+.agent-chat__welcome-mascot {
   width: 128px;
   height: 112px;
   margin-bottom: 2px;
@@ -3473,7 +3473,7 @@ html[dir="rtl"] .chat-attachment-loading > span {
     height: 64px;
   }
 
-  .agent-chat__welcome-clawd {
+  .agent-chat__welcome-mascot {
     width: 88px;
     height: 77px;
   }
@@ -3486,7 +3486,7 @@ html[dir="rtl"] .chat-attachment-loading > span {
     gap: 6px;
   }
 
-  .agent-chat__welcome-clawd openclaw-mascot {
+  .agent-chat__welcome-mascot mirally-mascot {
     width: 77px;
     height: 77px;
   }

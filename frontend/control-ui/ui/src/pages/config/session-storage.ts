@@ -1,14 +1,13 @@
 import { consume } from "@lit/context";
 import { initialState, Task, TaskStatus } from "@lit/task";
-import type { SessionsStorageStatusResult } from "@openclaw/gateway-protocol";
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
+import type { SessionsStorageStatusResult } from "@mirally/gateway-protocol";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing, type TemplateResult } from "lit";
 import { property, state } from "lit/decorators.js";
 import { live } from "lit/directives/live.js";
 import { applicationContext, type ApplicationContext } from "../../app/context.ts";
 import { hasOperatorAdminAccess } from "../../app/operator-access.ts";
 import {
-  renderLearnMoreLink,
   renderSettingsEmpty,
   renderSettingsPage,
   renderSettingsRow,
@@ -22,7 +21,7 @@ import { registerSettingsEnglish } from "../../i18n/locales/en-settings.ts";
 import { formatUiError } from "../../lib/format-error.ts";
 import { formatByteSize, formatDateTimeMs } from "../../lib/format.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { PollController } from "../../lit/poll-controller.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { SESSION_STORAGE_SETTINGS_TARGET_ID } from "./settings-targets.ts";
@@ -38,7 +37,7 @@ function storageSize(bytes: number) {
   });
 }
 
-class SessionStorageSettings extends OpenClawLightDomElement {
+class SessionStorageSettings extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true }) private context!: ApplicationContext;
   @property({ type: Boolean }) mutationDisabled = false;
   @property({ attribute: false }) editor: TemplateResult | typeof nothing = nothing;
@@ -486,7 +485,6 @@ class SessionStorageSettings extends OpenClawLightDomElement {
             `,
           )}
           <p class="settings-page__intro">${t("configView.sessionStorage.backupHint")}</p>
-          ${renderLearnMoreLink("https://docs.openclaw.ai/gateway/config-agents/sessions#cold-storage")}
         </div>
       `)}
       <details class="settings-page" ?open=${this.advancedExpanded}>
@@ -499,8 +497,8 @@ class SessionStorageSettings extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-session-storage-settings")) {
-  customElements.define("openclaw-session-storage-settings", SessionStorageSettings);
+if (!customElements.get("mirally-session-storage-settings")) {
+  customElements.define("mirally-session-storage-settings", SessionStorageSettings);
 }
 
 export function renderSessionStorage(props: {
@@ -508,9 +506,9 @@ export function renderSessionStorage(props: {
   advancedExpanded: boolean;
   editor: TemplateResult | typeof nothing;
 }) {
-  return html`<openclaw-session-storage-settings
+  return html`<mirally-session-storage-settings
     .mutationDisabled=${props.mutationDisabled}
     .advancedExpanded=${props.advancedExpanded}
     .editor=${props.editor}
-  ></openclaw-session-storage-settings>`;
+  ></mirally-session-storage-settings>`;
 }

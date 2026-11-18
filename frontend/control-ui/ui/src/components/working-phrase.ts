@@ -6,7 +6,7 @@ import { html, nothing } from "lit";
 import { property } from "lit/decorators.js";
 import { t } from "../i18n/index.ts";
 import { fnv1aUtf16 } from "../lib/fnv1a.ts";
-import { OpenClawLightDomContentsElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../lit/mirally-element.ts";
 import { PollController } from "../lit/poll-controller.ts";
 
 const PHRASE_KEYS = ["thinking", "considering", "working", "processing", "reflecting"] as const;
@@ -38,7 +38,7 @@ function displayedPhraseIndex(seed: string, bucket: number, length: number): num
   return (offset + bucket * stride) % length;
 }
 
-class WorkingPhrase extends OpenClawLightDomContentsElement {
+class WorkingPhrase extends MirallyLightDomContentsElement {
   @property({ type: Number }) startMs: number | null = null;
   @property() seed = "";
   @property({ attribute: false }) phrases: readonly string[] | undefined;
@@ -84,6 +84,6 @@ class WorkingPhrase extends OpenClawLightDomContentsElement {
   }
 }
 
-if (!customElements.get("openclaw-working-phrase")) {
-  customElements.define("openclaw-working-phrase", WorkingPhrase);
+if (!customElements.get("mirally-working-phrase")) {
+  customElements.define("mirally-working-phrase", WorkingPhrase);
 }

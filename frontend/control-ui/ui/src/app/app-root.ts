@@ -1,6 +1,6 @@
 import { ContextProvider } from "@lit/context";
-import { buildControlUiFocusPath, type ControlUiFocusTarget } from "@openclaw/session-url-contract";
-import type { RouteLocation, RouteNotFound } from "@openclaw/uirouter";
+import { buildControlUiFocusPath, type ControlUiFocusTarget } from "@mirally/session-url-contract";
+import type { RouteLocation, RouteNotFound } from "@mirally/ui-router";
 import { html, nothing } from "lit";
 import { state } from "lit/decorators.js";
 import type { GatewayBrowserClient } from "../api/gateway.ts";
@@ -13,7 +13,7 @@ import { t } from "../i18n/index.ts";
 import { formatUiError } from "../lib/format-error.ts";
 import { normalizeAgentId } from "../lib/sessions/session-key.ts";
 import { isTerminalAvailable } from "../lib/terminal-availability.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import { SubscriptionsController } from "../lit/subscriptions-controller.ts";
 import type { ChatRouteData } from "../pages/chat/route-loader.ts";
 import { bootstrapApplication, type ApplicationRuntime } from "./bootstrap.ts";
@@ -50,7 +50,7 @@ function isRouteNotFound(result: ChatRouteData | RouteNotFound): result is Route
   return "type" in result && result.type === "notFound";
 }
 
-export class OpenClawApp extends OpenClawLightDomElement {
+export class MirallyApp extends MirallyLightDomElement {
   // Pinned while a connect submitted from the visible login gate is in
   // flight, so a failed manual attempt cannot flash the shell in between.
   @state() private loginGatePinned = false;
@@ -119,7 +119,7 @@ export class OpenClawApp extends OpenClawLightDomElement {
     super.connectedCallback();
     const embedHost = nativeEmbedHost();
     this.ownerDocument.documentElement.classList.toggle(
-      "openclaw-native-embed",
+      "mirally-native-embed",
       embedHost !== null,
     );
     if (embedHost) {
@@ -157,7 +157,7 @@ export class OpenClawApp extends OpenClawLightDomElement {
       .start()
       .then(() => this.resolveFocusDashboard())
       .catch((error: unknown) => {
-        console.error("[openclaw] application start failed", error);
+        console.error("[mirally] application start failed", error);
       });
   }
 
@@ -179,7 +179,7 @@ export class OpenClawApp extends OpenClawLightDomElement {
 
   protected override firstUpdated(): void {
     if (this.runtime) {
-      globalThis.dispatchEvent(new Event("openclaw-control-ui-rendered"));
+      globalThis.dispatchEvent(new Event("mirally-control-ui-rendered"));
     }
   }
 
@@ -276,7 +276,7 @@ export class OpenClawApp extends OpenClawLightDomElement {
     }
     const approvalId =
       runtime.documentMode?.kind === "approval" ? runtime.documentMode.approvalId : "";
-    return html`<openclaw-approval-page .approvalId=${approvalId ?? ""}></openclaw-approval-page>`;
+    return html`<mirally-approval-page .approvalId=${approvalId ?? ""}></mirally-approval-page>`;
   }
 
   private renderQuestionDocument(runtime: ApplicationRuntime) {
@@ -286,7 +286,7 @@ export class OpenClawApp extends OpenClawLightDomElement {
     }
     const questionId =
       runtime.documentMode?.kind === "question" ? runtime.documentMode.questionId : "";
-    return html`<openclaw-question-page .questionId=${questionId ?? ""}></openclaw-question-page>`;
+    return html`<mirally-question-page .questionId=${questionId ?? ""}></mirally-question-page>`;
   }
 
   private replaceFocusDashboardLocation(location: RouteLocation, source: RouteLocation): void {
@@ -426,7 +426,7 @@ export class OpenClawApp extends OpenClawLightDomElement {
       </main>`;
     }
     return html`
-      <openclaw-board-document
+      <mirally-board-document
         .gatewaySnapshot=${gatewaySnapshot}
         .sessionKey=${route.data.sessionKey}
         .preparedSession=${
@@ -437,7 +437,7 @@ export class OpenClawApp extends OpenClawLightDomElement {
         .onDocumentClose=${
           isNativeWebChromeHost() ? null : () => this.closeDocument(this.context?.basePath ?? "")
         }
-      ></openclaw-board-document>
+      ></mirally-board-document>
       ${
         !gatewayConnected && gatewaySnapshot.lastError === null
           ? renderConnectingSplash(gatewayStartupStatus)
@@ -455,7 +455,7 @@ export class OpenClawApp extends OpenClawLightDomElement {
     }
     const gatewayUrlConfirmation = this.pendingGatewayUrl
       ? html`
-          <openclaw-gateway-url-confirmation
+          <mirally-gateway-url-confirmation
             .props=${{
               pendingGatewayUrl: this.pendingGatewayUrl,
               currentGatewayUrl: runtime.context.gateway.connection.gatewayUrl,
@@ -469,12 +469,12 @@ export class OpenClawApp extends OpenClawLightDomElement {
                 this.pendingGatewayUrl = null;
               },
             }}
-          ></openclaw-gateway-url-confirmation>
+          ></mirally-gateway-url-confirmation>
         `
       : nothing;
-    return html`<openclaw-tooltip-provider>
+    return html`<mirally-tooltip-provider>
       ${this.renderDocument(context, runtime)} ${gatewayUrlConfirmation}
-    </openclaw-tooltip-provider>`;
+    </mirally-tooltip-provider>`;
   }
 
   private renderDocument(context: ApplicationContext, runtime: ApplicationRuntime) {
@@ -503,13 +503,13 @@ export class OpenClawApp extends OpenClawLightDomElement {
       const terminalAgentId = terminalOwner ? normalizeAgentId(terminalOwner) : null;
       // Embedded clients query this host immediately; keep it stable while the chunk loads.
       return html`
-        <openclaw-terminal-panel
+        <mirally-terminal-panel
           .client=${gatewayConnected ? gatewaySnapshot.client : null}
           .available=${terminalAvailable}
           .agentId=${terminalAgentId}
           .themeMode=${context.theme.resolvedMode}
           fullscreen
-        ></openclaw-terminal-panel>
+        ></mirally-terminal-panel>
         ${
           !gatewayConnected && gatewaySnapshot.lastError === null
             ? renderConnectingSplash(gatewayStartupStatus)
@@ -536,7 +536,7 @@ export class OpenClawApp extends OpenClawLightDomElement {
       const source = focusTarget.selector?.kind === "source" ? focusTarget.selector.value : null;
       const session = focusTarget.selector?.kind === "session" ? focusTarget.selector.value : null;
       return html`
-        <openclaw-desktop-panel
+        <mirally-desktop-panel
           .client=${gatewayConnected ? gatewaySnapshot.client : null}
           .available=${desktopAvailable}
           .documentMode=${true}
@@ -544,7 +544,7 @@ export class OpenClawApp extends OpenClawLightDomElement {
           .sessionKey=${session}
           .documentControl=${focusTarget.control}
           .onDocumentClose=${() => this.closeDocument(context.basePath)}
-        ></openclaw-desktop-panel>
+        ></mirally-desktop-panel>
         ${
           !gatewayConnected && gatewaySnapshot.lastError === null
             ? renderConnectingSplash(gatewayStartupStatus)
@@ -608,7 +608,7 @@ export class OpenClawApp extends OpenClawLightDomElement {
     }
     if (showLoginGate) {
       return html`
-        <openclaw-login-gate
+        <mirally-login-gate
           .props=${{
             resourceBasePath: context.resourceBasePath,
             mascot: context.theme.branding.mascot,
@@ -646,7 +646,7 @@ export class OpenClawApp extends OpenClawLightDomElement {
               });
             },
           }}
-        ></openclaw-login-gate>
+        ></mirally-login-gate>
       `;
     }
     if (runtime.documentMode?.kind === "approval") {
@@ -656,7 +656,7 @@ export class OpenClawApp extends OpenClawLightDomElement {
       return this.renderQuestionDocument(runtime);
     }
     return html`
-      <openclaw-link-reader-hovercard-provider
+      <mirally-link-reader-hovercard-provider
         .client=${gatewayConnected ? gatewaySnapshot.client : null}
         .readers=${availableLinkPreviewReaders(gatewaySnapshot)}
         .claimedReaders=${availableLinkReaders(gatewaySnapshot)}
@@ -665,17 +665,17 @@ export class OpenClawApp extends OpenClawLightDomElement {
           context.agentSelection.state.selectedId ?? gatewaySnapshot.assistantAgentId ?? undefined
         }
       >
-        <openclaw-session-progress-hovercard-provider
+        <mirally-session-progress-hovercard-provider
           .client=${gatewaySnapshot.client}
           .context=${context}
           .gateway=${context.gateway}
         >
-          <openclaw-app-shell
+          <mirally-app-shell
             .runtime=${runtime}
             .onboarding=${this.onboarding}
-          ></openclaw-app-shell>
-        </openclaw-session-progress-hovercard-provider>
-      </openclaw-link-reader-hovercard-provider>
+          ></mirally-app-shell>
+        </mirally-session-progress-hovercard-provider>
+      </mirally-link-reader-hovercard-provider>
     `;
   }
 }

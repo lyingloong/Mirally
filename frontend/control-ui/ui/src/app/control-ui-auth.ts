@@ -1,5 +1,5 @@
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeUniqueTrimmedStringList } from "@openclaw/normalization-core/string-normalization";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeUniqueTrimmedStringList } from "@mirally/normalization-core/string-normalization";
 import { formatUiExternalText } from "../lib/format-error.ts";
 import { fetchControlUiResource } from "./browser-http.ts";
 

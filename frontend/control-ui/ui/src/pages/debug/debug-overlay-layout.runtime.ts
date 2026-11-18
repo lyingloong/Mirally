@@ -1,6 +1,6 @@
 import { getSafeLocalStorage } from "../../local-storage.ts";
 
-const POSITION_KEY = "openclaw.debug-overlay.position";
+const POSITION_KEY = "mirally.debug-overlay.position";
 type Position = { x: number; y: number };
 type Mode = "expanded" | "minimized";
 

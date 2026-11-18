@@ -1,13 +1,13 @@
 // Control UI view renders agents utils screen content.
-import { parseModelCatalogRef } from "@openclaw/model-catalog-core/model-catalog-refs";
-import { findNormalizedProviderValue } from "@openclaw/model-catalog-core/provider-id";
-import { formatByteSize } from "@openclaw/normalization-core";
-import { asOptionalRecord, isRecord } from "@openclaw/normalization-core/record-coerce";
+import { parseModelCatalogRef } from "@mirally/model-catalog-core/model-catalog-refs";
+import { findNormalizedProviderValue } from "@mirally/model-catalog-core/provider-id";
+import { formatByteSize } from "@mirally/normalization-core";
+import { asOptionalRecord, isRecord } from "@mirally/normalization-core/record-coerce";
 import {
   normalizeLowercaseStringOrEmpty,
   normalizeOptionalString,
-} from "@openclaw/normalization-core/string-coerce";
-import { normalizeStringEntries } from "@openclaw/normalization-core/string-normalization";
+} from "@mirally/normalization-core/string-coerce";
+import { normalizeStringEntries } from "@mirally/normalization-core/string-normalization";
 import { splitTrailingAuthProfile } from "../../../../src/agents/model-ref-profile.js";
 import { normalizeAgentModelRefForConfig } from "../../../../src/config/model-input.js";
 import { parseModelPolicyWildcardRef } from "../../../../src/config/model-policy-ref.js";

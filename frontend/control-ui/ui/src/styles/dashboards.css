@@ -176,8 +176,8 @@
   pointer-events: none;
 }
 
-.dashboard-preview > openclaw-dashboard-preview,
-.dashboard-preview openclaw-board-document {
+.dashboard-preview > mirally-dashboard-preview,
+.dashboard-preview mirally-board-document {
   position: absolute;
   inset: 0;
   display: block;
@@ -187,7 +187,7 @@
   background: var(--bg);
 }
 
-.dashboard-preview .board-document__content > openclaw-board-view {
+.dashboard-preview .board-document__content > mirally-board-view {
   padding: 0;
   overflow: hidden;
 }

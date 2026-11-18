@@ -3,11 +3,11 @@ import { property } from "lit/decorators.js";
 import { applicationContext, type ApplicationContext } from "../../app/context.ts";
 import { IdentityAvatarController } from "../../lib/identity-avatar-loader.ts";
 import { sessionNavigationTarget } from "../../lib/sessions/route-navigation.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { rosterActivityStore } from "./roster-activity-store.ts";
 
-export abstract class AgentRosterElement extends OpenClawLightDomElement {
+export abstract class AgentRosterElement extends MirallyLightDomElement {
   @property({ attribute: false }) active = true;
   @consume({ context: applicationContext, subscribe: true })
   protected context!: ApplicationContext;

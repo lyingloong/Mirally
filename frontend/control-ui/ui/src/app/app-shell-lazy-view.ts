@@ -53,23 +53,23 @@ export function renderShellLazyOverlays(
     }
     ${
       isOptionalElementDefined(host.commandPaletteElement)
-        ? html`<openclaw-command-palette
+        ? html`<mirally-command-palette
             .desktopAvailable=${desktopPanelAvailable}
             .custodianAvailable=${custodianPanelAvailable}
             .onNavigate=${(routeId: RouteId, options?: ApplicationNavigationOptions) =>
               host.navigate(routeId, options)}
             .onSelectSession=${(sessionKey: string) => host.selectChatSession(sessionKey)}
             .onSlashCommand=${(command: string) => host.handleCommandPaletteSlashCommand(command)}
-          ></openclaw-command-palette>`
+          ></mirally-command-palette>`
         : nothing
     }
     ${isOptionalElementDefined(DEBUG_OVERLAY_ELEMENT) ? debugOverlayTemplate : nothing}
     ${
       !nativeEmbed && isOptionalElementDefined(KEYBOARD_SHORTCUTS_ELEMENT)
-        ? html`<openclaw-keyboard-shortcuts-dialog
+        ? html`<mirally-keyboard-shortcuts-dialog
             .sendShortcut=${normalizeChatSendShortcut(uiSettings?.chatSendShortcut)}
             .newSessionHost=${host}
-          ></openclaw-keyboard-shortcuts-dialog>`
+          ></mirally-keyboard-shortcuts-dialog>`
         : nothing
     }
   `;

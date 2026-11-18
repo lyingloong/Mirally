@@ -15,7 +15,7 @@ import "../../../components/web-awesome.ts";
 import { t } from "../../../i18n/index.ts";
 import { formatDurationCompact } from "../../../lib/format-duration.ts";
 import { formatTimeAgo, formatTimeMs } from "../../../lib/format.ts";
-import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../../lit/mirally-element.ts";
 import {
   type ChatObserverDisplayPreference,
   loadChatObserverDisplayPreference,
@@ -203,7 +203,7 @@ const COMPANION_HINT_KEYS = {
   Parameters<typeof t>[0]
 >;
 
-export class ChatSessionRailElement extends OpenClawLightDomElement {
+export class ChatSessionRailElement extends MirallyLightDomElement {
   @property({ attribute: false }) sessionKey = "";
   @property({ attribute: false }) digest: SessionObserverDigest | null = null;
   @property({ attribute: false }) running = false;
@@ -733,6 +733,6 @@ export class ChatSessionRailElement extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-chat-session-rail")) {
-  customElements.define("openclaw-chat-session-rail", ChatSessionRailElement);
+if (!customElements.get("mirally-chat-session-rail")) {
+  customElements.define("mirally-chat-session-rail", ChatSessionRailElement);
 }

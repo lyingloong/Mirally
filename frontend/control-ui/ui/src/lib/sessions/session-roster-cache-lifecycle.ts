@@ -1,4 +1,4 @@
-import { gatewayCredentialScope } from "@openclaw/gateway-client/browser";
+import { gatewayCredentialScope } from "@mirally/gateway-client/browser";
 import { resolveBootRecordAuth } from "../../app/boot-record.ts";
 import type { SessionGateway, SessionListOptions, SessionState } from "./session-capability.ts";
 import { sessionRosterCache, type SessionRosterCacheOptions } from "./session-roster-cache.ts";

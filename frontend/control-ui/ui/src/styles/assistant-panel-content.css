@@ -1,4 +1,4 @@
-.assistant-panel > openclaw-assistant-panel-content {
+.assistant-panel > mirally-assistant-panel-content {
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -6,12 +6,12 @@
   flex-direction: column;
 }
 
-openclaw-assistant-panel-content[hidden] {
+mirally-assistant-panel-content[hidden] {
   display: none;
 }
 
-openclaw-assistant-panel-content > openclaw-custodian-surface,
-openclaw-assistant-panel-content > openclaw-home-session {
+mirally-assistant-panel-content > mirally-custodian-surface,
+mirally-assistant-panel-content > mirally-home-session {
   display: flex;
   min-height: 0;
   flex: 1 1 0;
@@ -32,13 +32,13 @@ openclaw-assistant-panel-content > openclaw-home-session {
   margin-left: 42px;
 }
 
-openclaw-assistant-panel-content,
-openclaw-assistant-panel-content > openclaw-home-session {
+mirally-assistant-panel-content,
+mirally-assistant-panel-content > mirally-home-session {
   flex-direction: column;
   min-width: 0;
 }
 
-openclaw-home-session > openclaw-chat-pane {
+mirally-home-session > mirally-chat-pane {
   display: flex;
   min-width: 0;
   min-height: 0;

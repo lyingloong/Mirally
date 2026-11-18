@@ -4,7 +4,7 @@ import { pathForRoute } from "../app-route-paths.ts";
 import { CONTROL_UI_BUILD_INFO } from "../build-info.ts";
 import { t } from "../i18n/index.ts";
 import { shouldHandleNavigationClick } from "../lib/navigation-click.ts";
-import { OpenClawLightDomContentsElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../lit/mirally-element.ts";
 import {
   formatBuildChipText,
   formatSettingsBuildLabel,
@@ -13,7 +13,7 @@ import {
 } from "./sidebar-build-chip-format.ts";
 import "./tooltip.ts";
 
-class SidebarBuildChip extends OpenClawLightDomContentsElement {
+class SidebarBuildChip extends MirallyLightDomContentsElement {
   @property({ attribute: false }) basePath = "";
   @property({ attribute: false }) gatewayVersion: string | null = null;
   @property({ attribute: false }) updateAttentionDismissed = false;
@@ -33,7 +33,7 @@ class SidebarBuildChip extends OpenClawLightDomContentsElement {
       return nothing;
     }
     return html`
-      <openclaw-tooltip class="sidebar-hover-tooltip" .delay=${600} .closeDelay=${300}>
+      <mirally-tooltip class="sidebar-hover-tooltip" .delay=${600} .closeDelay=${300}>
         <a
           class="sidebar-footer-build"
           href=${pathForRoute("about", this.basePath)}
@@ -61,11 +61,11 @@ class SidebarBuildChip extends OpenClawLightDomContentsElement {
         <div slot="content" class="sidebar-hover-card sidebar-build-hover-card">
           ${renderSidebarServerDetails(CONTROL_UI_BUILD_INFO, this.gatewayVersion)}
         </div>
-      </openclaw-tooltip>
+      </mirally-tooltip>
     `;
   }
 }
 
-if (globalThis.customElements && !customElements.get("openclaw-sidebar-build-chip")) {
-  customElements.define("openclaw-sidebar-build-chip", SidebarBuildChip);
+if (globalThis.customElements && !customElements.get("mirally-sidebar-build-chip")) {
+  customElements.define("mirally-sidebar-build-chip", SidebarBuildChip);
 }

@@ -1,9 +1,9 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { dispatchWidgetPrompt } from "../../components/mcp-app-security.ts";
 import { openExternalUrlSafe } from "../open-external-url.ts";
 
 type BoardWidgetBridgeRequest = {
-  type: "openclaw:widget-bridge-request";
+  type: "mirally:widget-bridge-request";
   id: string;
   method: string;
   params: unknown;
@@ -31,7 +31,7 @@ export function isBoardWidgetBridgeRequest(value: unknown): value is BoardWidget
   }
   const request = value as Partial<BoardWidgetBridgeRequest>;
   return (
-    request.type === "openclaw:widget-bridge-request" &&
+    request.type === "mirally:widget-bridge-request" &&
     typeof request.id === "string" &&
     request.id.length > 0 &&
     request.id.length <= 128 &&

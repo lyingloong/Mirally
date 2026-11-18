@@ -1,6 +1,6 @@
 /** Browser-safe identity and replay rules shared by Gateway conversation clients. */
 
-import { asNullableRecord as readRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableRecord as readRecord } from "@mirally/normalization-core/record-coerce";
 import {
   canRecoverSessionProjectionFinal,
   hasSessionProjectionAcceptedFinal,
@@ -220,7 +220,7 @@ function entryMatches(
   }
   const durableEntry = left.identity?.id ? left : right.identity?.id ? right : null;
   const provisionalEntry = durableEntry === left ? right : durableEntry === right ? left : null;
-  const durableMetadata = readRecord(readRecord(durableEntry?.message)?.["__openclaw"]);
+  const durableMetadata = readRecord(readRecord(durableEntry?.message)?.["__mirally"]);
   if (
     durableEntry?.identity?.role === "assistant" &&
     provisionalEntry?.identity?.role === "assistant" &&

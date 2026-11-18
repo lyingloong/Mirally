@@ -1,6 +1,6 @@
 // The palette owns search/navigation; its draft reuses the canonical session owners.
 import { consume } from "@lit/context";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import { property, state } from "lit/decorators.js";
 import { applicationContext, type ApplicationContext } from "../app/context.ts";
 import { gatewayPresentationScope } from "../app/gateway-presentation-scope.ts";
@@ -10,7 +10,7 @@ import { isGatewayMethodAdvertised } from "../lib/gateway-methods.ts";
 import { resolveUiSelectedGlobalAgentId } from "../lib/sessions/session-key.ts";
 import { searchVisibleSessionTranscripts } from "../lib/sessions/transcript-search.ts";
 import { GatewayPageController } from "../lit/gateway-page-controller.ts";
-import { OpenClawLightDomContentsElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../lit/mirally-element.ts";
 import { SubscriptionsController } from "../lit/subscriptions-controller.ts";
 import {
   HumanMentionMenu,
@@ -33,7 +33,7 @@ import {
   SESSION_SEARCH_LIMIT,
 } from "./command-palette-session-search.ts";
 import { renderCommandPalette, type PaletteFilter } from "./command-palette-view.ts";
-import type { OpenClawModalDialog } from "./modal-dialog.ts";
+import type { MirallyModalDialog } from "./modal-dialog.ts";
 
 type PaletteItem = CommandPaletteItem;
 
@@ -51,7 +51,7 @@ const SESSION_SEARCH_SCOPE = {
 } as const;
 const CATALOG_CACHE_TTL_MS = 30_000;
 
-export class CommandPalette extends OpenClawLightDomContentsElement {
+export class CommandPalette extends MirallyLightDomContentsElement {
   @property({ attribute: false }) onNavigate?: ApplicationContext["navigate"];
   @property({ attribute: false }) onSelectSession?: (sessionKey: string) => void;
   @property({ attribute: false }) onSlashCommand?: (command: string) => void;
@@ -288,7 +288,7 @@ export class CommandPalette extends OpenClawLightDomContentsElement {
     this.initialInput = undefined;
     if (input.returnFocus !== undefined) {
       element
-        .closest<OpenClawModalDialog>("openclaw-modal-dialog")
+        .closest<MirallyModalDialog>("mirally-modal-dialog")
         ?.setReturnFocusTarget(input.returnFocus);
     }
     element.setSelectionRange(input.selectionStart, input.selectionEnd, input.selectionDirection);
@@ -642,6 +642,6 @@ export class CommandPalette extends OpenClawLightDomContentsElement {
   }
 }
 
-if (!customElements.get("openclaw-command-palette")) {
-  customElements.define("openclaw-command-palette", CommandPalette);
+if (!customElements.get("mirally-command-palette")) {
+  customElements.define("mirally-command-palette", CommandPalette);
 }

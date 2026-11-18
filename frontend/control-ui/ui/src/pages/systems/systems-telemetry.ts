@@ -1,4 +1,4 @@
-import type { SystemInfoResult } from "@openclaw/gateway-protocol";
+import type { SystemInfoResult } from "@mirally/gateway-protocol";
 import type { SystemsInventoryRow } from "./systems-data.ts";
 
 export const SYSTEMS_GATEWAY_STALE_MS = 30_000;

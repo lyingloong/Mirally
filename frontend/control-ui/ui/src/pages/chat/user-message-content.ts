@@ -1,5 +1,5 @@
 // Control UI chat module implements user message content behavior.
-import type { MediaKind } from "@openclaw/media-core/constants";
+import type { MediaKind } from "@mirally/media-core/constants";
 import type { ChatWorkContext } from "../../../../packages/gateway-protocol/src/chat-work-context.js";
 import type { ChatAttachment, HumanMention } from "../../lib/chat/chat-types.ts";
 import { trimHumanMentions } from "../../lib/chat/human-mentions.ts";
@@ -92,7 +92,7 @@ type LocalUserMessage = {
   role: "user";
   content: UserChatMessageContentBlock[];
   timestamp: number;
-  __openclaw: Record<string, unknown> & {
+  __mirally: Record<string, unknown> & {
     idempotencyKey?: string;
   };
 };
@@ -127,7 +127,7 @@ export function buildLocalUserMessage(
     role: "user",
     content,
     timestamp: input.createdAt,
-    __openclaw: {
+    __mirally: {
       ...(input.workContext
         ? { workContext: { snapshot: input.workContext, text: input.text } }
         : {}),

@@ -265,11 +265,11 @@ function renderProjectCrumb(
 
 function renderWorkspaceChipIcon(icon: ChatPaneHeaderProps["workspaceIcon"]) {
   return icon
-    ? html`<openclaw-workspace-icon
+    ? html`<mirally-workspace-icon
         .routeUrl=${icon.routeUrl}
         .authTokens=${icon.authTokens}
         .authReady=${icon.authReady}
-      ></openclaw-workspace-icon>`
+      ></mirally-workspace-icon>`
     : icons.folder;
 }
 
@@ -314,7 +314,7 @@ export function renderChatPaneHeader(props: ChatPaneHeaderProps) {
       <div class="chat-pane__header-leading">
         ${
           props.mergedChrome
-            ? html`<openclaw-tooltip .content=${drawerLabel}>
+            ? html`<mirally-tooltip .content=${drawerLabel}>
                 <button
                   class="btn btn--ghost btn--icon chat-icon-btn chat-pane__nav-toggle"
                   type="button"
@@ -330,7 +330,7 @@ export function renderChatPaneHeader(props: ChatPaneHeaderProps) {
                 >
                   ${icons.menu}
                 </button>
-              </openclaw-tooltip>`
+              </mirally-tooltip>`
             : nothing
         }
         ${
@@ -369,14 +369,14 @@ export function renderChatPaneHeader(props: ChatPaneHeaderProps) {
         }
         ${
           props.showOwnerChip && props.session?.participants?.length
-            ? html`<openclaw-viewer-facepile
+            ? html`<mirally-viewer-facepile
                 class="chat-pane__participants"
                 .staticParticipants=${props.session.participants}
                 .totalCount=${props.session.participantCount}
                 .maxVisible=${4}
                 .personActivity=${props.personActivity}
                 variant="session"
-              ></openclaw-viewer-facepile>`
+              ></mirally-viewer-facepile>`
             : nothing
         }
         ${props.placementControl ?? nothing} ${props.presence ?? nothing}
@@ -469,7 +469,7 @@ export function renderChatPaneHeader(props: ChatPaneHeaderProps) {
             }
             ${
               props.onOpenSplitView && !compactSessionActions
-                ? html`<openclaw-tooltip .content=${t("chat.splitView.open")}>
+                ? html`<mirally-tooltip .content=${t("chat.splitView.open")}>
                     <button
                       class="btn btn--ghost btn--icon chat-icon-btn chat-open-split-view"
                       type="button"
@@ -478,12 +478,12 @@ export function renderChatPaneHeader(props: ChatPaneHeaderProps) {
                     >
                       ${icons.columns2}
                     </button>
-                  </openclaw-tooltip>`
+                  </mirally-tooltip>`
                 : nothing
             }
             ${
               !props.narrow && props.onSplitDown
-                ? html`<openclaw-tooltip .content=${t("chat.splitView.splitDown")}>
+                ? html`<mirally-tooltip .content=${t("chat.splitView.splitDown")}>
                     <button
                       class="btn btn--ghost btn--icon chat-icon-btn chat-pane__split-down"
                       type="button"
@@ -492,12 +492,12 @@ export function renderChatPaneHeader(props: ChatPaneHeaderProps) {
                     >
                       ${icons.panelBottomOpen}
                     </button>
-                  </openclaw-tooltip>`
+                  </mirally-tooltip>`
                 : nothing
             }
             ${
               !props.narrow && props.onSplitRight
-                ? html`<openclaw-tooltip .content=${t("chat.splitView.splitRight")}>
+                ? html`<mirally-tooltip .content=${t("chat.splitView.splitRight")}>
                     <button
                       class="btn btn--ghost btn--icon chat-icon-btn chat-pane__split-right"
                       type="button"
@@ -506,12 +506,12 @@ export function renderChatPaneHeader(props: ChatPaneHeaderProps) {
                     >
                       ${icons.panelRightOpen}
                     </button>
-                  </openclaw-tooltip>`
+                  </mirally-tooltip>`
                 : nothing
             }
             ${
               props.onClosePane
-                ? html`<openclaw-tooltip .content=${t("chat.splitView.closePane")}>
+                ? html`<mirally-tooltip .content=${t("chat.splitView.closePane")}>
                     <button
                       class="btn btn--ghost btn--icon chat-icon-btn chat-pane__close-pane"
                       type="button"
@@ -520,12 +520,12 @@ export function renderChatPaneHeader(props: ChatPaneHeaderProps) {
                     >
                       ${icons.x}
                     </button>
-                  </openclaw-tooltip>`
+                  </mirally-tooltip>`
                 : nothing
             }
             ${
               props.mergedChrome && !compactSessionActions
-                ? html`<openclaw-tooltip .content=${t("chat.openCommandPalette")}>
+                ? html`<mirally-tooltip .content=${t("chat.openCommandPalette")}>
                     <button
                       class="btn btn--ghost btn--icon chat-icon-btn chat-pane__palette-open"
                       type="button"
@@ -534,7 +534,7 @@ export function renderChatPaneHeader(props: ChatPaneHeaderProps) {
                     >
                       ${icons.search}
                     </button>
-                  </openclaw-tooltip>`
+                  </mirally-tooltip>`
                 : nothing
             }
             ${props.sessionMenuAction}

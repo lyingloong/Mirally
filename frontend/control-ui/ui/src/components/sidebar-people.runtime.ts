@@ -237,7 +237,7 @@ export class SidebarPeopleRuntime {
     const card =
       existing ??
       createPortaledHovercard(
-        `openclaw-person-activity-${++nextCardId}`,
+        `mirally-person-activity-${++nextCardId}`,
         "session-progress-hovercard person-activity-hovercard",
       );
     const label = presenceUserLabel(user, t("presence.card.person"));

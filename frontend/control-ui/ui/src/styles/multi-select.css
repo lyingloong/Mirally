@@ -1,6 +1,6 @@
-/* Multi-value combobox (openclaw-multi-select). The field mirrors the
+/* Multi-value combobox (mirally-multi-select). The field mirrors the
    settings input treatment; the menu mirrors the shared picker listbox. */
-openclaw-multi-select {
+mirally-multi-select {
   display: block;
   flex: 1 1 auto;
   width: 100%;

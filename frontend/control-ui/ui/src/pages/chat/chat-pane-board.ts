@@ -416,7 +416,7 @@ export abstract class ChatPaneBoard extends ChatPaneHistory {
       board.available &&
       this.state &&
       isSidebarSlotVisible(this.state.sidebarLayout, "dashboard") &&
-      !customElements.get("openclaw-board-view")
+      !customElements.get("mirally-board-view")
     ) {
       void ensureBoardViewElement().then((loaded) => {
         if (loaded) {
@@ -585,7 +585,7 @@ export abstract class ChatPaneBoard extends ChatPaneHistory {
       !selectedChatSessionRow(this.state) ||
       !this.visuallyPresented ||
       !board.provider.hasLoadedSnapshot ||
-      !customElements.get("openclaw-board-view") ||
+      !customElements.get("mirally-board-view") ||
       sidebarDashboardPresentation(layout) !== "expanded"
     ) {
       return undefined;
@@ -618,7 +618,7 @@ export abstract class ChatPaneBoard extends ChatPaneHistory {
           return;
         }
         // The retained board owns actions and errors; the header only relocates its menu.
-        const view = this.querySelector("openclaw-board-view");
+        const view = this.querySelector("mirally-board-view");
         if (
           view?.snapshot?.sessionKey === board.snapshot.sessionKey &&
           view.session.agentId === session.agentId &&

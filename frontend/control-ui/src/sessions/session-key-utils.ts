@@ -3,16 +3,16 @@ import {
   normalizeLowercaseStringOrEmpty,
   normalizeOptionalLowercaseString,
   normalizeOptionalString,
-} from "@openclaw/normalization-core/string-coerce";
-import { parseAgentSessionKey } from "@openclaw/session-url-contract/session-key-normalization";
+} from "@mirally/normalization-core/string-coerce";
+import { parseAgentSessionKey } from "@mirally/session-url-contract/session-key-normalization";
 
 export {
   normalizeSessionKeyPreservingOpaquePeerIds,
   normalizeSessionPeerId,
   parseAgentSessionKey,
   requiresFoldedSessionKeyAliasProof,
-} from "@openclaw/session-url-contract/session-key-normalization";
-export type { ParsedAgentSessionKey } from "@openclaw/session-url-contract";
+} from "@mirally/session-url-contract/session-key-normalization";
+export type { ParsedAgentSessionKey } from "@mirally/session-url-contract";
 
 export type ParsedThreadSessionSuffix = {
   baseSessionKey: string | undefined;

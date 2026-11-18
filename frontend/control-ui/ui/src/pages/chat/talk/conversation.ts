@@ -1,4 +1,4 @@
-import { sliceUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { sliceUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import type { RealtimeTalkTranscript } from "./shared.ts";
 
 type RealtimeTalkConversationRole = "user" | "assistant";

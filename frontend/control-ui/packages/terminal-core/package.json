@@ -1,5 +1,5 @@
 {
-  "name": "@openclaw/terminal-core",
+  "name": "@mirally/terminal-core",
   "version": "0.0.0-private",
   "private": true,
   "files": [
@@ -102,7 +102,7 @@
   },
   "dependencies": {
     "@clack/prompts": "1.8.1",
-    "@openclaw/normalization-core": "workspace:*",
+    "@mirally/normalization-core": "workspace:*",
     "chalk": "6.0.0",
     "string-width": "8.2.2"
   }

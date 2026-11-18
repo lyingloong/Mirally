@@ -70,13 +70,13 @@ function formatUnavailableReason(
 ) {
   if (remediation === "enable-session-hosting") {
     return html`<div>${t("newSession.sessionHostingAction")}</div>
-      <code class="new-session-page__command">openclaw connect --service --session-host</code>`;
+      <code class="new-session-page__command">mirally connect --service --session-host</code>`;
   }
   if (remediation === "update-device") {
     return html`<div>${t("newSession.updateAction")}</div>
-      <code class="new-session-page__command">openclaw update</code>
+      <code class="new-session-page__command">mirally update</code>
       <div>${t("newSession.reconnectAction")}</div>
-      <code class="new-session-page__command">openclaw node restart</code>`;
+      <code class="new-session-page__command">mirally node restart</code>`;
   }
   return reason;
 }
@@ -183,7 +183,7 @@ export function renderSessionMenuItem(params: SessionMenuItemOptions, submitting
     </button>
   `;
   return params.compact && !params.hideDetails
-    ? html`<openclaw-tooltip
+    ? html`<mirally-tooltip
         class="new-session-page__environment-details"
         placement="right-start"
         ?open-on-click=${accessibleBlocker || touchDetails}
@@ -255,7 +255,7 @@ export function renderSessionMenuItem(params: SessionMenuItemOptions, submitting
                 `
           }
         </div>
-      </openclaw-tooltip>`
+      </mirally-tooltip>`
     : row;
 }
 
@@ -331,7 +331,7 @@ export function renderCloudProfileMenuItems(params: {
       !profileDisabledReason &&
       ((profile.operatingSystems?.filter((option) => !option.disabledReason).length ?? 0) > 0 ||
         machines.length > 0)
-      ? html`<openclaw-tooltip
+      ? html`<mirally-tooltip
           class="new-session-page__environment-details new-session-page__cloud-config-card"
           placement="right"
           open-on-click
@@ -363,7 +363,7 @@ export function renderCloudProfileMenuItems(params: {
               },
             })}
           </div>
-        </openclaw-tooltip>`
+        </mirally-tooltip>`
       : item;
   });
 }

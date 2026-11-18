@@ -2,7 +2,7 @@ import type {
   DesktopSource,
   WorkerDesktopAppId,
   WorkerDesktopLaunchResult,
-} from "@openclaw/gateway-protocol";
+} from "@mirally/gateway-protocol";
 import type { ReactiveControllerHost } from "lit";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import { formatUiError } from "../../lib/format-error.ts";

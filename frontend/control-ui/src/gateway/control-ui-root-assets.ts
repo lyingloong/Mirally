@@ -1,6 +1,6 @@
 import { normalizeControlUiBasePath } from "./control-ui-shared.js";
 
-export const CONTROL_UI_BUILD_ID_ATTRIBUTE = "data-openclaw-control-ui-build-id";
+export const CONTROL_UI_BUILD_ID_ATTRIBUTE = "data-mirally-control-ui-build-id";
 
 /** Root files emitted by the Control UI build and served under any configured mount. */
 export const CONTROL_UI_ROOT_PUBLIC_ASSETS = [

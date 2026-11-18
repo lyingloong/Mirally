@@ -11,7 +11,7 @@ function fixture(html){
   const flush=async()=>{for(let i=0;i<8;i++){await Promise.resolve();const calls=[...frames.values()];frames.clear();calls.forEach(fn=>fn());}};
   return {document:window.document,Event:window.Event,api,flush,root};
 }
-const pane=content=>`<openclaw-chat-pane><div class="chat-group assistant"><div class="chat-text">${content}</div></div></openclaw-chat-pane>`;
+const pane=content=>`<mirally-chat-pane><div class="chat-group assistant"><div class="chat-text">${content}</div></div></mirally-chat-pane>`;
 
 test('Windows relative file paths normalize separators while preserving Chinese and spaces',()=>{
   assert.equal(files.relativeFilePath('memory\\notice-综合测评材料提交-润色版.md'),'memory/notice-综合测评材料提交-润色版.md');
@@ -42,7 +42,7 @@ test('assistant inline paths become native links with original display and no cu
 
 test('native links, user text, code blocks, nested tool messages and outside pages remain unchanged',async()=>{
   const f=fixture(pane('<a data-file-path="native.md"><code>memory\\native.md</code></a><a href="https://example.invalid"><code>memory\\web.md</code></a><pre><code>memory\\script.md</code></pre><div class="chat-group tool"><code>memory\\tool.md</code></div>')+
-    '<openclaw-chat-pane><div class="chat-group user"><div class="chat-text"><code>memory\\user.md</code></div></div></openclaw-chat-pane><div class="chat-group assistant"><div class="chat-text"><code>memory\\outside.md</code></div></div>');try{
+    '<mirally-chat-pane><div class="chat-group user"><div class="chat-text"><code>memory\\user.md</code></div></div></mirally-chat-pane><div class="chat-group assistant"><div class="chat-text"><code>memory\\outside.md</code></div></div>');try{
     await f.flush();assert.equal(f.document.querySelectorAll('a[data-file-path]').length,1);
     assert.equal(f.document.querySelector('a[data-file-path]').getAttribute('data-file-path'),'native.md');
     assert.equal(f.document.querySelectorAll('code').length,6);
@@ -51,7 +51,7 @@ test('native links, user text, code blocks, nested tool messages and outside pag
 
 test('native click and keyboard delegation receive the path within its originating session pane',async()=>{
   const f=fixture(pane('<code>memory\\第一会话.md</code>')+pane('<code>memory\\第二会话.md</code>'));try{
-    const requests=[];[...f.document.querySelectorAll('openclaw-chat-pane')].forEach((node,index)=>{
+    const requests=[];[...f.document.querySelectorAll('mirally-chat-pane')].forEach((node,index)=>{
       node.sessionKey='session-'+index;
       const native=event=>{const link=event.target.closest('a[data-file-path]');if(link)requests.push({sessionKey:node.sessionKey,path:link.getAttribute('data-file-path')});};
       node.addEventListener('click',native);node.addEventListener('keydown',native);

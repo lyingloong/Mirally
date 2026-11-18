@@ -1,6 +1,6 @@
 // Control UI view renders dreaming screen content.
-import { expectDefined } from "@openclaw/normalization-core";
-import { parseDateStringTimestampMs } from "@openclaw/normalization-core/number-coercion";
+import { expectDefined } from "@mirally/normalization-core";
+import { parseDateStringTimestampMs } from "@mirally/normalization-core/number-coercion";
 import { html, nothing } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { renderHubTabs } from "../../../components/hub-tabs.ts";
@@ -29,8 +29,8 @@ type DiaryPanel =
   | ReturnType<typeof html>
   | { navigation: ReturnType<typeof html>; content: ReturnType<typeof html> };
 
-const DIARY_START_RE = /<!--\s*openclaw:dreaming:diary:start\s*-->/;
-const DIARY_END_RE = /<!--\s*openclaw:dreaming:diary:end\s*-->/;
+const DIARY_START_RE = /<!--\s*mirally:dreaming:diary:start\s*-->/;
+const DIARY_END_RE = /<!--\s*mirally:dreaming:diary:end\s*-->/;
 
 function parseDiaryEntries(raw: string): DiaryEntry[] {
   // Extract content between diary markers, or use full content.
@@ -632,9 +632,9 @@ function renderWikiPreviewOverlay(props: DreamingProps) {
     return nothing;
   }
   return html`
-    <openclaw-modal-dialog
+    <mirally-modal-dialog
       .label=${state.wikiPreviewTitle || t("dreaming.wiki.previewFallbackTitle")}
-      style="--openclaw-modal-width: 1120px"
+      style="--mirally-modal-width: 1120px"
       @modal-cancel=${() => closeWikiPreview(props)}
     >
       <div class="dreams-diary__preview-panel">
@@ -687,7 +687,7 @@ function renderWikiPreviewOverlay(props: DreamingProps) {
           }
         </div>
       </div>
-    </openclaw-modal-dialog>
+    </mirally-modal-dialog>
   `;
 }
 

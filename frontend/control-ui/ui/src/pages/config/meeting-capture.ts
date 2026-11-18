@@ -1,8 +1,8 @@
 import { consume } from "@lit/context";
 import { initialState, Task, TaskStatus } from "@lit/task";
-import type { TranscriptsStatusResult } from "@openclaw/gateway-protocol";
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import type { TranscriptsStatusResult } from "@mirally/gateway-protocol";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import { html, nothing, type TemplateResult } from "lit";
 import { property, state } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
@@ -24,7 +24,7 @@ import { t } from "../../i18n/index.ts";
 import { registerTranscriptsEnglish } from "../../i18n/locales/en-transcripts.ts";
 import { formatUiError } from "../../lib/format-error.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { COMMUNICATION_SETTINGS_TARGET_IDS } from "./settings-targets.ts";
 
@@ -42,7 +42,7 @@ function supportsAutoStartSetup(provider: SourceProvider | undefined): boolean {
   );
 }
 
-class MeetingCaptureSettings extends OpenClawLightDomElement {
+class MeetingCaptureSettings extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true }) private context!: ApplicationContext;
   @property({ type: Boolean }) mutationDisabled = false;
   @property({ attribute: false }) editor: TemplateResult | typeof nothing = nothing;
@@ -618,8 +618,8 @@ class MeetingCaptureSettings extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-meeting-capture-settings")) {
-  customElements.define("openclaw-meeting-capture-settings", MeetingCaptureSettings);
+if (!customElements.get("mirally-meeting-capture-settings")) {
+  customElements.define("mirally-meeting-capture-settings", MeetingCaptureSettings);
 }
 
 export function renderMeetingCapture(props: {
@@ -627,9 +627,9 @@ export function renderMeetingCapture(props: {
   advancedExpanded: boolean;
   editor: TemplateResult | typeof nothing;
 }) {
-  return html`<openclaw-meeting-capture-settings
+  return html`<mirally-meeting-capture-settings
     .mutationDisabled=${props.mutationDisabled}
     .advancedExpanded=${props.advancedExpanded}
     .editor=${props.editor}
-  ></openclaw-meeting-capture-settings>`;
+  ></mirally-meeting-capture-settings>`;
 }

@@ -82,7 +82,7 @@ export function renderSensitiveInput(props: SensitiveInputProps): TemplateResult
         @focus=${handleMaskSync}
         @scroll=${handleMaskSync}
       />
-      <openclaw-tooltip .content=${visibilityLabel}>
+      <mirally-tooltip .content=${visibilityLabel}>
         <button
           type="button"
           class="oc-sensitive-toggle"
@@ -95,7 +95,7 @@ export function renderSensitiveInput(props: SensitiveInputProps): TemplateResult
         >
           ${props.revealed ? icons.eyeOff : icons.eye}
         </button>
-      </openclaw-tooltip>
+      </mirally-tooltip>
     </span>
   `;
 }

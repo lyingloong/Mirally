@@ -2,7 +2,7 @@ import type {
   DesktopAvailability,
   EnvironmentSummary,
   WorkerDesktopAppId,
-} from "@openclaw/gateway-protocol";
+} from "@mirally/gateway-protocol";
 import { html, nothing, type TemplateResult } from "lit";
 import { t } from "../../i18n/index.ts";
 import { registerDesktopEnglish } from "../../i18n/locales/en-desktop.ts";

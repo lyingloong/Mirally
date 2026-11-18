@@ -1,4 +1,4 @@
-import type { RouteLoadCause } from "@openclaw/uirouter";
+import type { RouteLoadCause } from "@mirally/ui-router";
 import type { ApplicationContext } from "../../app/context.ts";
 import { listSelectableAgents } from "../../lib/agents/display.ts";
 import { normalizeAgentId } from "../../lib/sessions/session-key.ts";

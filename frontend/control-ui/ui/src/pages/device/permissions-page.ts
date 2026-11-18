@@ -18,12 +18,12 @@ import {
 import { renderSettingsWorkspace } from "../../components/settings-workspace.ts";
 import { t } from "../../i18n/index.ts";
 import { registerSettingsEnglish } from "../../i18n/locales/en-settings.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 
 registerSettingsEnglish();
 
-class DevicePermissionsPage extends OpenClawLightDomElement {
+class DevicePermissionsPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -158,6 +158,6 @@ class DevicePermissionsPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-device-permissions-page")) {
-  customElements.define("openclaw-device-permissions-page", DevicePermissionsPage);
+if (!customElements.get("mirally-device-permissions-page")) {
+  customElements.define("mirally-device-permissions-page", DevicePermissionsPage);
 }

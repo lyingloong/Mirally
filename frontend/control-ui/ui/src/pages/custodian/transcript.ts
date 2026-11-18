@@ -2,7 +2,7 @@ import type {
   SystemAgentChatHistoryResult,
   SystemAgentChatHistoryTurn,
   SystemAgentChatResult,
-} from "@openclaw/gateway-protocol";
+} from "@mirally/gateway-protocol";
 import { html, nothing } from "lit";
 import { SYSTEM_AGENT_ID } from "../../../../src/system-agent/agent-id.js";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
@@ -139,7 +139,7 @@ async function readCustodianTranscript(
 ): Promise<CustodianTranscriptResult> {
   try {
     const result = await client.request<SystemAgentChatHistoryResult>(
-      "openclaw.chat.history",
+      "mirally.chat.history",
       {},
       { timeoutMs: CUSTODIAN_TRANSCRIPT_TIMEOUT_MS },
     );

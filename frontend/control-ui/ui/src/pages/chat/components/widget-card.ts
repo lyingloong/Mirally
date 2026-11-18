@@ -117,7 +117,7 @@ function isManagedCanvasDocumentPreview(preview: CanvasToolPreview): boolean {
   }
   try {
     const entry = new URL(entryUrl, "http://localhost");
-    const prefix = "/__openclaw__/canvas/documents/";
+    const prefix = "/__mirally__/canvas/documents/";
     if (entry.origin !== "http://localhost" || !entry.pathname.startsWith(prefix)) {
       return false;
     }
@@ -136,11 +136,11 @@ function isManagedCanvasDocumentPreview(preview: CanvasToolPreview): boolean {
 // preview iframe can fit short/tall widgets. The event source must be one of our
 // preview frames and the height is clamped, so widget code can only resize its
 // own frame within the same bounds the preview contract allows.
-const WIDGET_SIZE_MESSAGE_TYPE = "openclaw:widget-size";
-const WIDGET_PROMPT_OFFER_MESSAGE_TYPE = "openclaw:widget-prompt-offer";
-const WIDGET_PROMPT_MESSAGE_TYPE = "openclaw:widget-prompt";
-const WIDGET_PROMPT_HOST_READY_MESSAGE_TYPE = "openclaw:widget-prompt-host-ready";
-const WIDGET_CHAT_HOST_MESSAGE_TYPE = "openclaw:widget-chat-host";
+const WIDGET_SIZE_MESSAGE_TYPE = "mirally:widget-size";
+const WIDGET_PROMPT_OFFER_MESSAGE_TYPE = "mirally:widget-prompt-offer";
+const WIDGET_PROMPT_MESSAGE_TYPE = "mirally:widget-prompt";
+const WIDGET_PROMPT_HOST_READY_MESSAGE_TYPE = "mirally:widget-prompt-host-ready";
+const WIDGET_CHAT_HOST_MESSAGE_TYPE = "mirally:widget-chat-host";
 const WIDGET_FRAME_MIN_HEIGHT = 48;
 // The ceiling is an abuse bound, not a layout preference: a widget that reports
 // a runaway size cannot blow up the transcript, but ordinary tall widgets must
@@ -399,7 +399,7 @@ function renderMcpAppView(params: {
   // Insert the tag before its chunk arrives. Native custom-element upgrade
   // preserves these bound fields, so the first preview initializes after registration.
   void ensureCustomElementDefined("mcp-app-view", loadMcpAppView).catch((error: unknown) => {
-    console.error("[openclaw] failed to load MCP App view", error);
+    console.error("[mirally] failed to load MCP App view", error);
   });
   return html`<mcp-app-view
     .sessionKey=${params.sessionKey}
@@ -420,13 +420,13 @@ function renderWidgetContent(
       // The authenticated view RPC serves scripted widget documents;
       // explicit strict document previews keep their hosted artifact path.
       if (preview.sandbox !== "strict" && isManagedCanvasDocumentPreview(preview)) {
-        void ensureCustomElementDefined("openclaw-canvas-widget-view", loadCanvasWidgetView).catch(
-          (error: unknown) => console.error("[openclaw] failed to load widget view", error),
+        void ensureCustomElementDefined("mirally-canvas-widget-view", loadCanvasWidgetView).catch(
+          (error: unknown) => console.error("[mirally] failed to load widget view", error),
         );
         return keyed(
           `${preview.viewId}\0${getCanvasWidgetFrameConnectionGeneration()}`,
           html`
-            <openclaw-canvas-widget-view
+            <mirally-canvas-widget-view
               .docId=${preview.viewId!.trim()}
               .sessionKey=${options?.sessionKey ?? ""}
               .messageTimestamp=${options?.messageTimestamp}
@@ -434,7 +434,7 @@ function renderWidgetContent(
               .preferredHeight=${preview.preferredHeight}
               .allowScripts=${sandbox.includes("allow-scripts")}
               .connectionGeneration=${getCanvasWidgetFrameConnectionGeneration()}
-            ></openclaw-canvas-widget-view>
+            ></mirally-canvas-widget-view>
           `,
         );
       }
@@ -508,7 +508,7 @@ function handleWidgetExportAction(
     showToast({ message: t("chat.toolCards.widgetExportFailed") });
     return;
   }
-  const documentHtml = frame.closest("openclaw-canvas-widget-view")?.documentHtml;
+  const documentHtml = frame.closest("mirally-canvas-widget-view")?.documentHtml;
   void exportWidget(value, frame, title, { documentHtml })
     .then((result) => {
       if (result === "rerender-required") {
@@ -623,11 +623,11 @@ function renderWidgetCard(
   }
   if (preview.kind === "browser-tab") {
     return surface === "chat_tool"
-      ? html`<openclaw-browser-tab-card
+      ? html`<mirally-browser-tab-card
           .preview=${preview}
           .revision=${options?.browserTabRevision}
           .latest=${options?.browserTabLatest ?? false}
-        ></openclaw-browser-tab-card>`
+        ></mirally-browser-tab-card>`
       : nothing;
   }
   if (preview.kind !== "canvas" || surface === "chat_tool") {

@@ -1,4 +1,4 @@
-import { DEFAULT_GATEWAY_REQUEST_TIMEOUT_MS } from "@openclaw/gateway-client/browser";
+import { DEFAULT_GATEWAY_REQUEST_TIMEOUT_MS } from "@mirally/gateway-client/browser";
 import type { BoundedSerialQueue } from "../../../../../src/shared/bounded-serial-queue.js";
 import { createDeferredCore } from "../../../../../src/shared/deferred.js";
 import {

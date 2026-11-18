@@ -1,4 +1,4 @@
-import type { FastMode } from "@openclaw/normalization-core/string-coerce";
+import type { FastMode } from "@mirally/normalization-core/string-coerce";
 import type {
   ArtifactSummary as ProtocolArtifactSummary,
   CronJob as ProtocolCronJob,
@@ -51,7 +51,7 @@ export type {
 } from "../../../packages/gateway-protocol/src/index.js";
 export type { ConfigUiHint, ConfigUiHints } from "../../../src/shared/config-ui-hints-types.js";
 export type { SessionGoal } from "../../../src/config/sessions/types.js";
-export type { FastMode } from "@openclaw/normalization-core/string-coerce";
+export type { FastMode } from "@mirally/normalization-core/string-coerce";
 export type ChannelsPairingAccount =
   import("../../../packages/gateway-protocol/src/index.js").ChannelsPairingAccount;
 export type ChannelsPairingApproveResult =

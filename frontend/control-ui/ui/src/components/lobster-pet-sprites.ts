@@ -390,7 +390,7 @@ export const SPLIT_HALF = svg`
   />
 `;
 
-// Retro homage parts (classic OpenClaw logo): one oversized raised claw with
+// Retro homage parts (classic Mirally logo): one oversized raised claw with
 // a pincer notch, tall V antennae, angry brows, and a smirk. The mega claw
 // lives inside the .lob-claw--r group so wave/snip acts swing it.
 export const RETRO_MEGA_CLAW = svg`

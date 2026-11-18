@@ -3,7 +3,7 @@ import { property, state } from "lit/decorators.js";
 import { icons } from "../../../components/icons.ts";
 import { t } from "../../../i18n/index.ts";
 import type { ChatAttachment } from "../../../lib/chat/chat-types.ts";
-import { OpenClawLightDomContentsElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../../../lit/mirally-element.ts";
 import { renderCompactAttachmentFile } from "./chat-attachment-file.ts";
 import { renderAttachmentChip } from "./chat-attachment-preview-chip.ts";
 import { readAttachmentText } from "./chat-attachment-text-reader.ts";
@@ -32,7 +32,7 @@ export function isSentPastedTextAttachment(item: AssistantAttachmentItem): item 
   );
 }
 
-class ChatPastedText extends OpenClawLightDomContentsElement {
+class ChatPastedText extends MirallyLightDomContentsElement {
   @property() src?: string;
   @property({ attribute: false }) sizeBytes?: number;
   @property({ attribute: false }) scope = "";
@@ -107,4 +107,4 @@ class ChatPastedText extends OpenClawLightDomContentsElement {
   }
 }
 
-customElements.define("openclaw-chat-pasted-text", ChatPastedText);
+customElements.define("mirally-chat-pasted-text", ChatPastedText);

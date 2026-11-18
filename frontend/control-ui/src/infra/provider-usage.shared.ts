@@ -1,6 +1,6 @@
 // Shared provider usage labels, ids, and timeout helpers.
-import { normalizeProviderId } from "@openclaw/model-catalog-core/provider-id";
-import { resolveTimerTimeoutMs } from "@openclaw/normalization-core/number-coercion";
+import { normalizeProviderId } from "@mirally/model-catalog-core/provider-id";
+import { resolveTimerTimeoutMs } from "@mirally/normalization-core/number-coercion";
 import type { UsageProviderId } from "./provider-usage.types.js";
 
 /** One provider cannot hold the aggregate usage response beyond this deadline. */

@@ -2,8 +2,8 @@
 import {
   isJsonSchemaValueValid,
   jsonSchemaValuesEqual,
-} from "@openclaw/normalization-core/json-schema";
-import { asFiniteNumber as finiteNumber } from "@openclaw/normalization-core/number-coercion";
+} from "@mirally/normalization-core/json-schema";
+import { asFiniteNumber as finiteNumber } from "@mirally/normalization-core/number-coercion";
 import { arrayItemSchema, collectAllOfSchemas, combinedSchema } from "./config-form.array-items.ts";
 import { decimalRational } from "./config-form.numeric.ts";
 import { schemaType, type JsonSchema } from "./config-form.shared.ts";

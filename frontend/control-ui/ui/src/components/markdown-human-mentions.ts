@@ -1,4 +1,4 @@
-import type { HumanMention } from "@openclaw/gateway-protocol";
+import type { HumanMention } from "@mirally/gateway-protocol";
 import type { MarkdownIt, Token } from "markdown-it";
 import { findMarkdownCodeSpans } from "../../../packages/markdown-core/src/reasoning-tags.js";
 import { readHumanMentions } from "../lib/chat/human-mentions.ts";
@@ -21,7 +21,7 @@ export function prepareMarkdownHumanMentions(
   let serial = 0;
   let prefix: string;
   do {
-    prefix = "openclawhumanmention" + serial++ + "x";
+    prefix = "mirallyhumanmention" + serial++ + "x";
   } while (referenceSource.includes(normalizeReference(prefix)));
   let cursor = 0;
   let masked = "";
@@ -162,13 +162,13 @@ export function installMarkdownHumanMentions(parser: MarkdownIt): void {
     const token = tokens[index];
     const profileId = token?.attrGet("profile-id");
     return token && typeof profileId === "string" && profileId
-      ? '<openclaw-person-reference profile-id="' +
+      ? '<mirally-person-reference profile-id="' +
           escapeMarkdownHtml(profileId) +
           '" label="' +
           escapeMarkdownHtml(token.content) +
           '">' +
           escapeMarkdownHtml(token.content) +
-          "</openclaw-person-reference>"
+          "</mirally-person-reference>"
       : "";
   };
 }

@@ -48,7 +48,7 @@
   max-width: none;
   overflow: hidden;
   border: 1px solid var(--chat-composer-hairline);
-  border-radius: calc(20px * var(--openclaw-corner-radius-scale));
+  border-radius: calc(20px * var(--mirally-corner-radius-scale));
   corner-shape: superellipse(1.5);
   background: var(--composer-attached-surface, var(--chat-composer-surface));
   -webkit-backdrop-filter: blur(8px);
@@ -272,7 +272,7 @@
     gap: 4px;
   }
 
-  .agent-chat__goal[data-expanded="true"] .agent-chat__goal-command-actions openclaw-tooltip {
+  .agent-chat__goal[data-expanded="true"] .agent-chat__goal-command-actions mirally-tooltip {
     display: inline-flex;
   }
 
@@ -459,7 +459,7 @@
   margin: 0;
   padding: 0;
   border: 1px solid var(--chat-composer-hairline);
-  border-radius: calc(20px * var(--openclaw-corner-radius-scale));
+  border-radius: calc(20px * var(--mirally-corner-radius-scale));
   corner-shape: superellipse(1.5);
   background: var(--composer-attached-surface, var(--chat-composer-surface, var(--card)));
   -webkit-backdrop-filter: blur(8px);

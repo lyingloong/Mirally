@@ -3,7 +3,7 @@ import {
   MIN_CLIENT_PROTOCOL_VERSION,
   PROTOCOL_VERSION,
   readConnectErrorDetailCode,
-} from "@openclaw/gateway-client/browser";
+} from "@mirally/gateway-client/browser";
 
 export function enrichProtocolMismatchDetails(
   message: string | undefined,

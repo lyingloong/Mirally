@@ -19,7 +19,7 @@ export function prepareMarkdownMedia(
   render: MarkdownMedia["render"],
 ): { markdown: string; media: MarkdownMedia } {
   const text = content.flatMap((item) => (item.type === "text" ? [item.text] : [])).join("\n");
-  let prefix = "OPENCLAWMEDIASLOT";
+  let prefix = "MIRALLYMEDIASLOT";
   while (text.includes(prefix)) {
     prefix += "X";
   }

@@ -3,7 +3,7 @@ import {
   createSessionProjection,
   readSessionMessageSequence,
   reduceSessionProjection,
-} from "@openclaw/gateway-client/browser";
+} from "@mirally/gateway-client/browser";
 import type { UiSessionDefaultsHost } from "../../lib/sessions/session-key.ts";
 import type { ChatHistoryPagination } from "./chat-history-pagination.ts";
 import { readChatSessionProjectionScope, reduceChatSessionProjection } from "./history-merge.ts";

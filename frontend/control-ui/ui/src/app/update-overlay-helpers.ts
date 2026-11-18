@@ -48,7 +48,7 @@ const UPDATE_FAILURE_REASON_KEYS: Record<string, string> = {
   dirty: "updates.failureReasons.dirty",
   "no-upstream": "updates.failureReasons.noUpstream",
   "not-git-install": "updates.failureReasons.notGitInstall",
-  "not-openclaw-root": "updates.failureReasons.notOpenclawRoot",
+  "not-mirally-root": "updates.failureReasons.notMirallyRoot",
   "deps-install-failed": "updates.failureReasons.depsInstallFailed",
   "build-failed": "updates.failureReasons.buildFailed",
   "build-dirty": "updates.failureReasons.buildDirty",

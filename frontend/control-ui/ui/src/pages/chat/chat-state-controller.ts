@@ -1,4 +1,4 @@
-import { readSessionMessageIdentity } from "@openclaw/gateway-client/browser";
+import { readSessionMessageIdentity } from "@mirally/gateway-client/browser";
 import type { ReactiveController, ReactiveControllerHost } from "lit";
 import type { ChatPendingInputsPage } from "../../../../packages/gateway-protocol/src/schema/logs-chat.js";
 import { registerControlUiReloadGuard } from "../../app/document-reload-guard.ts";

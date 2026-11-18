@@ -1,4 +1,4 @@
-import { sliceUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { sliceUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import { UPDATE_RUN_PHASES } from "../../packages/gateway-protocol/src/update-run-vocabulary.js";
 import {
   formatUpdateActivationTimeoutGuidance,
@@ -114,7 +114,7 @@ export function formatUpdateRunRecovery(
     const packageOutcome = restored
       ? `package rollback verified (${version})`
       : "runtime files verified";
-    return `${packageOutcome}; Gateway health ${recovery.service === "failed" ? "failed" : "unverified"} (${reason}). Run \`openclaw gateway status --deep\` to check the serving version and readiness.`;
+    return `${packageOutcome}; Gateway health ${recovery.service === "failed" ? "failed" : "unverified"} (${reason}). Run \`mirally gateway status --deep\` to check the serving version and readiness.`;
   }
   const version =
     recovery?.serviceRestartSafe && recovery.service === "healthy"
@@ -154,7 +154,7 @@ export function renderUpdateRunNotice(
   const target = run.after.version ?? run.target.version;
   const to = target ? bounded(target, 120) : undefined;
   if (kind === "ack") {
-    return `⬆️ Updating OpenClaw ${from ?? "the current version"} → ${to ?? "the latest release"}. The gateway stays available while the update is validated; you'll get a message here when it finishes.`;
+    return `⬆️ Updating Mirally ${from ?? "the current version"} → ${to ?? "the latest release"}. The gateway stays available while the update is validated; you'll get a message here when it finishes.`;
   }
   if (kind === "activating" || kind === "parking") {
     return `⏳ Restarting the gateway now${from && to ? ` (v${from} → v${to})` : ""}…`;
@@ -171,7 +171,7 @@ function bounded(text: string, limit: number): string {
 
 function recoveryHints(run: ReportInput, nextAction?: string): string[] {
   if (run.status === "running") {
-    return ["Check progress with openclaw update status."];
+    return ["Check progress with mirally update status."];
   }
   if (run.status !== "failed") {
     return [];
@@ -208,7 +208,7 @@ function recoveryHints(run: ReportInput, nextAction?: string): string[] {
     );
   }
   if (!nextAction) {
-    hints.push("Run openclaw triage to diagnose and repair the failed update.");
+    hints.push("Run mirally triage to diagnose and repair the failed update.");
   }
   return hints;
 }
@@ -247,29 +247,29 @@ export function renderUpdateRunReport(
   switch (run.status) {
     case "succeeded":
       headline = after
-        ? `✅ OpenClaw updated to ${after}${before ? ` (from ${before})` : ""}.`
-        : "✅ OpenClaw updated.";
+        ? `✅ Mirally updated to ${after}${before ? ` (from ${before})` : ""}.`
+        : "✅ Mirally updated.";
       break;
     case "failed":
       headline = reconciled
-        ? "ℹ️ OpenClaw abandoned update reconciled."
+        ? "ℹ️ Mirally abandoned update reconciled."
         : run.reason === LEGACY_UPDATE_RUN_EXPIRED_REASON
-          ? `ℹ️ OpenClaw update abandoned: ${reason}.`
-          : `⚠️ OpenClaw update failed: ${reason}.${running ? ` The gateway is running ${running}.` : ""}`;
+          ? `ℹ️ Mirally update abandoned: ${reason}.`
+          : `⚠️ Mirally update failed: ${reason}.${running ? ` The gateway is running ${running}.` : ""}`;
       break;
     case "skipped":
       headline =
         run.reason === "still-starting"
-          ? `ℹ️ OpenClaw${after ? ` ${after}` : ""} installed; Gateway still starting; readiness unverified; recovery backups retained.`
+          ? `ℹ️ Mirally${after ? ` ${after}` : ""} installed; Gateway still starting; readiness unverified; recovery backups retained.`
           : run.reason === "gateway-readiness-unverified"
-            ? `ℹ️ OpenClaw${after ? ` ${after}` : ""} installed; Gateway readiness unverified; recovery backups retained.`
-            : `ℹ️ OpenClaw update skipped: ${reason}.`;
+            ? `ℹ️ Mirally${after ? ` ${after}` : ""} installed; Gateway readiness unverified; recovery backups retained.`
+            : `ℹ️ Mirally update skipped: ${reason}.`;
       break;
     case "rolled-back":
-      headline = `↩️ OpenClaw update rolled back to ${after ?? running ?? before ?? "the previous version"}: ${reason}.`;
+      headline = `↩️ Mirally update rolled back to ${after ?? running ?? before ?? "the previous version"}: ${reason}.`;
       break;
     case "running":
-      headline = `⬆️ OpenClaw update in progress: ${run.phase}.`;
+      headline = `⬆️ Mirally update in progress: ${run.phase}.`;
       break;
   }
   headline = bounded(headline, 500);
@@ -398,11 +398,11 @@ export function renderUpdateRunReport(
     run.status === "failed" && repairStopReason === "requester-revoked"
       ? nextAction
         ? "Repair stopped because the chat requester is no longer a command owner. Further recovery requires a current command owner."
-        : "Repair stopped because the chat requester is no longer a command owner. A current command owner must start a new update, or the operator can run openclaw triage locally."
+        : "Repair stopped because the chat requester is no longer a command owner. A current command owner must start a new update, or the operator can run mirally triage locally."
       : run.status === "failed" && repairStopReason === "repair-requires-config-change"
         ? nextAction
           ? "Doctor could not promote config changes. Review the named keys and writer refusal before continuing recovery."
-          : "Doctor could not promote config changes. Review the named keys and writer refusal, then run openclaw doctor --fix under your own authority, or openclaw triage."
+          : "Doctor could not promote config changes. Review the named keys and writer refusal, then run mirally doctor --fix under your own authority, or mirally triage."
         : undefined;
   const hints = reconciled
     ? []

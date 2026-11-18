@@ -1,12 +1,12 @@
 import {html,nothing,type PropertyValues} from 'lit';
 import {property,state} from 'lit/decorators.js';
 import {icons} from '../../components/icons.ts';
-import {OpenClawLightDomElement} from '../../lit/openclaw-element.ts';
+import {MirallyLightDomElement} from '../../lit/mirally-element.ts';
 import {requestProduct} from './api.ts';
 import './product.css';
 
 /** Explicit microphone capture, never a background or always-on listener. */
-class MirallyVoiceInput extends OpenClawLightDomElement {
+class MirallyVoiceInput extends MirallyLightDomElement {
   @property() sessionKey='';
   @property({attribute:false}) getDraft?: ()=>string;
   @property({attribute:false}) onDraftChange?: (value:string)=>void;

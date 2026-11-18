@@ -1342,13 +1342,13 @@ h3.settings-row__title {
   min-width: 0;
 }
 .plugin-tool-dialog {
-  --openclaw-modal-width: 760px;
+  --mirally-modal-width: 760px;
 }
 .plugin-tool-preview {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   width: 100%;
-  max-height: var(--openclaw-modal-height-limit, calc(100dvh - 48px));
+  max-height: var(--mirally-modal-height-limit, calc(100dvh - 48px));
   padding: 24px;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -1457,34 +1457,34 @@ h3.settings-row__title {
     padding-top: 0;
   }
 
-  openclaw-skills-page .plugins-toolbar--fields {
+  mirally-skills-page .plugins-toolbar--fields {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: end;
   }
 
-  openclaw-skills-page .plugins-toolbar--fields > :is(.settings-segmented, .plugins-field) {
+  mirally-skills-page .plugins-toolbar--fields > :is(.settings-segmented, .plugins-field) {
     grid-column: 1 / -1;
     width: 100%;
     min-width: 0;
   }
 
-  openclaw-skills-page .plugins-toolbar--fields > .settings-segmented {
+  mirally-skills-page .plugins-toolbar--fields > .settings-segmented {
     height: auto;
   }
 
-  openclaw-skills-page .plugins-toolbar__hint {
+  mirally-skills-page .plugins-toolbar__hint {
     white-space: normal;
     overflow-wrap: anywhere;
   }
 
-  openclaw-skills-page .plugins-toolbar:has(> .field) {
+  mirally-skills-page .plugins-toolbar:has(> .field) {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
   }
 
-  openclaw-skills-page .plugins-toolbar > .btn {
+  mirally-skills-page .plugins-toolbar > .btn {
     max-width: 100%;
     white-space: normal;
   }

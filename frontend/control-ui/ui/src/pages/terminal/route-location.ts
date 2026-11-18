@@ -1,4 +1,4 @@
-import type { RouteLocation } from "@openclaw/uirouter";
+import type { RouteLocation } from "@mirally/ui-router";
 import {
   INTERNAL_TERMINAL_PATH_PARAM,
   restoreBridgedRouteLocation,

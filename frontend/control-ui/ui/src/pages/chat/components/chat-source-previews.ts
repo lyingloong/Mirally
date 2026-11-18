@@ -7,7 +7,7 @@ import { t } from "../../../i18n/index.ts";
 import { registerChatMessageMetadataEnglish } from "../../../i18n/locales/en-chat-message-metadata.ts";
 import type { ChatSourcePreview } from "../../../lib/chat/source-previews.ts";
 import { generateUUID } from "../../../lib/uuid.ts";
-import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../../lit/mirally-element.ts";
 import { readLinkFavicon } from "../link-favicon-cache.ts";
 import type { LinkFaviconFetcher } from "../link-favicon-loader.ts";
 
@@ -41,7 +41,7 @@ function closeSourcePreview(event: Event) {
   }
 }
 
-class ChatSourcePreviews extends OpenClawLightDomElement {
+class ChatSourcePreviews extends MirallyLightDomElement {
   static override properties = {
     sources: { attribute: false },
     fetchFavicon: { attribute: false },
@@ -166,8 +166,8 @@ class ChatSourcePreviews extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-chat-sources")) {
-  customElements.define("openclaw-chat-sources", ChatSourcePreviews);
+if (!customElements.get("mirally-chat-sources")) {
+  customElements.define("mirally-chat-sources", ChatSourcePreviews);
 }
 
 export function renderChatSourcePreviews(
@@ -175,9 +175,9 @@ export function renderChatSourcePreviews(
   fetchFavicon?: LinkFaviconFetcher,
 ) {
   return sources.length > 0
-    ? html`<openclaw-chat-sources
+    ? html`<mirally-chat-sources
         .sources=${sources}
         .fetchFavicon=${fetchFavicon}
-      ></openclaw-chat-sources>`
+      ></mirally-chat-sources>`
     : nothing;
 }

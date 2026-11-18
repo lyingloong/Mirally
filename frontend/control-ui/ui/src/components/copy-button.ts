@@ -90,7 +90,7 @@ export function renderCopyButton(
   return html`${keyed(
     text,
     html`
-      <openclaw-tooltip .content=${idleLabel}>
+      <mirally-tooltip .content=${idleLabel}>
         <button
           class=${bare ? "chat-copy-btn" : "btn btn--xs chat-copy-btn"}
           type="button"
@@ -103,7 +103,7 @@ export function renderCopyButton(
           </span>
         </button>
         <span data-copy-feedback role="status" hidden></span>
-      </openclaw-tooltip>
+      </mirally-tooltip>
     `,
   )}`;
 }

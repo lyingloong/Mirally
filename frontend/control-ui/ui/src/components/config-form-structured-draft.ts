@@ -1,7 +1,7 @@
 import { html, nothing, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import { t } from "../i18n/index.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import { copyWithPathPatch } from "./config-form-copy-on-write.ts";
 import { isSupportedConfigValueValid } from "./config-form.constraints.ts";
 import type { ConfigNodeRenderer, ConfigNodeRenderParams } from "./config-form.node.shared.ts";
@@ -52,7 +52,7 @@ export function shouldStageStructuredDraft(
   );
 }
 
-class ConfigFormStructuredDraft extends OpenClawLightDomElement {
+class ConfigFormStructuredDraft extends MirallyLightDomElement {
   @property({ attribute: false }) props?: ConfigFormStructuredDraftProps;
 
   @state() private draftValue: Record<string, unknown> | unknown[] | undefined;
@@ -150,6 +150,6 @@ class ConfigFormStructuredDraft extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-config-form-structured-draft")) {
-  customElements.define("openclaw-config-form-structured-draft", ConfigFormStructuredDraft);
+if (!customElements.get("mirally-config-form-structured-draft")) {
+  customElements.define("mirally-config-form-structured-draft", ConfigFormStructuredDraft);
 }

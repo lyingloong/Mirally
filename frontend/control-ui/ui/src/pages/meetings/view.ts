@@ -3,8 +3,8 @@ import type {
   TranscriptsExportParams,
   TranscriptsGetResult,
   TranscriptsListResult,
-} from "@openclaw/gateway-protocol";
-import { normalizeNullableString } from "@openclaw/normalization-core/string-coerce";
+} from "@mirally/gateway-protocol";
+import { normalizeNullableString } from "@mirally/normalization-core/string-coerce";
 import { html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import { repeat } from "lit/directives/repeat.js";

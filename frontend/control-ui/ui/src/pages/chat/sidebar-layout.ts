@@ -40,7 +40,7 @@ export {
 
 const SIDEBAR_DEFAULT_WIDTH_PX = 480;
 const SIDEBAR_DEFAULT_HEIGHT_PX = 360;
-export const SIDEBAR_GEOMETRY_COMMIT_EVENT = "openclaw-sidebar-geometry-commit";
+export const SIDEBAR_GEOMETRY_COMMIT_EVENT = "mirally-sidebar-geometry-commit";
 
 function createSidebarColumn(): SidebarColumn {
   return {

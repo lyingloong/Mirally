@@ -255,7 +255,7 @@ class SidebarAgentRoster extends AgentRosterElement {
   }
 }
 
-customElements.define("openclaw-sidebar-agent-roster", SidebarAgentRoster);
+customElements.define("mirally-sidebar-agent-roster", SidebarAgentRoster);
 
 class SidebarNewSessionMenu extends AgentRosterElement {
   @property({ attribute: false }) host!: RosterHost;
@@ -322,24 +322,24 @@ class SidebarNewSessionMenu extends AgentRosterElement {
   }
 }
 
-customElements.define("openclaw-sidebar-new-session-menu", SidebarNewSessionMenu);
+customElements.define("mirally-sidebar-new-session-menu", SidebarNewSessionMenu);
 
 export function renderSidebarNewSessionMenu(host: RosterHost, triggerClass: string) {
-  return html`<openclaw-sidebar-new-session-menu
+  return html`<mirally-sidebar-new-session-menu
     .host=${host}
     .active=${host.navigationVisible}
     .triggerClass=${triggerClass}
-  ></openclaw-sidebar-new-session-menu>`;
+  ></mirally-sidebar-new-session-menu>`;
 }
 
 export function renderSidebarAgentRoster(
   host: RosterHost,
   sections: SidebarVisibleSections["sections"],
 ) {
-  return html`<openclaw-sidebar-agent-roster
+  return html`<mirally-sidebar-agent-roster
     .host=${host}
     .active=${host.navigationVisible}
     .sections=${sections}
     .involvingMe=${host.sessionInvolvingMeFilterActive}
-  ></openclaw-sidebar-agent-roster>`;
+  ></mirally-sidebar-agent-roster>`;
 }

@@ -1,5 +1,5 @@
 /** Shared parser for slash commands with action and argument tails. */
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 
 /** Parses a normalized send-policy command without importing command runtime state. */
 export function parseSendPolicyCommandBody(normalized: string): {

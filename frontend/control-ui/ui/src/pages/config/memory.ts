@@ -62,7 +62,7 @@ export function buildMemoryEngineOptions(
       id: plugin.id,
       label:
         plugin.id === DEFAULT_MEMORY_ENGINE_ID
-          ? t("memoryPage.engine.openClawMemory")
+          ? t("memoryPage.engine.mirallyMemory")
           : plugin.name,
       available: true,
     }))
@@ -80,7 +80,7 @@ export function buildMemoryEngineOptions(
     const unavailable = {
       id: selected,
       label:
-        selected === DEFAULT_MEMORY_ENGINE_ID ? t("memoryPage.engine.openClawMemory") : selected,
+        selected === DEFAULT_MEMORY_ENGINE_ID ? t("memoryPage.engine.mirallyMemory") : selected,
       available: false,
     };
     if (selected === DEFAULT_MEMORY_ENGINE_ID) {
@@ -191,7 +191,7 @@ type MemoryViewProps = {
 
 const MEMORY_PANEL_ID = "memory-settings-panel";
 
-const MEMORY_DOCS_URL = "https://docs.openclaw.ai/concepts/memory";
+const MEMORY_DOCS_URL = "https://github.com/lyingloong/Mirally/blob/main/docs/architecture/memory.md";
 
 const MEMORY_ENGINE_OFF = "";
 
@@ -213,7 +213,7 @@ function renderEngineSection(props: MemoryViewProps) {
   const engineId = selectedEngineId(props.engineSelection);
   const defaultEngine =
     props.engineOptions.find((option) => option.id === DEFAULT_MEMORY_ENGINE_ID)?.label ??
-    t("memoryPage.engine.openClawMemory");
+    t("memoryPage.engine.mirallyMemory");
   const defaultDescription = renderSettingsDefaultDescription(
     defaultEngine,
     props.engineSelection.kind !== "auto",

@@ -1,5 +1,5 @@
 import { consume } from "@lit/context";
-import type { BoardGetParams } from "@openclaw/gateway-protocol";
+import type { BoardGetParams } from "@mirally/gateway-protocol";
 import { html, nothing, render, type LitElement } from "lit";
 import { property, state } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
@@ -15,7 +15,7 @@ import { icons, type IconName } from "../components/icons.ts";
 import { t } from "../i18n/index.ts";
 import { shouldHandleNavigationClick } from "../lib/navigation-click.ts";
 import { findUiSessionRow } from "../lib/sessions/route-navigation.ts";
-import { OpenClawLightDomContentsElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../lit/mirally-element.ts";
 import { SubscriptionsController } from "../lit/subscriptions-controller.ts";
 import { runControlUiPluginAction } from "./control-ui-actions.ts";
 import type { ControlUiRegistration } from "./control-ui-capability.ts";
@@ -24,7 +24,7 @@ import { renderPluginContribution, type ViewKind } from "./control-ui-view.ts";
 
 type ViewRegistration = ControlUiRegistration<{ mount: ControlUiView<unknown> }>;
 
-class ControlUiPluginView extends OpenClawLightDomContentsElement {
+class ControlUiPluginView extends MirallyLightDomContentsElement {
   @consume({ context: applicationContext, subscribe: true })
   private context?: ApplicationContext;
   @property({ attribute: false }) kind: ViewKind = "replacements";
@@ -69,7 +69,7 @@ class ControlUiPluginView extends OpenClawLightDomContentsElement {
     return entry as ViewRegistration | undefined;
   }
 
-  override requestUpdate(...args: Parameters<OpenClawLightDomContentsElement["requestUpdate"]>) {
+  override requestUpdate(...args: Parameters<MirallyLightDomContentsElement["requestUpdate"]>) {
     const [name, previous] = args;
     if (name === "presented" && this.presented !== previous) {
       // Retention preserves the view host, but old composer operations must never revive.
@@ -290,7 +290,7 @@ class ControlUiPluginView extends OpenClawLightDomContentsElement {
   }
 }
 
-class ControlUiPluginContributions extends OpenClawLightDomContentsElement {
+class ControlUiPluginContributions extends MirallyLightDomContentsElement {
   private lifetime = new AbortController();
   private readonly actionLifetimes = new Map<
     AbortSignal,
@@ -331,7 +331,7 @@ class ControlUiPluginContributions extends OpenClawLightDomContentsElement {
     super.disconnectedCallback();
   }
 
-  override requestUpdate(...args: Parameters<OpenClawLightDomContentsElement["requestUpdate"]>) {
+  override requestUpdate(...args: Parameters<MirallyLightDomContentsElement["requestUpdate"]>) {
     const [name, previous] = args;
     // Lit calls this synchronously; a hide/show before rendering still retires old actions.
     if (
@@ -482,9 +482,9 @@ class ControlUiPluginContributions extends OpenClawLightDomContentsElement {
   }
 }
 
-if (!customElements.get("openclaw-plugin-contributions")) {
-  customElements.define("openclaw-plugin-contributions", ControlUiPluginContributions);
+if (!customElements.get("mirally-plugin-contributions")) {
+  customElements.define("mirally-plugin-contributions", ControlUiPluginContributions);
 }
-if (!customElements.get("openclaw-plugin-view")) {
-  customElements.define("openclaw-plugin-view", ControlUiPluginView);
+if (!customElements.get("mirally-plugin-view")) {
+  customElements.define("mirally-plugin-view", ControlUiPluginView);
 }

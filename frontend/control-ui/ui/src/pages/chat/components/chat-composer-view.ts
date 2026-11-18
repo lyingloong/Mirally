@@ -1,6 +1,6 @@
 import "../../../styles/chat/composer-surface.css";
 import "../../mirally/chat-options.ts";
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import { html, nothing, type TemplateResult } from "lit";
 import { guard } from "lit/directives/guard.js";
 import { ifDefined } from "lit/directives/if-defined.js";
@@ -364,7 +364,7 @@ export function renderChatComposerView(context: ChatComposerViewContext) {
               aria-busy=${props.disabledReasonBusy ? "true" : "false"}
               @wa-show=${handleChatComposerDropdownShow}
               @wa-after-show=${restorePointerOpenedChatComposerTrigger}
-              @openclaw-composer-dismiss-invocations=${() => {
+              @mirally-composer-dismiss-invocations=${() => {
                 state.slashMenuOpen = false;
                 resetSlashMenuState(state);
                 resetSkillMenuState(state);
@@ -457,7 +457,7 @@ export function renderChatComposerView(context: ChatComposerViewContext) {
                             props.realtimeTalkCameraDevices.length >= 2 &&
                             props.onSwitchRealtimeCamera
                               ? html`
-                                  <openclaw-tooltip
+                                  <mirally-tooltip
                                     class="agent-chat__video-preview-switch-tooltip"
                                     .content=${t("chat.composer.switchCamera")}
                                   >
@@ -470,7 +470,7 @@ export function renderChatComposerView(context: ChatComposerViewContext) {
                                     >
                                       ${icons.switchCamera}
                                     </button>
-                                  </openclaw-tooltip>
+                                  </mirally-tooltip>
                                 `
                               : nothing
                           }

@@ -106,7 +106,7 @@ export const SessionsCreateParamsSchema = closedObject({
   worktreeName: Type.Optional(
     Type.String({
       pattern: "^[a-z0-9][a-z0-9-]{0,63}$",
-      description: "Managed worktree name; becomes branch openclaw/<name>. Requires worktree=true.",
+      description: "Managed worktree name; becomes branch mirally/<name>. Requires worktree=true.",
     }),
   ),
   execNode: Type.Optional(

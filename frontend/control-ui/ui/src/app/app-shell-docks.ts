@@ -17,7 +17,7 @@ export function renderShellDocks(
 ) {
   const gatewaySnapshot = context.gateway.snapshot;
   const gatewayConnected = gatewaySnapshot.phase === "connected";
-  return html` <openclaw-browser-panel
+  return html` <mirally-browser-panel
       ?inert=${navDrawerOpen}
       data-chat-autotype-exempt
       .client=${gatewayConnected ? gatewaySnapshot.client : null}
@@ -30,16 +30,16 @@ export function renderShellDocks(
         settings: { token: context.gateway.connection.token },
         password: context.gateway.connection.password,
       })}
-    ></openclaw-browser-panel>
-    <openclaw-desktop-panel
+    ></mirally-browser-panel>
+    <mirally-desktop-panel
       ?inert=${navDrawerOpen}
       data-chat-autotype-exempt
       .client=${gatewayConnected ? gatewaySnapshot.client : null}
       .available=${isDesktopPanelAvailable(gatewaySnapshot)}
       .suppressed=${suppressed || activeRoute === "systems"}
       .basePath=${context.basePath}
-    ></openclaw-desktop-panel>
-    <openclaw-link-reader-panel
+    ></mirally-desktop-panel>
+    <mirally-link-reader-panel
       ?inert=${navDrawerOpen}
       data-chat-autotype-exempt
       .client=${gatewayConnected ? gatewaySnapshot.client : null}
@@ -47,5 +47,5 @@ export function renderShellDocks(
       .readers=${availableLinkReaders(gatewaySnapshot)}
       .agentId=${selectedAgentId}
       .suppressed=${suppressed}
-    ></openclaw-link-reader-panel>`;
+    ></mirally-link-reader-panel>`;
 }

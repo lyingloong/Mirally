@@ -1,4 +1,4 @@
-openclaw-plugin-settings-editor {
+mirally-plugin-settings-editor {
   display: block;
   min-width: 0;
 }
@@ -186,7 +186,7 @@ openclaw-plugin-settings-editor {
   padding: 0;
   border: 0;
 }
-.plugin-editor__control .cfg-array__item > openclaw-tooltip {
+.plugin-editor__control .cfg-array__item > mirally-tooltip {
   padding-top: 4px;
 }
 
@@ -200,7 +200,7 @@ openclaw-plugin-settings-editor {
   padding: 0;
   min-height: 0;
 }
-.plugin-editor__control .cfg-array > openclaw-config-form-collection-draft {
+.plugin-editor__control .cfg-array > mirally-config-form-collection-draft {
   order: 3;
 }
 

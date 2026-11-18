@@ -4,13 +4,13 @@ import { en } from "./en.ts";
 // Recovery copy follows the lazy login and plugin views; the loader label stays eager.
 const enLogin = {
   login: {
-    heading: "Connect to OpenClaw",
-    lede: "Enter the Gateway URL and secret, or open the one-time link that openclaw dashboard prints on the Gateway host.",
+    heading: "Connect to Mirally",
+    lede: "Enter the Gateway URL and secret, or open the one-time link that mirally dashboard prints on the Gateway host.",
     gatewayUrl: "Gateway URL",
     gatewaySettings: "Gateway settings",
     secret: "Gateway secret",
     setupCodeHint:
-      "This is a device setup code for the OpenClaw mobile app, not the Gateway secret. Paste it in the app's Gateway settings instead; the Gateway secret comes from openclaw gateway auth-token --show on the Gateway host.",
+      "This is a device setup code for the Mirally mobile app, not the Gateway secret. Paste it in the app's Gateway settings instead; the Gateway secret comes from mirally gateway auth-token --show on the Gateway host.",
     secretPlaceholder: "Paste the token or type the password",
     runOnHost: "Run on the Gateway host",
     connection: {
@@ -44,10 +44,10 @@ const enLogin = {
         passwordTitle: "This Gateway expects its password",
         summary:
           "The Gateway at {host} is reachable, but it needs a matching token or password before this browser can connect.",
-        stepPaste: "Paste the token from openclaw gateway auth-token --show into Gateway secret.",
+        stepPaste: "Paste the token from mirally gateway auth-token --show into Gateway secret.",
         stepPassword: "Type the configured Gateway password into Gateway secret.",
         stepGenerate:
-          "If no token is configured, run openclaw doctor --generate-gateway-token on the gateway host.",
+          "If no token is configured, run mirally doctor --generate-gateway-token on the gateway host.",
         stepConnect: "Click Connect again after updating the Gateway secret.",
       },
       authFailed: {
@@ -55,7 +55,7 @@ const enLogin = {
         summary:
           "{host} rejected the supplied Gateway secret. Check that it belongs to this Gateway and try again.",
         stepDashboard:
-          "Run openclaw dashboard --no-open for a fresh URL, or openclaw gateway auth-token --show to recover the token.",
+          "Run mirally dashboard --no-open for a fresh URL, or mirally gateway auth-token --show to recover the token.",
         stepReplace: "Replace the Gateway secret with the token for this Gateway URL.",
       },
       trustedProxy: {
@@ -86,7 +86,7 @@ const enLogin = {
         upgradeSummary:
           "This browser is already paired with {host}, but it asked for access it was not approved for. Approve the new request on the Gateway host.",
         stepDashboard:
-          "Prefer a link? Run openclaw dashboard on the Gateway host and open the one-time URL it prints in this browser.",
+          "Prefer a link? Run mirally dashboard on the Gateway host and open the one-time URL it prints in this browser.",
         stepLatest:
           "That command prints the exact approve command for the newest pending request; run that one as well.",
         stepReconnect: "Once approved, click Connect.",
@@ -116,21 +116,21 @@ const enLogin = {
           "The served Control UI and the running Gateway do not agree on the supported connection protocol.",
         refresh: "Refresh page",
         stepDashboard:
-          "Reopen the served dashboard with openclaw dashboard so the UI and Gateway come from the same install.",
+          "Reopen the served dashboard with mirally dashboard so the UI and Gateway come from the same install.",
         stepDevUi:
           "If using pnpm ui:dev, rebuild or restart the dev UI against the current checkout.",
         stepRestart:
-          "Restart the Gateway after updating OpenClaw so it serves the current protocol.",
+          "Restart the Gateway after updating Mirally so it serves the current protocol.",
       },
       network: {
         title: "Gateway unreachable",
         summary:
           "The browser could not reach {host}. Check the address and transport before retrying credentials.",
-        stepGateway: "Confirm the Gateway is running with openclaw status or openclaw gateway run.",
+        stepGateway: "Confirm the Gateway is running with mirally status or mirally gateway run.",
         stepUrl:
           "Check the Gateway URL and use wss:// when the Gateway is behind HTTPS/Tailscale Serve.",
         stepDashboard:
-          "Reopen the dashboard with openclaw dashboard --no-open to recopy the current URL and auth details.",
+          "Reopen the dashboard with mirally dashboard --no-open to recopy the current URL and auth details.",
       },
     },
   },

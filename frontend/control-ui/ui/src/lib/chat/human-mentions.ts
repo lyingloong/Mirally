@@ -1,8 +1,8 @@
-import { MAX_HUMAN_MENTIONS } from "@openclaw/gateway-protocol";
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { MAX_HUMAN_MENTIONS } from "@mirally/gateway-protocol";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import type { HumanMention } from "./chat-types.ts";
 
-export { MAX_HUMAN_MENTIONS } from "@openclaw/gateway-protocol";
+export { MAX_HUMAN_MENTIONS } from "@mirally/gateway-protocol";
 
 export type HumanMentionInput = {
   value: string;

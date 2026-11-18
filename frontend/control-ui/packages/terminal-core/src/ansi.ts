@@ -182,7 +182,7 @@ function textWidth(text: string): number {
         .replaceAll("\u3164", "\u3131")
         .replaceAll("\uFFA0", "\uFF8A")
     : text;
-  // OpenClaw owns ANSI parsing; upstream must not reinterpret malformed sequences.
+  // Mirally owns ANSI parsing; upstream must not reinterpret malformed sequences.
   let width = stringWidth(printable, { countAnsiEscapeCodes: true });
   // Tabs execute inside CSI too; string-width intentionally treats them as zero-width.
   for (let index = text.indexOf("\t"); index !== -1; index = text.indexOf("\t", index + 1)) {

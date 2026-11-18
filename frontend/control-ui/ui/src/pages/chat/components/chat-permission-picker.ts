@@ -8,7 +8,7 @@ import { restorePointerOpenedChatComposerTrigger } from "./chat-picker-overlay.t
 
 registerModelControlsEnglish();
 
-const PERMISSION_MODES_DOCS_URL = "https://docs.openclaw.ai/gateway/permission-modes";
+const PERMISSION_MODES_DOCS_URL = "https://github.com/lyingloong/Mirally/blob/main/docs/reference/capabilities.md";
 const PERMISSION_MODES = ["read-only", "guarded", "workspace", "full"] as const;
 const DEFAULT_PERMISSION_VALUE = "default";
 const PERMISSION_OPTIONS = [null, ...PERMISSION_MODES] as const;

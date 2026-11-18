@@ -10,7 +10,7 @@ import {
   McpUiHostContextSchema,
   PostMessageTransport,
 } from "@modelcontextprotocol/ext-apps/app-bridge";
-import { isMcpAppViewExpiredError } from "@openclaw/gateway-protocol";
+import { isMcpAppViewExpiredError } from "@mirally/gateway-protocol";
 import { LitElement, css, html, nothing, type PropertyValues } from "lit";
 import { property } from "lit/decorators.js";
 import { createRef, ref } from "lit/directives/ref.js";
@@ -45,7 +45,7 @@ type HostContext = NonNullable<
 type ScheduleFrame = (callback: FrameRequestCallback) => number;
 type ScheduleFallback = (callback: () => void, delayMs: number) => number;
 type McpAppResources = {
-  bridge: OpenClawAppBridge | null;
+  bridge: MirallyAppBridge | null;
   cleanups: Set<() => void>;
   frameHeight: number;
   iframe: HTMLIFrameElement;
@@ -113,7 +113,7 @@ function hostContext(
   });
 }
 
-class OpenClawAppBridge extends AppBridge {
+class MirallyAppBridge extends AppBridge {
   setMessageHandler(handler: NonNullable<AppBridge["onmessage"]>) {
     Reflect.set(this, "onmessage", handler);
   }
@@ -374,7 +374,7 @@ export class McpAppView extends LitElement {
         throw new Error(t("mcpApp.errors.sandboxUnavailable"));
       }
 
-      const bridge = new OpenClawAppBridge(
+      const bridge = new MirallyAppBridge(
         null,
         { name: "Mirally", version: "0.1.0" },
         buildMcpAppHostCapabilities(

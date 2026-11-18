@@ -13,7 +13,7 @@ const html=(strings,...values)=>({strings,values});
 function fixture(file,extra={}){
   const storage=new Map(),calls=[],timers=new Map();let timer=0;
   const sandbox={html,nothing:Symbol(),live:value=>value,unsafeHTML:value=>value,customElement:()=>target=>target,state:()=>()=>{},property:()=>()=>{},
-    OpenClawLightDomElement:class{isConnected=true;connectedCallback(){}disconnectedCallback(){}dispatchEvent(){}},
+    MirallyLightDomElement:class{isConnected=true;connectedCallback(){}disconnectedCallback(){}dispatchEvent(){}},
     document:{hidden:false,addEventListener(){},removeEventListener(){}},window:{},location:{hash:'',pathname:'/mobile',search:''},history:{replaceState(){}},
     sessionStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)},
     CustomEvent:class{constructor(type,data){this.type=type;this.detail=data.detail;}},URL,URLSearchParams,AbortController,crypto:{randomUUID:()=>`id-${calls.length}`},

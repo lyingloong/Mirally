@@ -20,7 +20,7 @@ function fixture({media,request}) {
   }
   class Reader {readAsDataURL(){this.result='data:audio/webm;base64,dm9pY2U=';queueMicrotask(()=>this.onload?.());}}
   const sandbox={html:()=>'',nothing:Symbol(),property:()=>()=>{},state:()=>()=>{},icons:{mic:''},
-    OpenClawLightDomElement:class{isConnected=true;disconnectedCallback(){}},
+    MirallyLightDomElement:class{isConnected=true;disconnectedCallback(){}},
     customElements:{define:(_,component)=>{Component=component;}},navigator:{mediaDevices:{getUserMedia:()=>media?media.promise:Promise.resolve(stream)}},
     MediaRecorder:Recorder,FileReader:Reader,Blob,AbortController,crypto:{randomUUID:()=> 'voice-request-123456789'},
     setTimeout:()=>1,clearTimeout(){},queueMicrotask,requestProduct:async(path,options)=>{calls.push(JSON.parse(options.body));return request?.(path,options)??{};}};

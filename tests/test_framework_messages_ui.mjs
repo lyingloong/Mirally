@@ -28,7 +28,7 @@ function response(method,params,data) {
 function fixture() {
   let handler=(method,params)=>Promise.resolve(response(method,params,snapshot()));
   const sandbox={html,nothing:Symbol(),property:()=>()=>{},state:()=>()=>{},consume:()=>()=>{},applicationContext:{},
-    OpenClawLightDomElement:class{isConnected=true;connectedCallback(){}disconnectedCallback(){}},
+    MirallyLightDomElement:class{isConnected=true;connectedCallback(){}disconnectedCallback(){}},
     renderSettingsPage:content=>content,renderSettingsWorkspace:content=>content,
     renderSettingsPageHeader:options=>html`${options.title}${options.actions}`,
     renderSettingsSection:(options,content)=>html`${options.actions}${content}`,

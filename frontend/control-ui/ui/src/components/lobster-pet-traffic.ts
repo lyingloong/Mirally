@@ -2,7 +2,7 @@
 // the snail, the duck, the jellyfish) and the message in a bottle. Both run
 // on their own seeded clocks, independent of the resident's visit schedule;
 // a ReactiveController keeps the pet element focused on the resident.
-import { expectDefined } from "@openclaw/normalization-core";
+import { expectDefined } from "@mirally/normalization-core";
 import type { ReactiveController, ReactiveControllerHost } from "lit";
 import {
   LOBSTER_BOTTLE_FORTUNES,

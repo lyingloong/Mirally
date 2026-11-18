@@ -11,7 +11,7 @@ export function showPluginToolPreview(tool: PluginToolPreview, signal: AbortSign
   }
   return withPromiseModalHost({ signal, value: undefined }, ({ render, finish }) => {
     render(
-      () => html`<openclaw-modal-dialog
+      () => html`<mirally-modal-dialog
         class="plugin-tool-dialog"
         label=${tool.name}
         @modal-cancel=${() => finish(undefined)}
@@ -30,7 +30,7 @@ export function showPluginToolPreview(tool: PluginToolPreview, signal: AbortSign
           </header>
           <p>${tool.description}</p>
         </article>
-      </openclaw-modal-dialog>`,
+      </mirally-modal-dialog>`,
     );
   });
 }

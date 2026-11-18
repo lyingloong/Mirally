@@ -9,7 +9,7 @@ import { registerSettingsEnglish } from "../../i18n/locales/en-settings.ts";
 
 registerSettingsEnglish();
 
-const AUTO_VALUE = "__openclaw_observer_auto__";
+const AUTO_VALUE = "__mirally_observer_auto__";
 
 export type SessionObserverModelSelection =
   | { kind: "auto" }

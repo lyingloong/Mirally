@@ -1,11 +1,11 @@
-import { asFiniteNumber as optionalNumber } from "@openclaw/normalization-core/number-coercion";
+import { asFiniteNumber as optionalNumber } from "@mirally/normalization-core/number-coercion";
 // Builds the unified node/device inventory shown on the Devices page.
 // The gateway exposes two overlapping views of the same machines: paired device
 // records (roles + tokens) and the node catalog (caps + live links). This module
 // joins them by id and groups duplicate pairings of the same client so the page
 // renders one row per machine instead of one row per historical keypair.
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import { z } from "zod";
 import type { PresenceEntry } from "../../api/types.ts";
 import type { PairedDevice } from "./index.ts";

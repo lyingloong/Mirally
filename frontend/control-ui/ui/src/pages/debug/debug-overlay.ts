@@ -17,7 +17,7 @@ import { retryStaleChunkReloadWhenReachable } from "../../app/stale-chunk-reload
 import { renderLazyViewError } from "../../components/lazy-view-error.ts";
 import { DEBUG_OVERLAY_REQUEST_EVENT } from "../../components/panel-toggle-contract.ts";
 import { t } from "../../i18n/index.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import {
   renderDebugOverlayFrame,
   renderDebugOverlayLoading,
@@ -26,14 +26,14 @@ import {
 } from "./debug-overlay-frame.ts";
 
 const DEBUG_OVERLAY_CONTENT = {
-  tagName: "openclaw-debug-overlay-content",
+  tagName: "mirally-debug-overlay-content",
   get label() {
     return t("debug.overlay.title");
   },
   loadModule: () => import("./debug-overlay-content.ts"),
 } satisfies OptionalCustomElement;
 
-export class DebugOverlay extends OpenClawLightDomElement {
+export class DebugOverlay extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context?: ApplicationContext;
 
@@ -130,10 +130,10 @@ export class DebugOverlay extends OpenClawLightDomElement {
     }
     return keyed(
       this.contentKey,
-      html`<openclaw-debug-overlay-content
+      html`<mirally-debug-overlay-content
         .context=${this.context}
         .minimized=${this.mode === "minimized"}
-      ></openclaw-debug-overlay-content>`,
+      ></mirally-debug-overlay-content>`,
     );
   }
 
@@ -152,6 +152,6 @@ export class DebugOverlay extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-debug-overlay")) {
-  customElements.define("openclaw-debug-overlay", DebugOverlay);
+if (!customElements.get("mirally-debug-overlay")) {
+  customElements.define("mirally-debug-overlay", DebugOverlay);
 }

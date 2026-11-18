@@ -12,7 +12,7 @@ const config=()=>({revision:7,read_roots:['C:/资料'],web_enabled:false,workspa
 function fixture(handler) {
   const calls=[];
   const sandbox={html,nothing:Symbol(),live:value=>value,customElement:()=>target=>target,state:()=>()=>{},
-    OpenClawLightDomElement:class{isConnected=true;connectedCallback(){}disconnectedCallback(){}},
+    MirallyLightDomElement:class{isConnected=true;connectedCallback(){}disconnectedCallback(){}},
     renderSettingsSection:(_options,content)=>content,renderSettingsRow:options=>html`${options.title}${options.description}${options.control}`,
     errorMessage:error=>error.message,rpcProduct:(method,params)=>{calls.push({method,params});return handler(method,params);}};
   vm.runInNewContext(source+'\nglobalThis.Page=MirallyCapabilitiesSettings;',sandbox);

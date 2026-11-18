@@ -9,7 +9,7 @@ import { icons } from "../../components/icons.ts";
 import { t } from "../../i18n/index.ts";
 import { registerActivityEnglish } from "../../i18n/locales/en-activity.ts";
 import { sessionPullRequestsForGateway } from "../../lib/session-pull-requests.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 
 registerActivityEnglish();
@@ -83,7 +83,7 @@ function renderPullRequest(pr: ControlUiSessionPullRequest) {
   </a>`;
 }
 
-class ActivitySessionGit extends OpenClawLightDomElement {
+class ActivitySessionGit extends MirallyLightDomElement {
   @property({ attribute: false }) context!: ApplicationContext;
   @property() sessionKey = "";
   @property() agentId = "";
@@ -129,7 +129,7 @@ class ActivitySessionGit extends OpenClawLightDomElement {
       return nothing;
     }
     const stale = snapshot.status !== "ready" || gateway.snapshot.phase !== "connected";
-    return html`<openclaw-link-reader-hovercard-provider
+    return html`<mirally-link-reader-hovercard-provider
       .client=${gateway.snapshot.phase === "connected" ? gateway.snapshot.client : null}
       .readers=${availableLinkPreviewReaders(gateway.snapshot)}
       .agentId=${this.agentId}
@@ -161,10 +161,10 @@ class ActivitySessionGit extends OpenClawLightDomElement {
             : nothing
         }
       </div>
-    </openclaw-link-reader-hovercard-provider>`;
+    </mirally-link-reader-hovercard-provider>`;
   }
 }
 
-if (!customElements.get("openclaw-activity-session-git")) {
-  customElements.define("openclaw-activity-session-git", ActivitySessionGit);
+if (!customElements.get("mirally-activity-session-git")) {
+  customElements.define("mirally-activity-session-git", ActivitySessionGit);
 }

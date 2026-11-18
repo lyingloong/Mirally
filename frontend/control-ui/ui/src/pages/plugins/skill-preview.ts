@@ -184,7 +184,7 @@ export function renderPluginSkillPreview(controller: PluginPreviewController) {
       state.result.files.some(
         (file) => file.status === "unavailable" || file.status === "too-large",
       ));
-  return html`<openclaw-file-preview-modal
+  return html`<mirally-file-preview-modal
     .label=${state.request.skillName}
     .files=${files}
     .directories=${state.result?.directories ?? []}
@@ -197,7 +197,7 @@ export function renderPluginSkillPreview(controller: PluginPreviewController) {
     @file-preview-select=${(event: CustomEvent<string>) => controller.select(event.detail)}
     @file-preview-retry=${() => controller.retry()}
     @file-preview-close=${() => controller.close()}
-  ></openclaw-file-preview-modal>`;
+  ></mirally-file-preview-modal>`;
 }
 
 export function renderPluginSkillsSection(

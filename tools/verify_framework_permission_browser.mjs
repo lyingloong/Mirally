@@ -34,20 +34,20 @@ try{
   const page=await browser.newPage({viewport:{width:1280,height:900}});page.setDefaultTimeout(20000);
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',route=>{const url=new URL(route.request().url());return url.hostname==='127.0.0.1'?route.continue():route.abort();});
-  const ready=()=>page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected');
-  const pane=()=>page.locator('openclaw-chat-pane.chat-pane-cache__pane--active');
+  const ready=()=>page.waitForFunction(()=>document.querySelector('mirally-app')?.context?.gateway?.snapshot?.phase==='connected');
+  const pane=()=>page.locator('mirally-chat-pane.chat-pane-cache__pane--active');
   const options=()=>pane().locator('mirally-chat-options');
   const trigger=()=>options().getByRole('button',{name:/会话模式与权限/});
   const item=value=>options().locator(`wa-dropdown-item[value="${value}"]`);
-  async function open(id){await page.goto(runtime.url+'/chat/main/'+encodeURIComponent(id)+'#token='+runtime.token);await ready();await page.waitForFunction(key=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active')?.state?.sessionKey===key,'agent:main:'+id);await trigger().waitFor();await page.waitForFunction(()=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active mirally-chat-options')?.permission!==null);}
-  async function choose(value){await trigger().click();await item(value).click();await page.waitForFunction(()=>!document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active mirally-chat-options')?.busy);}
+  async function open(id){await page.goto(runtime.url+'/chat/main/'+encodeURIComponent(id)+'#token='+runtime.token);await ready();await page.waitForFunction(key=>document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active')?.state?.sessionKey===key,'agent:main:'+id);await trigger().waitFor();await page.waitForFunction(()=>document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active mirally-chat-options')?.permission!==null);}
+  async function choose(value){await trigger().click();await item(value).click();await page.waitForFunction(()=>!document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active mirally-chat-options')?.busy);}
   await open(first.id);
   const welcomeButton=()=>pane().locator('.agent-chat__welcome--setup > button');
   await welcomeButton().waitFor();
   assert.equal(await pane().locator('.agent-chat__disabled-banner[data-model-setup]').isVisible(),false,'empty welcome owns the only visible model setup action');
   await welcomeButton().click();await page.getByTestId('mirally-settings-model-save').waitFor();
   await open(first.id);assert.match(await trigger().innerText(),/逐次确认/);await choose('session');
-  await page.waitForFunction(()=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active mirally-chat-options')?.permission?.session_auto_approve===true);
+  await page.waitForFunction(()=>document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active mirally-chat-options')?.permission?.session_auto_approve===true);
   assert.equal((await rpc('action.permissions.get',{conversation_id:first.id})).session_auto_approve,true);
   await open(second.id);assert.match(await trigger().innerText(),/逐次确认/);
   await open(first.id);assert.match(await trigger().innerText(),/自动批准/);
@@ -91,7 +91,7 @@ try{
   await choose('session');await choose('ask');assert.match(await trigger().innerText(),/逐次确认/);
   // A nonempty conversation still needs its recovery action when no model is configured.
   await call(`/api/sessions/${first.id}/messages`,{text:'本地界面恢复验证',commandId:'model-setup-history-fixture'});
-  await page.waitForFunction(()=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active')?.state?.chatMessages?.some(m=>m.role==='user'));
+  await page.waitForFunction(()=>document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active')?.state?.chatMessages?.some(m=>m.role==='user'));
   assert.equal(await welcomeButton().count(),0);
   await pane().locator('.agent-chat__disabled-banner[data-model-setup]').waitFor({state:'visible'});
   assert.deepEqual(errors,[]);console.log(JSON.stringify({passed:true,checks:['session choices and cross-session isolation','global effective state and real settings navigation','keyboard and narrow popup bounds','restart clears session grant and retains global trust','disable global and session trust','single working model setup action for empty chat; history keeps recovery'],external_requests:0}));

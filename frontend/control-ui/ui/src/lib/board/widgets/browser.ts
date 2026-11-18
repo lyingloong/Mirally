@@ -1,6 +1,6 @@
 import { consume } from "@lit/context";
-import type { BoardGetParams } from "@openclaw/gateway-protocol";
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
+import type { BoardGetParams } from "@mirally/gateway-protocol";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 import { applicationContext, type ApplicationContext } from "../../../app/context.ts";
@@ -14,7 +14,7 @@ import {
 import "../../../components/browser/browser-panel.ts";
 import { t } from "../../../i18n/index.ts";
 import { registerBrowserEnglish } from "../../../i18n/locales/en-browser.ts";
-import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../../lit/subscriptions-controller.ts";
 import { formatUiError } from "../../format-error.ts";
 import type { BoardWidget } from "../types.ts";
@@ -22,7 +22,7 @@ import "./browser.css";
 
 registerBrowserEnglish();
 
-class OpenClawBrowserDashboardWidget extends OpenClawLightDomElement {
+class MirallyBrowserDashboardWidget extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context?: ApplicationContext;
 
@@ -156,7 +156,7 @@ class OpenClawBrowserDashboardWidget extends OpenClawLightDomElement {
       <div class="board-browser__content">
         ${
           dashboard?.browserTab && !dashboard.paused
-            ? html`<openclaw-browser-panel
+            ? html`<mirally-browser-panel
                 embedded
                 .client=${gateway.snapshot.client}
                 .available=${this.available}
@@ -171,7 +171,7 @@ class OpenClawBrowserDashboardWidget extends OpenClawLightDomElement {
                   password: gateway.connection.password,
                   settings: { token: gateway.connection.token },
                 })}
-              ></openclaw-browser-panel>`
+              ></mirally-browser-panel>`
             : this.error
               ? renderBoardWidgetError(this.error, () => void this.request("open"))
               : html` <p class="board-browser__notice" role="status">
@@ -209,12 +209,12 @@ class OpenClawBrowserDashboardWidget extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-browser-dashboard-widget")) {
-  customElements.define("openclaw-browser-dashboard-widget", OpenClawBrowserDashboardWidget);
+if (!customElements.get("mirally-browser-dashboard-widget")) {
+  customElements.define("mirally-browser-dashboard-widget", MirallyBrowserDashboardWidget);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-browser-dashboard-widget": OpenClawBrowserDashboardWidget;
+    "mirally-browser-dashboard-widget": MirallyBrowserDashboardWidget;
   }
 }

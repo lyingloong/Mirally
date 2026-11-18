@@ -83,7 +83,7 @@ export function renderSkillWorkshop(props: SkillWorkshopProps) {
     ${
       preview && selected
         ? html`
-            <openclaw-file-preview-modal
+            <mirally-file-preview-modal
               .files=${selected.supportFiles}
               .activePath=${preview.path}
               .query=${props.filePreviewQuery}
@@ -93,7 +93,7 @@ export function renderSkillWorkshop(props: SkillWorkshopProps) {
               @file-preview-select=${(event: CustomEvent<string>) =>
                 props.onPreviewFile(selected.key, event.detail)}
               @file-preview-close=${props.onClosePreview}
-            ></openclaw-file-preview-modal>
+            ></mirally-file-preview-modal>
           `
         : nothing
     }
@@ -109,10 +109,10 @@ function renderRevisionDialog(props: SkillWorkshopProps, proposal: SkillWorkshop
   const verb = t("skillWorkshop.actions.revise");
 
   return html`
-    <openclaw-modal-dialog
+    <mirally-modal-dialog
       .label=${`${t("skillWorkshop.revision.title", { verb })}: ${proposal.slug}`}
       .description=${t("skillWorkshop.revision.description")}
-      style="--openclaw-modal-width: 560px"
+      style="--mirally-modal-width: 560px"
       @modal-cancel=${cancelDisabled ? undefined : props.onRevisionCancel}
     >
       <section class="sw-revision-dialog ${busy ? "sw-revision-dialog--sending" : ""}">
@@ -123,7 +123,7 @@ function renderRevisionDialog(props: SkillWorkshopProps, proposal: SkillWorkshop
             </div>
             <h2 id="sw-revision-title">${proposal.slug}</h2>
           </div>
-          <openclaw-tooltip content=${t("skillWorkshop.actions.close")}>
+          <mirally-tooltip content=${t("skillWorkshop.actions.close")}>
             <button
               type="button"
               class="sw-revision-dialog__close"
@@ -133,7 +133,7 @@ function renderRevisionDialog(props: SkillWorkshopProps, proposal: SkillWorkshop
             >
               ×
             </button>
-          </openclaw-tooltip>
+          </mirally-tooltip>
         </div>
         <p class="sw-revision-dialog__copy">${t("skillWorkshop.revision.description")}</p>
         <textarea
@@ -176,7 +176,7 @@ function renderRevisionDialog(props: SkillWorkshopProps, proposal: SkillWorkshop
           </button>
         </div>
       </section>
-    </openclaw-modal-dialog>
+    </mirally-modal-dialog>
   `;
 }
 
@@ -268,14 +268,14 @@ function renderDetail(props: SkillWorkshopProps, proposal: SkillWorkshopProposal
           </div>
         </div>
         <div class="sw-detail__nav">
-          <openclaw-tooltip content=${t("skillWorkshop.actions.previous")}>
+          <mirally-tooltip content=${t("skillWorkshop.actions.previous")}>
             <button aria-label=${t("skillWorkshop.actions.previous")} @click=${props.onPrev}>
               ↑
             </button>
-          </openclaw-tooltip>
-          <openclaw-tooltip content=${t("skillWorkshop.actions.next")}>
+          </mirally-tooltip>
+          <mirally-tooltip content=${t("skillWorkshop.actions.next")}>
             <button aria-label=${t("skillWorkshop.actions.next")} @click=${props.onNext}>↓</button>
-          </openclaw-tooltip>
+          </mirally-tooltip>
         </div>
       </div>
 

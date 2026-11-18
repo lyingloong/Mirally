@@ -10,7 +10,7 @@ import { completePanelRefresh, failPanelRefresh } from "../../components/panel-r
 import { formatUiError } from "../../lib/format-error.ts";
 import { fetchPagedSessionRows } from "../../lib/sessions/paged-session-rows.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { dashboardSessionListQuery, dashboardsRouteData } from "./route.ts";
 import {
@@ -19,7 +19,7 @@ import {
   type DashboardsRouteData,
 } from "./view.ts";
 
-class DashboardsPage extends OpenClawLightDomElement {
+class DashboardsPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context?: ApplicationContext;
 
@@ -186,6 +186,6 @@ class DashboardsPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-dashboards-page")) {
-  customElements.define("openclaw-dashboards-page", DashboardsPage);
+if (!customElements.get("mirally-dashboards-page")) {
+  customElements.define("mirally-dashboards-page", DashboardsPage);
 }

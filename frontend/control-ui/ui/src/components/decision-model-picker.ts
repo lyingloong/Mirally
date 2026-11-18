@@ -6,7 +6,7 @@ import { renderModelPicker, type ModelPickerOption } from "./model-picker.ts";
 registerModelControlsEnglish();
 
 export type DecisionModelEntry = NonNullable<ModelCatalogResult["decisionModels"]>[number];
-const INHERIT_VALUE = "__openclaw_inherit_decision__";
+const INHERIT_VALUE = "__mirally_inherit_decision__";
 
 export function renderDecisionModelPicker(params: {
   id: string;

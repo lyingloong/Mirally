@@ -2,7 +2,7 @@ import {html, nothing} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
 import {live} from 'lit/directives/live.js';
 import {unsafeHTML} from 'lit/directives/unsafe-html.js';
-import {OpenClawLightDomElement} from '../lit/openclaw-element.ts';
+import {MirallyLightDomElement} from '../lit/mirally-element.ts';
 import {toSanitizedMarkdownHtml} from '../components/markdown.ts';
 import {inputOriginLabel} from '../lib/chat/input-origin.ts';
 import {createMobileRpc,DEFAULT_MOBILE_PREFERENCES,MobileApiError,mobileNavigation,pairingCodeFromHash,pairMobile,readMobileToken,storeMobileToken,timeLabel,type MobilePreferences,type Rpc} from './api.ts';
@@ -19,7 +19,7 @@ const messageText=(item:Data)=>typeof item.text==='string'?item.text:typeof item
 
 /** Restricted phone client. Server state and the native DSH transcript remain authoritative. */
 @customElement('mirally-mobile-app')
-export class MirallyMobileApp extends OpenClawLightDomElement {
+export class MirallyMobileApp extends MirallyLightDomElement {
   @state() private token=readMobileToken();
   @state() private rpc:Rpc=createMobileRpc(this.token);
   @state() private view:View='conversations';

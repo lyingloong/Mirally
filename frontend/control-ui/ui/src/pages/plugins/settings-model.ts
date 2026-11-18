@@ -1,4 +1,4 @@
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
 import type { ConfigUiHints } from "../../api/types.ts";
 import type { JsonSchema } from "../../lib/config-form-utils.ts";
 import type { PluginListResult } from "../../lib/plugins/index.ts";

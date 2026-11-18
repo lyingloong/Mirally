@@ -1,6 +1,6 @@
 import { consume } from "@lit/context";
-import { asNullableRecord as asRecord } from "@openclaw/normalization-core/record-coerce";
-import type { RouteLocation } from "@openclaw/uirouter";
+import { asNullableRecord as asRecord } from "@mirally/normalization-core/record-coerce";
+import type { RouteLocation } from "@mirally/ui-router";
 import { html, nothing, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import type { AuditRunInspectResult } from "../../../../packages/gateway-protocol/src/schema/audit-run.js";
@@ -31,7 +31,7 @@ import {
   resolveUiConfiguredMainKey,
   resolveUiDefaultAgentId,
 } from "../../lib/sessions/session-key.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { StreamAutoFollowController } from "../../lit/stream-auto-follow-controller.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { renderCurrentWork } from "./current-work-view.ts";
@@ -73,7 +73,7 @@ function isExpiredDecisionCursorError(error: unknown): boolean {
   );
 }
 
-class ActivityPage extends OpenClawLightDomElement {
+class ActivityPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -707,9 +707,9 @@ class ActivityPage extends OpenClawLightDomElement {
 export const activityPageComponent = {
   header: true,
   render: (location: RouteLocation | undefined) =>
-    html`<openclaw-activity-page .routeLocation=${location}></openclaw-activity-page>`,
+    html`<mirally-activity-page .routeLocation=${location}></mirally-activity-page>`,
 };
 
-if (!customElements.get("openclaw-activity-page")) {
-  customElements.define("openclaw-activity-page", ActivityPage);
+if (!customElements.get("mirally-activity-page")) {
+  customElements.define("mirally-activity-page", ActivityPage);
 }

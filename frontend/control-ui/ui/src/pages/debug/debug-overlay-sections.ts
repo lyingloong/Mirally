@@ -1,5 +1,5 @@
-import { formatByteSize } from "@openclaw/normalization-core";
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { formatByteSize } from "@mirally/normalization-core";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import { html, nothing, type TemplateResult } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import type { SystemInfoResult } from "../../../../packages/gateway-protocol/src/index.js";
@@ -73,7 +73,7 @@ export function renderDebugOverlayWidget(
 ): TemplateResult {
   return html`<div class="debug-overlay__widget">
     ${renderGatewayCpuVital(status, history)}
-    <openclaw-sparkline
+    <mirally-sparkline
       class="gateway-vital gateway-vital--ping"
       data-degraded=${status.pingMs > PING_DEGRADED_THRESHOLD_MS ? "" : nothing}
       title=${t("debug.overlay.pingDescription")}
@@ -81,7 +81,7 @@ export function renderDebugOverlayWidget(
       .samples=${collectGatewayStatusSamples(history, (sample) => sample.pingMs)}
       .format=${formatPingMs}
       .floorMax=${20}
-    ></openclaw-sparkline>
+    ></mirally-sparkline>
     ${renderGatewayMemoryVital(status, history)}
   </div>`;
 }
@@ -131,7 +131,7 @@ function renderStatus(
             ${repeat(
               status.disks ?? [],
               (disk) => disk.path,
-              (disk) => html`<openclaw-sparkline
+              (disk) => html`<mirally-sparkline
                 class="gateway-vital gateway-vital--disk"
                 title=${disk.path}
                 .label=${`${t("debug.overlay.disk")} ${disk.path}`}
@@ -143,7 +143,7 @@ function renderStatus(
                 )}
                 .format=${formatFreeBytes}
                 autorange
-              ></openclaw-sparkline>`,
+              ></mirally-sparkline>`,
             )}
           </div>`
         : nothing

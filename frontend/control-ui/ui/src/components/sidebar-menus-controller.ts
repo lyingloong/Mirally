@@ -399,7 +399,7 @@ export class SidebarMenusController implements ReactiveController, SidebarMenusC
     void this.host.updateComplete.then(() => {
       const trigger = this.sessionSortMenuTrigger ?? this.catalogViewMenuTrigger;
       const dropdown = trigger
-        ?.closest("openclaw-app-sidebar")
+        ?.closest("mirally-app-sidebar")
         ?.querySelector<HTMLElement>(".sidebar-session-sort-menu");
       const menu = dropdown?.shadowRoot?.querySelector<HTMLElement>('[part="menu"]');
       if (!dropdown || !menu) {

@@ -2,7 +2,7 @@
 
 更新：2026-10-31，Asia/Shanghai。状态：现行。完整架构与验证边界见[系统概览](../docs/architecture/overview.md)。
 
-默认入口：`python -m mirally` → `framework_host.py` → `kernel/dsh/packages/mirally/mirally-product/start.mjs`。旧 OpenClaw 运行与兼容入口已移除。
+默认入口：`python -m mirally` → `framework_host.py` → `kernel/dsh/packages/mirally/mirally-product/start.mjs`。
 
 ## 产品层
 
@@ -58,4 +58,4 @@
 
 ## 已退役实现
 
-旧 OpenClaw 路线仅通过 Git 提交 `2eeb778a` 追溯；当前代码不再提供旧宿主、配置迁移或旧档案兼容服务。本机用户数据与凭据不因源码退役自动清理。
+历史宿主可通过 Git 提交 `2eeb778a` 追溯。本机用户数据与凭据不因源码退役自动清理。

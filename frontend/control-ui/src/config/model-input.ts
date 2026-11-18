@@ -1,14 +1,14 @@
 // Normalizes model input config into provider and model references.
-import { parseModelCatalogRef } from "@openclaw/model-catalog-core/model-catalog-refs";
+import { parseModelCatalogRef } from "@mirally/model-catalog-core/model-catalog-refs";
 import {
   normalizeGooglePreviewModelId,
   normalizeTogetherModelId,
-} from "@openclaw/model-catalog-core/provider-model-id-normalize";
-import { isRecord as isPlainRecord } from "@openclaw/normalization-core/record-coerce";
+} from "@mirally/model-catalog-core/provider-model-id-normalize";
+import { isRecord as isPlainRecord } from "@mirally/normalization-core/record-coerce";
 import {
   normalizeOptionalString,
   resolvePrimaryStringValue,
-} from "@openclaw/normalization-core/string-coerce";
+} from "@mirally/normalization-core/string-coerce";
 import type { AgentModelEntryConfig } from "./types.agent-defaults.js";
 import type { AgentModelConfig, AgentToolModelConfig } from "./types.agents-shared.js";
 

@@ -1,4 +1,4 @@
-import { parseCanonicalIpAddress } from "@openclaw/net-policy/ip";
+import { parseCanonicalIpAddress } from "@mirally/net-policy/ip";
 import createDOMPurify from "dompurify";
 import { html, nothing } from "lit";
 import { guard } from "lit/directives/guard.js";

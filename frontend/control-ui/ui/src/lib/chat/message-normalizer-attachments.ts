@@ -1,5 +1,5 @@
-import { asFiniteNumber } from "@openclaw/normalization-core/number-coercion";
-import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
+import { asFiniteNumber } from "@mirally/normalization-core/number-coercion";
+import { asOptionalRecord } from "@mirally/normalization-core/record-coerce";
 import type { MessageContentItem } from "./chat-types.ts";
 
 function isAttachmentKind(kind: unknown): kind is "image" | "audio" | "video" | "document" {

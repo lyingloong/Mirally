@@ -8,7 +8,7 @@ import {
 } from "../lib/keyboard-shortcut-contract.ts";
 
 export function renderCollapsedHomeToggle() {
-  return html`<openclaw-tooltip
+  return html`<mirally-tooltip
     .content=${`${t("assistantPanel.toggle")} (${formatKeyboardShortcutCombo(KEYBOARD_SHORTCUT_COMBOS.homePanel)})`}
   >
     <button
@@ -19,5 +19,5 @@ export function renderCollapsedHomeToggle() {
     >
       ${icons.home}
     </button>
-  </openclaw-tooltip>`;
+  </mirally-tooltip>`;
 }

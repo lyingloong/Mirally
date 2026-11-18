@@ -38,7 +38,7 @@ export function renderModelSetupSuccessDialog(
           ? t("tabs.chat")
           : t("modelSetup.success.openChat");
   return html`
-    <openclaw-modal-dialog label=${title} description=${description} @modal-cancel=${onClose}>
+    <mirally-modal-dialog label=${title} description=${description} @modal-cancel=${onClose}>
       <section class="model-setup-success" role="status">
         <div
           class=${`model-setup-success__icon${providerIconId ? " model-setup-success__icon--provider" : ""}`}
@@ -90,6 +90,6 @@ export function renderModelSetupSuccessDialog(
           </button>
         </footer>
       </section>
-    </openclaw-modal-dialog>
+    </mirally-modal-dialog>
   `;
 }

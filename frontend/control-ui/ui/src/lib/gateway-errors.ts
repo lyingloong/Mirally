@@ -3,8 +3,8 @@ import {
   ErrorCodes,
   GatewayErrorDetailCodes,
   readMissingScopeError,
-} from "@openclaw/gateway-client/browser";
-import { asNullableRecord as asRecord } from "@openclaw/normalization-core/record-coerce";
+} from "@mirally/gateway-client/browser";
+import { asNullableRecord as asRecord } from "@mirally/normalization-core/record-coerce";
 import { ConnectErrorDetailCodes } from "../../../packages/gateway-protocol/src/connect-error-details.js";
 import { resolveGatewayErrorDetailCode } from "../api/gateway.ts";
 

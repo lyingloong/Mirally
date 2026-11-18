@@ -1,4 +1,4 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing, type PropertyValues } from "lit";
 import { property } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
@@ -17,7 +17,7 @@ import {
   resolveSessionPreferredFace,
   sessionNavigationTarget,
 } from "../../lib/sessions/route-navigation.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { PollController } from "../../lit/poll-controller.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { SystemsController } from "./systems-controller.ts";
@@ -76,7 +76,7 @@ function renderMeasurements(row: SystemsInventoryRow, controller: SystemsControl
   const retained = controller.telemetryHistory(row.environment.id);
   const history = retained.length ? retained : [{ at: observedAt ?? 0, stats }];
   const renderDisk = (path: string | undefined, totalBytes: number | undefined) => html`
-    <openclaw-sparkline
+    <mirally-sparkline
       class="gateway-vital systems-vital systems-vital--disk"
       title=${path ?? nothing}
       .label=${path ? `${t("systems.disk")} ${path}` : t("systems.disk")}
@@ -90,7 +90,7 @@ function renderMeasurements(row: SystemsInventoryRow, controller: SystemsControl
       )}
       .format=${bytes}
       .autorange=${true}
-    ></openclaw-sparkline>
+    ></mirally-sparkline>
   `;
   return keyed(
     row.environment.id,
@@ -98,22 +98,22 @@ function renderMeasurements(row: SystemsInventoryRow, controller: SystemsControl
       <div
         class="systems-vitals ${stats.disks && stats.disks.length !== 1 ? "systems-vitals--volumes" : ""}"
       >
-        <openclaw-sparkline
+        <mirally-sparkline
           class="gateway-vital systems-vital systems-vital--load"
           .label=${t("systems.load")}
           .sub=${t("systems.cpuCount", { count: String(stats.cpuCount) })}
           .samples=${metricSamples(history, (sample) => sample.loadAverage?.[0])}
           .format=${(value: number) => value.toFixed(2)}
           .floorMax=${stats.cpuCount}
-        ></openclaw-sparkline>
-        <openclaw-sparkline
+        ></mirally-sparkline>
+        <mirally-sparkline
           class="gateway-vital systems-vital systems-vital--memory"
           .label=${t("systems.memory")}
           .sub=${`/ ${bytes(stats.memoryTotalBytes)}`}
           .samples=${metricSamples(history, (sample) => sample.memoryTotalBytes - sample.memoryFreeBytes)}
           .format=${bytes}
           .floorMax=${stats.memoryTotalBytes}
-        ></openclaw-sparkline>
+        ></mirally-sparkline>
         ${
           stats.disks === undefined
             ? renderDisk(undefined, stats.diskTotalBytes)
@@ -132,7 +132,7 @@ function renderMeasurements(row: SystemsInventoryRow, controller: SystemsControl
   );
 }
 
-class SystemsPage extends OpenClawLightDomElement {
+class SystemsPage extends MirallyLightDomElement {
   @property({ attribute: false }) routeData?: SystemsRouteData;
   @property({ type: Boolean }) presented = true;
   private activeController: SystemsController | undefined;
@@ -188,7 +188,7 @@ class SystemsPage extends OpenClawLightDomElement {
     event.preventDefault();
     event.stopImmediatePropagation();
     if (detail?.open === false) {
-      this.querySelector("openclaw-desktop-panel")?.handleToggleRequest(event);
+      this.querySelector("mirally-desktop-panel")?.handleToggleRequest(event);
       return;
     }
     if (environmentId && environmentId !== controller.selectedId) {
@@ -199,7 +199,7 @@ class SystemsPage extends OpenClawLightDomElement {
       return;
     }
     if (environmentId) {
-      this.querySelector("openclaw-desktop-panel")?.handleToggleRequest(event);
+      this.querySelector("mirally-desktop-panel")?.handleToggleRequest(event);
     }
   };
 
@@ -418,7 +418,7 @@ class SystemsPage extends OpenClawLightDomElement {
         <div class="systems-desktop">
           ${
             canView && row
-              ? html`<openclaw-desktop-panel
+              ? html`<mirally-desktop-panel
                   embedded
                   data-chat-autotype-exempt
                   .client=${controller.context.gateway.snapshot.client}
@@ -428,7 +428,7 @@ class SystemsPage extends OpenClawLightDomElement {
                   .suppliedEnvironments=${controller.inventory?.environments ?? []}
                   .requestedSource=${row.environment.id}
                   .basePath=${controller.context.basePath}
-                ></openclaw-desktop-panel>`
+                ></mirally-desktop-panel>`
               : row?.environment.id === "gateway" &&
                   controller.connected &&
                   row.environment.status === "available" &&
@@ -451,29 +451,29 @@ class SystemsPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-systems-page")) {
-  customElements.define("openclaw-systems-page", SystemsPage);
+if (!customElements.get("mirally-systems-page")) {
+  customElements.define("mirally-systems-page", SystemsPage);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-systems-page": SystemsPage;
+    "mirally-systems-page": SystemsPage;
   }
 }
 
 /** Route rendering stays in the lazy page module, not in startup route metadata. */
 export function render(data: SystemsRouteData | undefined, _pending: boolean, presented = true) {
   return data
-    ? html`<openclaw-systems-page
+    ? html`<mirally-systems-page
         .routeData=${data}
         .presented=${presented}
-      ></openclaw-systems-page>`
+      ></mirally-systems-page>`
     : nothing;
 }
 
 export function renderSidebar(data: SystemsRouteData | undefined) {
   return data
-    ? html`<openclaw-systems-sidebar .controller=${data.controller}></openclaw-systems-sidebar>`
+    ? html`<mirally-systems-sidebar .controller=${data.controller}></mirally-systems-sidebar>`
     : nothing;
 }
 

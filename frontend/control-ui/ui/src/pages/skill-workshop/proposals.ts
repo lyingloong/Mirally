@@ -197,7 +197,7 @@ async function readSkillWorkshopInstalledSkill(
           );
           // Same-named workspace proposals are not versions of this agent's installed skill.
           return record.status === "applied" &&
-            record.target.source === "openclaw-workshop" &&
+            record.target.source === "mirally-workshop" &&
             record.target.skillKey === result.skillKey &&
             (record.kind === "create" ? record.target.skillKey : record.target.skillName) ===
               result.name

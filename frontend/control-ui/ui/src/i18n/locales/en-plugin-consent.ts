@@ -10,7 +10,7 @@ const enPluginConsent = {
     previouslyAccepted: "Previously accepted {date}.",
     declaredTitle: "Declared capabilities",
     declaredDescription:
-      "From the plugin manifest. OpenClaw validates the plugin against these declarations when it loads.",
+      "From the plugin manifest. Mirally validates the plugin against these declarations when it loads.",
     declaredEmpty: "No channels, providers, or tools declared in the manifest.",
     contracts: "Contracts",
     hooks: "Hooks",

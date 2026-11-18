@@ -2,8 +2,8 @@ import type {
   DesktopAvailability,
   DesktopSource,
   EnvironmentSummary,
-} from "@openclaw/gateway-protocol";
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+} from "@mirally/gateway-protocol";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import type { ReactiveControllerHost } from "lit";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import type { GatewaySessionRow } from "../../api/types.ts";

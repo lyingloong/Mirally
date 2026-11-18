@@ -1,4 +1,4 @@
-import type { BoardWidget, BoardWidgetAppViewResult } from "@openclaw/gateway-protocol";
+import type { BoardWidget, BoardWidgetAppViewResult } from "@mirally/gateway-protocol";
 import { formatUiError } from "../format-error.ts";
 import type { BoardWidgetAppViewState } from "./view-types.ts";
 

@@ -21,7 +21,7 @@
   --shell-chrome-controls-gap: 4px;
   /* Settings takeover and the main sidebar share the same bottom divider geometry. */
   --shell-sidebar-footer-height: 53px;
-  --shell-native-titlebar-controls-inset: var(--openclaw-native-controls-inset, 92px);
+  --shell-native-titlebar-controls-inset: var(--mirally-native-controls-inset, 92px);
   --shell-native-titlebar-controls-width: 156px;
   /* Collapsed navigation restores toggle, new-thread, and search outside the
      hidden sidebar. Optional controls contribute only while mounted. */
@@ -194,56 +194,56 @@
   display: none;
 }
 
-html.openclaw-native-macos .shell-chrome-controls {
+html.mirally-native-macos .shell-chrome-controls {
   top: 52px;
 }
 
 /* Newer Mac apps host a native sidebar toggle in the titlebar next to
-   back/forward and add openclaw-native-nav; the in-page nav toggles would
+   back/forward and add mirally-native-nav; the in-page nav toggles would
    duplicate it, so they disappear (⌘B and the accessible titlebar button
    cover keyboard/screen-reader use). Search stays: native-nav-only hosts
    provide native search/new-thread controls only while the rail is
    collapsed, so expanded sidebar search keeps the pointer path to the palette.
-   Older apps only add openclaw-native-macos and keep all web controls. */
-html.openclaw-native-nav .shell-chrome-controls__nav-toggle,
-html.openclaw-native-nav .shell--nav-collapsed .shell-chrome-controls,
-html.openclaw-native-nav .topbar .topbar-nav-toggle {
+   Older apps only add mirally-native-macos and keep all web controls. */
+html.mirally-native-nav .shell-chrome-controls__nav-toggle,
+html.mirally-native-nav .shell--nav-collapsed .shell-chrome-controls,
+html.mirally-native-nav .topbar .topbar-nav-toggle {
   display: none;
 }
 
 /* Native-nav hosts provide the expanded sidebar toggle in AppKit, while the
    in-sidebar search remains the only pointer path to the palette. */
-html.openclaw-native-nav .sidebar-brand__collapse {
+html.mirally-native-nav .sidebar-brand__collapse {
   display: none;
 }
 
 /* Web-chrome hosts provide this entire cluster in the native titlebar. */
-html.openclaw-native-web-chrome .shell-chrome-controls {
+html.mirally-native-web-chrome .shell-chrome-controls {
   display: none;
 }
 
 /* The native titlebar already owns these actions in web-chrome hosts. */
-html.openclaw-native-web-chrome .sidebar-brand__desktop-control {
+html.mirally-native-web-chrome .sidebar-brand__desktop-control {
   display: none;
 }
 
 /* Desktop adapters provide window-control geometry; the shared shell owns
    clearance for both navigation surfaces and page actions. */
-html.openclaw-native-desktop .shell:not(.shell--mobile-nav) {
+html.mirally-native-desktop .shell:not(.shell--mobile-nav) {
   .sidebar-shell,
   .settings-sidebar__header {
-    padding-top: var(--openclaw-native-titlebar-height, 52px);
+    padding-top: var(--mirally-native-titlebar-height, 52px);
   }
 
   .content:not(.content--chat) {
     padding-top: max(
       var(--settings-content-block-start-padding, 16px),
-      var(--openclaw-native-titlebar-height, 52px)
+      var(--mirally-native-titlebar-height, 52px)
     );
   }
 }
 
-html:is(.openclaw-native-macos, .openclaw-native-nav, .openclaw-native-web-chrome) .sidebar-brand {
+html:is(.mirally-native-macos, .mirally-native-nav, .mirally-native-web-chrome) .sidebar-brand {
   --sidebar-agent-avatar-size: 32px;
 }
 
@@ -259,7 +259,7 @@ html:is(.openclaw-native-macos, .openclaw-native-nav, .openclaw-native-web-chrom
   gap: 4px;
   width: max-content;
   min-width: var(--shell-native-titlebar-controls-width);
-  height: var(--openclaw-native-titlebar-height, 50px);
+  height: var(--mirally-native-titlebar-height, 50px);
 }
 
 .macos-titlebar-controls__button.topbar-icon-btn {
@@ -448,7 +448,7 @@ html:is(.openclaw-native-macos, .openclaw-native-nav, .openclaw-native-web-chrom
   padding: 8px 12px 0;
 }
 
-.settings-sidebar__agent openclaw-agent-select {
+.settings-sidebar__agent mirally-agent-select {
   display: block;
   min-width: 0;
 }
@@ -792,11 +792,11 @@ html:is(.openclaw-native-macos, .openclaw-native-nav, .openclaw-native-web-chrom
   color: var(--muted);
 }
 
-openclaw-settings-save-indicator {
+mirally-settings-save-indicator {
   min-width: 0;
 }
 
-openclaw-settings-save-indicator:empty {
+mirally-settings-save-indicator:empty {
   display: none;
 }
 
@@ -2334,7 +2334,7 @@ openclaw-settings-save-indicator:empty {
   letter-spacing: -0.02em;
 }
 
-.viewer-facepile > openclaw-tooltip:not(:first-child) .viewer-avatar {
+.viewer-facepile > mirally-tooltip:not(:first-child) .viewer-avatar {
   margin-left: -5px;
 }
 
@@ -2516,7 +2516,7 @@ openclaw-settings-save-indicator:empty {
 .sidebar-recent-session--single-line:not(.sidebar-recent-session--child):is(:hover, :focus-within)
   :is(
     .session-row-badge--pull-request,
-    .session-row-badges:has(> openclaw-tooltip:only-child > .session-row-badge--pull-request)
+    .session-row-badges:has(> mirally-tooltip:only-child > .session-row-badge--pull-request)
   ) {
   display: none;
 }
@@ -2850,9 +2850,9 @@ wa-dropdown.session-menu::part(menu) {
 /* Popover hosts live in the top layer so menus escape in-page stacking
    contexts (e.g. the sidebar resizer above the nav); the host itself must
    stay a zero-size shell around its fixed-position menu. */
-openclaw-menu-surface[popover],
-openclaw-native-link-menu[popover],
-openclaw-session-menu[popover] {
+mirally-menu-surface[popover],
+mirally-native-link-menu[popover],
+mirally-session-menu[popover] {
   width: 0;
   height: 0;
   margin: 0;
@@ -3396,7 +3396,7 @@ a:is(
 }
 
 /* The header identifies the active agent or the whole workspace. */
-.sidebar-brand > openclaw-sidebar-agent-card,
+.sidebar-brand > mirally-sidebar-agent-card,
 .sidebar-workspace-header {
   display: flex;
   min-width: 0;
@@ -3669,7 +3669,7 @@ a:is(
   transform: translateY(-50%);
 }
 
-openclaw-sidebar-attention {
+mirally-sidebar-attention {
   display: contents;
 }
 
@@ -3831,11 +3831,11 @@ openclaw-sidebar-attention {
   height: 12px;
 }
 
-openclaw-tooltip.sidebar-hover-tooltip {
-  --openclaw-tooltip-max-width: min(340px, calc(100vw - 24px));
-  --openclaw-tooltip-open-animation: openclaw-tooltip-hover-card-in 140ms var(--ease-out);
-  --openclaw-tooltip-popup-show-duration: 0ms;
-  --openclaw-tooltip-popup-hide-duration: 0ms;
+mirally-tooltip.sidebar-hover-tooltip {
+  --mirally-tooltip-max-width: min(340px, calc(100vw - 24px));
+  --mirally-tooltip-open-animation: mirally-tooltip-hover-card-in 140ms var(--ease-out);
+  --mirally-tooltip-popup-show-duration: 0ms;
+  --mirally-tooltip-popup-hide-duration: 0ms;
 }
 
 .sidebar-hover-card {
@@ -4489,7 +4489,7 @@ wa-dropdown.sidebar-identity-menu::part(menu) {
   padding-top: 0;
 }
 
-.shell--settings .content:has(> .connection-action-block) > openclaw-router-outlet {
+.shell--settings .content:has(> .connection-action-block) > mirally-router-outlet {
   display: block;
   margin-top: 0;
   padding-top: var(--settings-content-block-start-padding);
@@ -4536,7 +4536,7 @@ wa-dropdown.sidebar-identity-menu::part(menu) {
   margin-top: 0;
 }
 
-.content--chat > openclaw-router-outlet {
+.content--chat > mirally-router-outlet {
   display: flex;
   flex: 1 1 0;
   min-width: 0;
@@ -4562,7 +4562,7 @@ wa-dropdown.sidebar-identity-menu::part(menu) {
   margin-top: 0;
 }
 
-.content--custodian > openclaw-router-outlet {
+.content--custodian > mirally-router-outlet {
   display: flex;
   flex: 1 1 0;
   min-width: 0;
@@ -4573,13 +4573,13 @@ wa-dropdown.sidebar-identity-menu::part(menu) {
    so it inherits the quick-chat page's full-height, non-scrolling shell even
    though it is an ordinary long list. Give that one page the generic content
    scrolling and padding back; the chat panel has no router content here. */
-.content--custodian:has(> openclaw-router-outlet mirally-messages-page) {
+.content--custodian:has(> mirally-router-outlet mirally-messages-page) {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 16px var(--content-inline-padding) 32px;
 }
 
-.content--custodian:has(> openclaw-router-outlet mirally-messages-page) > openclaw-router-outlet {
+.content--custodian:has(> mirally-router-outlet mirally-messages-page) > mirally-router-outlet {
   display: block;
   flex: 0 0 auto;
   min-height: 0;
@@ -4588,7 +4588,7 @@ wa-dropdown.sidebar-identity-menu::part(menu) {
 /* The settings shell owns its own inline padding, but it deliberately excluded
    this class when the class only meant the full-height custodian page. */
 .shell--settings:not(.shell--mobile-nav)
-  .content--custodian:has(> openclaw-router-outlet mirally-messages-page) {
+  .content--custodian:has(> mirally-router-outlet mirally-messages-page) {
   padding: 16px var(--space-4) 32px;
 }
 
@@ -4604,7 +4604,7 @@ wa-dropdown.sidebar-identity-menu::part(menu) {
   margin-top: 14px;
 }
 
-.content--workboard > openclaw-router-outlet {
+.content--workboard > mirally-router-outlet {
   display: flex;
   flex: 1 1 0;
   flex-direction: column;
@@ -4624,7 +4624,7 @@ wa-dropdown.sidebar-identity-menu::part(menu) {
   margin-top: 0;
 }
 
-.content:has(.plugin-tab-embed) > openclaw-router-outlet {
+.content:has(.plugin-tab-embed) > mirally-router-outlet {
   display: flex;
   flex: 1 1 0;
   min-width: 0;
@@ -4737,10 +4737,10 @@ wa-dropdown.sidebar-identity-menu::part(menu) {
   }
 }
 
-html.openclaw-native-macos
+html.mirally-native-macos
   .shell:not(.shell--mobile-nav):not(.shell--settings)
   .content:not(.content--chat) {
-  --page-toolbar-height: var(--openclaw-native-titlebar-height, 50px);
+  --page-toolbar-height: var(--mirally-native-titlebar-height, 50px);
 }
 
 /* Window and sidebar chrome stays at the physical left in RTL locales, so the
@@ -4759,11 +4759,11 @@ html[dir="rtl"]
 }
 
 /* Desktop webviews draw caption buttons over the row's trailing edge. */
-html.openclaw-native-desktop
+html.mirally-native-desktop
   .shell:not(.shell--mobile-nav):not(.shell--settings)
   .content:not(.content--chat)
   .content-header:not(.content-header--stacked) {
-  padding-right: calc(var(--openclaw-native-window-controls-width, 0px) + 8px);
+  padding-right: calc(var(--mirally-native-window-controls-width, 0px) + 8px);
 }
 
 /* Collapsed navigation floats chrome over the row's leading edge; reserve it
@@ -4784,7 +4784,7 @@ html.openclaw-native-desktop
   }
 }
 
-html.openclaw-native-nav
+html.mirally-native-nav
   .shell--nav-collapsed:not(.shell--mobile-nav):not(.shell--settings)
   .content:not(.content--chat) {
   --page-toolbar-reserve: calc(
@@ -4792,7 +4792,7 @@ html.openclaw-native-nav
   );
 }
 
-html.openclaw-native-web-chrome
+html.mirally-native-web-chrome
   .shell--nav-collapsed:not(.shell--mobile-nav):not(.shell--settings)
   .content:not(.content--chat) {
   --page-toolbar-reserve: calc(
@@ -4802,7 +4802,7 @@ html.openclaw-native-web-chrome
   );
 }
 
-html.openclaw-native-macos:not(.openclaw-native-nav):not(.openclaw-native-web-chrome)
+html.mirally-native-macos:not(.mirally-native-nav):not(.mirally-native-web-chrome)
   .shell--nav-collapsed:not(.shell--mobile-nav):not(.shell--settings)
   .content:not(.content--chat) {
   --page-toolbar-clearance: 48px;
@@ -5125,7 +5125,7 @@ html.openclaw-native-macos:not(.openclaw-native-nav):not(.openclaw-native-web-ch
 
 /* Mirally keeps starting a conversation visible by name. */
 .sidebar-primary-action { padding: 0 12px 8px; }
-.sidebar-primary-action > openclaw-tooltip { display: block; }
+.sidebar-primary-action > mirally-tooltip { display: block; }
 .sidebar-new-conversation {
   display: flex;
   align-items: center;

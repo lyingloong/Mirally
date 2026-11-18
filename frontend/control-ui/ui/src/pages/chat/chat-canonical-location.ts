@@ -1,4 +1,4 @@
-import type { RouteLocation } from "@openclaw/uirouter";
+import type { RouteLocation } from "@mirally/ui-router";
 import { locationWithoutDraft } from "./route-draft.ts";
 
 export function currentRouteLocation(): RouteLocation {

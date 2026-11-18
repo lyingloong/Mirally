@@ -1,4 +1,4 @@
-import { definePage } from "@openclaw/uirouter";
+import { definePage } from "@mirally/ui-router";
 import { html } from "lit";
 import {
   INTERNAL_PLUGIN_PATH_PARAM,
@@ -53,12 +53,12 @@ export const page = definePage({
         const ref = (data ?? { pluginId: "", id: "", params: {} }) as PluginTabRef & {
           params: Readonly<Record<string, string>>;
         };
-        return html`<openclaw-plugin-page
+        return html`<mirally-plugin-page
           .pluginId=${ref.pluginId}
           .tabId=${ref.id}
           .params=${ref.params}
         >
-        </openclaw-plugin-page>`;
+        </mirally-plugin-page>`;
       },
     })),
 });

@@ -1,4 +1,4 @@
-import { isRecord, normalizeOptionalString, readStringValue } from "@openclaw/normalization-core";
+import { isRecord, normalizeOptionalString, readStringValue } from "@mirally/normalization-core";
 import type { SidebarLayout, SidebarPanel, SidebarSlotId } from "./sidebar-layout-types.ts";
 
 const DEFAULT_WIDTH = 480;

@@ -25,7 +25,7 @@ export function renderNewSessionLink(params: {
   const hint = params.showShortcut
     ? `${params.label} (${formatKeyboardShortcutCombo(KEYBOARD_SHORTCUT_COMBOS.newSession)})`
     : params.label;
-  return html`<openclaw-tooltip .content=${params.disabledReason ?? hint}>
+  return html`<mirally-tooltip .content=${params.disabledReason ?? hint}>
     <a
       class=${params.className}
       role="link"
@@ -51,5 +51,5 @@ export function renderNewSessionLink(params: {
       ${icons.plus}
       ${params.showLabel ? html`<span>${params.label}</span>` : nothing}
     </a>
-  </openclaw-tooltip>`;
+  </mirally-tooltip>`;
 }

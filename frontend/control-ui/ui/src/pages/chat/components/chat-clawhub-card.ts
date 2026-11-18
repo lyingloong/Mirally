@@ -11,14 +11,14 @@ import { loadPluginDiscoveryDetail } from "../../../lib/plugins/index.ts";
 import type { ClawHubSkillDetail } from "../../../lib/skills/index.ts";
 import { loadSkillStatusReport } from "../../../lib/skills/status-report.ts";
 import { GatewayPageController } from "../../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../../lit/mirally-element.ts";
 import { renderPluginOfficialBadge } from "../../plugins/plugin-card.ts";
 import { PluginIconController } from "../../plugins/plugin-icon-controller.ts";
 import { resolvePluginCatalogIconUrl } from "../../plugins/presentation.ts";
 import "../../../styles/chat/clawhub-card.css";
 
 /** The transcript identifies the listing; its current catalog owner supplies status and actions. */
-class ChatClawHubCard extends OpenClawLightDomElement {
+class ChatClawHubCard extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -274,4 +274,4 @@ class ChatClawHubCard extends OpenClawLightDomElement {
   }
 }
 
-customElements.define("openclaw-chat-clawhub-card", ChatClawHubCard);
+customElements.define("mirally-chat-clawhub-card", ChatClawHubCard);

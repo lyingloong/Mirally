@@ -28,7 +28,7 @@ FRONTEND_DIST = ROOT / "frontend/control-ui/dist"
 
 # Inspect the actual product application and its native transport bridge.
 FRONTEND_READY = """(() => {
-    const app = document.querySelector('openclaw-app');
+    const app = document.querySelector('mirally-app');
     const gateway = app?.context?.gateway?.snapshot;
     return !!app && gateway?.phase === 'connected' && gateway.client?.connected === true &&
       !!window.__mirallyHost && !!window.__mirallyNativeBridge &&
@@ -36,7 +36,7 @@ FRONTEND_READY = """(() => {
 })()"""
 
 NATIVE_SESSION_READY = """(() => {
-    const pane = [...document.querySelectorAll('openclaw-chat-pane.chat-pane-cache__pane--active')]
+    const pane = [...document.querySelectorAll('mirally-chat-pane.chat-pane-cache__pane--active')]
       .find(node => node.presented !== false && node.state?.handleSendChat);
     return !!window.__shellVerificationSessionKey &&
       pane?.state?.sessionKey === window.__shellVerificationSessionKey &&
@@ -44,9 +44,9 @@ NATIVE_SESSION_READY = """(() => {
 })()"""
 
 CREATE_NATIVE_SESSION = """(() => {
-    const context = document.querySelector('openclaw-app')?.context;
+    const context = document.querySelector('mirally-app')?.context;
     const client = context?.gateway?.snapshot?.client;
-    if (!client || !document.querySelector('openclaw-app-shell')?.selectChatSession)
+    if (!client || !document.querySelector('mirally-app-shell')?.selectChatSession)
       throw new Error('Native application session entry is unavailable');
     window.__shellVerificationCreating = true;
     void client.request('sessions.create', {
@@ -55,14 +55,14 @@ CREATE_NATIVE_SESSION = """(() => {
       if (!result?.key || result.runStarted === true)
         throw new Error('Expected a real empty session without a model run');
       window.__shellVerificationSessionKey = result.key;
-      document.querySelector('openclaw-app-shell').selectChatSession(result.key, 'main');
+      document.querySelector('mirally-app-shell').selectChatSession(result.key, 'main');
     }).catch(error => window.__shellVerificationErrors.push(String(error)))
       .finally(() => { window.__shellVerificationCreating = false; });
 })()"""
 
 RESTORE_NATIVE_SESSION = """(() => {
     window.__mirallyWork?.close();
-    document.querySelector('openclaw-app-shell').selectChatSession(
+    document.querySelector('mirally-app-shell').selectChatSession(
       window.__shellVerificationSessionKey, 'main');
 })()"""
 
@@ -194,8 +194,8 @@ def main() -> int:
                     return {"native": native(), "surface_mode": shell._surface_mode, "surface_view": shell._surface_view,
                         "dom": js("""(() => {
                             const surface = document.querySelector('.mirally-companion');
-                            const context = document.querySelector('openclaw-app')?.context;
-                            const pane = [...document.querySelectorAll('openclaw-chat-pane.chat-pane-cache__pane--active')]
+                            const context = document.querySelector('mirally-app')?.context;
+                            const pane = [...document.querySelectorAll('mirally-chat-pane.chat-pane-cache__pane--active')]
                               .find(node => node.presented !== false && node.state?.handleSendChat);
                             return {mode: document.documentElement.dataset.mirallyMode,
                               form: surface?.dataset.form, view: surface?.dataset.view,
@@ -246,7 +246,7 @@ def main() -> int:
                 wait_for(lambda: js(NATIVE_SESSION_READY),
                     "Real native session creation did not produce an active retained chat pane", timeout=30)
                 session = js("""(() => {
-                    const pane = [...document.querySelectorAll('openclaw-chat-pane.chat-pane-cache__pane--active')]
+                    const pane = [...document.querySelectorAll('mirally-chat-pane.chat-pane-cache__pane--active')]
                       .find(node => node.presented !== false && node.state?.handleSendChat);
                     return {key: pane.state.sessionKey, message_count: pane.state.chatMessages?.length || 0,
                       has_run: !!pane.state.chatRunId, route: location.pathname};
@@ -360,13 +360,13 @@ def main() -> int:
                 assert js("document.querySelectorAll('.mirally-work__cards [data-workflow]').length") == 10
                 js(RESTORE_NATIVE_SESSION)
                 wait_for(lambda: js(NATIVE_SESSION_READY), "Native chat did not restore after the work page")
-                assert not js("[...document.querySelectorAll('openclaw-app-sidebar a')].some(a => a.textContent.trim() === '工作')"), "Sidebar still exposes the removed work list"
-                js("""(()=>{const pane=document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active');
+                assert not js("[...document.querySelectorAll('mirally-app-sidebar a')].some(a => a.textContent.trim() === '工作')"), "Sidebar still exposes the removed work list"
+                js("""(()=>{const pane=document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active');
                     const box=pane.querySelector('textarea[aria-label=聊天输入框]');
                     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(box,'保留的原有草稿');box.dispatchEvent(new Event('input',{bubbles:true}));
                     const input=pane.querySelector('input.agent-chat__file-input'),data=new DataTransfer();
                     data.items.add(new File(['快捷入口材料'],'材料.txt',{type:'text/plain'}));input.files=data.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()""")
-                wait_for(lambda: js("document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active')?.state?.chatAttachments?.length === 1"),
+                wait_for(lambda: js("document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active')?.state?.chatAttachments?.length === 1"),
                     "Native attachment did not enter the conversation", timeout=15)
                 js("document.querySelector('.mirally-companion-entry [data-entry=office]').click()")
                 wait_for(lambda: js("!!document.querySelector('.mirally-work:not([hidden])') && document.querySelectorAll('.mirally-work__cards [data-workflow]').length === 10"),
@@ -376,10 +376,10 @@ def main() -> int:
                 js("""(()=>{const goal=document.querySelector('.mirally-work [data-work=goal]');goal.value='整理材料';goal.dispatchEvent(new Event('input',{bubbles:true}));})()""")
                 wait_for(lambda: js("!document.querySelector('.mirally-work [data-work=start]').disabled"), "Quick start did not accept the material", timeout=15)
                 js("document.querySelector('.mirally-work [data-work=start]').click()")
-                wait_for(lambda: js("document.querySelector('.mirally-work').hidden && document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active')?.state?.chatMessages?.some(m=>m.role==='assistant')"),
+                wait_for(lambda: js("document.querySelector('.mirally-work').hidden && document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active')?.state?.chatMessages?.some(m=>m.role==='assistant')"),
                     "Quick start did not submit to the current conversation", timeout=25)
-                assert js("document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active textarea[aria-label=聊天输入框]').value") == '保留的原有草稿', "Quick start overwrote the chat draft"
-                assert js("document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active').state.chatAttachments.length") == 0, "Accepted material was not consumed"
+                assert js("document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active textarea[aria-label=聊天输入框]').value") == '保留的原有草稿', "Quick start overwrote the chat draft"
+                assert js("document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active').state.chatAttachments.length") == 0, "Accepted material was not consumed"
                 js(RESTORE_NATIVE_SESSION)
                 wait_for(lambda: js(NATIVE_SESSION_READY), "Native chat did not restore after the work list entry")
                 results.append({"case": "native product system menu", "labels": labels, "memory_navigation": True,
@@ -851,7 +851,7 @@ def main() -> int:
                 if arguments.page_quit:
                     # About is an application route, not one of the limited
                     # companion/native-menu compatibility page aliases.
-                    js("(() => { document.querySelector('openclaw-app').context.navigate('about', {search: ''}); return true; })()")
+                    js("(() => { document.querySelector('mirally-app').context.navigate('about', {search: ''}); return true; })()")
                     wait_for(lambda: js("!!document.querySelector('[data-testid=mirally-settings-quit]:not([disabled])')"), "About Mirally quit button did not mount")
                     saved["exit_gesture"] = "About Mirally Quit" + (" with reused Host" if arguments.reuse_host else "")
                     js("document.querySelector('[data-testid=mirally-settings-quit]').click()")

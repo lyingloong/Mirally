@@ -2,7 +2,7 @@ import { html, nothing } from "lit";
 import { property } from "lit/decorators.js";
 import type { RouteId } from "../app-route-paths.ts";
 import type { ApplicationContext } from "../app/context.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import { SubscriptionsController } from "../lit/subscriptions-controller.ts";
 import { buildHomeWorkContext, subscribeChatWorkContext } from "../pages/chat/chat-work-context.ts";
 import {
@@ -14,7 +14,7 @@ import "./home-session.runtime.ts";
 import "../styles/assistant-panel-content.css";
 
 /** Conversation runtimes load inside the already-open dock. */
-export class OpenClawAssistantPanelContent extends OpenClawLightDomElement {
+export class MirallyAssistantPanelContent extends MirallyLightDomElement {
   @property({ type: Boolean }) active = false;
   @property() destination: "home" | "custodian" = "custodian";
   @property() sessionKey = "";
@@ -78,7 +78,7 @@ export class OpenClawAssistantPanelContent extends OpenClawLightDomElement {
     }
     const store = this.store ?? custodianSessionStore;
     return this.destination === "home"
-      ? html`<openclaw-home-session
+      ? html`<mirally-home-session
           .sessionKey=${this.sessionKey}
           .agentId=${this.agentId}
           .workContext=${
@@ -91,20 +91,20 @@ export class OpenClawAssistantPanelContent extends OpenClawLightDomElement {
                 )
               : undefined
           }
-        ></openclaw-home-session>`
-      : html`<openclaw-custodian-surface
+        ></mirally-home-session>`
+      : html`<mirally-custodian-surface
           .store=${store}
           .onboarding=${store.activeVariant === "onboarding"}
           .newAgentIntent=${store.activeVariant === "new-agent"}
           compact
-        ></openclaw-custodian-surface>`;
+        ></mirally-custodian-surface>`;
   }
 }
 
-customElements.define("openclaw-assistant-panel-content", OpenClawAssistantPanelContent);
+customElements.define("mirally-assistant-panel-content", MirallyAssistantPanelContent);
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-assistant-panel-content": OpenClawAssistantPanelContent;
+    "mirally-assistant-panel-content": MirallyAssistantPanelContent;
   }
 }

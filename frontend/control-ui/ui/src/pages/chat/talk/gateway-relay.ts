@@ -1,4 +1,4 @@
-import { DEFAULT_GATEWAY_REQUEST_TIMEOUT_MS } from "@openclaw/gateway-client/browser";
+import { DEFAULT_GATEWAY_REQUEST_TIMEOUT_MS } from "@mirally/gateway-client/browser";
 import {
   validateTalkSessionCancelOutputResult,
   type TalkCatalogResult,
@@ -488,7 +488,7 @@ export class GatewayRelayRealtimeTalkTransport implements RealtimeTalkTransport 
             status: "working",
             tool: REALTIME_VOICE_AGENT_CONSULT_TOOL_NAME,
             message:
-              "Tell the person briefly that you are checking, then wait for the final OpenClaw result before answering with the actual result.",
+              "Tell the person briefly that you are checking, then wait for the final Mirally result before answering with the actual result.",
           },
           { willContinue: true },
         );

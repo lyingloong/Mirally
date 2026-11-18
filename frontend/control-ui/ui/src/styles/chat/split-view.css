@@ -11,7 +11,7 @@
   :is(
     .chat-pane__nav-toggle,
     .chat-pane__incognito,
-    openclaw-session-owner-chip,
+    mirally-session-owner-chip,
     .chat-pane__participants,
     .chat-pane__presence,
     .chat-pane__sharing-menu,
@@ -387,7 +387,7 @@
 
 /* The tooltip wrapper stays out of the box tree so the button it wraps remains
    the flex item that the rule above measures. */
-.chat-pane__actions > openclaw-tooltip {
+.chat-pane__actions > mirally-tooltip {
   display: contents;
 }
 
@@ -606,7 +606,7 @@
   .chat-pane__header:has(.chat-pane__close-pane) .chat-pane__nav-toggle,
   .chat-pane__header:has(.chat-pane__close-pane) .chat-pane__palette-open,
   .chat-pane__header:has(.chat-pane__close-pane) .chat-pane__participants,
-  .chat-pane__header:has(.chat-pane__close-pane) openclaw-session-owner-chip {
+  .chat-pane__header:has(.chat-pane__close-pane) mirally-session-owner-chip {
     display: none;
   }
 }

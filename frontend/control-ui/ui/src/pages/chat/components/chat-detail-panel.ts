@@ -1,4 +1,4 @@
-import { toErrorObject } from "@openclaw/normalization-core";
+import { toErrorObject } from "@mirally/normalization-core";
 import { property, state } from "lit/decorators.js";
 import {
   localEditorFilePath,
@@ -16,7 +16,7 @@ import { t } from "../../../i18n/index.ts";
 import type { EmbedSandboxMode } from "../../../lib/chat/tool-display.ts";
 import { type EditorId, openEditor } from "../../../lib/editor-links.ts";
 import { formatUiError } from "../../../lib/format-error.ts";
-import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../../lit/mirally-element.ts";
 import { AttachmentDownloadController } from "./chat-attachment-download-controller.ts";
 import { FileCopyController } from "./chat-file-copy-controller.ts";
 import { readFileDraft, setFileDraft } from "./chat-file-drafts.ts";
@@ -43,7 +43,7 @@ import type { FileEditorViewHandle } from "./file-editor-view.ts";
 
 type FileSidebarContent = Extract<SidebarContent, { kind: "file" }>;
 
-class ChatDetailPanel extends OpenClawLightDomElement {
+class ChatDetailPanel extends MirallyLightDomElement {
   @property({ attribute: false }) content: ChatDetailPanelContent | null = null;
   @property({ attribute: false }) fileNavigation: FileSidebarNavigation | null = null;
   @property({ attribute: false }) execNode: string | null = null;
@@ -744,6 +744,6 @@ class ChatDetailPanel extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-chat-detail-panel")) {
-  customElements.define("openclaw-chat-detail-panel", ChatDetailPanel);
+if (!customElements.get("mirally-chat-detail-panel")) {
+  customElements.define("mirally-chat-detail-panel", ChatDetailPanel);
 }

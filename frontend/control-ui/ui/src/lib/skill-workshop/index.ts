@@ -1,7 +1,7 @@
 import type {
   SkillProposalEvaluation,
   SkillsProposalsListResult,
-} from "@openclaw/gateway-protocol";
+} from "@mirally/gateway-protocol";
 import type { computeSkillWorkshopDiff } from "./diff.ts";
 
 export type SkillWorkshopProposalStatus = SkillsProposalsListResult["proposals"][number]["status"];

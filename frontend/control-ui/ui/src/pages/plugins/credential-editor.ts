@@ -20,7 +20,7 @@ import { REDACTED_SENTINEL } from "../../lib/config-form-utils.ts";
 import { formatUiError } from "../../lib/format-error.ts";
 import type { GatewayConnectionScope } from "../../lib/gateway-connection-lifecycle.ts";
 import type { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import "./credential-editor.css";
 
 registerPluginManagementEnglish();
@@ -40,7 +40,7 @@ type CredentialField = Pick<ConfigNodeRenderParams, "path" | "value" | "disabled
   descriptionId?: string;
 };
 
-export class PluginCredentialEditor extends OpenClawLightDomElement {
+export class PluginCredentialEditor extends MirallyLightDomElement {
   @property({ attribute: false }) field!: CredentialField;
   @property({ attribute: false }) descriptor!: PluginCredentialDescriptor;
   @property({ attribute: false }) context!: PluginCredentialEditorContext;
@@ -274,7 +274,7 @@ export class PluginCredentialEditor extends OpenClawLightDomElement {
     const blocked =
       this.field.disabled || this.loading || this.saving || this.cancelling || !this.inspection;
     const failure = this.error || this.context.saveError;
-    return html`<openclaw-modal-dialog
+    return html`<mirally-modal-dialog
       .label=${t("pluginsPage.credentials.referenceTitle")}
       @modal-cancel=${(event: Event) => {
         event.preventDefault();
@@ -347,7 +347,7 @@ export class PluginCredentialEditor extends OpenClawLightDomElement {
           ${environment ? nothing : html`<button class="btn primary" ?disabled=${blocked || !isValidSecretRef(this.reference)} @click=${() => this.patch({ ...this.reference })}>${this.saving ? t("common.saving") : t("common.save")}</button>`}
         </footer>
       </section>
-    </openclaw-modal-dialog>`;
+    </mirally-modal-dialog>`;
   }
 
   override render() {
@@ -449,16 +449,16 @@ export class PluginCredentialEditor extends OpenClawLightDomElement {
     </div>`;
   }
 }
-customElements.define("openclaw-plugin-credential-editor", PluginCredentialEditor);
+customElements.define("mirally-plugin-credential-editor", PluginCredentialEditor);
 
 export function renderPluginCredential(
   field: CredentialField,
   descriptor: PluginCredentialDescriptor,
   context: PluginCredentialEditorContext,
 ): TemplateResult {
-  return html`<openclaw-plugin-credential-editor
+  return html`<mirally-plugin-credential-editor
     .field=${field}
     .descriptor=${descriptor}
     .context=${context}
-  ></openclaw-plugin-credential-editor>`;
+  ></mirally-plugin-credential-editor>`;
 }

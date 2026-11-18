@@ -8,7 +8,7 @@ const enUpdateActions = {
     confirm: {
       message: "Installs the available update on the connected Gateway and restarts it.",
       macMessage:
-        "Hands this update to the OpenClaw Mac app, which installs it and restarts the Gateway it manages.",
+        "Hands this update to the Mirally Mac app, which installs it and restarts the Gateway it manages.",
       impact:
         "Running sessions are interrupted and this Control UI disconnects until the Gateway is back.",
       versions: "Installed {installed} · Available {available}",
@@ -24,7 +24,7 @@ const enUpdateActions = {
       retryUpdate: "Retry update",
       installing: "Installing the update on the Gateway. It restarts once the install finishes.",
       notStarted:
-        "The update request went unanswered. Run `openclaw triage` on the Gateway host and inspect the result before retrying.",
+        "The update request went unanswered. Run `mirally triage` on the Gateway host and inspect the result before retrying.",
     },
     triage: {
       failedTitle: "Diagnose failed update",
@@ -38,7 +38,7 @@ const enUpdateActions = {
     report: {
       title: "Report update failure",
       message:
-        "Review the sanitized report below. Confirming will submit it with the authenticated GitHub CLI when available; otherwise OpenClaw will offer a prefilled issue link or save the sanitized report locally.",
+        "Review the sanitized report below. Confirming will submit it with the authenticated GitHub CLI when available; otherwise Mirally will offer a prefilled issue link or save the sanitized report locally.",
       submit: "Submit report",
       cancel: "Cancel",
     },

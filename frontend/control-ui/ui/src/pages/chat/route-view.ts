@@ -1,4 +1,4 @@
-import type { RouteMatch } from "@openclaw/uirouter";
+import type { RouteMatch } from "@mirally/ui-router";
 import { html, nothing } from "lit";
 import { renderPanelErrorState } from "../../components/lazy-view-error.ts";
 import { t } from "../../i18n/index.ts";
@@ -71,7 +71,7 @@ export function renderChatRoute(data: unknown, _loaderPending = false, presented
   if (routeData.kind === "missing-session") {
     return renderMissingSession(routeData);
   }
-  return html`<openclaw-chat-page .data=${routeData} .presented=${presented}></openclaw-chat-page>`;
+  return html`<mirally-chat-page .data=${routeData} .presented=${presented}></mirally-chat-page>`;
 }
 
 export function sessionRenderOwnerKey(

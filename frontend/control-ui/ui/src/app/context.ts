@@ -1,5 +1,5 @@
 import { createContext } from "@lit/context";
-import type { RouteLocation, Router } from "@openclaw/uirouter";
+import type { RouteLocation, Router } from "@mirally/ui-router";
 import type { HumanMention } from "../../../packages/gateway-protocol/src/index.js";
 import type { ThemeBranding } from "../../../packages/gateway-protocol/src/theme.ts";
 import type { RouteId } from "../app-route-paths.ts";
@@ -156,4 +156,4 @@ export type ApplicationContext<TRouteId extends string = RouteId> = {
   readonly preload: (routeId: TRouteId) => Promise<void>;
 };
 
-export const applicationContext = createContext<ApplicationContext>("openclaw.application");
+export const applicationContext = createContext<ApplicationContext>("mirally.application");

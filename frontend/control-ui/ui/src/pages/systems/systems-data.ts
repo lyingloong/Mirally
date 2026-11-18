@@ -2,7 +2,7 @@ import type {
   EnvironmentSummary,
   EnvironmentsListResult,
   SystemInfoResult,
-} from "@openclaw/gateway-protocol";
+} from "@mirally/gateway-protocol";
 import type { NodeListNode } from "../../../../src/shared/node-list-types.js";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import type { GatewaySessionRow } from "../../api/types.ts";

@@ -153,7 +153,7 @@ export const TasksHistoryParamsSchema = closedObject({
 });
 
 export const TasksHistoryResultSchema = closedObject({
-  /** Stable messageId or __openclaw.id anchors refreshes; entry IDs can have sibling rows. */
+  /** Stable messageId or __mirally.id anchors refreshes; entry IDs can have sibling rows. */
   messages: Type.Array(Type.Unknown()),
   activity: Type.Optional(Type.Array(ChatHistoryActivitySchema)),
   nextCursor: Type.Optional(Type.String({ maxLength: 8192 })),

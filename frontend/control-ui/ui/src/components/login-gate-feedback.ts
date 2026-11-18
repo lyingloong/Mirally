@@ -1,4 +1,4 @@
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 // Classifies a Gateway connect failure into what the login gate should say and where the fix lives.
 import { ConnectErrorDetailCodes } from "../../../packages/gateway-protocol/src/connect-error-details.js";
 import { t } from "../i18n/index.ts";
@@ -189,11 +189,11 @@ export function resolveLoginFailureFeedback(
       // `approve --latest` only previews the newest pending request and prints the
       // exact approve command; without a request id the steps say to run that too.
       primaryCommand: pairing.requestId
-        ? `openclaw devices approve ${pairing.requestId}`
-        : "openclaw devices approve --latest",
+        ? `mirally devices approve ${pairing.requestId}`
+        : "mirally devices approve --latest",
       stepKeys: [
         ...(pairing.requestId ? [] : ["login.failure.pairing.stepLatest"]),
-        { key: "login.failure.pairing.stepDashboard", commands: ["openclaw dashboard"] },
+        { key: "login.failure.pairing.stepDashboard", commands: ["mirally dashboard"] },
         ...(params.reconnectPending ? [] : ["login.failure.pairing.stepReconnect"]),
       ],
       stepParams: { host },
@@ -259,7 +259,7 @@ export function resolveLoginFailureFeedback(
       summaryKey: "login.failure.protocol.summary",
       refreshAction: { label: t("login.failure.protocol.refresh") },
       stepKeys: [
-        { key: "login.failure.protocol.stepDashboard", commands: ["openclaw dashboard"] },
+        { key: "login.failure.protocol.stepDashboard", commands: ["mirally dashboard"] },
         { key: "login.failure.protocol.stepDevUi", commands: ["pnpm ui:dev"] },
         "login.failure.protocol.stepRestart",
       ],
@@ -298,11 +298,11 @@ export function resolveLoginFailureFeedback(
         : [
             {
               key: "login.failure.authRequired.stepPaste",
-              commands: ["openclaw gateway auth-token --show"],
+              commands: ["mirally gateway auth-token --show"],
             },
             {
               key: "login.failure.authRequired.stepGenerate",
-              commands: ["openclaw doctor --generate-gateway-token"],
+              commands: ["mirally doctor --generate-gateway-token"],
             },
             "login.failure.authRequired.stepConnect",
           ],
@@ -331,7 +331,7 @@ export function resolveLoginFailureFeedback(
         : [
             {
               key: "login.failure.authFailed.stepDashboard",
-              commands: ["openclaw dashboard --no-open", "openclaw gateway auth-token --show"],
+              commands: ["mirally dashboard --no-open", "mirally gateway auth-token --show"],
             },
             "login.failure.authFailed.stepReplace",
           ],
@@ -350,12 +350,12 @@ export function resolveLoginFailureFeedback(
     stepKeys: [
       {
         key: "login.failure.network.stepGateway",
-        commands: ["openclaw status", "openclaw gateway run"],
+        commands: ["mirally status", "mirally gateway run"],
       },
       "login.failure.network.stepUrl",
       {
         key: "login.failure.network.stepDashboard",
-        commands: ["openclaw dashboard --no-open"],
+        commands: ["mirally dashboard --no-open"],
       },
     ],
     stepParams: { host },

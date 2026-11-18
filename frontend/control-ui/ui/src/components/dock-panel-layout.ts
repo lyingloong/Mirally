@@ -85,7 +85,7 @@ export function createDockPanelLayout<TDock extends DockPanelPlacement>(
 }
 
 export const terminalPanelLayout = createDockPanelLayout({
-  storageKey: "openclaw.terminal.panel.v1",
+  storageKey: "mirally.terminal.panel.v1",
   minHeight: 140,
   minWidth: 320,
   defaultDock: "bottom",
@@ -95,7 +95,7 @@ export const terminalPanelLayout = createDockPanelLayout({
 });
 
 export const browserPanelLayout = createDockPanelLayout({
-  storageKey: "openclaw.browser.panel.v1",
+  storageKey: "mirally.browser.panel.v1",
   minHeight: 240,
   minWidth: 380,
   defaultDock: "right",
@@ -107,7 +107,7 @@ export const browserPanelLayout = createDockPanelLayout({
 export const assistantPanelLayout = createDockPanelLayout({
   // Shipped key: operators' saved dock size and placement live here, so the
   // legacy custodian spelling stays even though the dock is now shared.
-  storageKey: "openclaw.custodian.panel.v1",
+  storageKey: "mirally.custodian.panel.v1",
   minHeight: 240,
   minWidth: 320,
   defaultDock: "right",
