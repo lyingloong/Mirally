@@ -6,9 +6,6 @@ import threading
 import time
 import unittest
 
-from mirally.runtime.ufo.worker import WorkerChannel, stdio_channel
-
-
 @unittest.skipUnless(sys.platform == "win32", "Windows inherited pipe")
 class ControlPipeTests(unittest.TestCase):
     def setUp(self):
@@ -53,28 +50,6 @@ class ControlPipeTests(unittest.TestCase):
         self.reader.close()
         os.fstat(self.original.fileno())  # Borrowed stdin handle is still owned by caller.
 
-    def test_product_channel_receives_cancel_and_eof_revokes_work(self):
-        channel = stdio_channel(self.original, io.StringIO())
-        self.addCleanup(channel.source.close)
-        self.addCleanup(self.close_writer)  # Release an idle reader before closing its wrapper.
-        thread = threading.Thread(target=channel.listen, daemon=True)
-        thread.start()
-        os.write(self.writer, b'{"type":"cancel"}\n')
-        self.assertTrue(channel.ready.wait(2))
-        self.assertTrue(channel.stopped)
-        self.close_writer()
-        thread.join(2)
-        self.assertFalse(thread.is_alive())
-
-    def test_eof_without_message_revokes_work(self):
-        channel = WorkerChannel(self.reader, io.StringIO())
-        thread = threading.Thread(target=channel.listen, daemon=True)
-        thread.start()
-        self.close_writer()
-        thread.join(2)
-        self.assertFalse(thread.is_alive())
-        self.assertTrue(channel.ready.is_set())
-        self.assertTrue(channel.stopped)
 
 
 if __name__ == "__main__":

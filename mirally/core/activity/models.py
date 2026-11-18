@@ -1,7 +1,6 @@
 """Versioned, privacy-aware observation value objects.
 
-The observation model deliberately contains no Windows or UFO types.  A source
-turns platform facts into this model and the store assigns the durable
+A source turns platform facts into this model and the store assigns the durable
 ``ingest_seq``.  That keeps consumers independent from HWNDs and allows the
 same protocol to be used by other desktop or non-Windows sources.
 """

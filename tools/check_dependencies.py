@@ -9,7 +9,7 @@ The audit only reads files: it never installs, upgrades or deletes anything and
 never uses the network. It reports (1) the same direct dependency declared with
 different constraints inside one environment, (2) requirements-framework.txt
 entries whose module is never imported under ``mirally/`` (candidate only), and
-(3) which manifests are runtime, optional, CI, upstream, website, tooling or
+(3) which manifests are runtime, CI, upstream, website, tooling or
 fixtures.
 """
 
@@ -24,17 +24,14 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SKIP_DIRS = {".git", ".venv", "node_modules", "output", ".artifacts", "UFO", "__pycache__",
+SKIP_DIRS = {".git", ".venv", "node_modules", "output", ".artifacts", "__pycache__",
              "dist", "build", "coverage", ".vite", ".turbo"}
 FIXTURE_PARTS = {"fixture", "fixtures", "test", "tests", "example", "examples", "sample", "samples",
                  "demo", "demos", "benchmark", "benchmarks", "e2e"}
 
-# (relative, environment, kind, owner, required). Only `runtime` and `ci` are
-# required: an absent optional manifest is legitimately absent, not a finding.
 PIP_MANIFESTS = (
-    ("requirements-framework.txt", "product-venv", "runtime", "产品运行时（.venv）", True),
-    ("requirements-ufo.txt", "product-venv", "optional", "UFO 参考适配（可选；缺失时跳过）", False),
-    ("kernel/dsh/.github/review-ownership/requirements.txt", "kernel-ci", "ci", "kernel CI 审查机器人", True),
+    ("requirements-framework.txt", "product-venv", "runtime", "产品运行时（.venv）"),
+    ("kernel/dsh/.github/review-ownership/requirements.txt", "kernel-ci", "ci", "kernel CI 审查机器人"),
 )
 NPM_MANIFESTS = (
     ("tools/testing/package.json", "test-tools", "devtools", "浏览器/DOM 验收工具"),
@@ -169,8 +166,8 @@ def collect_manifests(root: Path) -> tuple[list[dict], list[str], dict]:
         if manifest:
             manifests.append(manifest)
 
-    for relative, environment, kind, owner, required in PIP_MANIFESTS:
-        add(relative, "pip", environment, kind, owner, required=required)
+    for relative, environment, kind, owner in PIP_MANIFESTS:
+        add(relative, "pip", environment, kind, owner, required=True)
     for relative, environment, kind, owner in NPM_MANIFESTS:
         add(relative, "npm", environment, kind, owner, required=True)
     for path in _walk(root / FRONTEND_ROOT, "package.json"):
