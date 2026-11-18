@@ -1,7 +1,7 @@
 """Durable observation store with one coordinated SQLite writer.
 
-The store is intentionally independent from model session databases and
-from UFO.  A bounded command queue feeds one writer connection; reads use
+The store is independent from model session databases.
+A bounded command queue feeds one writer connection; reads use
 short-lived read connections.  Observations are append-only and consumers use
 ``ingest_seq`` cursors rather than wall-clock timestamps.
 """

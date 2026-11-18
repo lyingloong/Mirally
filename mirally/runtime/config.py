@@ -28,9 +28,6 @@ class SpeechConfig:
     response_format: str
 
 
-from mirally.runtime.ufo.config import configure_ufo_config_root
-
-
 def _env_or_value(value: Any, *, field_name: str, required: bool = True) -> str:
     text = str(value or "").strip()
     match = _ENV_PATTERN.fullmatch(text)
@@ -45,7 +42,7 @@ def _env_or_value(value: Any, *, field_name: str, required: bool = True) -> str:
 
 
 def load_speech_config(product_root: Path, path: Optional[Path] = None) -> SpeechConfig:
-    """Load the local speech config without changing UFO configuration."""
+    """Load the local speech configuration."""
 
     config_path = path or product_root / "config" / "mirally" / "speech.yaml"
     if not config_path.is_file():

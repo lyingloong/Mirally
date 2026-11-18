@@ -41,7 +41,7 @@ npm --prefix frontend/control-ui run build
 .\.venv\Scripts\python.exe tools/verify_framework.py
 ```
 
-先完成上面的依赖安装和构建，再按[验证与未覆盖边界](docs/reference/validation.md)选择检查范围。完整 Python 套件无需 UFO 子模块。
+先完成上面的依赖安装和构建，再按[验证与未覆盖边界](docs/reference/validation.md)选择检查范围。
 
 ## 文档导航
 
@@ -53,4 +53,4 @@ OpenClaw 后端已退役，旧实现通过 Git 提交 [`2eeb778a`](https://githu
 
 前端以固定 OpenClaw Control UI `2026.9.6` 源码为来源，沿用原 Mirally 的布局、视觉、主题、动画与伙伴体验；DSH、前端固定来源及第三方组件的许可证、来源说明与第三方声明继续保留。
 
-UFO 本阶段不接入：子模块与专用测试依赖已移除，源码不再随仓库提供；产品自有的 Windows 适配留作参考。产品与愿景展示站源码位于 [website/](website/README.md)，保留独立依赖、构建与发布流程，不参与产品启动；新站部署地址为 <https://lyingloong.github.io/Mirally/>。
+产品与愿景展示站源码位于 [website/](website/README.md)，保留独立依赖、构建与发布流程，不参与产品启动；部署地址为 <https://lyingloong.github.io/Mirally/>。

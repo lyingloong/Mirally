@@ -216,12 +216,12 @@ class CiScopeTests(unittest.TestCase):
 
 WORKFLOW = ROOT / ".github/workflows/mirally-pr.yml"
 
-# Added by dev-0039: pure-offline product modules that must stay in the CI subset.
+# Pure-offline product modules that must stay in the CI subset.
 OFFLINE_MODULES = (
     "tests.test_activity_projection",
-    "tests.test_conversation",
     "tests.test_delivery_invalidation",
-    "tests.test_execution_contract",
+    "tests.test_framework_capabilities",
+    "tests.test_framework_conversation_metadata",
     "tests.test_framework_memory_replay",
     "tests.test_semantic_pipeline",
 )
@@ -246,7 +246,7 @@ class CiProductSubsetTests(unittest.TestCase):
         modules = python_product_subset()
         self.assertEqual(
             [module for module in OFFLINE_MODULES if module not in modules], [],
-            "dev-0039 offline modules must stay in the CI product subset",
+            "offline modules must stay in the CI product subset",
         )
 
     def test_read_dedupe_union_alphabetical_write_back_is_idempotent(self) -> None:
@@ -254,7 +254,7 @@ class CiProductSubsetTests(unittest.TestCase):
         self.assertEqual(len(modules), len(set(modules)), "the CI subset must not repeat a module")
         self.assertEqual(modules, sorted(modules), "the CI subset must be written back in alphabetical order")
         self.assertEqual(modules, sorted(set(modules) | set(OFFLINE_MODULES)),
-                         "re-applying the dev-0039 append rule must be a no-op")
+                         "re-applying the offline-module append rule must be a no-op")
 
     def test_every_listed_module_is_a_real_test_file(self) -> None:
         for module in python_product_subset():

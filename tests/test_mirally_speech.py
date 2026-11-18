@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import yaml
 
-from mirally.config import configure_ufo_config_root, load_speech_config
+from mirally.config import load_speech_config
 from mirally.speech import OpenAICompatibleSpeechProvider
 
 
@@ -31,24 +31,6 @@ class _Session:
 
 
 class SpeechConfigTests(unittest.TestCase):
-    def test_configures_product_ufo_root_without_legacy_copy(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            product_root = root / "product"
-            (product_root / "config" / "mirally" / "ufo").mkdir(parents=True)
-            legacy = root / "UFO" / "config" / "ufo" / "agents.yaml"
-            legacy.parent.mkdir(parents=True)
-            legacy.write_text("APP_AGENT:\n  API_KEY: test\n", encoding="utf-8")
-
-            with patch.dict(os.environ, {}, clear=False):
-                configured = configure_ufo_config_root(product_root)
-
-            self.assertEqual(configured, product_root / "config" / "mirally")
-            self.assertFalse(
-                (product_root / "config" / "mirally" / "ufo" / "agents.yaml").exists()
-            )
-            self.assertTrue(legacy.exists())
-
     def test_loads_env_api_key_and_defaults(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "speech.yaml"

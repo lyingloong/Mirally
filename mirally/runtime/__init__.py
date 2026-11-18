@@ -1,1 +1,1 @@
-"""Runtime adapters for configuration, speech, and the UFO kernel."""
+"""Runtime adapters for activity, memory, and speech."""
