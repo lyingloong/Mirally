@@ -186,14 +186,9 @@ export function resolveLoginFailureFeedback(
         pairing.kind === "pairing-required"
           ? "login.failure.pairing.summary"
           : "login.failure.pairing.upgradeSummary",
-      // `approve --latest` only previews the newest pending request and prints the
-      // exact approve command; without a request id the steps say to run that too.
-      primaryCommand: pairing.requestId
-        ? `mirally devices approve ${pairing.requestId}`
-        : "mirally devices approve --latest",
       stepKeys: [
         ...(pairing.requestId ? [] : ["login.failure.pairing.stepLatest"]),
-        { key: "login.failure.pairing.stepDashboard", commands: ["mirally dashboard"] },
+        "login.failure.pairing.stepDashboard",
         ...(params.reconnectPending ? [] : ["login.failure.pairing.stepReconnect"]),
       ],
       stepParams: { host },
@@ -259,7 +254,7 @@ export function resolveLoginFailureFeedback(
       summaryKey: "login.failure.protocol.summary",
       refreshAction: { label: t("login.failure.protocol.refresh") },
       stepKeys: [
-        { key: "login.failure.protocol.stepDashboard", commands: ["mirally dashboard"] },
+        "login.failure.protocol.stepDashboard",
         { key: "login.failure.protocol.stepDevUi", commands: ["pnpm ui:dev"] },
         "login.failure.protocol.stepRestart",
       ],
@@ -296,14 +291,8 @@ export function resolveLoginFailureFeedback(
       stepKeys: expectsPassword
         ? ["login.failure.authRequired.stepPassword", "login.failure.authRequired.stepConnect"]
         : [
-            {
-              key: "login.failure.authRequired.stepPaste",
-              commands: ["mirally gateway auth-token --show"],
-            },
-            {
-              key: "login.failure.authRequired.stepGenerate",
-              commands: ["mirally doctor --generate-gateway-token"],
-            },
+            "login.failure.authRequired.stepPaste",
+            "login.failure.authRequired.stepGenerate",
             "login.failure.authRequired.stepConnect",
           ],
       stepParams: { host },
@@ -329,10 +318,7 @@ export function resolveLoginFailureFeedback(
       stepKeys: expectsPassword
         ? ["login.failure.authRequired.stepPassword", "login.failure.authRequired.stepConnect"]
         : [
-            {
-              key: "login.failure.authFailed.stepDashboard",
-              commands: ["mirally dashboard --no-open", "mirally gateway auth-token --show"],
-            },
+            "login.failure.authFailed.stepDashboard",
             "login.failure.authFailed.stepReplace",
           ],
       stepParams: { host },
@@ -348,15 +334,9 @@ export function resolveLoginFailureFeedback(
     titleKey: "login.failure.network.title",
     summaryKey: "login.failure.network.summary",
     stepKeys: [
-      {
-        key: "login.failure.network.stepGateway",
-        commands: ["mirally status", "mirally gateway run"],
-      },
+      "login.failure.network.stepGateway",
       "login.failure.network.stepUrl",
-      {
-        key: "login.failure.network.stepDashboard",
-        commands: ["mirally dashboard --no-open"],
-      },
+      "login.failure.network.stepDashboard",
     ],
     stepParams: { host },
   });

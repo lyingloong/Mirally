@@ -82,21 +82,19 @@ export const UPDATE_ENVIRONMENT_FAILURE_REASONS: ReadonlySet<string> = new Set([
   UPDATE_FOREIGN_DESTINATION_REASON,
 ]);
 
-export function formatUpdateActivationTimeoutGuidance(
-  command: (value: string) => string = (value) => value,
-): string {
-  return `Inspect \`${command("mirally update status")}\` and \`${command("mirally doctor")}\`. Wait for the owning updater and its child processes to stop before running \`${command("mirally update repair")}\`. The timeout does not make rollback or removal of retained update state safe.`;
+export function formatUpdateActivationTimeoutGuidance(): string {
+  return "Inspect the update logs and wait for the updater and its child processes to stop before trying again. A timeout does not make rollback or removal of the retained update state safe.";
 }
 
 export const UPDATE_INSTALL_SKIP_GUIDANCE: Readonly<Record<string, string>> = {
   "external-supervisor-update-required":
-    "This Gateway is managed by an external supervisor. Use your server or deployment's update workflow to update Mirally and restart the Gateway. The Control UI and `mirally update` cannot update this installation. No package changes or Gateway restart were attempted.",
+    "This Gateway is managed by an external supervisor. Use your server or deployment's update workflow to update Mirally and restart the Gateway. This page cannot update that installation. No package changes or Gateway restart were attempted.",
   "container-image-install":
     "Pull or build the target Docker/container image, then redeploy it with the same state/config mounts. No package changes or Gateway restart were attempted.",
   "unmanaged-package-install":
     "No npm, pnpm, or Bun global owner was detected. Reinstall using the original method; use Yarn for Yarn global installs. No package changes or Gateway restart were attempted.",
   "package-update-requires-cli":
-    "Run `mirally update` through this install's npm, pnpm, or Bun global launcher. No package changes or Gateway restart were attempted.",
+    "Use the original installation method to update this installation. No package changes or Gateway restart were attempted.",
 };
 
 export const SKIPPED_UPDATE_OUTCOMES: Readonly<Record<string, "pending" | "noop">> = {

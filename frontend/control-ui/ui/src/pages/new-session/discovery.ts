@@ -94,8 +94,8 @@ function readRuntimeTargetIssues(value: unknown): RuntimeTargetIssue[] | undefin
     }
     return raw.code === "update-required" &&
       raw.action === "update-and-reconnect" &&
-      raw.updateCommand === "mirally update" &&
-      raw.headlessReconnectCommand === "mirally node restart"
+      typeof raw.updateCommand === "string" &&
+      typeof raw.headlessReconnectCommand === "string"
       ? [raw as RuntimeTargetIssue]
       : [];
   });

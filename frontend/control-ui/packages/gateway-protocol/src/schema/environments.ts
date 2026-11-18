@@ -71,8 +71,8 @@ export const WorkerDesktopAppIdSchema = Type.Union([
 export const RuntimeTargetIssueSchema = closedObject({
   code: Type.Literal("update-required"),
   action: Type.Literal("update-and-reconnect"),
-  updateCommand: Type.Literal("mirally update"),
-  headlessReconnectCommand: Type.Literal("mirally node restart"),
+  updateCommand: Type.String(),
+  headlessReconnectCommand: Type.String(),
 });
 
 const NodeWorkerBundleStatusSchema = Type.Union([

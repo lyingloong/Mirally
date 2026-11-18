@@ -62,7 +62,6 @@ export function renderDevicePairSetup(props: DevicePairSetupProps) {
   const setup = lifecycle.phase === "waiting" ? lifecycle.setup : null;
   const gatewayUrls = setup?.gatewayUrls ?? (setup ? [setup.gatewayUrl] : []);
   const isNodeSetup = lifecycle.access === "node";
-  const nodeCommand = setup ? `mirally node run --pair "oc-pair://${setup.setupCode}"` : "";
   const setupExpired = Boolean(setup && setup.expiresAtMs <= props.nowMs);
   const showAccessChoices =
     lifecycle.phase !== "success" &&
@@ -181,14 +180,6 @@ export function renderDevicePairSetup(props: DevicePairSetupProps) {
                   ${
                     isNodeSetup
                       ? html`<div class="device-pair-setup__command">
-                          ${
-                            setupExpired
-                              ? nothing
-                              : html`<div class="login-gate__command">
-                                  <code>${nodeCommand}</code>
-                                  ${renderCopyButton(nodeCommand, t("connection.help.copyCommand"))}
-                                </div>`
-                          }
                           <p class="device-pair-setup__waiting" role="timer" aria-live="off">
                             ${
                               setupExpired

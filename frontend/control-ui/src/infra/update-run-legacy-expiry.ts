@@ -3,7 +3,7 @@ import type { UpdateRunRecoveryState } from "./update-run-recovery-state.js";
 export const LEGACY_UPDATE_RUN_EXPIRED_REASON = "legacy-driver-expired";
 const LEGACY_UPDATE_RUN_EXPIRY_MS = 24 * 60 * 60_000;
 export const LEGACY_UPDATE_RUN_ADVISORY =
-  "A 2026.9.2-era update never progressed past admission; treated as abandoned after 24 h; run `mirally update` to retry.";
+  "A 2026.9.2-era update never progressed past admission; treated as abandoned after 24 h.";
 
 /** The approved legacy expiry applies only to an untouched, identityless admission. */
 export function isExpiredLegacyUpdateRun(run: UpdateRunRecoveryState): boolean {

@@ -344,8 +344,7 @@
     },
     "packages/gateway-protocol/src/schema/environments.ts": {
       "gitBlob": "984f8d209c57dad88d4aa5c50ab04d654ec9fd81",
-      "bytes": 13535,
-      "localGitBlob": "51802ab944b9da1cfc2d5ffe28776b1d84373cd0"
+      "bytes": 13535
     },
     "packages/gateway-protocol/src/schema/error-codes.ts": {
       "gitBlob": "2b830fe2e74cee9911d9516941f7f47c64e27338",
@@ -1446,8 +1445,7 @@
     },
     "src/infra/update-run-legacy-expiry.ts": {
       "gitBlob": "28a5abdaeca01cf44ce232a9f4ee4b7c704ef8e6",
-      "bytes": 1059,
-      "localGitBlob": "0b165ca09031e87c6978bbc443a30e9c276b03d4"
+      "bytes": 1059
     },
     "src/infra/update-run-limits.ts": {
       "gitBlob": "aefd6569ed426a8120829212872b43d89460483e",
@@ -1460,8 +1458,7 @@
     },
     "src/infra/update-run-report.ts": {
       "gitBlob": "3c8eebfc606f2d3b2c97478f8a3252b5a2515803",
-      "bytes": 21608,
-      "localGitBlob": "ef91d1666ba839117d1bdfd1b0c3396112882b7f"
+      "bytes": 21608
     },
     "src/infra/update-run-step.ts": {
       "gitBlob": "ba9ffa5e17f6dd72db804cf3f06b979cbcf92fa8",
@@ -1740,8 +1737,7 @@
     },
     "src/shared/update-outcome.ts": {
       "gitBlob": "1d055c84341e4956e7b3add582d99b012a48b2de",
-      "bytes": 6784,
-      "localGitBlob": "cf56ad383616215e0a61973a53e9353772de6ae5"
+      "bytes": 6784
     },
     "src/shared/usage-aggregates.ts": {
       "gitBlob": "79d07d41d0776f8ce4294498d429832a7caaa4f3",
@@ -4620,8 +4616,7 @@
     },
     "ui/src/components/login-gate-feedback.ts": {
       "gitBlob": "22810afeb371347d00257174835e933d2e207707",
-      "bytes": 12448,
-      "localGitBlob": "221ea19551ba7f3040771306e94a4b1320099e8a"
+      "bytes": 12448
     },
     "ui/src/components/login-gate.ts": {
       "gitBlob": "4604cbb6cba3b0ff72109f352dfe72f5ae9feea1",
@@ -5605,8 +5600,7 @@
     },
     "ui/src/i18n/locales/en-login.ts": {
       "gitBlob": "f16c4de322268ba52a4d7b426f7b5323852027ff",
-      "bytes": 7304,
-      "localGitBlob": "a96e3032b7e49e493f946385de1e9857e2fb1cc8"
+      "bytes": 7304
     },
     "ui/src/i18n/locales/en-meetings.ts": {
       "gitBlob": "da5dfdb7e148c410e5e1b6aa57927ed8c0c369d1",
@@ -5632,8 +5626,7 @@
     },
     "ui/src/i18n/locales/en-new-session-setup.ts": {
       "gitBlob": "5ea010f2d1650ba8d12cccbe443afc91b1b10c64",
-      "bytes": 11306,
-      "localGitBlob": "8af8f730dc22e717045d277dd40e367d59c9f52b"
+      "bytes": 11306
     },
     "ui/src/i18n/locales/en-plugin-consent.ts": {
       "gitBlob": "0d656723f503185572a83e23898216818bb2d6ff",
@@ -5642,8 +5635,7 @@
     },
     "ui/src/i18n/locales/en-plugin-management.ts": {
       "gitBlob": "a1013144ecf0949f6a473ac0dcb25f1d232cce62",
-      "bytes": 12958,
-      "localGitBlob": "64e4cabac985082a50b9cf9a790215d8993df7c2"
+      "bytes": 12958
     },
     "ui/src/i18n/locales/en-portals.ts": {
       "gitBlob": "eef5be48aafb25097755ddaf34e6c3800643f994",
@@ -5660,13 +5652,11 @@
     },
     "ui/src/i18n/locales/en-settings.ts": {
       "gitBlob": "12ed14ccd74794dda519cc600cfce0947fd5aadd",
-      "bytes": 69159,
-      "localGitBlob": "67fa4f1f1a68d01c3261f14d449e9ff9bf7061c1"
+      "bytes": 69159
     },
     "ui/src/i18n/locales/en-sidebar-attention.ts": {
       "gitBlob": "adff3acaa1ea88ace6c1c35941db4c1c889c8f75",
-      "bytes": 4382,
-      "localGitBlob": "d507dac9b0869981433e0c26300f9044cabd73c4"
+      "bytes": 4382
     },
     "ui/src/i18n/locales/en-skill-library.ts": {
       "gitBlob": "5c0a5fba2cc617c4b1bc5c3b47e51fbd85867894",
@@ -5692,8 +5682,7 @@
     },
     "ui/src/i18n/locales/en-update-actions.ts": {
       "gitBlob": "27f6fca451972cb714f310bb65f558aea56b5605",
-      "bytes": 2833,
-      "localGitBlob": "07c413cf1eba3deb2d4f5583da86dd3c5a35a705"
+      "bytes": 2833
     },
     "ui/src/i18n/locales/en-usage.ts": {
       "gitBlob": "862e9e37c223fecaffb0d8c2740f3f8b72ecd0da",
@@ -5701,8 +5690,7 @@
     },
     "ui/src/i18n/locales/en.ts": {
       "gitBlob": "38137088ec71a1a808b6e6e64e151c29525f15e4",
-      "bytes": 207480,
-      "localGitBlob": "d5a9fbd90b9d80e651c9353cd427f294147e809e"
+      "bytes": 207480
     },
     "ui/src/i18n/locales/es.ts": {
       "gitBlob": "e1a64b5406f0ee8e1a18058233f42737b6f17c93",
@@ -9559,8 +9547,7 @@
     },
     "ui/src/pages/config/updates.ts": {
       "gitBlob": "f502c20b2f57aef218e38952c7aa42e43df3eaf7",
-      "bytes": 25835,
-      "localGitBlob": "2c46623896d6f5c8f3e9ddff0022dd5f28bea50a"
+      "bytes": 25835
     },
     "ui/src/pages/config/view-appearance-preferences.ts": {
       "gitBlob": "35fd06316ebc3c30a2ab0fadd1f2a1b8a6ea775a",
@@ -10228,8 +10215,7 @@
     },
     "ui/src/pages/new-session/cloud-target.ts": {
       "gitBlob": "c2ed7ac2f1a4688401112c68dad7afe42ed9d07c",
-      "bytes": 18986,
-      "localGitBlob": "e8f94a446f87ad666ff98b8bccbc8f102d2d1742"
+      "bytes": 18986
     },
     "ui/src/pages/new-session/composer-capability-controls.ts": {
       "gitBlob": "1edde5d73bdcb12a7865dc7072d760fbc82654f7",
@@ -10254,8 +10240,7 @@
     },
     "ui/src/pages/new-session/connect-machine-dialog.ts": {
       "gitBlob": "cebccba39bd28c963524082b3acc9fb6f06d7684",
-      "bytes": 6776,
-      "localGitBlob": "ee00c7b7150a391947dab4b0fb1fba202e7d8a1f"
+      "bytes": 6776
     },
     "ui/src/pages/new-session/create-params.ts": {
       "gitBlob": "ccb7aae04ef6f90e141406270d2be244475691f0",
@@ -10268,8 +10253,7 @@
     },
     "ui/src/pages/new-session/discovery.ts": {
       "gitBlob": "bf1d6e746a3d9d9378e7b348b3e4085a651fbaa1",
-      "bytes": 12822,
-      "localGitBlob": "1aa0834a18969c0af5da5282b7c88fbb7a121815"
+      "bytes": 12822
     },
     "ui/src/pages/new-session/draft-body.ts": {
       "gitBlob": "71a54f3519b9b096747ee3acce22f134d74f5a43",

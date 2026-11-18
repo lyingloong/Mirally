@@ -128,7 +128,7 @@ const enSettings = {
       secret: "Gateway secret",
       secretPlaceholder: "Paste the token or type the password",
       setupCodeHint:
-        "This is a device setup code for the Mirally mobile app, not the Gateway secret. Paste it in the app's Gateway settings instead; the Gateway secret comes from mirally gateway auth-token --show on the Gateway host.",
+        "This is a device setup code for the Mirally mobile app, not the Gateway secret. Paste it in the app's Gateway settings instead. Use the connection secret issued by the host.",
       secretHint: "Tokens are saved for this tab after connecting. Passwords are never stored.",
       tokenHint: "This Gateway expects its token. Saved for this tab after connecting.",
       passwordHint: "This Gateway expects its password. Passwords are never stored.",
@@ -273,7 +273,7 @@ const enSettings = {
       recoveryChanged: "The Gateway connection changed. Refresh snapshots and try recovery again.",
       migration: "Needs migration",
       migrationHint:
-        "Run mirally doctor --fix and follow its provider-cleanup recovery instructions before provisioning workers.",
+        "Resolve the reported recovery issue before provisioning workers.",
     },
     intro: "Run agent sessions on ephemeral cloud machines instead of this gateway.",
     sectionTitle: "Profiles",

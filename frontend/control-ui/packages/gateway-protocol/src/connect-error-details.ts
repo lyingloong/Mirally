@@ -449,17 +449,13 @@ export function readConnectPairingRequiredMessage(
 }
 
 const PAIRING_APPROVAL_REMEDIATION =
-  "Run `mirally devices approve --latest` to preview the pending request, then rerun the printed " +
-  "`mirally devices approve <requestId>` command and reconnect (pass the same --url and " +
-  "--token/--password flags if you connected with explicit credentials).";
+  "Confirm the pending request in the device settings before reconnecting.";
 const DEVICE_TOKEN_REMEDIATION =
-  "Rotate the paired-device token with `mirally devices rotate --device <deviceId> --role operator`, then reconnect.";
+  "Check the paired device's credentials before reconnecting.";
 const SHARED_TOKEN_REMEDIATION =
-  "Verify `gateway.remote.token` matches `gateway.auth.token`. If a paired-device token is stale, " +
-  "rotate it with `mirally devices rotate --device <deviceId> --role operator`, then reconnect.";
+  "Verify that the device and host agree on the connection credentials.";
 const SCOPE_MISMATCH_REMEDIATION =
-  "Review approved scopes with `mirally devices list`; if an upgrade is pending, preview it with " +
-  "`mirally devices approve --latest`, approve the printed request, then reconnect.";
+  "Review the approved permissions in the device settings before reconnecting.";
 const RATE_LIMITED_REMEDIATION =
   "Wait for the temporary authentication lockout to expire, then retry.";
 const IDENTITY_PROXY_REMEDIATION =

@@ -620,9 +620,9 @@ export const en: TranslationMap & {
     },
     dialog: {
       disconnected:
-        "The Gateway disconnected during the update. This page reconnects on its own. If it stays disconnected, run `mirally triage` on the Gateway host to open a local coding agent for diagnosis and repair.",
+        "The Gateway disconnected during the update. This page reconnects on its own. If it stays disconnected, check the host before retrying.",
       restarting:
-        "The Gateway is restarting. This page disconnects and reconnects on its own. If it stays disconnected, run `mirally triage` on the Gateway host to open a local coding agent for diagnosis and repair.",
+        "The Gateway is restarting. This page disconnects and reconnects on its own. If it stays disconnected, check the host before retrying.",
     },
     channel: {},
     installKind: {},
@@ -633,21 +633,21 @@ export const en: TranslationMap & {
     checkError: "Could not check for updates: {error}",
     status: "Update {status}: {reason}. {guidance}",
     verificationFailedWithIdentity:
-      "Update finished, but the running install does not match the expected revision. Expected {expected}, running {actual}. Run `mirally triage` on the Gateway host before retrying.",
+      "Update finished, but the running install does not match the expected revision. Expected {expected}, running {actual}. Check the installed revision before retrying.",
     handoffTimeout:
-      "Update completion was not confirmed. Run `mirally triage` on the Gateway host and inspect the result before retrying.",
+      "Update completion was not confirmed. Check the installed revision and update result before retrying.",
     outcomeUnknown:
-      "The update outcome is unknown. Run `mirally triage` on the Gateway host and inspect the result before retrying.",
+      "The update outcome is unknown. Check the installed revision and update result before retrying.",
     triage: {
       hostHint:
-        "If Ask Mirally is unavailable, run `mirally triage` on the Gateway host to open a local coding agent for diagnosis and repair. Diagnose the cause before retrying.",
+        "Check the update logs and diagnose the cause before retrying.",
     },
     report: {},
     failureReasons: {
       dirty: "Commit or stash changes, then retry.",
       noUpstream: "Set an upstream branch, then retry.",
       notGitInstall:
-        "Not a git checkout. Run `mirally update` from the CLI for a global reinstall.",
+        "This installation is not a Git checkout. Reinstall using the original installation method.",
       notMirallyRoot:
         "Run the update from an Mirally checkout or use the CLI global reinstall path.",
       depsInstallFailed: "Dependency install failed. Fix the install error and retry.",
@@ -662,7 +662,7 @@ export const en: TranslationMap & {
       restartUnavailable:
         "This global install cannot be safely replaced while restarts are disabled and no supervisor is present.",
       externalSupervisorUpdateRequired:
-        "This Gateway is managed by an external supervisor. Use your server or deployment's update workflow to update Mirally and restart the Gateway. The Control UI and `mirally update` cannot update this installation. No package changes or Gateway restart were attempted.",
+        "This Gateway is managed by an external supervisor. Use your server or deployment's update workflow to update Mirally and restart the Gateway. This page cannot update that installation. No package changes or Gateway restart were attempted.",
       restartUnhealthy:
         "The replacement process never became healthy. The previous process stayed up so you can recover.",
       restartRevisionMismatch:
@@ -673,14 +673,14 @@ export const en: TranslationMap & {
       managedServiceHandoffAlreadyRunning:
         "Another managed update is already running. Wait for it to complete, then refresh update status.",
       managedServiceHandoffUnavailable:
-        "Stop the foreground Gateway, run `mirally update`, then launch it again. For automatic updates, install a managed Gateway service.",
-      doctorFailed: "Doctor repair failed. Run `mirally doctor --non-interactive` and retry.",
+        "Stop the running host and update the installation before restarting it.",
+      doctorFailed: "Repair failed. Check the diagnostic logs before retrying.",
       managedServiceHandoffFailed:
-        "The update helper stopped before finishing. Run `mirally update` in the terminal to see why.",
+        "The update helper stopped before finishing. Check the update logs.",
       managedServiceHandoffSpawnFailed:
-        "The Gateway could not start the update helper. Run `mirally update` in the terminal instead.",
+        "The host could not start the update helper. Check the update logs.",
       managedServiceHandoffParentTimeout:
-        "The Gateway stayed up too long for the update helper. Start the update again, or run `mirally update`.",
+        "The host did not stop in time for the update helper. Check the running process before retrying.",
       default: "See the gateway logs for the exact failure and retry once the cause is fixed.",
     },
     failedAtStep: "The update failed at {step}: {cause}.",

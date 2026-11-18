@@ -69,14 +69,11 @@ function formatUnavailableReason(
   remediation: SessionMenuItemOptions["remediation"],
 ) {
   if (remediation === "enable-session-hosting") {
-    return html`<div>${t("newSession.sessionHostingAction")}</div>
-      <code class="new-session-page__command">mirally connect --service --session-host</code>`;
+    return t("newSession.sessionHostingAction");
   }
   if (remediation === "update-device") {
     return html`<div>${t("newSession.updateAction")}</div>
-      <code class="new-session-page__command">mirally update</code>
-      <div>${t("newSession.reconnectAction")}</div>
-      <code class="new-session-page__command">mirally node restart</code>`;
+      <div>${t("newSession.reconnectAction")}</div>`;
   }
   return reason;
 }

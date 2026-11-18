@@ -179,17 +179,6 @@ function renderRecordedAttempt(props: UpdatesViewProps) {
               }
             </div>`,
           }),
-          failed
-            ? renderSettingsRow({
-                title: t("updates.page.cliFallback"),
-                description: t("updates.triage.hostHint"),
-                stacked: true,
-                control: html`<details class="updates-attempt-details">
-                  <summary>${t("updates.page.showCliFallback")}</summary>
-                  <pre><code>mirally triage</code></pre>
-                </details>`,
-              })
-            : nothing,
         ]),
     props.update.updateFailureReportNotice
       ? renderUpdateFailureReportNotice(props.update.updateFailureReportNotice)

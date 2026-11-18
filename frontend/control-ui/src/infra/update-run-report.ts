@@ -114,7 +114,7 @@ export function formatUpdateRunRecovery(
     const packageOutcome = restored
       ? `package rollback verified (${version})`
       : "runtime files verified";
-    return `${packageOutcome}; Gateway health ${recovery.service === "failed" ? "failed" : "unverified"} (${reason}). Run \`mirally gateway status --deep\` to check the serving version and readiness.`;
+    return `${packageOutcome}; Gateway health ${recovery.service === "failed" ? "failed" : "unverified"} (${reason}). Check the running host's version and readiness.`;
   }
   const version =
     recovery?.serviceRestartSafe && recovery.service === "healthy"
@@ -171,7 +171,7 @@ function bounded(text: string, limit: number): string {
 
 function recoveryHints(run: ReportInput, nextAction?: string): string[] {
   if (run.status === "running") {
-    return ["Check progress with mirally update status."];
+    return ["Check the progress in the update logs."];
   }
   if (run.status !== "failed") {
     return [];
@@ -208,7 +208,7 @@ function recoveryHints(run: ReportInput, nextAction?: string): string[] {
     );
   }
   if (!nextAction) {
-    hints.push("Run mirally triage to diagnose and repair the failed update.");
+    hints.push("Review the update logs to diagnose the failed update.");
   }
   return hints;
 }
@@ -398,11 +398,11 @@ export function renderUpdateRunReport(
     run.status === "failed" && repairStopReason === "requester-revoked"
       ? nextAction
         ? "Repair stopped because the chat requester is no longer a command owner. Further recovery requires a current command owner."
-        : "Repair stopped because the chat requester is no longer a command owner. A current command owner must start a new update, or the operator can run mirally triage locally."
+        : "Repair stopped because the chat requester is no longer a command owner. A current command owner must start a new update after the issue is resolved."
       : run.status === "failed" && repairStopReason === "repair-requires-config-change"
         ? nextAction
           ? "Doctor could not promote config changes. Review the named keys and writer refusal before continuing recovery."
-          : "Doctor could not promote config changes. Review the named keys and writer refusal, then run mirally doctor --fix under your own authority, or mirally triage."
+          : "Doctor could not promote config changes. Review the named keys and writer refusal before trying again."
         : undefined;
   const hints = reconciled
     ? []

@@ -263,7 +263,7 @@ const enPluginManagement = {
     reload: "Reload",
     installSaved: "Installation of {name} was saved. {error}",
     installSavedNotApplied:
-      "Installation of {name} was saved, but the Gateway has not applied it. {error} Fix the reported problem, then run mirally plugins reload {name}.",
+      "Installation of {name} was saved, but the Gateway has not applied it. {error} Fix the reported problem before trying again.",
     runtimeFailurePhase: "Runtime phase: {phase}.",
     enableAction: "Enable",
     working: "Working…",

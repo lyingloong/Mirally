@@ -5,12 +5,12 @@ import { en } from "./en.ts";
 const enLogin = {
   login: {
     heading: "Connect to Mirally",
-    lede: "Enter the Gateway URL and secret, or open the one-time link that mirally dashboard prints on the Gateway host.",
+    lede: "Enter the connection URL and secret, or use the one-time link issued by the host.",
     gatewayUrl: "Gateway URL",
     gatewaySettings: "Gateway settings",
     secret: "Gateway secret",
     setupCodeHint:
-      "This is a device setup code for the Mirally mobile app, not the Gateway secret. Paste it in the app's Gateway settings instead; the Gateway secret comes from mirally gateway auth-token --show on the Gateway host.",
+      "This is a device setup code for the Mirally mobile app, not the Gateway secret. Paste it in the app's Gateway settings instead. Use the connection secret issued by the host.",
     secretPlaceholder: "Paste the token or type the password",
     runOnHost: "Run on the Gateway host",
     connection: {
@@ -44,10 +44,10 @@ const enLogin = {
         passwordTitle: "This Gateway expects its password",
         summary:
           "The Gateway at {host} is reachable, but it needs a matching token or password before this browser can connect.",
-        stepPaste: "Paste the token from mirally gateway auth-token --show into Gateway secret.",
+        stepPaste: "Paste the connection secret issued by the host.",
         stepPassword: "Type the configured Gateway password into Gateway secret.",
         stepGenerate:
-          "If no token is configured, run mirally doctor --generate-gateway-token on the gateway host.",
+          "Check the connection configuration on the host.",
         stepConnect: "Click Connect again after updating the Gateway secret.",
       },
       authFailed: {
@@ -55,7 +55,7 @@ const enLogin = {
         summary:
           "{host} rejected the supplied Gateway secret. Check that it belongs to this Gateway and try again.",
         stepDashboard:
-          "Run mirally dashboard --no-open for a fresh URL, or mirally gateway auth-token --show to recover the token.",
+          "Use a fresh connection link or verify the connection secret on the host.",
         stepReplace: "Replace the Gateway secret with the token for this Gateway URL.",
       },
       trustedProxy: {
@@ -86,7 +86,7 @@ const enLogin = {
         upgradeSummary:
           "This browser is already paired with {host}, but it asked for access it was not approved for. Approve the new request on the Gateway host.",
         stepDashboard:
-          "Prefer a link? Run mirally dashboard on the Gateway host and open the one-time URL it prints in this browser.",
+          "If using a one-time link, open a fresh link issued by the host.",
         stepLatest:
           "That command prints the exact approve command for the newest pending request; run that one as well.",
         stepReconnect: "Once approved, click Connect.",
@@ -116,7 +116,7 @@ const enLogin = {
           "The served Control UI and the running Gateway do not agree on the supported connection protocol.",
         refresh: "Refresh page",
         stepDashboard:
-          "Reopen the served dashboard with mirally dashboard so the UI and Gateway come from the same install.",
+          "Reopen the page served by the current installation.",
         stepDevUi:
           "If using pnpm ui:dev, rebuild or restart the dev UI against the current checkout.",
         stepRestart:
@@ -126,11 +126,11 @@ const enLogin = {
         title: "Gateway unreachable",
         summary:
           "The browser could not reach {host}. Check the address and transport before retrying credentials.",
-        stepGateway: "Confirm the Gateway is running with mirally status or mirally gateway run.",
+        stepGateway: "Confirm the host is running and reachable.",
         stepUrl:
           "Check the Gateway URL and use wss:// when the Gateway is behind HTTPS/Tailscale Serve.",
         stepDashboard:
-          "Reopen the dashboard with mirally dashboard --no-open to recopy the current URL and auth details.",
+          "Verify the current URL and authentication details.",
       },
     },
   },
