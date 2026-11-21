@@ -79,7 +79,6 @@
 | MCP tools/resources/templates/prompts | 已实现 | stdio/Streamable HTTP；受监督连接 |
 | 可信原生插件 | 已实现 | Cordis、apiVersion、依赖与停用 |
 | 插件市场、任意热更新 | 未实现 | 首版不承诺 |
-| OpenClaw 插件直接加载 | 未实现 | 需适配，不能直接互装 |
 
 ## 桌面与界面
 

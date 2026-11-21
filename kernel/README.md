@@ -8,7 +8,7 @@
 
 可直接修改 `packages/`、`apps/`、模型/工具运行、会话和 UI 实现。Mirally 的产品领域职责、数据归属、扩展契约仍需清晰；可以复用 Profile/Bundle 和现有插件机制，也可以为产品直接调整内部接口。
 
-后续上游变更按需要显式比较和移植，不自动更新或要求完整合并 master。本仓库的初始导入提交保留原始对照；维护上游来源和显著本地改动记录，保留 LICENSE、THIRD_PARTY_NOTICES 和第三方 vendor 声明。UFO 子模块与其只读规则已移除，不再属于本仓库的维护范围。
+后续上游变更按需要显式比较和移植，不自动更新或要求完整合并 master。本仓库的初始导入提交保留原始对照；维护上游来源和显著本地改动，保留 LICENSE、THIRD_PARTY_NOTICES 和第三方声明。
 
 ## 构建准备
 
@@ -32,4 +32,4 @@ try {
 
 ## 当前实施状态
 
-默认入口已切到 `packages/mirally/` 的产品组合与自有 UI；领域状态由 Python owner 管理，内核保留单一 Session/Agent loop。安装、接入与验收边界见 [系统概览](../docs/architecture/overview.md) 和 [DSH 运行时](../docs/architecture/native-dsh.md)，旧 OpenClaw 仅保留显式维护入口。
+产品入口位于 `dsh/packages/mirally/`，连接 Mirally 前端和 Python 产品状态服务。DSH 提供会话、模型循环及原生工具。安装与验收范围见[系统概览](../docs/architecture/overview.md)和[DSH 运行时](../docs/architecture/native-dsh.md)。
