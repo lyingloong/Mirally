@@ -814,3 +814,12 @@
 - 来源：用户要求现行文档减少对早期外部项目的强调，并明确仅按需要借鉴实现。
 - 状态：已确认。
 - 决定：Mirally 的定位、接口和能力以自身实现为准。外部项目按具体问题提供研究参考。复用源码或互操作时，在专门位置保留准确归属、许可证和协议说明。
+
+## PN-0098 · 2026-11-21 +08:00 · Windows 桌面任务从窗口快照开始
+
+- 设计参考，细化 PN-0082、PN-0095。应用户要求复核 Microsoft UFO 的 Windows 源码与当前 Mirally。此次提炼实现思路和源码位置，后续实现仍按实际任务评估。
+- Mirally 已有按需读取窗口和截取屏幕的工具，也有活动采集的独立 UIA 进程。第一步可在现有会话中增加按窗口授权的只读快照，复用 UIA 遍历和进程超时机制，为任务单独限制遍历节点、深度和输出量。默认仅返回可见、启用控件的短编号、名称、类型、位置和可用动作，排除密码控件以及密码状态或可见性未知的控件。跳过活动记录，默认不读取输入值和正文。见[桌面观察](../../mirally/framework/desktop_observation.py)和[UIA 进程](../../mirally/platform/activity/uia_worker.py)。
+- 控件列表与可选的窗口标注图使用同一组编号。可评估复用现有 WGC 窗口捕获，使用窗口内物理像素并记录裁剪和缩放关系。窗口身份变化时重新观察。图像采集失败时返回控件列表和失败原因，保持授权范围。参考源码把控件放入临时映射表，但抓取所选窗口失败时会回退到桌面截图。见[控件编号](https://github.com/microsoft/UFO/blob/a795552d976c4c019d7c2f778a0effb5cef7de6b/ufo/client/mcp/local_servers/ui_mcp_server.py#L773-L808)、[标注图](https://github.com/microsoft/UFO/blob/a795552d976c4c019d7c2f778a0effb5cef7de6b/ufo/agents/processors/strategies/app_agent_processing_strategy.py#L782-L808)、[截图回退](https://github.com/microsoft/UFO/blob/a795552d976c4c019d7c2f778a0effb5cef7de6b/ufo/client/mcp/local_servers/ui_mcp_server.py#L811-L849)和[现有窗口捕获](../../mirally/platform/activity/wgc_capture.py)。
+- 性能优化时可对照 UIA `FindAllBuildCache`，一次查询控件类型、名称等属性。参考实现是在查询完整子树后截取结果，仍须对实际扫描代价和超时行为做测量。见[UIA 批量查询](https://github.com/microsoft/UFO/blob/a795552d976c4c019d7c2f778a0effb5cef7de6b/ufo/automator/ui_control/inspector.py#L243-L272)。
+- 快照在当前会话回合和指定窗口内有效，目标身份保留在本地。未来开放单步动作时沿用现有 ActionGate，获准后重新确认窗口、控件身份和所需的 UIA 动作。目标失效、变化或匹配歧义时要求重新观察。优先对支持的控件试用 `Invoke` 和 `Value.SetValue`，用动作后的新观察确认效果。回执区分已发送、已验证和结果未知，结果未知时不自动重放。参考源码中调用者传入的名称与编号对应控件的名称不符时，仍先点击再告警。见[点击实现](https://github.com/microsoft/UFO/blob/a795552d976c4c019d7c2f778a0effb5cef7de6b/ufo/client/mcp/local_servers/ui_mcp_server.py#L310-L326)和[Windows UIA Control Patterns](https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-controlpatternsoverview)。
+- 有清晰应用 API 的任务优先按需使用现有工具或 MCP，例如读写表格。先用记事本、浏览器、资源管理器和一种 Electron 应用的测试窗口测量可定位控件比例、快照耗时和输出量，再决定是否需要视觉定位或坐标输入。验收应覆盖控件变化、弹窗、遮挡及混合 DPI。本条基于静态源码核对，未实测覆盖率，也未改动产品运行时。
