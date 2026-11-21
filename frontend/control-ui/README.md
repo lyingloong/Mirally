@@ -1,12 +1,8 @@
-# Mirally 原界面
+# Mirally 前端
 
-这里以重构前真实 Control UI 源码为组件和视觉基础，自行维护 Mirally 的导航与内容页。对话、快捷开始、主题、动画和伙伴体验继续复用；页面映射见 [Mirally 前端](../../docs/architecture/frontend.md)，来源与维护文件见 [UPSTREAM.md](UPSTREAM.md) 和 `local-changes.json`。默认产品只使用 Mirally/DSH 后端；此目录不启动 OpenClaw Gateway。
+本目录维护 Mirally 的对话、设置、主题、动画和伙伴等前端体验。页面导航和产品接口见[前端架构](../../docs/architecture/frontend.md)。源码来源和本地维护记录见 [UPSTREAM.md](UPSTREAM.md)。
 
-准备整个产品：在仓库根目录运行：
-
-```powershell
-.\.venv\Scripts\python.exe tools/setup_framework.py
-```
+产品安装与首次构建见[项目快速开始](../../README.md#快速开始)。
 
 单独准备与构建前端（Node 24 或更新版本）：
 

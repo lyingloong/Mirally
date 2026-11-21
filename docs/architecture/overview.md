@@ -131,10 +131,6 @@ Windows x64、Python 3.10、Node 24+（含 npm）和 Microsoft Edge WebView2 Run
 
 Skill、MCP 和可信插件通过显式配置接入同一 DSH 会话与工具管线；脚本执行单独确认并按内容指纹复核。扩展变更会使后续会话能力变化，停用时撤销注册与在途调用。完整契约见[扩展接口](extensions.md)。
 
-## 已退役实现
-
-当前只提供 Mirally/DSH 启动链路。旧启动器与集成仅通过 Git 提交 `2eeb778a` 追溯。源码清理不读取、覆盖或删除本机已有的私有配置、凭据和数据。
-
 ## 验证
 
 验证命令、已覆盖范围和未覆盖边界见[验证](../reference/validation.md)。当前仍没有已签名安装包，也没有在全新 Windows 机器上完成安装演练。
