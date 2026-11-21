@@ -823,3 +823,8 @@
 - 性能优化时可对照 UIA `FindAllBuildCache`，一次查询控件类型、名称等属性。参考实现是在查询完整子树后截取结果，仍须对实际扫描代价和超时行为做测量。见[UIA 批量查询](https://github.com/microsoft/UFO/blob/a795552d976c4c019d7c2f778a0effb5cef7de6b/ufo/automator/ui_control/inspector.py#L243-L272)。
 - 快照在当前会话回合和指定窗口内有效，目标身份保留在本地。未来开放单步动作时沿用现有 ActionGate，获准后重新确认窗口、控件身份和所需的 UIA 动作。目标失效、变化或匹配歧义时要求重新观察。优先对支持的控件试用 `Invoke` 和 `Value.SetValue`，用动作后的新观察确认效果。回执区分已发送、已验证和结果未知，结果未知时不自动重放。参考源码中调用者传入的名称与编号对应控件的名称不符时，仍先点击再告警。见[点击实现](https://github.com/microsoft/UFO/blob/a795552d976c4c019d7c2f778a0effb5cef7de6b/ufo/client/mcp/local_servers/ui_mcp_server.py#L310-L326)和[Windows UIA Control Patterns](https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-controlpatternsoverview)。
 - 有清晰应用 API 的任务优先按需使用现有工具或 MCP，例如读写表格。先用记事本、浏览器、资源管理器和一种 Electron 应用的测试窗口测量可定位控件比例、快照耗时和输出量，再决定是否需要视觉定位或坐标输入。验收应覆盖控件变化、弹窗、遮挡及混合 DPI。本条基于静态源码核对，未实测覆盖率，也未改动产品运行时。
+
+## PN-0099 · 2026-11-21 +08:00 · 统一 Windows 窗口观察和操作
+
+- 用户要求以一套 Mirally 实现整合 PN-0098 中值得借鉴的做法，并淘汰本地参考副本。
+- 会话中的 Windows 工具用同一份快照提供可操作控件和可选标注图，以现有审批绑定窗口及具体动作。动作由 Windows UIA 在目标控件上执行，填值可用回读核实，按钮触发随后返回当前观察。其他 UIA 控件与应用专用能力按真实任务的覆盖率评估。见[现行桌面设计](../architecture/desktop.md#对话中的-windows-操作)。

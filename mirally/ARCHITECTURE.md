@@ -18,7 +18,8 @@
 | `framework/context.py` | 按需只读组合 Memory 与 Activity；查询不启动采集 |
 | `framework/materials.py` | 材料接收、文字提取、会话成果与鉴权 |
 | `framework/recaps.py` | 会话摘要与自动标题的产品状态 |
-| `framework/desktop_observation.py` | 窗口列表、截图与桌面观察接口 |
+| `framework/desktop_observation.py` | 窗口列表、截图及桌面工具的子进程入口 |
+| `framework/desktop_controls.py`、`framework/desktop_snapshot_image.py` | 指定窗口的 UIA 控件快照、单步操作及标注图 |
 | `framework_workers.py` | Activity/Memory 子进程、语义任务、预算与停止 |
 | `framework_ui/` | 产品消息桥接、品牌与伙伴呈现资源 |
 | `framework_shell.py` | WebView2 窗口、原生裁剪、托盘、伙伴与退出 |
