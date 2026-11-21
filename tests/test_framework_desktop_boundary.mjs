@@ -29,14 +29,15 @@ test('desktop task RPCs cannot admit a product command', async () => {
   }
 });
 
-test('product tools expose desktop observations without input controls', () => {
+test('product tools expose observations and scoped semantic actions', () => {
   const product = Object.create(MirallyProduct.prototype), tools = [];
   product.ctx = {tools: {register: definition => tools.push(definition)}};
   product.installProductTools();
   assert.ok(tools.some(tool => tool.name === 'mirally_context'));
   assert.ok(tools.some(tool => tool.name === 'mirally_create_file'));
   const desktopTools = tools.filter(tool => tool.name.startsWith('mirally_desktop_')).map(tool => tool.name).sort();
-  assert.deepEqual(desktopTools, ['mirally_desktop_foreground', 'mirally_desktop_screenshot', 'mirally_desktop_windows']);
+  assert.deepEqual(desktopTools, ['mirally_desktop_action', 'mirally_desktop_foreground', 'mirally_desktop_screenshot',
+    'mirally_desktop_snapshot', 'mirally_desktop_windows']);
 });
 
 test('real default Host converses while desktop task RPCs are unavailable', {timeout: 45000}, async t => {

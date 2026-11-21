@@ -93,6 +93,7 @@ node tools/verify_framework_weixin_browser.mjs <隔离home/runtime.json>
 .\.venv\Scripts\python.exe tools\verify_framework_shell.py
 .\.venv\Scripts\python.exe tools\verify_framework_shell.py --close-exit
 .\.venv\Scripts\python.exe tools\verify_framework_shell.py --page-quit --reuse-host
+.\.venv\Scripts\python.exe tools\verify_framework_desktop_observation.py --require-image
 ```
 
 手机网页脚本以隔离宿主的 `runtime.json` 为入口。它创建合成会话、从桌面配对手机、验证消息往返和设备偏好，再撤销本次配对。默认把截图写到 `output/tmp/verify-framework-mobile-browser/`。
@@ -111,6 +112,7 @@ node tools/verify_framework_weixin_browser.mjs <隔离home/runtime.json>
 | 活动与记忆 | 采集器、真实 UIA/WGC/OCR fixture、知识投影、事件视图、历史浏览器、记忆召回与纠正 |
 | 扩展 | 纯说明 Skill、资源 Skill、脚本确认与指纹、MCP 全部接入面、可信插件启停 |
 | 桌面 | WebView2 原生裁剪、命中区域、最小化/托盘、伙伴交互、关闭与明确退出；真实窗口顺序运行 |
+| Windows 控件操作 | 在测试窗口用真实 UIA 检查编号、标注图、填值回读、按钮效果及失效目标。会话审批与来源用隔离测试验证 |
 | 前端 | 固定来源逐文件校验、正式构建、浏览器模块 import 检查、主要产品页面与窄屏 |
 
 最近一批完整记录集中在 2026-10-29 的微信、日历和定时能力；2026-10-31 的会话中心重构（移除工作 owner、通用后台作业、摘要）以对应提交的隔离测试和实际页面检查为准，本文不重复抄录每次数量。
@@ -121,7 +123,7 @@ node tools/verify_framework_weixin_browser.mjs <隔离home/runtime.json>
 - **真实外部模型**：除一次 DeepSeek 官方连接实测外，未对所有供应商、模型、代理和长期成本做验收；模型质量与任务成功率不能由短用例保证。
 - **真实微信**：当前用户完成过扫码和一次文字往返；媒体格式、长期主动发送、平台限流、断线恢复和多账号差异仍需实机验证。
 - **桌面环境**：多显示器、混合 DPI、RDP、锁屏/UAC、不同捕获驱动和长时间采集未完整覆盖。
-- **桌面动作**：Windows 单步点击/输入未通过交互式桌面实机验收，未向模型开放；桌面接管不是当前能力。
+- **桌面动作**：第三方应用的 UIA 控件支持率、混合 DPI、长期使用和真实微信操作需要单独验收。当前支持可定位控件的按钮触发与填值。
 - **语音**：真实麦克风、系统权限、微信语音编码、本地 Whisper 模型和不同设备兼容性仍需实测。
 - **手机远程**：私人 HTTPS 转发、公网可达性、实体手机长期使用和跨网络恢复未验证。
 - **长期运行**：长时间后台模型预算、内存/磁盘增长、崩溃恢复和主动联系质量没有完整长周期数据。

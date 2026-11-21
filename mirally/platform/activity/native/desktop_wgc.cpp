@@ -1,5 +1,5 @@
 // Product-owned persistent WGC sessions with on-demand CPU readback.
-// JSONL carries metadata only; pixels are written to explicitly requested files.
+// Activity uses file-backed capture; task windows can stream one PNG in memory.
 #define NOMINMAX
 #include <windows.h>
 #include <shlwapi.h>
@@ -18,8 +18,11 @@
 #include <chrono>
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
+#include <fcntl.h>
 #include <filesystem>
+#include <io.h>
 #include <iostream>
 #include <string>
 #include <thread>
@@ -48,7 +51,8 @@ static std::wstring wide(const char* value) {
   return result;
 }
 
-static void write_png(const std::wstring& path, UINT width, UINT height, UINT stride, const BYTE* pixels) {
+static void write_png(const std::wstring& path, UINT width, UINT height, UINT stride,
+                      const BYTE* pixels, std::vector<BYTE>* memory) {
   g_stage = "wic_factory";
   com_ptr<IWICImagingFactory> factory;
   check_hresult(CoCreateInstance(CLSID_WICImagingFactory2, nullptr, CLSCTX_INPROC_SERVER,
@@ -56,11 +60,15 @@ static void write_png(const std::wstring& path, UINT width, UINT height, UINT st
   com_ptr<IWICStream> stream;
   g_stage = "wic_stream";
   check_hresult(factory->CreateStream(stream.put()));
-  com_ptr<IStream> file_stream;
-  check_hresult(SHCreateStreamOnFileEx(path.c_str(), STGM_CREATE | STGM_WRITE,
-                                       FILE_ATTRIBUTE_NORMAL, TRUE, nullptr,
-                                       file_stream.put()));
-  check_hresult(stream->InitializeFromIStream(file_stream.get()));
+  com_ptr<IStream> output;
+  if (memory) {
+    output.attach(SHCreateMemStream(nullptr, 0));
+    if (!output) throw hresult_error(E_OUTOFMEMORY);
+  } else {
+    check_hresult(SHCreateStreamOnFileEx(path.c_str(), STGM_CREATE | STGM_WRITE,
+                                         FILE_ATTRIBUTE_NORMAL, TRUE, nullptr, output.put()));
+  }
+  check_hresult(stream->InitializeFromIStream(output.get()));
   com_ptr<IWICBitmapEncoder> encoder;
   check_hresult(factory->CreateEncoder(GUID_ContainerFormatPng, nullptr, encoder.put()));
   g_stage = "wic_encoder";
@@ -81,6 +89,17 @@ static void write_png(const std::wstring& path, UINT width, UINT height, UINT st
   check_hresult(frame->WriteSource(bitmap.get(), nullptr));
   check_hresult(frame->Commit());
   check_hresult(encoder->Commit());
+  if (memory) {
+    STATSTG status{};
+    check_hresult(output->Stat(&status, STATFLAG_NONAME));
+    const auto size = status.cbSize.QuadPart;
+    if (!size || size > 12 * 1024 * 1024) throw hresult_error(E_FAIL);
+    memory->resize(static_cast<size_t>(size));
+    check_hresult(output->Seek(LARGE_INTEGER{}, STREAM_SEEK_SET, nullptr));
+    ULONG read = 0;
+    check_hresult(output->Read(memory->data(), static_cast<ULONG>(size), &read));
+    if (read != size) throw hresult_error(E_FAIL);
+  }
 }
 
 static void number(JsonObject const& object, const wchar_t* key, double value) {
@@ -218,7 +237,8 @@ public:
     std::lock_guard<std::mutex> guard(state->mutex);
     return state->stopped;
   }
-  JsonObject capture(GraphicsDevice const& graphics, std::wstring const& output, int max_dimension, int timeout_ms) {
+  JsonObject capture(GraphicsDevice const& graphics, std::wstring const& output, int max_dimension,
+                     int timeout_ms, std::vector<BYTE>* memory) {
     g_stage = "frame";
     std::unique_lock<std::mutex> guard(state->mutex);
     state->changed.wait_for(guard, std::chrono::milliseconds(timeout_ms), [&] { return state->stopped || state->latest; });
@@ -265,6 +285,8 @@ public:
     JsonObject runtime;
     number(runtime, L"session_id", static_cast<double>(id));
     number(runtime, L"frame_id", static_cast<double>(state->frame_id));
+    number(runtime, L"frame_width", width);
+    number(runtime, L"frame_height", height);
     number(runtime, L"resize_count", static_cast<double>(state->resize_count));
     number(runtime, L"readbacks", static_cast<double>(++readbacks));
     text(runtime, L"border_status", border_status);
@@ -272,7 +294,8 @@ public:
     // All expensive readback/encoding is request-driven; arrival only retains the latest GPU frame.
     guard.unlock();
     g_stage = "wic_begin";
-    write_png(output, static_cast<UINT>(output_width), static_cast<UINT>(output_height), static_cast<UINT>(output_width * 4), pixels.data());
+    write_png(output, static_cast<UINT>(output_width), static_cast<UINT>(output_height),
+              static_cast<UINT>(output_width * 4), pixels.data(), memory);
     JsonObject result;
     flag(result, L"captured", true); text(result, L"method", "wgc");
     JsonArray dimensions; dimensions.Append(JsonValue::CreateNumberValue(output_width)); dimensions.Append(JsonValue::CreateNumberValue(output_height));
@@ -288,7 +311,8 @@ class CaptureEngine {
   std::map<std::pair<bool, uint64_t>, std::unique_ptr<CaptureSession>> sessions;
   uint64_t next_session = 0;
 public:
-  JsonObject capture(bool monitor, uint64_t handle, std::wstring const& output, int dimension, int timeout) {
+  JsonObject capture(bool monitor, uint64_t handle, std::wstring const& output, int dimension,
+                     int timeout, std::vector<BYTE>* memory = nullptr) {
     auto began = std::chrono::steady_clock::now();
     JsonObject result;
     auto key = std::make_pair(monitor, handle);
@@ -315,7 +339,7 @@ public:
         if (sessions.size() >= 16) return failure("session_limit");
         sessions[key] = std::make_unique<CaptureSession>(*graphics, monitor, handle, ++next_session);
       }
-      result = sessions.at(key)->capture(*graphics, output, dimension, timeout);
+      result = sessions.at(key)->capture(*graphics, output, dimension, timeout, memory);
       auto runtime = result.GetNamedObject(L"runtime", JsonObject());
       flag(runtime, L"persistent", true); flag(runtime, L"session_reused", reused);
       number(runtime, L"helper_pid", GetCurrentProcessId()); number(runtime, L"session_count", static_cast<double>(sessions.size()));
@@ -334,6 +358,18 @@ int main(int argc, char** argv) {
     init_apartment(apartment_type::multi_threaded);
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     CaptureEngine engine;
+    if (argc == 3 && std::string(argv[1]) == "--window-png") {
+      if (_setmode(_fileno(stdout), _O_BINARY) == -1) return 2;
+      std::vector<BYTE> png;
+      auto result = engine.capture(false, std::stoull(argv[2]), {}, 1600, 1800, &png);
+      const bool captured = result.GetNamedBoolean(L"captured", false);
+      emit(result);
+      if (captured) {
+        std::cout.write(reinterpret_cast<const char*>(png.data()), png.size());
+        std::cout.flush();
+      }
+      return captured && std::cout ? 0 : 1;
+    }
     if (argc == 2 && std::string(argv[1]) == "--serve") {
       JsonObject ready; number(ready, L"protocol", 1); text(ready, L"event", "ready"); number(ready, L"pid", GetCurrentProcessId()); emit(ready);
       std::string line;

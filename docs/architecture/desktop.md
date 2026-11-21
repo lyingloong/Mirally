@@ -1,6 +1,6 @@
 # 桌面与伙伴
 
-更新：2026-11-01，Asia/Shanghai。状态：现行。相关实现：`mirally/desktop_surface.py`、`mirally/framework_shell.py`、`mirally/framework_host.py`、`mirally/assets/control-ui-*`。
+更新：2026-11-21，Asia/Shanghai。状态：现行。相关实现：`mirally/desktop_surface.py`、`mirally/framework_shell.py`、`mirally/framework_host.py`、`mirally/assets/control-ui-*`。
 
 桌面入口复用原 Mirally 的开屏、主题、窗口呈现和伙伴体验，同时由自有 Host 提供产品页面。浏览器模式只保留页面形态，不提供原生裁剪、置顶、伙伴窗口或本机截图。
 
@@ -44,6 +44,15 @@
 - 该开关使用 Windows `WDA_EXCLUDEFROMCAPTURE` 排除伙伴窗口；是否生效取决于 Windows 版本和采集软件是否遵守。主窗口保持普通捕获行为；用户主动拖动截图时会临时隐藏伙伴以免遮挡目标。
 - 普通悬浮或伙伴待机不采集桌面；活动采集是独立能力，见[活动数据层](activity.md)。
 
+## 对话中的 Windows 操作
+
+1. 会话从可见窗口列表选择目标，按现有动作权限读取 Windows UI Automation（UIA）控件。Mirally 自己的原生窗口和对话框排除在候选之外。快照保留有界的编号、标签、类型、位置和可用操作。密码控件与可见性或密码状态未知的控件被排除。窗口内容属于观察数据。
+2. 支持视觉的模型可以按需请求同一窗口的标注图。截图在内存中与实际坐标对齐并遮盖已识别的密码框。标注图按现有附件规则保存并交给所选模型。窗口图无法安全生成时仍返回控件列表。
+3. 本地保留当前回合的短期目标映射。沿用现有持续信任与逐次审批。授权绑定所选窗口、编号控件和动作参数，之后在独立 Windows 进程内重新核对窗口及控件。按钮可调用 `Invoke`，可写输入框可调用 `Value.SetValue`。目标失效时须重新观察。
+4. 填值经过回读核验后才报告已验证。触发按钮后返回可用的新观察，通用回执说明请求已发送。调用结果不明确时保留未知状态，避免自动重放。桌面和已授权的微信会话共用此工具链和现有权限规则。
+
+相关入口见[产品工具](../../kernel/dsh/packages/mirally/mirally-product/src/desktop-observation.mjs)和[Windows UIA 实现](../../mirally/framework/desktop_controls.py)。现有动作限于控件明确提供的操作。
+
 ## 主题与文字
 
 晴空蓝、深色和跟随系统等原外观页面继续保留，界面偏好由产品 home 持久化。文字角色、字号与缩放遵循[视觉基线](../standards/ui-visual-system.md)；伙伴窗口的独立密度和几何在真实桌面验收时单独检查。
@@ -54,6 +63,7 @@
 .\.venv\Scripts\python.exe tools\verify_framework_shell.py
 .\.venv\Scripts\python.exe tools\verify_framework_shell.py --close-exit
 .\.venv\Scripts\python.exe tools\verify_framework_shell.py --page-quit --reuse-host
+.\.venv\Scripts\python.exe tools\verify_framework_desktop_observation.py --require-image
 node tools\verify_companion_interaction.mjs
 ```
 

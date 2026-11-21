@@ -245,9 +245,10 @@ def verify(root: Path, home: Path, *, browser_files: bool = False, browser_histo
         client.send(session, "chat-1", "hello")
         assert "native model adapter" in client.history(session)[-1]["text"]
         tool_names = {tool.get("function", {}).get("name", "") for tool in FixtureProvider.calls[-1].get("tools", [])}
-        # Desktop tools expose observations. Input control remains unavailable.
+        # Desktop control is available through a scoped semantic tool.
         assert {name for name in tool_names if "desktop" in name.lower()} <= {
-            "mirally_desktop_foreground", "mirally_desktop_windows", "mirally_desktop_screenshot"}, tool_names
+            "mirally_desktop_foreground", "mirally_desktop_windows", "mirally_desktop_screenshot",
+            "mirally_desktop_snapshot", "mirally_desktop_action"}, tool_names
         duplicate = client.call("/api/sessions/" + session["id"] + "/messages", {"commandId": "chat-1", "text": "hello"})
         assert duplicate["replay"]
         checks.append("real native provider, Agent loop, transcript and command deduplication")

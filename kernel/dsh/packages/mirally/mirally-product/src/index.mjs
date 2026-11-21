@@ -41,7 +41,7 @@ const MOBILE_READ_TOOLS = new Set(['mirally_context', 'mirally_preferences', 'mi
 const NATIVE_MUTATIONS = new Set(['pwsh','bash','write','edit','job_kill']);
 const DELEGATED_PRODUCT_ACTIONS = new Set(['mirally_action','mirally_run_command','mirally_stop_job',
   'mirally_browser_open','mirally_browser_read','mirally_browser_click','mirally_browser_fill',
-  'mirally_desktop_foreground','mirally_desktop_windows','mirally_desktop_screenshot',
+  'mirally_desktop_foreground','mirally_desktop_windows','mirally_desktop_screenshot','mirally_desktop_snapshot','mirally_desktop_action',
   'run_skill_script','mirally_write_workspace_file','mirally_create_file','mirally_create_reminder','mirally_set_preference',
   'mirally_create_event','mirally_update_event','mirally_cancel_event','mirally_remind_at','mirally_cancel_reminder',
   'mirally_schedule_action','mirally_manage_scheduled_action','mirally_send_weixin_artifact']);
