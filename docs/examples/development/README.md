@@ -16,7 +16,7 @@
 ## 本仓库配置
 
 - **集成 checkout**：`C:\Users\lazeloong\Code\Mirally-auto-workflow`，分支 `integration/auto-workflow`，从最新 `origin/main` 合并后建立。运行期间该 checkout 必须保持干净、停在该分支且没有进行中的 merge；不要与主 checkout 或其他 Agent 同时修改它。
-- **业务数据**：`C:\Users\lazeloong\Code\Mirally-auto-workflow-data-v2`，在仓库外、canonical、已初始化；保存需求队列、种子、不可变产物/review、需求 worktree 和锁。初始化后不可静默更换。
+- **业务数据**：`C:\Users\lazeloong\Code\Mirally-auto-workflow-data-v3`，在仓库外、canonical、已初始化；保存需求队列、种子、不可变产物/review、需求 worktree 和锁。初始化后不可静默更换。
 - **集成方式**：`integrationMode=pull-request`，base `integration/auto-workflow`，remote `origin`，默认 `after-verified-merge` 清理；draft PR 在 review/brief 后标记 ready，外部可随时 merge，宽限期 5 分钟后才请求工作流自合并的 Human 批准。
 - **权限**：command 使用 allowlist `node docs/examples/development/driver.mjs`；HTTP deny。该授权信任整个 driver，不是只读授权，也不是文件系统沙箱。agent 的工具权限由宿主策略管理。
 - **模型**：四个 agent 节点按顺序尝试 `ustc-pool/deepseek-flash`、`deepseek-account/deepseek-flash`；宿主默认路由在 workflow 子 agent 启动时会返回 `Cannot read properties of undefined (reading 'id')`，因此不使用 host-default。`ustc-pool` 配额阻塞时自动落到 `deepseek-account`，与 AgentTeams 的退避约定一致。
@@ -43,13 +43,13 @@
 ## 启动与操作
 
 1. 在持有本 checkout 的 DSH 会话中调用 `auto_workflow_define` 提交 `workflow.json` 与本机批准的 permissions。
-2. `auto_workflow_start` 绑定集成 checkout 的绝对 `cwd` 和 `{ "dataRoot": "C:\\Users\\lazeloong\\Code\\Mirally-auto-workflow-data-v2" }`，再调用 `auto_workflow_run`。
+2. `auto_workflow_start` 绑定集成 checkout 的绝对 `cwd` 和 `{ "dataRoot": "C:\\Users\\lazeloong\\Code\\Mirally-auto-workflow-data-v3" }`，再调用 `auto_workflow_run`。
 3. 向 `mine-gate` **只 enqueue 一次** producer；它每轮经 60 秒 gate、backlog 水位检查、seed claim、detached miner、队列 dispatch 后回到 gate。backlog 深于 3 时只 dispatch 已有队列。
 4. 用户需求用 `driver requirement` 写入；需要立即准入时再 enqueue 一次 `dispatch`。不要重复启动 producer。
 5. 人工闸门：挖掘出的 mid/high 风险需求进入 `requirement-human`；外部未在宽限期 merge 时进入 `self-merge-human`。用看板或 `auto_workflow_decide` 决定。
 
 ```powershell
-$env:DSH_WORKFLOW_INPUT = '{"dataRoot":"C:/Users/lazeloong/Code/Mirally-auto-workflow-data-v2","requirement":{"id":"req-example","source":"user","title":"具体改动","description":"期望行为与验收方式。","risk":"high","tags":["user"]}}'
+$env:DSH_WORKFLOW_INPUT = '{"dataRoot":"C:/Users/lazeloong/Code/Mirally-auto-workflow-data-v3","requirement":{"id":"req-example","source":"user","title":"具体改动","description":"期望行为与验收方式。","risk":"high","tags":["user"]}}'
 node docs/examples/development/driver.mjs requirement
 ```
 
