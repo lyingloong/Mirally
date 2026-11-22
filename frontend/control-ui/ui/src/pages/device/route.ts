@@ -1,4 +1,4 @@
-import { definePage } from "@openclaw/uirouter";
+import { definePage } from "@mirally/ui-router";
 import { html } from "lit";
 import { routePageSpec } from "../../app-route-paths.ts";
 
@@ -7,7 +7,7 @@ export const page = definePage({
   component: () =>
     import("./device-page.ts").then(() => ({
       header: true,
-      render: () => html`<openclaw-device-page></openclaw-device-page>`,
+      render: () => html`<mirally-device-page></mirally-device-page>`,
     })),
 });
 
@@ -16,6 +16,6 @@ export const permissionsPage = definePage({
   component: () =>
     import("./permissions-page.ts").then(() => ({
       header: true,
-      render: () => html`<openclaw-device-permissions-page></openclaw-device-permissions-page>`,
+      render: () => html`<mirally-device-permissions-page></mirally-device-permissions-page>`,
     })),
 });

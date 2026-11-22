@@ -2,14 +2,14 @@ import '@awesome.me/webawesome/dist/components/qr-code/qr-code.js';
 import {html,nothing} from 'lit';
 import {customElement,state} from 'lit/decorators.js';
 import {live} from 'lit/directives/live.js';
-import {OpenClawLightDomElement} from '../../lit/openclaw-element.ts';
+import {MirallyLightDomElement} from '../../lit/mirally-element.ts';
 import {renderSettingsRow,renderSettingsSection,renderSettingsStatus} from '../../components/settings-ui.ts';
 import {rpcProduct} from './api.ts';
 import {timeLabel} from '../../mobile/api.ts';
 type Data=Record<string,any>;
 /** Desktop-only enrollment owner. Phone bearer tokens are never returned here. */
 @customElement('mirally-mobile-settings')
-export class MirallyMobileSettings extends OpenClawLightDomElement {
+export class MirallyMobileSettings extends MirallyLightDomElement {
   @state() private status:Data|null=null;
   @state() private pairing:Data|null=null;
   @state() private url='';

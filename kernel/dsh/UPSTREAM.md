@@ -1,14 +1,14 @@
 # Mirally DSH 内核来源
 
-本目录是用户授权直接修改的内核源码，随 Mirally 在同一个 Git 仓库维护。上游项目是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)。
+本目录是用户授权直接修改的内核源码，随 Mirally 在同一个 Git 仓库维护。上游项目是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)。下文记录各阶段的导入、集成和验证情况。现行产品装配见[DSH 运行时](../../docs/architecture/native-dsh.md)。
 
-2026-11-01：按弃用代码不保留兼容的开发原则，删除旧 OpenClaw 运行/插件集成、配置导入与档案浏览。原生桌面行为抽入 Mirally `desktop_surface.py`，当前呈现消息通过 `native-bridge.js` 接入产品 owner；旧注入配置脚本和未使用的简化 UI 退役。测试依赖迁至 `tools/testing`，不再通过旧运行包解析。DSH Session、当前产品事实、前端来源及许可证继续维护；本机私有数据不被清理。
+2026-11-01：按弃用代码不保留兼容的开发原则，删除早期宿主管理与档案导入入口。原生桌面行为抽入 Mirally `desktop_surface.py`，当前呈现消息通过 `native-bridge.js` 接入产品 owner；旧注入配置脚本和未使用的简化 UI 退役。测试依赖迁至 `tools/testing`，不再通过旧运行包解析。DSH Session、当前产品事实、前端来源及许可证继续维护；本机私有数据不被清理。
 
 2026-10-31：Mirally 转为通用会话入口，移除产品专用工作 owner、微信工作命令和工作工具；微信助理查询目标会话所属的 DSH/Mirally 后台作业，并可委托原会话继续。停止回复不再主动终止后台作业；显式停止和权限校验沿用各执行器。用户明确要求时可为所属作业登记结束提醒，复用现有投递；通知登记只在宿主运行期间有效。桌面定时回合可使用通用 PowerShell 作业。不引入新的实验执行器或第二条模型链；用户数据无需迁移，旧工作表不再使用。
 
 2026-10-29：新增 Mirally 日历工具与渠道提醒，以及会话定时执行。定时执行复用 DSH schedule 的纯时间规则，以产品 owner 保存动作并经 Mirally 会话准入和既有权限运行，不挂载另一份上游调度 runtime；回复结束与目标成功分开。微信问题改为逐题投递，数字选择仍受绑定与送达校验。见[日历与定时能力](../../docs/architecture/scheduling.md)。
 
-2026-10-27：产品宿主增加 `work-host.mjs`、`mobile.mjs` 与微信工作适配，接入 Python 工作/真实脚本监督、独立手机配对与有限 RPC。远程消息沿用唯一 DSH 历史和实际 command 的工具边界，模型不能签发运行审批；工作结果不复制另一份 transcript。手机前端复用原主题与组件，私人 HTTPS 转发另配置。未修改上游许可证、UFO、gitlink 或 `.gitmodules`；实际边界及验证见[消息渠道](../../docs/architecture/channels.md)，历史工作入口细节由 Git 历史保留。
+2026-10-27：产品宿主增加 `work-host.mjs`、`mobile.mjs` 与微信工作适配，接入 Python 工作/真实脚本监督、独立手机配对与有限 RPC。远程消息沿用唯一 DSH 历史和实际 command 的工具边界，模型不能签发运行审批；工作结果不复制另一份 transcript。手机前端复用原主题与组件，私人 HTTPS 转发另配置。历史功能及验证范围见[消息渠道](../../docs/architecture/channels.md)，历史工作入口细节由 Git 历史保留。
 
 同日按用户的无自有云服务器条件，微信成为当前手机主入口，网页保留可选。微信适配补充有界正文历史、真实运行日志和仅切微信渠道的通知开关，沿用身份/路由版本核验与持久 outbox；不要求网页可达，不引入第二套 Agent 或新服务器依赖。
 
@@ -46,10 +46,8 @@
 - `tsdown.config.ts` 按 `dsh.sourceOnly` 跳过源码 MJS workspace 的 TypeScript `lib/types` 输出假设。`pnpm-lock.yaml` 记录新增 workspace 接缝。
 - `pnpm-workspace.yaml` 禁止 lefthook 依赖自身的构建/安装钩子，补足工作区自有 postinstall 保护，防止嵌入安装修改外层 Git hooks；准备脚本同时设置 `LEFTHOOK=0`。
 - `mirally-product` 通过原生 attachments 服务接入显式材料和多模态消息，新增有产品授权约束的成果文件工具及本机预览/下载接口。
-- 默认前端改为直接保留固定 OpenClaw Control UI `2026.9.6` 的原页面源码与原 Mirally 皮肤，源码位于仓库根 `frontend/control-ui/`，许可证、精确提交及逐文件来源另记于该目录的 [UPSTREAM.md](../../frontend/control-ui/UPSTREAM.md)。原 Lit 页面客户端工厂注入 Mirally HTTP/SSE 适配，产品活动、记忆与成果消息经 `native-bridge.js` 进入现有 owner；`mirally-product/src/presentation.mjs` 提供原品牌、工作与伙伴资源。原 Gateway、WebSocket owner 与 service worker 不加入默认运行链，DSH 仍是唯一 Agent loop/Session/模型链。
-- 保留旧页面不移植 OpenClaw 后端专有能力；未实现的旧操作不广告为可用，并明确报告尚未支持。前端使用独立 npm 锁文件与 Node 24+ 构建，准备入口为仓库根 `tools/setup_framework.py`，不以 ignored 的 OpenClaw checkout 或发行包作为运行依赖。
-
-- 2026-10-24：按用户范围暂不接入 UFO，移除新默认 Host 的执行器、专用任务 RPC/模型别名与输入桥，保留自有窗口/截图和原维护适配。
+- 默认前端改为直接保留固定来源的界面组件与 Mirally 样式，源码位于仓库根 `frontend/control-ui/`，许可证、精确提交及逐文件来源另记于该目录的 [UPSTREAM.md](../../frontend/control-ui/UPSTREAM.md)。原 Lit 页面客户端工厂注入 Mirally HTTP/SSE 适配，产品活动、记忆与成果消息经 `native-bridge.js` 进入现有 owner；`mirally-product/src/presentation.mjs` 提供原品牌、工作与伙伴资源。原 Gateway、WebSocket owner 与 service worker 不加入默认运行链，DSH 仍是唯一 Agent loop/Session/模型链。
+- 前端从独立 npm 锁文件构建，产品能力由 Mirally 的服务接口提供。
 
 - 2026-10-24：经用户确认，前端沿用原视觉与组件，导航和内容页改为 Mirally 自有产品；默认呈现资源不再加载旧模型管理覆盖层，模型连接由自有设置页管理。相关源码维护记录位于根 `frontend/control-ui/local-changes.json`。
 
@@ -75,9 +73,9 @@
 
 - 2026-10-27：微信可查询共享会话中的受管理后台命令；产品设置允许用户启用远程请求，命令、独立浏览器和桌面观察仍通过具体动作审批，并逐次核验绑定与设置。微信审批复用本机渠道 outbox，只有完整发送且收到成功回执的动作才可通过微信确认；不改变 DSH 会话和模型主链。
 
-- 2026-10-27：产品 Host 注册会话绑定的 PowerShell、受管理进程、独立 Edge 浏览器和按需 Windows 观察工具；逐次审批经产品 UI 和作用域检查进入原生工具调用，取消与宿主退出联动。单步输入实现尚未完成实机验收，默认不注册。`playwright-core` 为内核工作区锁定依赖，按首次使用加载。UFO 未接入。
+- 2026-10-27：产品 Host 注册会话绑定的 PowerShell、受管理进程、独立 Edge 浏览器和按需 Windows 观察工具；逐次审批经产品 UI 和作用域检查进入原生工具调用，取消与宿主退出联动。单步输入实现尚未完成实机验收，默认不注册。`playwright-core` 为内核工作区锁定依赖，按首次使用加载。
 
-2026-10-26 微信第一版：`mirally-product/src/channels/` 在同一产品 Host 增加 iLink 通信与渠道协调，独立实现协议而不加载 OpenClaw SDK/Gateway；固定腾讯参考版本、许可证与协议边界见[渠道说明](packages/mirally/mirally-product/src/channels/README.md)。产品工具执行按实际消费 command 检查微信只读范围，pre-step 则检查尚未追加到 transcript 的准入命令；恢复时保留原生历史，不自动重放微信输入。Python schema 4 管理绑定、DPAPI 凭据、入站与 outbox，前端沿用原设置组件。真实 DSH+回环 iLink、工具边界及 Edge 页面分别验收，另完成当前用户账号一次扫码和文字往返；不推断其他账号或长期推送均可用。
+2026-10-26 微信第一版：`mirally-product/src/channels/` 在同一产品 Host 增加 iLink 通信与渠道协调，由产品渠道适配实现协议。腾讯参考版本、许可证与协议边界见[渠道说明](packages/mirally/mirally-product/src/channels/README.md)。产品工具执行按实际消费 command 检查微信只读范围，pre-step 则检查尚未追加到 transcript 的准入命令；恢复时保留原生历史，不自动重放微信输入。Python schema 4 管理绑定、DPAPI 凭据、入站与 outbox，前端沿用原设置组件。真实 DSH+回环 iLink、工具边界及 Edge 页面分别验收，另完成当前用户账号一次扫码和文字往返；不推断其他账号或长期推送均可用。
 
 2026-10-26 迁移收尾：Conversation 元数据由 Python owner 持久化，Host 提供带版本校验的 PATCH；历史材料和工具由 `history-presentation.mjs` 从原生所有代次派生，并以真实引用授权附件。`basic-capabilities.mjs` 在原工具管线组合文件授权根、工作区文字写入与可选网页 search/fetch；不新增终端、浏览器或模型主循环。旧档案由产品侧独立只读归档，不伪造原生会话。具体范围及新旧维护切换由 Git 历史与[产品思考记录](../../docs/product/product-notes.md)保留。
 

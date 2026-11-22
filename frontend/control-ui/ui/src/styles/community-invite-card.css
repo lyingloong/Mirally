@@ -220,7 +220,7 @@
 
   @supports (corner-shape: superellipse(1.5)) {
     .invite__cta {
-      border-radius: calc(10px * var(--openclaw-corner-radius-scale, 1.25));
+      border-radius: calc(10px * var(--mirally-corner-radius-scale, 1.25));
       corner-shape: superellipse(1.5);
     }
   }

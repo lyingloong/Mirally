@@ -2,7 +2,7 @@
 
 更新：2026-10-31，Asia/Shanghai。状态：现行。本文描述默认入口的实际结构；未实现方向和取舍理由见[产品方向](../product/vision.md)与[产品思考记录](../product/product-notes.md)。
 
-Mirally 拥有产品状态、交互规则和能力边界；同仓 `kernel/dsh/` 提供会话、模型循环、工具执行与原生能力；`frontend/control-ui/` 以固定的上游界面源码为视觉与组件基础，由 Mirally 维护自有页面。默认入口不启动 OpenClaw Gateway。
+Mirally 拥有产品状态、交互规则和能力边界；同仓 `kernel/dsh/` 提供会话、模型循环、工具执行与原生能力；`frontend/control-ui/` 以固定的上游界面源码为视觉与组件基础，由 Mirally 维护自有页面。产品由 Mirally 本机宿主启动。
 
 ## 运行结构
 
@@ -35,21 +35,21 @@ flowchart LR
 | `mirally/framework/calendar.py` | 日程、提醒和定时执行的产品事实 |
 | `mirally/framework/model_connections.py` | 命名连接、模型目录、对话/后台路由与引用保护 |
 | `mirally/framework/capabilities.py` | 文件授权根、工作区写入和网页开关 |
+| `mirally/framework/notebook.py` | [记事本](notebook.md)的记录、目录、修订与查询 |
 | `mirally/framework/context.py` | 按需只读组合记忆、活动和来源缺口；查询不启动采集 |
 | `mirally/framework_workers.py` | Activity/Memory 子进程和语义任务生命周期 |
 | `mirally/framework/*.py` | 材料、附件、桌面观察、摘要等明确接口 |
-| `kernel/dsh/packages/mirally/mirally-product/` | 本机鉴权 Host、Session/模型适配、原生工具覆盖、微信协议、手机服务、日历工具 |
+| `kernel/dsh/packages/mirally/mirally-product/` | 本机鉴权 Host、Session/模型适配、原生工具覆盖、微信协议、手机服务、日历和记事工具 |
 | `kernel/dsh/packages/mirally/mirally-extensions/` | Skill、脚本、MCP 与可信插件的生命周期 |
 | `frontend/control-ui/` | Lit 壳、原对话/外观组件与 `pages/mirally/` 自有页面 |
 | `mirally/core/activity`、`runtime/activity` | 观察存储、知识投影、采集器、CLI 与历史浏览器 |
 | `mirally/core/memory`、`runtime/memory` | 持久记忆、投影、维护、召回与 CLI |
-| `mirally/runtime/ufo` | 旧桌面执行适配；默认产品不加载，UFO 子模块源码已移除 |
 
 持久状态各有唯一 owner：
 
 | 数据 | 位置 |
 | --- | --- |
-| 产品设置、会话元数据、命令、偏好、日历/提醒、投递、渠道状态 | `<home>/framework/product.sqlite3`，schema 11 |
+| 产品设置、会话元数据、命令、偏好、日历/提醒、记事、投递、渠道状态 | `<home>/framework/product.sqlite3`，schema 12 |
 | 模型对话与工具事实 | DSH 原生 Session；产品只保存引用和业务状态 |
 | Activity 原始观察与资产 | `<home>/data/activity/observations.sqlite3`、`assets/` |
 | Activity 知识投影 | `<home>/data/activity/knowledge.sqlite3` |
@@ -61,16 +61,14 @@ flowchart LR
 
 ## 启动与准备
 
-Windows x64、Python 3.10+、Node 24+（含 npm）和 Microsoft Edge WebView2 Runtime。Node 可用 `MIRALLY_NODE` 或 `--node` 显式指定。
+Windows x64、Python 3.10、Node 24+（含 npm）和 Microsoft Edge WebView2 Runtime。准备和启动时都可通过 `MIRALLY_NODE` 指定 Node，启动时也可使用 `--node`。
 
 ```powershell
-py -3.10 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements-framework.txt
-.\.venv\Scripts\python.exe tools\setup_framework.py
+.\run.ps1 -Setup
 .\run.ps1
 ```
 
-`tools/setup_framework.py` 按内核锁文件安装并构建 DSH，再按前端独立锁文件构建 `frontend/control-ui/dist/`。迁移到新机器需重建 `.venv`、两套 `node_modules`、内核构建产物和前端 `dist/`，不能复制开发机路径作为默认配置。
+`-Setup` 在需要时从 Python 3.10 创建 `.venv`，安装产品 Python 依赖，再调用 `tools/setup_framework.py` 按独立锁文件安装并构建 DSH 和前端。迁移到新机器时重新运行 `-Setup`，以生成本机路径对应的 `.venv`、两套 `node_modules` 和构建产物。
 
 常用参数：
 
@@ -132,10 +130,6 @@ py -3.10 -m venv .venv
 ## 扩展
 
 Skill、MCP 和可信插件通过显式配置接入同一 DSH 会话与工具管线；脚本执行单独确认并按内容指纹复核。扩展变更会使后续会话能力变化，停用时撤销注册与在途调用。完整契约见[扩展接口](extensions.md)。
-
-## 已退役实现
-
-当前只提供 Mirally/DSH 启动链路。旧 OpenClaw 启动器、插件集成、旧配置导入和旧档案浏览已移除；历史实现通过 Git 提交 `2eeb778a` 追溯，不在现行代码中保留兼容回退。源码清理不读取、覆盖或删除本机已有的私有配置、凭据和数据。
 
 ## 验证
 

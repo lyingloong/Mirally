@@ -1,5 +1,5 @@
 import { consume } from "@lit/context";
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 import { isSettingsTakeover } from "../app-navigation.ts";
@@ -22,7 +22,7 @@ import {
   resolveUiConversationIdentity,
   resolveUiDefaultAgentId,
 } from "../lib/sessions/session-key.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import { SubscriptionsController } from "../lit/subscriptions-controller.ts";
 import { getSafeLocalStorage } from "../local-storage.ts";
 import {
@@ -46,7 +46,7 @@ import "../styles/rail-header.css";
 import "../styles/assistant-panel.css";
 
 const ASSISTANT_CONTENT_ELEMENT = {
-  tagName: "openclaw-assistant-panel-content",
+  tagName: "mirally-assistant-panel-content",
   get label() {
     return t("assistantPanel.title");
   },
@@ -56,7 +56,7 @@ const ASSISTANT_CONTENT_ELEMENT = {
 type AssistantDestination = "home" | "custodian";
 type AssistantDock = Exclude<DockPanelSide, "left">;
 
-export class OpenClawAssistantPanel extends OpenClawLightDomElement {
+export class MirallyAssistantPanel extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   @property({ attribute: false })
   context: ApplicationContext | undefined;
@@ -199,10 +199,10 @@ export class OpenClawAssistantPanel extends OpenClawLightDomElement {
   }
 
   private primaryChatPane(): ChatPaneElement | undefined {
-    const root = this.closest("openclaw-app-shell") ?? this.parentElement;
+    const root = this.closest("mirally-app-shell") ?? this.parentElement;
     return [
       ...(root?.querySelectorAll<ChatPaneElement>(
-        "openclaw-chat-pane.chat-pane-cache__pane--active",
+        "mirally-chat-pane.chat-pane-cache__pane--active",
       ) ?? []),
     ].find(
       (pane) =>
@@ -247,7 +247,7 @@ export class OpenClawAssistantPanel extends OpenClawLightDomElement {
   };
 
   private get targetStorageKey(): string {
-    return `openclaw.assistant.panel.target.v1:${this.targetScope}`;
+    return `mirally.assistant.panel.target.v1:${this.targetScope}`;
   }
 
   private persistTarget(): void {
@@ -423,10 +423,10 @@ export class OpenClawAssistantPanel extends OpenClawLightDomElement {
         ${this.dockLayout.renderResizer("assistant-panel", t("assistantPanel.resize"))}
         <header class="rail-header assistant-panel-header" @mousedown=${beginNativeWindowDrag}>
           <div class="assistant-panel-title">
-            <openclaw-mascot
+            <mirally-mascot
               .mood=${this.destination === "custodian" && this.store?.sending ? "thinking" : "idle"}
               .size=${16}
-            ></openclaw-mascot>
+            ></mirally-mascot>
             ${(["home", "custodian"] as const).map((destination) =>
               (destination === "home" ? this.homeAvailable : this.custodianAvailable)
                 ? html`<button
@@ -435,7 +435,7 @@ export class OpenClawAssistantPanel extends OpenClawLightDomElement {
                     aria-pressed=${this.destination === destination}
                     @click=${() => this.openDestination(destination)}
                   >
-                    ${t(destination === "home" ? "assistantPanel.home" : "nav.askOpenClaw")}
+                    ${t(destination === "home" ? "assistantPanel.home" : "nav.askMirally")}
                   </button>`
                 : nothing,
             )}
@@ -475,7 +475,7 @@ export class OpenClawAssistantPanel extends OpenClawLightDomElement {
         </header>
         ${
           isOptionalElementDefined(ASSISTANT_CONTENT_ELEMENT)
-            ? html`<openclaw-assistant-panel-content
+            ? html`<mirally-assistant-panel-content
                 ?hidden=${!visible || (this.destination === "home" && !this.homeStarted)}
                 .active=${visible && (this.destination !== "home" || this.homeStarted)}
                 .destination=${this.destination}
@@ -489,7 +489,7 @@ export class OpenClawAssistantPanel extends OpenClawLightDomElement {
                 @assistant-custodian-store=${(event: CustomEvent<CustodianSessionStore>) => {
                   this.store = event.detail;
                 }}
-              ></openclaw-assistant-panel-content>`
+              ></mirally-assistant-panel-content>`
             : nothing
         }
         ${
@@ -510,12 +510,12 @@ export class OpenClawAssistantPanel extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-assistant-panel")) {
-  customElements.define("openclaw-assistant-panel", OpenClawAssistantPanel);
+if (!customElements.get("mirally-assistant-panel")) {
+  customElements.define("mirally-assistant-panel", MirallyAssistantPanel);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-assistant-panel": OpenClawAssistantPanel;
+    "mirally-assistant-panel": MirallyAssistantPanel;
   }
 }

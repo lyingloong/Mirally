@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
 import os
 import sys
@@ -29,20 +30,21 @@ DEFAULT_STATE_PATH = REPO_ROOT / "output" / "agent-workflow" / "state.json"
 DEFAULT_CONFIG_PATH = REPO_ROOT / "output" / "agent-workflow" / "config.json"
 
 DEFAULT_CONFIG: dict[str, Any] = {
+    "config_version": 2,
     "concurrency": 3,
-    "max_auto_agent_in_flight": 1,
-    "max_auto_agent_per_day": 2,
-    "merge_queue_exempt": 1,
-    "primary_route": {"provider": "ustc", "model": "deepseek-flash"},
+    "max_auto_agent_in_flight": 2,
+    "max_auto_agent_per_day": 100,
+    "merge_queue_exempt": 100,
+    "primary_route": {"provider": None, "model": None},
     "quota": {
         "enabled": True,
         "retry_after_minutes": 30,
         "backoff_minutes": [30, 60, 120],
         "max_retries": 2,
         "fallback": {
-            "enabled": True,
-            "provider": "deepseek-account",
-            "model": "deepseek-flash",
+            "enabled": False,
+            "provider": None,
+            "model": None,
             "mode": "quota_restart_only",
         },
     },
@@ -86,6 +88,23 @@ ALLOWED_TRANSITIONS: dict[str, set[str]] = {
     "done": set(),
     "rejected": set(),
     "cancelled": set(),
+}
+
+# A merge in flight (``merging``, or ``blocked`` with this origin) may only leave through
+# its merge-result transitions. Parking it would leave merge_done unable to record the
+# GitHub result, so the workflow state would diverge from the repository.
+MERGE_IN_FLIGHT = "merging"
+
+# Parking is the only ``blocked`` writer, and it is not an ``edge`` in
+# ``ALLOWED_TRANSITIONS``. Declaring why an origin cannot be restored keeps
+# ``block_point``, capacity parking and ``resume_point`` from disagreeing.
+_BLOCK_ORIGIN_REFUSALS: dict[str, str] = {
+    "blocked": "a blocked point cannot be blocked again",
+    MERGE_IN_FLIGHT: (
+        "wait for the merge result (merge-done / merge-reject) or repair instead "
+        "of blocking or cancelling"
+    ),
+    **{status: "a terminal point cannot be resumed" for status in TERMINAL_STATUSES},
 }
 
 META_FIELDS = ("branch", "worktree", "pr", "head_sha", "spec_path")
@@ -160,6 +179,61 @@ def load_config(path: Path) -> dict[str, Any]:
     return config
 
 
+LEGACY_CONFIG_UPGRADES: dict[str, tuple[int, int]] = {
+    "max_auto_agent_in_flight": (1, 2),
+    "max_auto_agent_per_day": (2, 100),
+    "merge_queue_exempt": (1, 100),
+}
+# Only files written by an understood older schema are upgraded. Version 1 is
+# the legacy default (one AI slot, per-day cap 2, head-only merge exemption);
+# a file without ``config_version`` predates versioning and is treated as 1.
+CURRENT_CONFIG_VERSION = int(DEFAULT_CONFIG["config_version"])
+UPGRADABLE_CONFIG_VERSIONS = frozenset({1})
+
+
+def upgrade_config(path: Path, *, apply: bool = False) -> dict[str, Any]:
+    """Explicitly migrate only known legacy workflow defaults; never on load.
+
+    ``config_version`` decides whether anything is migrated:
+
+    * current version: idempotent no-op, so one more ``--apply`` never rewrites
+      a file the user has since customised back to a legacy-looking value;
+    * a known older version (1, or no version at all): only values still equal
+      to that version's defaults are replaced, custom values are kept, and the
+      file is stamped with the current version;
+    * anything else (a future schema, or a non-integer version): rejected with
+      ``WorkflowError`` instead of silently downgrading the file.
+    """
+    if not path.exists():
+        raise WorkflowError(f"config does not exist: {path}")
+    raw = read_json(path)
+    if not isinstance(raw, dict):
+        raise WorkflowError(f"{path} top-level value must be an object")
+    recorded = raw.get("config_version", 1)
+    if not isinstance(recorded, int) or isinstance(recorded, bool):
+        raise WorkflowError(
+            f"config_version must be an integer, got {recorded!r} in {path}")
+    if recorded == CURRENT_CONFIG_VERSION:
+        return {"path": str(path), "applied": False, "changes": {},
+                "config_version": {"from": recorded, "to": recorded}}
+    if recorded not in UPGRADABLE_CONFIG_VERSIONS:
+        supported = ", ".join(str(item) for item in sorted(UPGRADABLE_CONFIG_VERSIONS))
+        raise WorkflowError(
+            f"config_version {recorded} in {path} is not upgradable by this tool "
+            f"(supported older versions: {supported}; current: {CURRENT_CONFIG_VERSION})")
+    changes: dict[str, dict[str, int]] = {}
+    for key, (legacy, replacement) in LEGACY_CONFIG_UPGRADES.items():
+        if raw.get(key) == legacy:
+            changes[key] = {"from": legacy, "to": replacement}
+            raw[key] = replacement
+    changes["config_version"] = {"from": recorded, "to": CURRENT_CONFIG_VERSION}
+    raw["config_version"] = CURRENT_CONFIG_VERSION
+    if apply:
+        write_json(path, raw)
+    return {"path": str(path), "applied": bool(apply), "changes": changes,
+            "config_version": {"from": recorded, "to": CURRENT_CONFIG_VERSION}}
+
+
 def validate_config(config: dict[str, Any]) -> None:
     concurrency = config.get("concurrency")
     if not isinstance(concurrency, int) or isinstance(concurrency, bool) or concurrency < 1:
@@ -168,6 +242,15 @@ def validate_config(config: dict[str, Any]) -> None:
         value = config.get(key)
         if not isinstance(value, int) or isinstance(value, bool) or value < 0:
             raise WorkflowError(f"config.{key} must be an integer >= 0")
+    primary = config.get("primary_route")
+    if primary is not None:
+        if not isinstance(primary, dict):
+            raise WorkflowError("config.primary_route must be an object")
+        route = (primary.get("provider"), primary.get("model"))
+        if any(value is not None for value in route) and not all(
+            isinstance(value, str) and value.strip() for value in route
+        ):
+            raise WorkflowError("primary route requires both provider and model, or neither")
     quota = config.get("quota")
     if not isinstance(quota, dict):
         raise WorkflowError("config.quota must be an object")
@@ -185,7 +268,7 @@ def validate_config(config: dict[str, Any]) -> None:
     if quota.get("enabled") and fallback and fallback.get("enabled"):
         if fallback.get("mode") != "quota_restart_only":
             raise WorkflowError("config.quota.fallback.mode currently supports only quota_restart_only")
-        if not fallback.get("provider") or not fallback.get("model"):
+        if not all(isinstance(fallback.get(key), str) and fallback[key].strip() for key in ("provider", "model")):
             raise WorkflowError("fallback requires both provider and model")
 
 
@@ -295,6 +378,62 @@ def touch(point: dict[str, Any]) -> None:
     point["updated_at"] = iso(utcnow())
 
 
+def merge_in_flight(point: dict[str, Any]) -> bool:
+    """True when the point is merging, or parked in ``blocked`` from ``merging``."""
+    if point["status"] == MERGE_IN_FLIGHT:
+        return True
+    return point["status"] == "blocked" and point.get("blocked_from_status") == MERGE_IN_FLIGHT
+
+
+def restored_status(point: dict[str, Any]) -> str:
+    """The status ``resume_point`` would re-enter, after checking the record is restorable."""
+    origin = point.get("blocked_from_status")
+    if origin not in STATUSES:
+        raise WorkflowError(f"{point['id']} has no valid previous status: {origin}")
+    return origin
+
+
+def refuses_blocked_from(origin: str | None) -> str | None:
+    """Why ``origin`` must never be the source of a ``blocked`` record, if it must not.
+
+    ``blocked`` has no edge in ``ALLOWED_TRANSITIONS``; it is left through ``resume_point``,
+    which restores ``blocked_from_status``. An origin that resume would refuse has no way
+    back, so parking it would hide work the state machine can no longer advance.
+    """
+    if origin is None:
+        return None
+    if origin not in STATUSES:
+        return "it is not a workflow status resume can restore"
+    return _BLOCK_ORIGIN_REFUSALS.get(origin)
+
+
+def admit_blocked_from(point: dict[str, Any], origin: str | None = None) -> None:
+    """Refuse a ``blocked`` record whose origin the state machine could not restore.
+
+    Only parked records are judged here: ``merging`` itself is a live status whose
+    merge-result transition must stay usable.
+    """
+    parked = point["status"] == "blocked" or origin is not None
+    if not parked:
+        raise WorkflowError(f"{point['id']} is not blocked")
+    origin = point.get("blocked_from_status") if origin is None else origin
+    if origin not in STATUSES:
+        raise WorkflowError(f"{point['id']} has no valid previous status: {origin}")
+    reason = refuses_blocked_from(origin)
+    if reason:
+        raise WorkflowError(f"cannot block {point['id']} from {origin}: {reason}")
+
+
+def invalidate_merge_ask(state: dict[str, Any]) -> None:
+    """Drop the delivered-ask record: the exact waiting pool it described is gone.
+
+    Any write that changes which points wait in ``awaiting_merge`` (entry, exit,
+    rework, merge approval, reconciliation) invalidates the previous delivery, so
+    a later pool must reach the user again instead of looking already answered.
+    """
+    state.pop("merge_queue_asked", None)
+
+
 def transition(
     state: dict[str, Any],
     config: dict[str, Any],
@@ -320,7 +459,24 @@ def transition(
             raise WorkflowError("proposed -> queued must use promote_point")
         if not _admit_transition(state, config, point, status, note):
             return
+    # --force skips the edges but not the parking invariant: a point recovered out of a
+    # legacy stranded park must land somewhere resume_point could park it from again if
+    # the queue fills. Ordinary forced recovery (no park on record) is untouched.
+    if force and point.get("blocked_from_status") is not None:
+        if status in TERMINAL_STATUSES or status == "merging":
+            raise WorkflowError(
+                f"cannot recover {point['id']} from a stranded merge into {status}; "
+                "recover into repairing (or a working status) instead"
+            )
     point["status"] = status
+    if status != "blocked":
+        # A status write is the end of the park; a record outside ``blocked`` must not keep
+        # a stale origin resume/validate would keep judging.
+        point["blocked_from_status"] = None
+    if current == "awaiting_merge" or status == "awaiting_merge":
+        # A point entering or leaving the pool changes the decision that was
+        # delivered; the old notification must not hide the new pool.
+        invalidate_merge_ask(state)
     if status == "awaiting_merge":
         point["merge_ready_at"] = iso(utcnow())
     elif status == "merging":
@@ -370,6 +526,8 @@ def new_point(
         "worktree": None,
         "pr": None,
         "head_sha": None,
+        "reviewed_pr": None,
+        "reviewed_head_sha": None,
         "task_ids": {},
         "auto_started": False,
         "auto_started_at": None,
@@ -482,6 +640,37 @@ def _brief(point: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _state_digest(points: list[dict[str, Any]]) -> str:
+    """Stable fingerprint of the backlog's ids and statuses."""
+    payload = [[point.get("id"), point.get("status")] for point in points]
+    return hashlib.sha1(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+
+
+def deliver_merge_ask(state: dict[str, Any]) -> dict[str, Any] | None:
+    """Record that the current merge head was delivered, and to whom.
+
+    Called only by the command that actually prints the ask for the user
+    (``next --deliver``), never while merely computing a report: an ask that
+    has not reached the user must not be marked as shown by an unrelated write
+    command. Returns the recorded entry, or None when the queue is empty; the
+    caller must persist the ``None`` case too, because it clears a stale record.
+    """
+    queue = _merge_queue(state)
+    if not queue:
+        # Nothing is waiting: a stale "already asked" record must not survive
+        # and make a future queue look answered.
+        invalidate_merge_ask(state)
+        return None
+    entry = {
+        "ids": [point["id"] for point in queue],
+        "head": queue[0]["id"],
+        "digest": _state_digest(state["points"]),
+        "asked_at": iso(utcnow()),
+    }
+    state["merge_queue_asked"] = entry
+    return entry
+
+
 def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
     points = state["points"]
     concurrency = int(config["concurrency"])
@@ -490,6 +679,19 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
     merging = [point for point in points if point["status"] == "merging"]
     exempt = min(int(config.get("merge_queue_exempt", 1)), len(merge_waiting))
     load = len(active) + max(0, len(merge_waiting) - exempt)
+    # "Already shown" is explicit persisted state (``merge_queue_asked``), never a
+    # side effect of computing a report: plain ``next`` does not write, and a
+    # write command must not swallow an ask the captain has not delivered yet.
+    # A non-empty queue stays "new" until ``next --deliver`` records delivery;
+    # any later change to the waiting pool invalidates that record, so the same
+    # point after rework is a new decision rather than an old answer.
+    asked = state.get("merge_queue_asked")
+    if not merge_waiting:
+        merge_queue_state = "none"
+    elif asked and asked.get("ids") == [point["id"] for point in merge_waiting]:
+        merge_queue_state = "answered"
+    else:
+        merge_queue_state = "new"
     free = max(0, concurrency - load)
 
     user_pending = [
@@ -575,8 +777,6 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
     action = "idle"
     if paused:
         action = "wait_quota"
-    elif merge_waiting:
-        action = "ask_user_merge"
     elif start_user:
         action = "start_user"
     elif user_capacity_waiting and free > 0:
@@ -585,10 +785,29 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
         action = "start_agent"
     elif can_auto_start_agent:
         action = "promote_agent"
-    elif should_discover_agent:
+    elif (should_discover_agent
+          and not (capacity_blocked and free > 0)
+          and merge_queue_state != "new"):
+        # Discovery is a fill-the-gap action: it must not shadow the next free
+        # slot (capacity rework) nor a merge decision that has not been delivered
+        # yet ("new"). An already delivered ("answered") pool is report state
+        # only: keeping PRs waiting must not stop new requirements from being
+        # discovered while slots are free.
         action = "discover_agent"
     elif capacity_blocked and free > 0:
+        # A slot is free and this rework is waiting for it: resuming an explicit
+        # return needs nothing new, while a merge head is a fresh decision.
+        # Resume first so the returned rework never starves behind the queue.
         action = "resume_capacity"
+    elif merge_waiting and merge_queue_state == "new":
+        # Merge approval is a notification, not a reason to leave free slots idle.
+        action = "ask_user_merge"
+    elif (merge_waiting and merge_queue_state == "answered"
+          and not (capacity_blocked and free > 0)):
+        # The same unanswered pool was already shown: keep it in the report,
+        # but do not demand the decision again on every loop. Capacity rework
+        # that owns a free slot still resumes first (handled above).
+        action = "wait_merge_approval"
 
     return {
         "concurrency": concurrency,
@@ -619,6 +838,8 @@ def build_summary(state: dict[str, Any], config: dict[str, Any]) -> dict[str, An
             for index, point in enumerate(merge_waiting)
         ],
         "merge_head": _brief(merge_waiting[0]) if merge_waiting else None,
+        "merge_queue_state": merge_queue_state,
+        "merge_queue_asked": copy.deepcopy(asked) if merge_queue_state == "answered" else None,
         "merging": [_brief(point) for point in merging],
         "quota_blocked": [_brief(point) for point in quota_blocked],
         "capacity_blocked": [_brief(point) for point in capacity_blocked],
@@ -695,15 +916,24 @@ def start_point(state: dict[str, Any], config: dict[str, Any], point_id: str) ->
     return point
 
 
-def review_pass(state: dict[str, Any], config: dict[str, Any], point_id: str) -> dict[str, Any]:
+def review_pass(state: dict[str, Any], config: dict[str, Any], point_id: str,
+                *, expected_head: str | None = None) -> dict[str, Any]:
     point = point_by_id(state, point_id)
+    pr = point.get("pr")
+    head = point.get("head_sha")
+    has_full_head = isinstance(head, str) and len(head) == 40 and all(char in "0123456789abcdef" for char in head)
+    if expected_head is not None and (not has_full_head or expected_head != head):
+        raise WorkflowError(f"{point_id} reviewed head does not match the registered full head SHA")
     transition(
         state,
         config,
         point,
         "awaiting_merge",
-        note="review passed; waiting for user merge approval",
+        note="review passed; waiting for user/Codex merge decision",
     )
+    has_review_identity = type(pr) is int and pr > 0 and has_full_head
+    point["reviewed_pr"] = pr if has_review_identity else None
+    point["reviewed_head_sha"] = head if has_review_identity else None
     return point
 
 
@@ -721,6 +951,8 @@ def review_fail(
         "repairing",
         note=reason or "review requested changes; returned to engineer",
     )
+    point["reviewed_pr"] = None
+    point["reviewed_head_sha"] = None
     return point
 
 
@@ -731,13 +963,55 @@ def merge_approve(state: dict[str, Any], config: dict[str, Any], point_id: str) 
     queue = _merge_queue(state)
     if queue and queue[0]["id"] != point_id:
         raise WorkflowError(f"{point_id} is not the merge queue head (head is {queue[0]['id']})")
-    transition(state, config, point, "merging", note="user approved merge")
+    transition(state, config, point, "merging", note="user/Codex approved merge")
     return point
 
 
 def merge_done(state: dict[str, Any], config: dict[str, Any], point_id: str) -> dict[str, Any]:
     point = point_by_id(state, point_id)
     transition(state, config, point, "done", note="merged to main")
+    return point
+
+
+def merge_reconcile(
+    state: dict[str, Any],
+    config: dict[str, Any],
+    point_id: str,
+    *,
+    pr: int,
+    head_sha: str,
+    approved_by: str,
+    confirm_merged: bool,
+    note: str | None = None,
+) -> dict[str, Any]:
+    """Record a user/Codex-confirmed merge that happened outside the state helper.
+
+    This is intentionally explicit: the captain cannot verify GitHub from here, so
+    the caller must confirm the merge and provide the exact PR/head identity.
+    """
+    if not confirm_merged:
+        raise WorkflowError("merge-reconcile requires --confirm-merged after verifying the PR is merged")
+    if approved_by not in {"user", "codex"}:
+        raise WorkflowError("approved_by must be user or codex")
+    point = point_by_id(state, point_id)
+    if point["status"] != "awaiting_merge":
+        raise WorkflowError(f"{point_id} is not awaiting_merge")
+    if point.get("pr") != pr:
+        raise WorkflowError(f"{point_id} PR mismatch: state has {point.get('pr')}, got {pr}")
+    if point.get("head_sha") != head_sha:
+        raise WorkflowError(f"{point_id} head mismatch: state has {point.get('head_sha')}, got {head_sha}")
+    now = iso(utcnow())
+    point["status"] = "done"
+    # A reconciled point left the waiting pool: the delivered ask described a
+    # pool that no longer exists.
+    invalidate_merge_ask(state)
+    point["merge_approved_at"] = point.get("merge_approved_at") or now
+    point["merged_at"] = now
+    point["merge_reconciled_at"] = now
+    point["merge_reconciled_by"] = approved_by
+    point["merge_reconcile_note"] = note or f"reconciled non-head merge by {approved_by}"
+    append_note(point, point["merge_reconcile_note"])
+    touch(point)
     return point
 
 
@@ -778,6 +1052,49 @@ def reject_point(
     return point
 
 
+def cancel_point(
+    state: dict[str, Any],
+    point_id: str,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    """Cancel a non-terminal point without requiring a free active slot.
+
+    Used for proposals/blocked points that must be closed while the queue is full;
+    unlike resume, this does not need to re-enter an active status.
+    """
+    point = point_by_id(state, point_id)
+    if point["status"] in TERMINAL_STATUSES:
+        raise WorkflowError(f"{point_id} is already terminal and cannot be cancelled")
+    if not reason:
+        raise WorkflowError("cancel-point requires a reason")
+    # Cancellation is exactly the ``cancelled`` edge of ALLOWED_TRANSITIONS, so there is no
+    # second status list to drift. A ``blocked`` point is judged by its origin, which is
+    # the status resume_point would restore (and which the invariants keep resumable);
+    # ``merging`` is refused there before anything is written.
+    current = point["status"]
+    origin = restored_status(point) if current == "blocked" else current
+    if "cancelled" not in ALLOWED_TRANSITIONS.get(origin, set()):
+        parked = f"{current} from {origin}" if current == "blocked" else current
+        if origin == MERGE_IN_FLIGHT:
+            raise WorkflowError(
+                f"cannot cancel {point_id} ({parked}): wait for the merge result "
+                "(merge-done / merge-reject) or repair instead of cancelling"
+            )
+        raise WorkflowError(f"cancel {point_id} from {parked} is not an allowed transition")
+    # Written directly rather than through transition(): the transition would re-admit
+    # the point and park it in ``blocked`` when the queue is full, which is exactly the
+    # deadlock this entry point exists to avoid. The edge itself was checked above.
+    point["status"] = "cancelled"
+    point["blocked_until"] = None
+    point["blocked_from_status"] = None
+    point["blocked_reason"] = None
+    if current == "awaiting_merge":
+        invalidate_merge_ask(state)
+    append_note(point, reason)
+    touch(point)
+    return point
+
+
 def block_point(
     state: dict[str, Any],
     config: dict[str, Any],
@@ -794,7 +1111,9 @@ def block_point(
         raise WorkflowError(f"{point_id} is already blocked")
     if reason not in {"quota", "external", "other"}:
         raise WorkflowError("reason must be quota, external or other")
-
+    # Parking writes ``blocked`` directly, so refuse an origin resume_point could not
+    # restore (merging, terminal, blocked) before any block metadata is written.
+    admit_blocked_from(point, point["status"])
     previous = point["status"]
     quota = config["quota"]
     attempt = int(point.get("quota_retries") or 0)
@@ -810,6 +1129,10 @@ def block_point(
     point["blocked_reason"] = reason
     point["blocked_until"] = iso(utcnow() + timedelta(minutes=wait_minutes))
     point["status"] = "blocked"
+    if previous == "awaiting_merge":
+        # The point left the waiting pool; a delivered ask for the old pool
+        # no longer describes what needs a decision.
+        invalidate_merge_ask(state)
     fallback = None
     fallback_config = quota.get("fallback") or {}
     if reason == "quota" and quota.get("enabled") and fallback_config.get("enabled"):
@@ -834,9 +1157,10 @@ def resume_point(state: dict[str, Any], config: dict[str, Any], point_id: str) -
     point = point_by_id(state, point_id)
     if point["status"] != "blocked":
         raise WorkflowError(f"{point_id} is not blocked")
-    previous = point.get("blocked_from_status")
-    if previous not in STATUSES or previous == "blocked":
-        raise WorkflowError(f"{point_id} has no valid previous status")
+    previous = restored_status(point)
+    # Restoring is a status write outside ALLOWED_TRANSITIONS, so it must land somewhere
+    # a parked point may be resumed into (never merging or another blocked state).
+    admit_blocked_from(point, previous)
     if previous in ACTIVE_STATUSES or previous == "awaiting_merge":
         summary = build_summary(state, config)
         projected = _projected_load(summary, config, previous)
@@ -857,6 +1181,10 @@ def resume_point(state: dict[str, Any], config: dict[str, Any], point_id: str) -
     point["blocked_until"] = None
     point["blocked_from_status"] = None
     point["blocked_reason"] = None
+    if previous == "awaiting_merge":
+        # Back in the waiting pool: its earlier delivery (if any) was invalidated
+        # when the point was parked; never resurrect a stale "answered" state.
+        invalidate_merge_ask(state)
     if point.get("fallback"):
         point["fallback"] = None
         append_note(point, "restored USTC primary route")
@@ -898,6 +1226,13 @@ def validate_state(state: dict[str, Any], config: dict[str, Any]) -> list[str]:
         if point.get("status") == "blocked":
             if not point.get("blocked_from_status"):
                 issues.append(f"{label} blocked point is missing blocked_from_status")
+            else:
+                refusal = refuses_blocked_from(point.get("blocked_from_status"))
+                if refusal:
+                    issues.append(
+                        f"{label} blocked point cannot be resumed from "
+                        f"{point.get('blocked_from_status')}: {refusal}"
+                    )
             if point.get("blocked_reason") != "capacity" and not point.get("blocked_until"):
                 issues.append(f"{label} blocked point is missing blocked_until")
         if point.get("status") == "awaiting_merge" and not point.get("merge_ready_at"):
@@ -969,8 +1304,12 @@ def format_point(point: dict[str, Any]) -> str:
         bits.append(f"PR #{point['pr']}")
     if point.get("auto_started"):
         bits.append("auto-started")
-    if point.get("blocked_until"):
-        bits.append(f"blocked until {point['blocked_until']}")
+    if point.get("blocked_until") and point.get("blocked_from_status") not in STATUSES:
+        bits.append(f"blocked until {point['blocked_until']} (origin lost; use set-status --force)")
+    elif point.get("blocked_until"):
+        bits.append(f"blocked from {point['blocked_from_status']} until {point['blocked_until']}")
+    elif point.get("blocked_from_status"):
+        bits.append(f"blocked from {point['blocked_from_status']} (waiting for a slot)")
     return " | ".join(bits)
 
 
@@ -986,7 +1325,7 @@ def print_status(summary: dict[str, Any]) -> None:
         for point in summary["active"]:
             _write_text(sys.stdout, "  " + format_point(point) + "\n")
     if summary["merge_queue"]:
-        _write_text(sys.stdout, "waiting for user merge approval (only the head is exempt):\n")
+        _write_text(sys.stdout, "waiting for user/Codex merge decision (only the head is exempt):\n")
         for point in summary["merge_queue"]:
             marker = "head/exempt" if point["exempt"] else "queued/counts toward concurrency"
             _write_text(sys.stdout, f"  {format_point(point)} ({marker})\n")
@@ -1044,6 +1383,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     next_cmd = sub.add_parser("next", help="show the next scheduling decision as JSON")
     next_cmd.add_argument("--json", action="store_true", default=True)
+    next_cmd.add_argument(
+        "--deliver",
+        action="store_true",
+        help="record that the current merge head was delivered to the user; "
+             "only this flag marks a merge ask as shown",
+    )
 
     promote = sub.add_parser("promote", help="move an AI proposal into the development queue")
     promote.add_argument("id")
@@ -1065,11 +1410,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     review_pass_cmd = sub.add_parser("review-pass", help="mark review passed; never merges")
     review_pass_cmd.add_argument("id")
+    review_pass_cmd.add_argument("--head-sha", help="require this full reviewed commit to match the registered PR head")
     review_fail_cmd = sub.add_parser("review-fail", help="return a point to the engineer")
     review_fail_cmd.add_argument("id")
     review_fail_cmd.add_argument("--reason")
 
-    merge_approved = sub.add_parser("merge-approved", help="record user approval; only the head")
+    merge_approved = sub.add_parser("merge-approved", help="record user/Codex merge approval; only the head")
     merge_approved.add_argument("id")
     merge_done = sub.add_parser("merge-done", help="record the PR as merged")
     merge_done.add_argument("id")
@@ -1078,9 +1424,27 @@ def build_parser() -> argparse.ArgumentParser:
     merge_rejected.add_argument("--reason")
     merge_rejected.add_argument("--close", action="store_true")
 
+    merge_reconcile = sub.add_parser(
+        "merge-reconcile",
+        help="record a user/Codex-confirmed non-head merge with PR/head audit",
+    )
+    merge_reconcile.add_argument("id")
+    merge_reconcile.add_argument("--pr", type=int, required=True)
+    merge_reconcile.add_argument("--head-sha", required=True)
+    merge_reconcile.add_argument("--approved-by", choices=["user", "codex"], required=True)
+    merge_reconcile.add_argument("--note")
+    merge_reconcile.add_argument("--confirm-merged", action="store_true")
+
     reject = sub.add_parser("reject-point", help="reject a proposed/queued point")
     reject.add_argument("id")
     reject.add_argument("--reason")
+
+    cancel = sub.add_parser(
+        "cancel-point",
+        help="cancel a non-terminal point without requiring a free active slot",
+    )
+    cancel.add_argument("id")
+    cancel.add_argument("--reason", required=True)
 
     block = sub.add_parser("block", help="block a point due to quota or external state")
     block.add_argument("id")
@@ -1095,6 +1459,11 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--json", action="store_true")
 
     sub.add_parser("config", help="print the merged config")
+    config_upgrade = sub.add_parser(
+        "config-upgrade",
+        help="explicitly migrate known legacy config defaults; dry-run unless --apply",
+    )
+    config_upgrade.add_argument("--apply", action="store_true")
     return parser
 
 
@@ -1153,9 +1522,21 @@ def command_status(args: argparse.Namespace) -> int:
 
 
 def command_next(args: argparse.Namespace) -> int:
-    state = load_state(Path(args.state))
+    state_path = Path(args.state)
+    state = load_state(state_path)
     config = load_config(Path(args.config))
-    print_json(build_summary(state, config))
+    summary = build_summary(state, config)
+    if getattr(args, "deliver", False):
+        # Only the command that prints the ask to the user records "already shown".
+        # Emptying the queue clears the record too, so that clear must be persisted:
+        # saving only non-empty deliveries leaves a stale "answered" record on disk
+        # and makes a later, reworked pool skip its own notification.
+        had_record = "merge_queue_asked" in state
+        entry = deliver_merge_ask(state)
+        if entry is not None or had_record:
+            save_state(state_path, state)
+            summary = build_summary(state, config)
+    print_json(summary)
     return 0
 
 
@@ -1223,7 +1604,7 @@ def command_review_pass(args: argparse.Namespace) -> int:
     state_path = Path(args.state)
     state = load_state(state_path)
     config = load_config(Path(args.config))
-    point = review_pass(state, config, args.id)
+    point = review_pass(state, config, args.id, expected_head=args.head_sha)
     save_state(state_path, state)
     print_json(point)
     return 0
@@ -1269,11 +1650,45 @@ def command_merge_rejected(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_merge_reconcile(args: argparse.Namespace) -> int:
+    state_path = Path(args.state)
+    state = load_state(state_path)
+    config = load_config(Path(args.config))
+    point = merge_reconcile(
+        state,
+        config,
+        args.id,
+        pr=args.pr,
+        head_sha=args.head_sha,
+        approved_by=args.approved_by,
+        confirm_merged=args.confirm_merged,
+        note=args.note,
+    )
+    save_state(state_path, state)
+    print_json(point)
+    return 0
+
+
+def command_config_upgrade(args: argparse.Namespace) -> int:
+    result = upgrade_config(Path(args.config), apply=args.apply)
+    print_json(result)
+    return 0
+
+
 def command_reject_point(args: argparse.Namespace) -> int:
     state_path = Path(args.state)
     state = load_state(state_path)
     config = load_config(Path(args.config))
     point = reject_point(state, config, args.id, args.reason)
+    save_state(state_path, state)
+    print_json(point)
+    return 0
+
+
+def command_cancel_point(args: argparse.Namespace) -> int:
+    state_path = Path(args.state)
+    state = load_state(state_path)
+    point = cancel_point(state, args.id, args.reason)
     save_state(state_path, state)
     print_json(point)
     return 0
@@ -1340,11 +1755,14 @@ COMMANDS = {
     "merge-approved": command_merge_approved,
     "merge-done": command_merge_done,
     "merge-rejected": command_merge_rejected,
+    "merge-reconcile": command_merge_reconcile,
     "reject-point": command_reject_point,
+    "cancel-point": command_cancel_point,
     "block": command_block,
     "resume": command_resume,
     "validate": command_validate,
     "config": command_config,
+    "config-upgrade": command_config_upgrade,
 }
 
 

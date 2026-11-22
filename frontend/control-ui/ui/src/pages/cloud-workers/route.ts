@@ -1,4 +1,4 @@
-import { definePage } from "@openclaw/uirouter";
+import { definePage } from "@mirally/ui-router";
 import { html } from "lit";
 import { routePageSpec } from "../../app-route-paths.ts";
 import type { ApplicationContext } from "../../app/context.ts";
@@ -9,6 +9,6 @@ export const page = definePage({
   component: () =>
     import("./cloud-workers-page.ts").then(() => ({
       header: true,
-      render: () => html`<openclaw-cloud-workers-page></openclaw-cloud-workers-page>`,
+      render: () => html`<mirally-cloud-workers-page></mirally-cloud-workers-page>`,
     })),
 });

@@ -1,5 +1,5 @@
-import { asOptionalObjectRecord as asRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { asOptionalObjectRecord as asRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 import { isAgentPlanProgressToolName } from "../session-cards/progress-card-input.js";
 
 export function projectAgentActivityItem<

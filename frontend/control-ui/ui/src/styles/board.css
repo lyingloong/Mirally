@@ -1,4 +1,4 @@
-openclaw-board-view {
+mirally-board-view {
   display: block;
   min-width: 0;
   width: 100%;
@@ -137,7 +137,7 @@ openclaw-board-view {
 }
 
 .board-grid[hidden],
-openclaw-board-widget-cell[hidden] {
+mirally-board-widget-cell[hidden] {
   display: none;
 }
 
@@ -160,7 +160,7 @@ openclaw-board-widget-cell[hidden] {
   z-index: 7;
 }
 
-openclaw-board-widget-cell {
+mirally-board-widget-cell {
   display: contents;
 }
 
@@ -603,7 +603,7 @@ openclaw-board-widget-cell {
 /* A lone full-width widget becomes the focused dashboard's page. Keep the
    regular grid sizing, subtracting only the shell removed from auto heights. */
 :is(.sidebar-region--expanded, .sidebar-region:not(.sidebar-region--open), .board-document__content)
-  openclaw-board-view:has(> .board-view--single-full-width) {
+  mirally-board-view:has(> .board-view--single-full-width) {
   padding: 0;
 
   > .board-view {

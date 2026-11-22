@@ -1,4 +1,4 @@
-import type { BoardGetParams } from "@openclaw/gateway-protocol";
+import type { BoardGetParams } from "@mirally/gateway-protocol";
 import { html } from "lit";
 import type { BoardViewCallbacks } from "../../lib/board/provider.ts";
 import type { BoardSnapshot } from "../../lib/board/types.ts";
@@ -19,7 +19,7 @@ type BoardSessionSurfaceProps = {
 let boardViewLoad: Promise<unknown> | null = null;
 
 export async function ensureBoardViewElement(): Promise<boolean> {
-  if (customElements.get("openclaw-board-view")) {
+  if (customElements.get("mirally-board-view")) {
     return false;
   }
   boardViewLoad ??= import("../../components/board/board-view.ts");
@@ -30,7 +30,7 @@ export async function ensureBoardViewElement(): Promise<boolean> {
 function renderBoardView(props: BoardSessionSurfaceProps) {
   return html`
     <div class="board-session-surface__board">
-      <openclaw-board-view
+      <mirally-board-view
         .active=${props.active}
         .session=${props.session}
         .snapshot=${props.snapshot}
@@ -40,7 +40,7 @@ function renderBoardView(props: BoardSessionSurfaceProps) {
         .callbacks=${props.callbacks}
         .canMutate=${props.canMutate}
         .canGrant=${props.canGrant}
-      ></openclaw-board-view>
+      ></mirally-board-view>
     </div>
   `;
 }

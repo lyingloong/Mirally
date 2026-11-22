@@ -10,11 +10,11 @@ Mirally 是运行在 Windows 上的个人 agent 产品：自有界面与桌面�
 ## 快速开始
 
 ```powershell
-py -3.10 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements-framework.txt
-.\.venv\Scripts\python.exe tools\setup_framework.py
+.\run.ps1 -Setup
 .\run.ps1
 ```
+
+`-Setup` 创建本地 Python 环境、安装依赖并构建产品。首次准备或需要重建时运行，日常启动只需 `.\run.ps1`。
 
 首次启动后在「设置 → 模型」配置模型连接。
 
@@ -41,7 +41,7 @@ npm --prefix frontend/control-ui run build
 .\.venv\Scripts\python.exe tools/verify_framework.py
 ```
 
-全量测试需先完成上面的安装与前端构建；未准备可选依赖时整批失败，逐项命令与边界见[验证与未覆盖边界](docs/reference/validation.md)。
+先完成上面的依赖安装和构建，再按[验证与未覆盖边界](docs/reference/validation.md)选择检查范围。
 
 ## 文档导航
 
@@ -49,8 +49,8 @@ npm --prefix frontend/control-ui run build
 
 ## 来源与许可
 
-OpenClaw 后端已退役，旧实现通过 Git 提交 [`2eeb778a`](https://github.com/lyingloong/Mirally/tree/2eeb778a) 追溯，历史与迁移说明见[系统概览](docs/architecture/overview.md#已退役实现)。
+Mirally 的运行结构与数据归属见[系统概览](docs/architecture/overview.md)。
 
-前端以固定 OpenClaw Control UI `2026.9.6` 源码为来源，沿用原 Mirally 的布局、视觉、主题、动画与伙伴体验；DSH、前端固定来源及第三方组件的许可证、来源说明与第三方声明继续保留。
+Mirally 维护自己的前端和伙伴体验。第三方组件的来源和许可见[前端来源](frontend/control-ui/UPSTREAM.md)与[内核上游基线](kernel/dsh/UPSTREAM.md)。
 
-UFO 本阶段不接入：子模块与专用测试依赖已移除，源码不再随仓库提供；产品自有的 Windows 适配留作参考。产品与愿景展示站源码位于 [website/](website/README.md)，保留独立依赖、构建与发布流程，不参与产品启动；新站部署地址为 <https://lyingloong.github.io/Mirally/>。
+产品与愿景展示站源码位于 [website/](website/README.md)，保留独立依赖、构建与发布流程，不参与产品启动；部署地址为 <https://lyingloong.github.io/Mirally/>。

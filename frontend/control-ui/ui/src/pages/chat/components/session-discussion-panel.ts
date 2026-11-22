@@ -11,7 +11,7 @@ import { renderPanelLoadingSkeleton } from "../../../components/panel-loading-sk
 import { t } from "../../../i18n/index.ts";
 import { formatUiError } from "../../../lib/format-error.ts";
 import { buildWidgetThemeMessage, postWidgetTheme } from "../../../lib/widget-theme.ts";
-import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../../lit/mirally-element.ts";
 
 type SessionDiscussionInfoLoader = (sessionKey: string) => Promise<SessionDiscussionInfo>;
 type SessionDiscussionOpener = (sessionKey: string) => Promise<SessionDiscussionInfo>;
@@ -69,7 +69,7 @@ function resolveDiscussionEmbedUrl(value: string | undefined): string | null {
     return null;
   }
   if (
-    url.searchParams.get("openclawHostTheme") !== "1" ||
+    url.searchParams.get("mirallyHostTheme") !== "1" ||
     !/^\/embed\/(?:channel|thread)\/[^/]+\/[^/]+\/?$/u.test(url.pathname)
   ) {
     // Provider-issued and signed discussion URLs are opaque. Only ClickClack's
@@ -90,7 +90,7 @@ function resolveDiscussionEmbedUrl(value: string | undefined): string | null {
   return url.href;
 }
 
-class SessionDiscussionPanel extends OpenClawLightDomElement {
+class SessionDiscussionPanel extends MirallyLightDomElement {
   @property() sessionKey = "";
   @property({ attribute: false }) loadInfo: SessionDiscussionInfoLoader | null = null;
   @property({ attribute: false }) openDiscussion: SessionDiscussionOpener | null = null;
@@ -281,12 +281,12 @@ class SessionDiscussionPanel extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-session-discussion")) {
-  customElements.define("openclaw-session-discussion", SessionDiscussionPanel);
+if (!customElements.get("mirally-session-discussion")) {
+  customElements.define("mirally-session-discussion", SessionDiscussionPanel);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-session-discussion": SessionDiscussionPanel;
+    "mirally-session-discussion": SessionDiscussionPanel;
   }
 }

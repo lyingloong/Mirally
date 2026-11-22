@@ -89,29 +89,29 @@ class FrameworkShellTests(unittest.TestCase):
             self.shell._web_message(None, self.frame(value))
             action.assert_called_once_with(value)
 
-    def test_retired_ufo_focus_messages_do_not_register_or_update_worker_state(self):
-        self.shell._product_origin = ("http", "127.0.0.1:37281")
-        registration = MagicMock()
-        self.shell._frontend_registration = registration
-        for editing in (True, False, "yes"):
-            for origin in ("http://127.0.0.1:37281/", "https://untrusted.invalid/"):
-                self.shell._web_message(None, self.frame({"type": "mirally-ufo-input", "editing": editing}, origin))
-        registration.update.assert_not_called()
-        self.assertFalse((self.host.root / ".artifacts/frontends").exists())
-
-    def test_native_style_keeps_window_menu_without_registering_ufo_input_tracking(self):
+    def test_native_style_installs_window_menu(self):
         self.shell.window.native.Invoke.side_effect = lambda callback: callback()
         modules = {"System": SimpleNamespace(Action=lambda callback: callback),
                    "System.Drawing": SimpleNamespace(Icon=MagicMock())}
         with patch.dict("sys.modules", modules), \
-             patch("mirally.platform.frontend_registry.FrontendRegistration") as registration, \
+             patch("mirally.framework_shell.mark_mirally_window") as mark, \
              patch("mirally.platform.window_menu.WindowSystemMenu") as menu:
             self.shell._native_style()
-        registration.assert_not_called()
+        mark.assert_called_once_with(int(self.shell.window.native.Handle.ToInt64()))
         menu.return_value.install.assert_called_once_with()
-        self.assertFalse(hasattr(self.shell, "_frontend_registration"))
-        self.assertFalse((self.host.root / ".artifacts/frontends").exists())
         self.assertEqual(self.shell.window.native.Opacity, 0)
+
+    def test_recreated_native_window_gets_its_own_boundary_marker(self):
+        form = self.shell.window.native
+        form.Handle.ToInt64.side_effect = [10, 30]
+        created, destroyed = form.HandleCreated, form.HandleDestroyed
+        with patch("mirally.framework_shell.mark_mirally_window") as mark, \
+             patch("mirally.framework_shell.unmark_mirally_window") as unmark:
+            self.shell._bind_native_window_identity(form)
+            destroyed.__iadd__.call_args.args[0](None, None)
+            created.__iadd__.call_args.args[0](None, None)
+        self.assertEqual([call.args for call in mark.call_args_list], [(10,), (30,)])
+        unmark.assert_called_once_with(10)
 
     def test_remote_webview_protocol_is_ignored(self):
         self.shell._product_origin = ("http", "127.0.0.1:37281")

@@ -1,4 +1,4 @@
-openclaw-board-document {
+mirally-board-document {
   position: fixed;
   inset: 0;
   display: block;
@@ -45,7 +45,7 @@ openclaw-board-document {
   overflow: hidden;
 }
 
-.board-document__content > openclaw-board-view {
+.board-document__content > mirally-board-view {
   display: block;
   flex: 1 1 0;
   min-width: 0;

@@ -11,8 +11,8 @@ import {
 } from "../components/panel-toggle-contract.ts";
 import { getSafeSessionStorage } from "../local-storage.ts";
 
-const STORAGE_KEY = "openclaw:lazy-event";
-export const SHELL_APPROVALS_OPEN_EVENT = "openclaw:approvals-open";
+const STORAGE_KEY = "mirally:lazy-event";
+export const SHELL_APPROVALS_OPEN_EVENT = "mirally:approvals-open";
 const eventTypes = [
   COMMAND_PALETTE_OPEN_EVENT,
   DEBUG_OVERLAY_REQUEST_EVENT,

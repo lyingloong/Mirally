@@ -2,7 +2,7 @@
 
 更新：2026-10-31，Asia/Shanghai。状态：现行。完整架构与验证边界见[系统概览](../docs/architecture/overview.md)。
 
-默认入口：`python -m mirally` → `framework_host.py` → `kernel/dsh/packages/mirally/mirally-product/start.mjs`。旧 OpenClaw 运行与兼容入口已移除。
+默认入口：`python -m mirally` → `framework_host.py` → `kernel/dsh/packages/mirally/mirally-product/start.mjs`。
 
 ## 产品层
 
@@ -11,19 +11,21 @@
 | `framework_host.py` | 解析 home、Node/Python 工具链和端口；构建检查；启动 Node Host；打开桌面窗口或浏览器 |
 | `framework/service.py` | 产品 SQLite owner：设置、逻辑会话/代次、命令回执、偏好、提醒/日历、投递、主动候选、摘要入口 |
 | `framework/channels.py` | 微信安装身份、本人绑定、会话路由、收发去重与回执；凭据使用 DPAPI |
+| `framework/notebook.py` | [记事本](../docs/architecture/notebook.md)的记录、目录、修订、查询与私密过滤 |
 | `framework/calendar.py` | 日程、提醒与定时执行的产品事实 |
 | `framework/model_connections.py` | 命名连接、模型目录、对话/后台路由与引用保护 |
 | `framework/capabilities.py` | 文件授权根、工作区写入、网页开关与有界读取 |
 | `framework/context.py` | 按需只读组合 Memory 与 Activity；查询不启动采集 |
 | `framework/materials.py` | 材料接收、文字提取、会话成果与鉴权 |
 | `framework/recaps.py` | 会话摘要与自动标题的产品状态 |
-| `framework/desktop_observation.py` | 窗口列表、截图与桌面观察接口 |
+| `framework/desktop_observation.py` | 窗口列表、截图及桌面工具的子进程入口 |
+| `framework/desktop_controls.py`、`framework/desktop_snapshot_image.py` | 指定窗口的 UIA 控件快照、单步操作及标注图 |
 | `framework_workers.py` | Activity/Memory 子进程、语义任务、预算与停止 |
 | `framework_ui/` | 产品消息桥接、品牌与伙伴呈现资源 |
 | `framework_shell.py` | WebView2 窗口、原生裁剪、托盘、伙伴与退出 |
 | `desktop_surface.py` | 与宿主无关的原生窗口、伙伴、菜单、裁剪和用户主动截图行为 |
 
-产品库位于 `<home>/framework/product.sqlite3`，schema 11。它保存引用和业务状态，不保存第二份聊天正文。
+产品库位于 `<home>/framework/product.sqlite3`，schema 12。它保存引用和业务状态，不保存第二份聊天正文。
 
 ## 内核层
 
@@ -31,7 +33,7 @@
 
 - `start.mjs` 启动 Host；`composition.mjs` 加载完整 `dsh-base` 并应用 Mirally 覆盖。
 - 原生 Session/Agent loop、模型适配、工具执行、压缩、子代理、计划、提问、todo/goal 和 workflow 由 DSH 提供。
-- `src/` 另有微信协议与生命周期、手机受限服务、日历工具、摘要、作业通知、模型探测和产品呈现。
+- `src/` 另有微信协议与生命周期、手机受限服务、日历和记事工具、摘要、作业通知、模型探测和产品呈现。
 - `kernel/dsh/packages/mirally/mirally-extensions/` 管理 Skill、脚本、MCP 与可信插件。
 
 ## 领域层
@@ -41,7 +43,6 @@
 - `runtime/activity/`：Windows 采集器、CLI、历史浏览器和隔离 worker。
 - `runtime/memory/`：后台维护、语义整理、召回、保留和 CLI。
 - `platform/`：Windows 捕获隔离、Raw Input、焦点和任务栏适配。
-- `runtime/ufo/`：旧桌面执行适配，默认产品不加载；`UFO/` 子模块源码已移除，设计参考见 [UFO 复盘](../docs/product/research-2026-10-31-ufo.md)。
 
 ## 前端层
 
@@ -54,7 +55,3 @@
 3. Context 按需只读组合记忆、活动和来源缺口；不复制为第二份聊天历史。
 4. 提醒、摘要和作业通知由产品 owner 持久化，经桌面或微信渠道投递；渠道回执不等于用户已读。
 5. 原始活动与记忆分别由各自 SQLite owner 保存；DSH Session 是唯一模型历史。
-
-## 已退役实现
-
-旧 OpenClaw 路线仅通过 Git 提交 `2eeb778a` 追溯；当前代码不再提供旧宿主、配置迁移或旧档案兼容服务。本机用户数据与凭据不因源码退役自动清理。

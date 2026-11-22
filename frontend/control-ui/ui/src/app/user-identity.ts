@@ -1,6 +1,6 @@
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 // Control UI module implements user identity behavior.
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import { isRenderableControlUiAvatarUrl, resolveChatAvatarRenderUrl } from "../lib/avatar.ts";
 
 const MAX_LOCAL_USER_NAME = 50;

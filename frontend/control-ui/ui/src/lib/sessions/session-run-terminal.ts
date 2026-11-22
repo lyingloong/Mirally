@@ -1,4 +1,4 @@
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import type { GatewaySessionRow, SessionRunStatus, SessionsListResult } from "../../api/types.ts";
 import { formatUiExternalText } from "../format-error.ts";
 import type { GatewayConnectionScope } from "../gateway-connection-lifecycle.ts";

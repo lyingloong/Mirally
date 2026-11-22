@@ -19,7 +19,7 @@ export function buildMacGatewayLaunchUrl(
     ) {
       return null;
     }
-    const launch = new URL("openclaw://gateway/add");
+    const launch = new URL("mirally://gateway/add");
     launch.searchParams.set("url", address.href);
     return launch.href;
   } catch {

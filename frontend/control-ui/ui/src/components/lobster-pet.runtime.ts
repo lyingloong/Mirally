@@ -1,7 +1,7 @@
 // Decorative critter visitor that perches on the new-session composer and mirrors
 // gateway status: it idles (naps, waves, wanders) when nothing is running,
 // scurries while runs are active, and paces worriedly while disconnected.
-// Drawn in the smooth OpenClaw lobster style (see the dreams scene and
+// Drawn in the smooth Mirally lobster style (see the dreams scene and
 // icons.lobster). Look and personality are seeded per session + page load so
 // every new session hatches a slightly different lobster.
 import { LitElement, nothing, type PropertyValues } from "lit";
@@ -756,6 +756,6 @@ class LobsterPet extends LitElement {
     ];
   }
 }
-if (!customElements.get("openclaw-lobster-pet")) {
-  customElements.define("openclaw-lobster-pet", LobsterPet);
+if (!customElements.get("mirally-lobster-pet")) {
+  customElements.define("mirally-lobster-pet", LobsterPet);
 }

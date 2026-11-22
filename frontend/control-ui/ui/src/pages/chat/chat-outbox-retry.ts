@@ -1,4 +1,4 @@
-import { computeBackoff } from "@openclaw/retry";
+import { computeBackoff } from "@mirally/retry";
 import { GatewayRequestError, type GatewayBrowserClient } from "../../api/gateway.ts";
 import type { ChatHost } from "./chat-send-contract.ts";
 

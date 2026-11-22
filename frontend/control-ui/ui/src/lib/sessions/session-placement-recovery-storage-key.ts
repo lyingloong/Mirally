@@ -1,4 +1,4 @@
-const RECOVERY_STORAGE_PREFIX = "openclaw.new-session.session-placement-recovery.v1:";
+const RECOVERY_STORAGE_PREFIX = "mirally.new-session.session-placement-recovery.v1:";
 
 // Web Storage keys are JS strings, so frame UTF-16 code units directly.
 // This keeps every component unambiguous without rejecting lone surrogates.

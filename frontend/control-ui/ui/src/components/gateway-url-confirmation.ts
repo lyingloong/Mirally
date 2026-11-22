@@ -1,10 +1,10 @@
 // Control UI component asks before a link moves this browser to another Gateway.
-import { gatewayOriginScope } from "@openclaw/gateway-client/browser";
+import { gatewayOriginScope } from "@mirally/gateway-client/browser";
 import { html, nothing } from "lit";
 import { property } from "lit/decorators.js";
 import { t } from "../i18n/index.ts";
 import { formatGatewayHost } from "../lib/gateway-host.ts";
-import { OpenClawLightDomContentsElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../lit/mirally-element.ts";
 import { icons } from "./icons.ts";
 import "./modal-dialog.ts";
 
@@ -37,7 +37,7 @@ function renderGatewayUrlConfirmation(props: GatewayUrlConfirmationProps) {
   ].filter(Boolean);
 
   return html`
-    <openclaw-modal-dialog label=${title} description=${summary} @modal-cancel=${props.onCancel}>
+    <mirally-modal-dialog label=${title} description=${summary} @modal-cancel=${props.onCancel}>
       <div class="gateway-switch">
         <div class="gateway-switch__head">
           <span class="gateway-switch__icon" aria-hidden="true">${icons.shieldAlert}</span>
@@ -67,11 +67,11 @@ function renderGatewayUrlConfirmation(props: GatewayUrlConfirmationProps) {
           </button>
         </div>
       </div>
-    </openclaw-modal-dialog>
+    </mirally-modal-dialog>
   `;
 }
 
-class GatewayUrlConfirmation extends OpenClawLightDomContentsElement {
+class GatewayUrlConfirmation extends MirallyLightDomContentsElement {
   @property({ attribute: false }) props?: GatewayUrlConfirmationProps;
 
   override render() {
@@ -79,6 +79,6 @@ class GatewayUrlConfirmation extends OpenClawLightDomContentsElement {
   }
 }
 
-if (!customElements.get("openclaw-gateway-url-confirmation")) {
-  customElements.define("openclaw-gateway-url-confirmation", GatewayUrlConfirmation);
+if (!customElements.get("mirally-gateway-url-confirmation")) {
+  customElements.define("mirally-gateway-url-confirmation", GatewayUrlConfirmation);
 }

@@ -33,7 +33,7 @@ type ModelPickerParams = {
 };
 
 export function renderModelPicker(params: ModelPickerParams) {
-  let customValue = "__openclaw_custom_model__";
+  let customValue = "__mirally_custom_model__";
   const values = new Set([params.value, ...params.options.map((option) => option.value)]);
   while (values.has(customValue)) {
     customValue += "_";

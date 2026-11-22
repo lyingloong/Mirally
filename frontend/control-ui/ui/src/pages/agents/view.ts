@@ -455,9 +455,9 @@ export function renderAgents(props: AgentsProps) {
                               onClick: () => props.onOpenMemoryImport?.(),
                             })}
                           </div>
-                          <openclaw-agent-memory-panel
+                          <mirally-agent-memory-panel
                             .agentId=${selectedAgent.id}
-                          ></openclaw-agent-memory-panel>
+                          ></mirally-agent-memory-panel>
                         `
                       : nothing
                   }

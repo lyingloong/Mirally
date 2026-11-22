@@ -23,7 +23,7 @@ import { formatUiError } from "../../lib/format-error.ts";
 import { canCallGatewayMethod, isGatewayMethodAdvertised } from "../../lib/gateway-methods.ts";
 import { showToast } from "../../lib/toast.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { renderSnapshotBuildDialog } from "./cloud-worker-snapshot-build-dialog.ts";
 import {
   renderSnapshotBuildRow,
@@ -36,7 +36,7 @@ import "./cloud-worker-snapshot-policy.ts";
 
 registerSettingsEnglish();
 
-class CloudWorkerSnapshots extends OpenClawLightDomElement {
+class CloudWorkerSnapshots extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -666,12 +666,12 @@ class CloudWorkerSnapshots extends OpenClawLightDomElement {
       ${this.error ? html`<div class="callout warning" role="alert">${this.error}</div>` : nothing}
       ${this.notice ? html`<div class="callout" role="status">${this.notice}</div>` : nothing}
       ${this.result || this.builds.length || this.failedBuilds.length ? this.renderImages(this.result) : this.loading ? renderSettingsEmpty(t("common.loading")) : nothing}
-      <openclaw-cloud-worker-snapshot-policy></openclaw-cloud-worker-snapshot-policy>
+      <mirally-cloud-worker-snapshot-policy></mirally-cloud-worker-snapshot-policy>
       ${this.renderBuildDialog()}
     `);
   }
 }
 
-if (!customElements.get("openclaw-cloud-worker-snapshots")) {
-  customElements.define("openclaw-cloud-worker-snapshots", CloudWorkerSnapshots);
+if (!customElements.get("mirally-cloud-worker-snapshots")) {
+  customElements.define("mirally-cloud-worker-snapshots", CloudWorkerSnapshots);
 }

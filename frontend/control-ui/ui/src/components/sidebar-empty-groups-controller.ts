@@ -1,10 +1,10 @@
-import { gatewayOriginScope } from "@openclaw/gateway-client/browser";
+import { gatewayOriginScope } from "@mirally/gateway-client/browser";
 import type { ReactiveControllerHost } from "lit";
 import { getSafeLocalStorage } from "../local-storage.ts";
 import type { SidebarEmptyGroupsMode } from "./app-sidebar-session-types.ts";
 
-const STORAGE_PREFIX = "openclaw.control.sidebarEmptyGroups.v1:";
-const LEGACY_STORAGE_KEY = "openclaw:sidebar:sessions:hide-empty-groups";
+const STORAGE_PREFIX = "mirally.control.sidebarEmptyGroups.v1:";
+const LEGACY_STORAGE_KEY = "mirally:sidebar:sessions:hide-empty-groups";
 
 type PreferenceContext = {
   gateway: {

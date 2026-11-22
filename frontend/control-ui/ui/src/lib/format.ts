@@ -2,15 +2,15 @@ import {
   bucketRelativeTimeMs,
   formatCompactTokenCount as formatTokenUnits,
   type RelativeTimeUnit,
-} from "@openclaw/normalization-core";
+} from "@mirally/normalization-core";
 // Control UI module implements format behavior.
-import { asDateTimestampMs } from "@openclaw/normalization-core/number-coercion";
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { asDateTimestampMs } from "@mirally/normalization-core/number-coercion";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import type { DurationPart } from "../../../src/infra/format-time/format-duration-internal.ts";
 import { i18n, t } from "../i18n/index.ts";
 import { formatUiError } from "./format-error.ts";
 
-export { formatByteSize } from "@openclaw/normalization-core";
+export { formatByteSize } from "@mirally/normalization-core";
 
 export function formatCountdown(deadlineMs: number, nowMs: number, padMinutes = false): string {
   const totalSeconds = Math.max(0, Math.ceil((deadlineMs - nowMs) / 1_000));

@@ -1,6 +1,6 @@
-import { parseModelCatalogRef } from "@openclaw/model-catalog-core/model-catalog-refs";
-import { normalizeProviderId } from "@openclaw/model-catalog-core/provider-id";
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { parseModelCatalogRef } from "@mirally/model-catalog-core/model-catalog-refs";
+import { normalizeProviderId } from "@mirally/model-catalog-core/provider-id";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 
 const MODEL_POLICY_COMPAT_SELECTORS = new Set(["openrouter:auto", "openrouter:free"]);
 

@@ -1,4 +1,4 @@
-import { normalizeOptionalLowercaseString } from "@openclaw/normalization-core/string-coerce";
+import { normalizeOptionalLowercaseString } from "@mirally/normalization-core/string-coerce";
 import {
   resolveSessionKey,
   type SessionCapability,

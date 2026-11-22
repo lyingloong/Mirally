@@ -1,5 +1,5 @@
-import type { UiCommand } from "@openclaw/gateway-protocol";
-import { expectDefined } from "@openclaw/normalization-core";
+import type { UiCommand } from "@mirally/gateway-protocol";
+import { expectDefined } from "@mirally/normalization-core";
 import {
   normalizeSplitLayoutWeights,
   splitLayoutNumericSuffix,

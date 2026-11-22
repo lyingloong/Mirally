@@ -1,4 +1,4 @@
-import { readSessionMessageIdentity } from "@openclaw/gateway-client/browser";
+import { readSessionMessageIdentity } from "@mirally/gateway-client/browser";
 import { html, nothing, type TemplateResult } from "lit";
 import { ref } from "lit/directives/ref.js";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
@@ -519,10 +519,10 @@ export function renderGroupedMessage(
     ${
       sourceRole === "assistant"
         ? clawHubCards.map(
-            (card) => html`<openclaw-chat-clawhub-card
+            (card) => html`<mirally-chat-clawhub-card
               .recommendation=${card}
               .agentId=${opts.agentId}
-            ></openclaw-chat-clawhub-card>`,
+            ></mirally-chat-clawhub-card>`,
           )
         : nothing
     }

@@ -9,7 +9,7 @@ import {
 } from "./session-progress-hovercard-target.ts";
 import type { SessionProgressHovercardProvider } from "./session-progress-hovercard.runtime.ts";
 
-const HOVERCARD_TAG = "openclaw-session-progress-hovercard-provider";
+const HOVERCARD_TAG = "mirally-session-progress-hovercard-provider";
 
 let bootstrapObserver: MutationObserver | null = null;
 

@@ -25,7 +25,7 @@ import { t } from "../../i18n/index.ts";
 import "../../components/web-awesome.ts";
 import { registerPluginManagementEnglish } from "../../i18n/locales/en-plugin-management.ts";
 import { resolveScrollBehavior } from "../../lib/scroll-behavior.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { renderPluginDetailBreadcrumb } from "./detail-shell.ts";
 import { pluginEntryValue, type PluginSettingsEditorModel } from "./settings-model.ts";
 import "./settings-editor.css";
@@ -67,7 +67,7 @@ export function flattenPluginSettingsFields(
   return [{ ...params, property: rootProperty, label: labels.join(": "), help }];
 }
 
-export class PluginSettingsEditor extends OpenClawLightDomElement {
+export class PluginSettingsEditor extends MirallyLightDomElement {
   @property({ attribute: false }) model?: PluginSettingsEditorModel;
   @property({ attribute: false }) permissions?: {
     fields: PluginSettingsField[];
@@ -341,9 +341,9 @@ export class PluginSettingsEditor extends OpenClawLightDomElement {
     const initial = params ? structuredDraftInitialValue(params) : undefined;
     const fields =
       params && shouldStageStructuredDraft(params, initial)
-        ? html`<openclaw-config-form-structured-draft
+        ? html`<mirally-config-form-structured-draft
             .props=${{ identity: JSON.stringify(params.path), sourceIdentity: params.value, initialValue: initial, params, renderNode: (p: ConfigNodeRenderParams) => this.renderGroups(p, permissions) }}
-          ></openclaw-config-form-structured-draft>`
+          ></mirally-config-form-structured-draft>`
         : params
           ? this.renderGroups(params, permissions)
           : nothing;
@@ -381,4 +381,4 @@ export class PluginSettingsEditor extends OpenClawLightDomElement {
     </section>`;
   }
 }
-customElements.define("openclaw-plugin-settings-editor", PluginSettingsEditor);
+customElements.define("mirally-plugin-settings-editor", PluginSettingsEditor);

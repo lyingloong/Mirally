@@ -1,6 +1,6 @@
 // Page-side WhatsApp logout confirmation preserves the selected account and
 // Gateway owner across the operator's awaited decision.
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
 import type { ApplicationContext } from "../../app/context.ts";
 import { showConfirmDialog } from "../../components/confirm-dialog.ts";
 import { t } from "../../i18n/index.ts";

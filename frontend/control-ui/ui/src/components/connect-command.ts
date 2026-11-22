@@ -11,7 +11,7 @@ function copyCommand(event: Event) {
 export function renderConnectCommand(command: string, variant: "inline" | "hero" = "inline") {
   const copyLabel = t("connection.help.copyCommand");
   return html`
-    <openclaw-tooltip .content=${copyLabel}>
+    <mirally-tooltip .content=${copyLabel}>
       <div
         class=${
           variant === "hero"
@@ -38,6 +38,6 @@ export function renderConnectCommand(command: string, variant: "inline" | "hero"
         <code translate="no">${command}</code>
         ${renderCopyButton(command, copyLabel)}
       </div>
-    </openclaw-tooltip>
+    </mirally-tooltip>
   `;
 }

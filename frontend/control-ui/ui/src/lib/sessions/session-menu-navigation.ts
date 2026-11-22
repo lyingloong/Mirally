@@ -40,7 +40,7 @@ type SessionNavigationTarget<TRouteId extends string> = {
 
 export function canSplitSessionView(): boolean {
   return (
-    document.querySelector<SessionSplitHost>("openclaw-chat-page")?.sessionSplitAvailable === true
+    document.querySelector<SessionSplitHost>("mirally-chat-page")?.sessionSplitAvailable === true
   );
 }
 
@@ -136,7 +136,7 @@ async function copySessionMarkdown<TRouteId extends string>(
   }
   const assistantName =
     context.agents.state.agentsList?.agents.find((agent) => agent.id === agentId)?.name ??
-    "OpenClaw";
+    "Mirally";
   const markdown = buildChatMarkdown(pages.toReversed().flat(), assistantName);
   if (!markdown) {
     throw new Error(t("chat.commandResults.emptyExport"));

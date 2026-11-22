@@ -3,7 +3,7 @@ import { property } from "lit/decorators.js";
 import { parseBoardReport, type BoardReport } from "../../../../../src/boards/board-report.ts";
 import { renderBoardWidgetError } from "../../../components/board/board-widget-cell-render.ts";
 import { t } from "../../../i18n/index.ts";
-import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../../lit/mirally-element.ts";
 import type { BoardWidget } from "../types.ts";
 import "./report.css";
 
@@ -112,7 +112,7 @@ function renderReportBlock(block: ReportBlock) {
   return block satisfies never;
 }
 
-class OpenClawReportWidget extends OpenClawLightDomElement {
+class MirallyReportWidget extends MirallyLightDomElement {
   @property({ attribute: false }) widget?: BoardWidget;
   private content: { report: BoardReport } | { error: unknown } | undefined;
 
@@ -142,12 +142,12 @@ class OpenClawReportWidget extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-report-widget")) {
-  customElements.define("openclaw-report-widget", OpenClawReportWidget);
+if (!customElements.get("mirally-report-widget")) {
+  customElements.define("mirally-report-widget", MirallyReportWidget);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-report-widget": OpenClawReportWidget;
+    "mirally-report-widget": MirallyReportWidget;
   }
 }

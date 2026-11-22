@@ -1,5 +1,5 @@
-import { readSessionMessageIdentity } from "@openclaw/gateway-client/browser";
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
+import { readSessionMessageIdentity } from "@mirally/gateway-client/browser";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
 import {
   isToolCallContentType,
   isToolResultContentType,
@@ -23,7 +23,7 @@ function terminalReplyDisplaySignature(message: unknown): string | null {
   const phase = resolveAssistantMessagePhase(message);
   const stopReason =
     typeof record?.stopReason === "string" ? record.stopReason.trim().toLowerCase() : "";
-  const metadata = asNullableRecord(record?.["__openclaw"]);
+  const metadata = asNullableRecord(record?.["__mirally"]);
   if (
     phase === "commentary" ||
     ((!stopReason || stopReason === "tooluse") && metadata?.runTerminal !== true)

@@ -1,6 +1,6 @@
-import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { asOptionalRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import {
   normalizeGatewayClientId,
   normalizeGatewayClientMode,
@@ -42,6 +42,6 @@ export function normalizeMessageClientSources(value: unknown): MessageClientSour
 }
 
 export function readMessageClientSources(message: unknown): MessageClientSource[] {
-  const metadata = asOptionalRecord(asOptionalRecord(message)?.["__openclaw"]);
+  const metadata = asOptionalRecord(asOptionalRecord(message)?.["__mirally"]);
   return normalizeMessageClientSources(asOptionalRecord(metadata?.transport)?.clients);
 }

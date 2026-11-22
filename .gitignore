@@ -6,6 +6,7 @@
 **/.artifacts/
 **/*.pyc
 /tmp/
+# Local workflow state in output/agent-workflow and disposable output/tmp
 /output/
 /tools/bin/
 

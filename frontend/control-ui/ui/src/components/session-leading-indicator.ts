@@ -93,11 +93,11 @@ export function renderSessionLeadingState(
       return {
         running,
         leadingIndicator: renderSessionGlyph({
-          content: html`<openclaw-channel-avatar
+          content: html`<mirally-channel-avatar
             .routeUrl=${session.channelAvatarUrl}
             .authTokens=${avatarAuth?.authTokens ?? []}
             .authReady=${avatarAuth?.authReady ?? false}
-          ></openclaw-channel-avatar>`,
+          ></mirally-channel-avatar>`,
           ...runState,
           circular: true,
           badge: session.unread && !running ? renderSessionUnreadBadge() : nothing,
@@ -149,12 +149,12 @@ export function renderSessionLeadingState(
       leadingIndicator: renderSessionGlyph({
         // The owner chip stays visible until a usable avatar blob loads, so a
         // slow, unauthenticated, or 404 route never leaves an empty lead slot.
-        content: html`<openclaw-channel-avatar
+        content: html`<mirally-channel-avatar
           .routeUrl=${session.channelAvatarUrl}
           .authTokens=${avatarAuth?.authTokens ?? []}
           .authReady=${avatarAuth?.authReady ?? false}
           .fallback=${ownerChip ?? nothing}
-        ></openclaw-channel-avatar>`,
+        ></mirally-channel-avatar>`,
         ...runState,
         badge: session.unread && !running && !trailingState ? renderSessionUnreadBadge() : nothing,
         circular: true,

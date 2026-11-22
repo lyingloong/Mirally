@@ -9,7 +9,7 @@ import {
   formatKeyboardShortcutCombo,
   KEYBOARD_SHORTCUT_COMBOS,
 } from "../../lib/keyboard-shortcut-contract.ts";
-import type { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import type { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import type { NewSessionDraftController } from "./draft-controller.ts";
 import type { PaletteSessionPreferences } from "./palette-session-preferences.ts";
 import { folderDisplayName } from "./path.ts";
@@ -51,7 +51,7 @@ export class PaletteSessionSettings {
   private query = "";
 
   constructor(
-    private readonly host: OpenClawLightDomElement,
+    private readonly host: MirallyLightDomElement,
     private readonly id: string,
   ) {}
 

@@ -59,7 +59,7 @@ import {
 } from "../../lib/model-catalog-store.ts";
 import { parseAgentSessionKey } from "../../lib/sessions/session-key.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import {
   loadAgentFileContent,
@@ -94,7 +94,7 @@ type AgentsRequestSources = Partial<
 >;
 
 class AgentsPage
-  extends OpenClawLightDomElement
+  extends MirallyLightDomElement
   implements Omit<AgentsState, "agentsLoading" | "agentsError">
 {
   @consume({ context: applicationContext, subscribe: true })
@@ -1043,7 +1043,7 @@ class AgentsPage
     const agentsState = this.context.agents.state;
     const selectedAgentId = this.resolveSelectedAgentId();
     const access = {
-      canCreateAgent: this.canCall("openclaw.chat", "operator.admin"),
+      canCreateAgent: this.canCall("mirally.chat", "operator.admin"),
       canPatchConfig: this.canCall("config.patch", "operator.admin"),
       canUpdateConfig: this.canCall("config.set", "operator.admin"),
       canUpdateIdentity: this.canCall("agents.update", "operator.admin"),
@@ -1096,7 +1096,7 @@ class AgentsPage
             onTogglePinnedAgent: (agentId) => togglePinnedAgent(this.context.navigation, agentId),
             onRefresh: () => this.refreshAgents(),
             onCreateAgent: () => {
-              if (this.canCall("openclaw.chat", "operator.admin")) {
+              if (this.canCall("mirally.chat", "operator.admin")) {
                 this.context.navigate("custodian", { search: "?intent=new-agent" });
               }
             },
@@ -1275,9 +1275,9 @@ class AgentsPage
 
 export const header = true;
 export const render = (data: AgentsRouteData | undefined) =>
-  html`<openclaw-agents-page .routeData=${data}></openclaw-agents-page>`;
+  html`<mirally-agents-page .routeData=${data}></mirally-agents-page>`;
 
-if (!customElements.get("openclaw-agents-page")) {
-  customElements.define("openclaw-agents-page", AgentsPage);
+if (!customElements.get("mirally-agents-page")) {
+  customElements.define("mirally-agents-page", AgentsPage);
 }
 /* oxlint-disable max-lines -- TODO: split this grandfathered oversized file. */

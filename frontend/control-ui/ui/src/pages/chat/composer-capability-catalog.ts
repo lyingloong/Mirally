@@ -1,4 +1,4 @@
-import { asNullableRecord as asRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableRecord as asRecord } from "@mirally/normalization-core/record-coerce";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import type { SkillStatusEntry } from "../../api/types.ts";
 import type { SessionToolOverrides } from "../../lib/sessions/patch.ts";

@@ -50,7 +50,7 @@
   const initialize = (event) => {
     if (
       event.source !== parent ||
-      event.data?.type !== "openclaw:mermaid-init" ||
+      event.data?.type !== "mirally:mermaid-init" ||
       !event.ports[0]
     ) {
       return;

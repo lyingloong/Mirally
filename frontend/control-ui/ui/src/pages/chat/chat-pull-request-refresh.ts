@@ -1,4 +1,4 @@
-import { readSessionProjectionFinalMessageIdentity } from "@openclaw/gateway-client/browser";
+import { readSessionProjectionFinalMessageIdentity } from "@mirally/gateway-client/browser";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import { parseGitHubLinkTarget } from "../../components/github-link-target.ts";
 import {

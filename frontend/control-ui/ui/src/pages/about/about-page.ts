@@ -6,7 +6,7 @@ import { applicationContext, type ApplicationContext } from "../../app/context.t
 import { CONTROL_UI_BUILD_INFO } from "../../build-info.ts";
 import { renderSettingsWorkspace } from "../../components/settings-workspace.ts";
 import { copyToClipboard } from "../../lib/clipboard.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { renderAbout, type AboutCommitCopyState } from "./view.ts";
 
@@ -15,7 +15,7 @@ const COPY_RESULT_VISIBLE_MS = 1800;
 // class comes off right as the claw settles and the next poke can replay it.
 const CLAWD_WAVE_MS = 1400;
 
-class AboutPage extends OpenClawLightDomElement {
+class AboutPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -98,6 +98,6 @@ class AboutPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-about-page")) {
-  customElements.define("openclaw-about-page", AboutPage);
+if (!customElements.get("mirally-about-page")) {
+  customElements.define("mirally-about-page", AboutPage);
 }

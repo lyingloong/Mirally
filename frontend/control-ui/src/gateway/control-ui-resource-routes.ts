@@ -4,7 +4,7 @@ import {
   CONTROL_UI_USER_AVATAR_PATH_SUFFIX,
 } from "./control-ui-user-avatar-route.js";
 
-const CONTROL_UI_ASSISTANT_MEDIA_PREFIX = "/__openclaw__/assistant-media";
+const CONTROL_UI_ASSISTANT_MEDIA_PREFIX = "/__mirally__/assistant-media";
 
 export function resolveAssistantMediaRoutePath(basePath?: string): string {
   const normalizedBasePath =
@@ -14,17 +14,17 @@ export function resolveAssistantMediaRoutePath(basePath?: string): string {
 
 const CONTROL_UI_RESOURCE_ROUTES = {
   agentAvatar: { prefix: "/avatar", suffix: "" },
-  catalogIcon: { prefix: "/__openclaw__/catalog-icon", suffix: "" },
-  channelAvatar: { prefix: "/__openclaw__/channel-avatar", suffix: "" },
-  linkFavicon: { prefix: "/__openclaw__/link-favicon", suffix: "" },
-  pluginIcon: { prefix: "/__openclaw__/plugin-icon", suffix: "" },
-  pluginActivityIcon: { prefix: "/__openclaw__/plugin-activity-icon", suffix: "" },
-  pluginThemeArt: { prefix: "/__openclaw__/plugin-theme-art", suffix: "" },
+  catalogIcon: { prefix: "/__mirally__/catalog-icon", suffix: "" },
+  channelAvatar: { prefix: "/__mirally__/channel-avatar", suffix: "" },
+  linkFavicon: { prefix: "/__mirally__/link-favicon", suffix: "" },
+  pluginIcon: { prefix: "/__mirally__/plugin-icon", suffix: "" },
+  pluginActivityIcon: { prefix: "/__mirally__/plugin-activity-icon", suffix: "" },
+  pluginThemeArt: { prefix: "/__mirally__/plugin-theme-art", suffix: "" },
   userAvatar: {
     prefix: CONTROL_UI_USER_AVATAR_PATH_PREFIX.slice(0, -1),
     suffix: CONTROL_UI_USER_AVATAR_PATH_SUFFIX,
   },
-  workspaceIcon: { prefix: "/__openclaw__/workspace-icon", suffix: "" },
+  workspaceIcon: { prefix: "/__mirally__/workspace-icon", suffix: "" },
 } as const;
 
 export type ControlUiResourceRoute = keyof typeof CONTROL_UI_RESOURCE_ROUTES;
@@ -125,7 +125,7 @@ export function matchControlUiResourceUrl(
     return undefined;
   }
   try {
-    const origin = "http://openclaw.invalid";
+    const origin = "http://mirally.invalid";
     const parsed = new URL(value, origin);
     if (parsed.origin !== origin || `${parsed.pathname}${parsed.search}${parsed.hash}` !== value) {
       return undefined;

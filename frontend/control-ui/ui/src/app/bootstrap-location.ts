@@ -1,5 +1,5 @@
-import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
-import type { RouteLocation } from "@openclaw/uirouter";
+import { asOptionalRecord } from "@mirally/normalization-core/record-coerce";
+import type { RouteLocation } from "@mirally/ui-router";
 import type {
   ModelCatalogTarget,
   SessionsResolveResult,

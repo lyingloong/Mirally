@@ -199,7 +199,7 @@
   font-size: var(--control-ui-text-sm);
 }
 
-openclaw-portals-page[embedded],
+mirally-portals-page[embedded],
 .portals-embedded {
   min-width: 0;
   min-height: 0;

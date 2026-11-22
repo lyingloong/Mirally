@@ -1,4 +1,4 @@
-import { createRouter } from "@openclaw/uirouter";
+import { createRouter } from "@mirally/ui-router";
 import type {
   PageDefinition,
   RouteLocation,
@@ -6,7 +6,7 @@ import type {
   RouteNotFound,
   Router,
   RouterHistory,
-} from "@openclaw/uirouter";
+} from "@mirally/ui-router";
 import {
   agentRouteFromPath,
   canonicalPluginTabLocation,
@@ -341,7 +341,7 @@ export async function startApplicationRouter(
             void router
               .navigate("plugin", context, { history: "replace" }, canonical)
               .catch((error: unknown) => {
-                console.error("[openclaw] Plugin tab navigation failed", error);
+                console.error("[mirally] Plugin tab navigation failed", error);
               });
           } else if (slugRoute) {
             listener(current);
@@ -362,7 +362,7 @@ export async function startApplicationRouter(
           void router
             .navigate(dynamicRoute[0], context, { history: "none" }, canonical)
             .catch((error: unknown) => {
-              console.error("[openclaw] Dynamic route navigation failed", error);
+              console.error("[mirally] Dynamic route navigation failed", error);
             });
           return;
         }

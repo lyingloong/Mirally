@@ -1,5 +1,5 @@
-import type { BoardGetParams } from "@openclaw/gateway-protocol";
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import type { BoardGetParams } from "@mirally/gateway-protocol";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
@@ -17,7 +17,7 @@ import { normalizeMessage } from "../lib/chat/message-normalizer.ts";
 import { formatSenderLabel } from "../lib/chat/sender-label.ts";
 import { readSessionChangedEvent } from "../lib/sessions/reconcile.ts";
 import { uiSessionEventMatches, parseAgentSessionKey } from "../lib/sessions/session-key.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import { SubscriptionsController } from "../lit/subscriptions-controller.ts";
 import type { ChatHistoryResult } from "../pages/chat/chat-history-snapshot.ts";
 import "../styles/chat/progress-card.css";
@@ -25,7 +25,7 @@ import "../styles/sidebar-markdown.css";
 import "../styles/plugin-session-summary.css";
 import { renderChatAuthorAvatar } from "../pages/chat/components/chat-author-avatar.ts";
 
-class PluginSessionSummary extends OpenClawLightDomElement {
+class PluginSessionSummary extends MirallyLightDomElement {
   @property({ attribute: false }) session: BoardGetParams | null = null;
   @property({ attribute: false }) gateway: ApplicationGateway | null = null;
   @property({ attribute: false }) presented = false;
@@ -237,10 +237,10 @@ class PluginSessionSummary extends OpenClawLightDomElement {
       const avatar = sender
         ? renderChatAuthorAvatar(sender)
         : agentId
-          ? html`<openclaw-agent-avatar
+          ? html`<mirally-agent-avatar
               .option=${{ value: agentId, label, agent: agent ?? { id: agentId } }}
               .identity=${this.agentIdentity?.get(agentId) ?? null}
-            ></openclaw-agent-avatar>`
+            ></mirally-agent-avatar>`
           : html`<span class="plugin-session-summary__unknown" aria-hidden="true"
               >${message.role === "user" ? icons.users : icons.bot}</span
             >`;
@@ -320,11 +320,11 @@ class PluginSessionSummary extends OpenClawLightDomElement {
     </div>`;
   }
 }
-if (!customElements.get("openclaw-plugin-session-summary")) {
-  customElements.define("openclaw-plugin-session-summary", PluginSessionSummary);
+if (!customElements.get("mirally-plugin-session-summary")) {
+  customElements.define("mirally-plugin-session-summary", PluginSessionSummary);
 }
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-plugin-session-summary": PluginSessionSummary;
+    "mirally-plugin-session-summary": PluginSessionSummary;
   }
 }

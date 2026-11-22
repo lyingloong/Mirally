@@ -81,11 +81,11 @@ export function renderSidebarMentionItem(params: {
   >
     <div class="sidebar-issues-panel__summary sidebar-mention-row__summary">
       <span class="sidebar-mention-row__avatar" aria-hidden="true">
-        <openclaw-viewer-avatar
+        <mirally-viewer-avatar
           .user=${sender}
           .markAsViewer=${false}
           variant="footer"
-        ></openclaw-viewer-avatar>
+        ></mirally-viewer-avatar>
       </span>
       <div class="sidebar-issues-panel__content">
         <div class="sidebar-mention-row__header">
@@ -186,7 +186,7 @@ export function renderSidebarUpdateSurface(params: {
   }
   const snapshot = context.overlays.snapshot;
   const gateway = context.gateway.snapshot;
-  return html`<openclaw-sidebar-update-card
+  return html`<mirally-sidebar-update-card
     class="sidebar-issues-panel__update"
     data-attention-kind="updateAvailable"
     .compact=${true}
@@ -208,7 +208,7 @@ export function renderSidebarUpdateSurface(params: {
     .onHoldUpdate=${() => context.overlays.holdUpdate()}
     .onReviewUpdate=${params.onNavigate}
     .onDismiss=${params.onDismiss}
-  ></openclaw-sidebar-update-card>`;
+  ></mirally-sidebar-update-card>`;
 }
 
 function scopeUpgradeText(state: Exclude<ScopeUpgradeState, { phase: "hidden" }>): string {
@@ -378,7 +378,7 @@ export function renderSidebarIssueItem(
   }
   const facts = item.action.kind === "askCustodian" ? item.action.alert.facts : [];
   const visibleFacts = facts.filter((fact) => fact !== item.label);
-  const actionLabel = item.action.kind === "askCustodian" ? t("nav.askOpenClaw") : item.label;
+  const actionLabel = item.action.kind === "askCustodian" ? t("nav.askMirally") : item.label;
   const inlineAction = item.inlineAction;
   return html`<details
     class="sidebar-issues-panel__details sidebar-issues-panel__details--${item.severity}"

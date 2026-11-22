@@ -1,5 +1,5 @@
 import { consume } from "@lit/context";
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 import { html, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
@@ -16,7 +16,7 @@ import {
   GatewayPageController,
   type GatewayPageChange,
 } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { isUsageCacheIncomplete } from "./cache-status.ts";
 import type { ProviderUsageSummary } from "./data-types.ts";
@@ -46,7 +46,7 @@ import { renderUsage } from "./view.ts";
 
 export type { UsageRouteData } from "./types.ts";
 
-class UsagePage extends OpenClawLightDomElement {
+class UsagePage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -696,12 +696,12 @@ class UsagePage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-usage-page")) {
-  customElements.define("openclaw-usage-page", UsagePage);
+if (!customElements.get("mirally-usage-page")) {
+  customElements.define("mirally-usage-page", UsagePage);
 }
 
 export const usagePageComponent = {
   header: true,
   render: (data: UsageRouteData | undefined) =>
-    html`<openclaw-usage-page .routeData=${data}></openclaw-usage-page>`,
+    html`<mirally-usage-page .routeData=${data}></mirally-usage-page>`,
 };

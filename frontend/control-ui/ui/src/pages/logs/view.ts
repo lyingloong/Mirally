@@ -1,4 +1,4 @@
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 // Control UI view renders logs screen content.
 import { html, nothing } from "lit";
 import { renderLoadingState } from "../../components/loading-state.ts";

@@ -1,5 +1,5 @@
-import type { RouteLocation } from "@openclaw/uirouter";
-import { definePage, redirect } from "@openclaw/uirouter";
+import type { RouteLocation } from "@mirally/ui-router";
+import { definePage, redirect } from "@mirally/ui-router";
 import { html } from "lit";
 import { pathForRoute, routePageSpec } from "../../app-route-paths.ts";
 import type { ApplicationContext } from "../../app/context.ts";
@@ -28,6 +28,6 @@ export const page = definePage({
     import("./model-setup-page.ts").then(() => ({
       header: true,
       render: (data: ModelSetupRouteData | undefined) =>
-        html`<openclaw-model-setup-page .routeData=${data}></openclaw-model-setup-page>`,
+        html`<mirally-model-setup-page .routeData=${data}></mirally-model-setup-page>`,
     })),
 });

@@ -199,7 +199,7 @@ function renderEntryDialog(props: SecretsStoreViewProps): TemplateResult | typeo
   }
   const editing = props.dialogMode === "edit";
   return html`
-    <openclaw-modal-dialog
+    <mirally-modal-dialog
       label=${editing ? t("secretsStore.edit") : t("secretsStore.add")}
       description=${t("secretsStore.hint")}
       @modal-cancel=${props.onCloseDialog}
@@ -321,7 +321,7 @@ function renderEntryDialog(props: SecretsStoreViewProps): TemplateResult | typeo
           </button>
         </div>
       </form>
-    </openclaw-modal-dialog>
+    </mirally-modal-dialog>
   `;
 }
 
@@ -330,7 +330,7 @@ function renderBulkDialog(props: SecretsStoreViewProps): TemplateResult | typeof
     return nothing;
   }
   return html`
-    <openclaw-modal-dialog label=${t("secretsStore.bulk")} @modal-cancel=${props.onCloseBulk}>
+    <mirally-modal-dialog label=${t("secretsStore.bulk")} @modal-cancel=${props.onCloseBulk}>
       <form
         class="secrets-store-dialog"
         aria-busy=${props.busy ? "true" : "false"}
@@ -398,7 +398,7 @@ function renderBulkDialog(props: SecretsStoreViewProps): TemplateResult | typeof
           </button>
         </div>
       </form>
-    </openclaw-modal-dialog>
+    </mirally-modal-dialog>
   `;
 }
 

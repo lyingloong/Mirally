@@ -1,7 +1,7 @@
 // Curated Updates settings presentation. The existing update config remains
 // the source of authored policy; the Gateway schedule DTO owns runtime status.
-import { parseDateStringTimestampMs } from "@openclaw/normalization-core/number-coercion";
-import { asNullableRecord as asConfigRecord } from "@openclaw/normalization-core/record-coerce";
+import { parseDateStringTimestampMs } from "@mirally/normalization-core/number-coercion";
+import { asNullableRecord as asConfigRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing, type TemplateResult } from "lit";
 import { isAcknowledgedAbandonedUpdateRun } from "../../../../src/infra/update-run-record.ts";
 import {
@@ -119,10 +119,10 @@ function renderRecordedAttempt(props: UpdatesViewProps) {
   return renderSettingsSection({ title: t("updates.page.latestAttempt") }, [
     run
       ? html`<div class="settings-row settings-row--stacked">
-          <openclaw-update-run-view
+          <mirally-update-run-view
             .run=${run}
             .connected=${props.connected}
-          ></openclaw-update-run-view>
+          ></mirally-update-run-view>
         </div>`
       : props.update.updateStatusBanner &&
           !props.updateBusy &&
@@ -179,17 +179,6 @@ function renderRecordedAttempt(props: UpdatesViewProps) {
               }
             </div>`,
           }),
-          failed
-            ? renderSettingsRow({
-                title: t("updates.page.cliFallback"),
-                description: t("updates.triage.hostHint"),
-                stacked: true,
-                control: html`<details class="updates-attempt-details">
-                  <summary>${t("updates.page.showCliFallback")}</summary>
-                  <pre><code>openclaw triage</code></pre>
-                </details>`,
-              })
-            : nothing,
         ]),
     props.update.updateFailureReportNotice
       ? renderUpdateFailureReportNotice(props.update.updateFailureReportNotice)
@@ -247,7 +236,7 @@ function readUpdatesSettings(
   const auto = asConfigRecord(update?.auto);
   // The saved (or drafted) channel owns policy; the Gateway schedule reports the
   // channel a configless install resolved to, since a direct
-  // openclaw@extended-stable package install never writes update.channel.
+  // mirally@extended-stable package install never writes update.channel.
   const channel =
     UPDATES_CHANNELS.find((candidate) => candidate === update?.channel) ??
     UPDATES_CHANNELS.find((candidate) => candidate === schedule?.channel) ??
@@ -657,7 +646,7 @@ export function renderUpdates(props: UpdatesViewProps): TemplateResult {
           }),
         ]),
         html`<p class="settings-page__hint">
-          <a href="https://docs.openclaw.ai/install/update-troubleshooting" target="_blank"
+          <a href="https://github.com/lyingloong/Mirally#快速开始" target="_blank"
             >${t("updates.page.troubleshoot")}</a
           >
         </p>`,

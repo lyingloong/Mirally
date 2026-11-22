@@ -1,7 +1,7 @@
-import { isHttpUrl } from "@openclaw/net-policy/url-protocol";
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
-import { readNonBlankString } from "@openclaw/normalization-core/string-coerce";
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { isHttpUrl } from "@mirally/net-policy/url-protocol";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
+import { readNonBlankString } from "@mirally/normalization-core/string-coerce";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import type { Token } from "markdown-it";
 import {
   isToolCallContentType,

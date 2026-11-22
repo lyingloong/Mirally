@@ -62,7 +62,7 @@ class AgentControlLease:
 
 
 class ActivitySensor:
-    """Safe ingestion facade used by Windows sources and future UFO bridges.
+    """Safe ingestion facade used by Windows activity sources.
 
     The sensor itself does not start automatically.  Product UI or a future
     host lifecycle explicitly creates and runs it after the user enables the

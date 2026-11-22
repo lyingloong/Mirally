@@ -1,5 +1,5 @@
 // Generated inbound context is current-turn model input, never historical display text.
-import { safeParseJsonRecord } from "@openclaw/normalization-core";
+import { safeParseJsonRecord } from "@mirally/normalization-core";
 import { escapeRegExp } from "../../shared/regexp.js";
 import { MESSAGE_TOOL_DELIVERY_HINTS } from "./delivery-hints.js";
 import { INBOUND_CONTEXT_MARKER } from "./inbound-context-marker.js";

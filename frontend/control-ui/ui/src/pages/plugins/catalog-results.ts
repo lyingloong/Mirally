@@ -210,14 +210,14 @@ function renderCatalogCard(
         ${
           installed
             ? renderPluginStateStatus(installedState, "plugin-catalog-card__status")
-            : html`<openclaw-plugin-install-action
+            : html`<mirally-plugin-install-action
                 .buttonClass=${"btn btn--sm plugin-catalog-card__install oc-action oc-action-secondary"}
                 .label=${t("pluginsPage.installNamed", { name: plugin.catalog.name })}
                 .busy=${busy}
                 .disabled=${!canInstall}
                 .progress=${progress}
                 .onInstall=${() => props.onInstall(plugin.id)}
-              ></openclaw-plugin-install-action>`
+              ></mirally-plugin-install-action>`
         }
       </div>
     </div>

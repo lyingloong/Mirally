@@ -1,5 +1,5 @@
-import { isRecord, asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { isRecord, asOptionalRecord } from "@mirally/normalization-core/record-coerce";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import {
   CHAT_WORK_CONTEXT_LIMITS,
   type ChatWorkContext,
@@ -56,7 +56,7 @@ export function readMessageWorkContext(
   if (entry?.role !== "user") {
     return undefined;
   }
-  const attached = asOptionalRecord(asOptionalRecord(entry["__openclaw"])?.workContext);
+  const attached = asOptionalRecord(asOptionalRecord(entry["__mirally"])?.workContext);
   const snapshot = readChatWorkContext(attached?.snapshot);
   return snapshot
     ? { snapshot, ...(typeof attached?.text === "string" ? { text: attached.text } : {}) }
@@ -75,8 +75,8 @@ export function projectChatWorkContextForDisplay(message: unknown): unknown {
   // duplicate that could bypass truncation or restore a redacted display field.
   const entry: Record<string, unknown> = {
     ...original,
-    __openclaw: {
-      ...asOptionalRecord(original["__openclaw"]),
+    __mirally: {
+      ...asOptionalRecord(original["__mirally"]),
       workContext: { snapshot: attached.snapshot },
     },
   };

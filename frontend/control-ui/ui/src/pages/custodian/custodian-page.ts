@@ -1,14 +1,14 @@
 import { consume } from "@lit/context";
-import type { SystemChangeEntry, SystemChangesListResult } from "@openclaw/gateway-protocol";
+import type { SystemChangeEntry, SystemChangesListResult } from "@mirally/gateway-protocol";
 import { html, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import { applicationContext, type ApplicationContext } from "../../app/context.ts";
-import "../../components/openclaw-mascot.ts";
+import "../../components/mirally-mascot.ts";
 import { t } from "../../i18n/index.ts";
 import { channelSnapshotHasActiveChannel } from "../../lib/channels/index.ts";
 import { isGatewayMethodAdvertised } from "../../lib/gateway-methods.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import "../../styles/custodian.css";
 import { renderCustodianChangeHistory } from "./custodian-history.ts";
@@ -17,7 +17,7 @@ import "./custodian-surface.ts";
 
 const SYSTEM_CHANGE_PAGE_SIZE = 50;
 
-export class CustodianPage extends OpenClawLightDomElement {
+export class CustodianPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -71,7 +71,7 @@ export class CustodianPage extends OpenClawLightDomElement {
   protected override async getUpdateComplete(): Promise<boolean> {
     const complete = await super.getUpdateComplete();
     const surface = this.querySelector<HTMLElement & { updateComplete: Promise<boolean> }>(
-      "openclaw-custodian-surface",
+      "mirally-custodian-surface",
     );
     await surface?.updateComplete;
     return complete;
@@ -103,7 +103,7 @@ export class CustodianPage extends OpenClawLightDomElement {
     const snapshot = this.context.gateway.snapshot;
     const client = snapshot.phase === "connected" ? snapshot.client : null;
     const available =
-      client !== null && isGatewayMethodAdvertised(snapshot, "openclaw.changes.list") === true;
+      client !== null && isGatewayMethodAdvertised(snapshot, "mirally.changes.list") === true;
     if (client !== this.historyClient || available !== this.historyAvailable) {
       this.historyClient = client;
       this.historyAvailable = available;
@@ -154,7 +154,7 @@ export class CustodianPage extends OpenClawLightDomElement {
       this.historyRequestEpoch === epoch &&
       this.historyAvailable;
     try {
-      const result = await client.request<SystemChangesListResult>("openclaw.changes.list", {
+      const result = await client.request<SystemChangesListResult>("mirally.changes.list", {
         limit: SYSTEM_CHANGE_PAGE_SIZE,
         ...(cursor ? { beforeCursor: cursor } : {}),
       });
@@ -221,10 +221,10 @@ export class CustodianPage extends OpenClawLightDomElement {
               ? nothing
               : html`<div class="custodian__identity">
                   <div class="custodian__mark" aria-hidden="true">
-                    <openclaw-mascot
+                    <mirally-mascot
                       .mood=${this.store.sending ? "thinking" : "idle"}
                       .size=${38}
-                    ></openclaw-mascot>
+                    ></mirally-mascot>
                   </div>
                   <div>
                     <h1>${t("custodian.title")}</h1>
@@ -235,7 +235,7 @@ export class CustodianPage extends OpenClawLightDomElement {
           <div class="custodian__header-actions">
             ${
               this.onboarding
-                ? html`<openclaw-sidebar-attention></openclaw-sidebar-attention>`
+                ? html`<mirally-sidebar-attention></mirally-sidebar-attention>`
                 : nothing
             }
             ${
@@ -264,7 +264,7 @@ export class CustodianPage extends OpenClawLightDomElement {
           </div>
         </header>
 
-        <openclaw-custodian-surface
+        <mirally-custodian-surface
           class="custodian__column"
           .store=${this.store}
           .onboarding=${this.onboarding}
@@ -274,18 +274,18 @@ export class CustodianPage extends OpenClawLightDomElement {
           .channelOnboardingRetrying=${channelState?.channelsLoading ?? false}
           .onRetryChannelOnboarding=${() => void this.channelsSource?.refresh(false)}
           .historyContent=${historyContent}
-        ></openclaw-custodian-surface>
+        ></mirally-custodian-surface>
       </section>
     `;
   }
 }
 
-if (!customElements.get("openclaw-custodian-page")) {
-  customElements.define("openclaw-custodian-page", CustodianPage);
+if (!customElements.get("mirally-custodian-page")) {
+  customElements.define("mirally-custodian-page", CustodianPage);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-custodian-page": CustodianPage;
+    "mirally-custodian-page": CustodianPage;
   }
 }

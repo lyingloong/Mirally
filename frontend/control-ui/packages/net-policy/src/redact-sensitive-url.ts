@@ -1,4 +1,4 @@
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 
 type ConfigUiHintTags = {
   tags?: string[];

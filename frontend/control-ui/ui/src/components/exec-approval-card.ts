@@ -12,7 +12,7 @@ import type {
 import { t } from "../i18n/index.ts";
 import { formatCountdown } from "../lib/format.ts";
 import { resolveSessionDisplayName } from "../lib/session-display.ts";
-import { OpenClawLightDomContentsElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../lit/mirally-element.ts";
 import { PollController } from "../lit/poll-controller.ts";
 import { icons } from "./icons.ts";
 
@@ -50,7 +50,7 @@ export function approvalRemainingLabel(expiresAtMs: number, nowMs: number): stri
     : t("execApproval.expired");
 }
 
-class ApprovalCountdown extends OpenClawLightDomContentsElement {
+class ApprovalCountdown extends MirallyLightDomContentsElement {
   @property({ type: Number }) expiresAtMs = 0;
   @property({ type: Boolean }) compact = false;
 
@@ -60,7 +60,7 @@ class ApprovalCountdown extends OpenClawLightDomContentsElement {
     () => {
       this.requestUpdate();
       if (!this.compact) {
-        this.closest("openclaw-modal-dialog")?.setAttribute(
+        this.closest("mirally-modal-dialog")?.setAttribute(
           "description",
           approvalRemainingLabel(this.expiresAtMs, Date.now()),
         );
@@ -84,8 +84,8 @@ class ApprovalCountdown extends OpenClawLightDomContentsElement {
   }
 }
 
-if (!customElements.get("openclaw-approval-countdown")) {
-  customElements.define("openclaw-approval-countdown", ApprovalCountdown);
+if (!customElements.get("mirally-approval-countdown")) {
+  customElements.define("mirally-approval-countdown", ApprovalCountdown);
 }
 
 function renderMetaRow(label: string, value?: string | null, opts?: { path?: boolean }) {
@@ -288,7 +288,7 @@ export function renderSidebarApprovalRow(props: SidebarApprovalRowProps) {
     <div class="sidebar-approval-row__content">
       <div class="sidebar-approval-row__header" data-issue-row-focus tabindex="-1">
         <span class="sidebar-issues-panel__entity" title=${sessionTitle}>${sessionTitle}</span>
-        <openclaw-approval-countdown
+        <mirally-approval-countdown
           class="sidebar-approval-row__timer ${
             expiryUrgent ? "sidebar-approval-row__timer--urgent" : ""
           }"
@@ -297,7 +297,7 @@ export function renderSidebarApprovalRow(props: SidebarApprovalRowProps) {
           title=${expiryLabel}
           .expiresAtMs=${approval.expiresAtMs}
           .compact=${true}
-        ></openclaw-approval-countdown>
+        ></mirally-approval-countdown>
       </div>
       <div class="sidebar-approval-row__command mono" title=${approval.request.command}>
         <span aria-hidden="true">$ </span>${command}
@@ -391,11 +391,11 @@ export function renderExecApprovalCard(props: ExecApprovalCardProps) {
               </div>`
             : nothing
         }
-        <openclaw-approval-countdown
+        <mirally-approval-countdown
           class="exec-approval-sub exec-approval-countdown"
           role="timer"
           .expiresAtMs=${active.expiresAtMs}
-        ></openclaw-approval-countdown>
+        ></mirally-approval-countdown>
       </div>
       ${
         (props.queueCount ?? 0) > 1

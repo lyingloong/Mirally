@@ -1,4 +1,4 @@
-import { GatewayProtocolRequestError } from "@openclaw/gateway-client/browser";
+import { GatewayProtocolRequestError } from "@mirally/gateway-client/browser";
 import type {
   BoardChangedEvent,
   BoardCommandEvent,
@@ -7,7 +7,7 @@ import type {
   BoardSnapshot,
   BoardWidget,
   BoardWidgetAppViewResult,
-} from "@openclaw/gateway-protocol";
+} from "@mirally/gateway-protocol";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import { formatUiError } from "../format-error.ts";
 import {

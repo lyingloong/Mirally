@@ -96,7 +96,7 @@ test('model creates local-time meetings and real iLink receives reminder for the
       page.on('pageerror',error=>pageErrors.push(error.message));
       await page.addInitScript(()=>{window.__desktopNotices=[];window.pywebview={api:{notifyReminder:async(title,body)=>{window.__desktopNotices.push({title,body});return true;}}};});
       await page.goto(`${runtime.url}/settings/general#token=${runtime.token}`);
-      await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected');
+      await page.waitForFunction(()=>document.querySelector('mirally-app')?.context?.gateway?.snapshot?.phase==='connected');
       const zone=page.getByTestId('mirally-time-zone');await zone.waitFor();
       assert.equal(await zone.inputValue(),'Asia/Shanghai');
       await page.getByRole('button',{name:'保存',exact:true}).last().click();

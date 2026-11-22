@@ -4,9 +4,9 @@ import type WaDialog from "@awesome.me/webawesome/dist/components/dialog/dialog.
 import { css, html, type PropertyValues } from "lit";
 import { property } from "lit/decorators.js";
 import { acquireNativeOverlayOcclusion } from "../lib/native-overlay-occlusion.ts";
-import { OpenClawLitElement } from "../lit/openclaw-element.ts";
+import { MirallyLitElement } from "../lit/mirally-element.ts";
 
-const modalLayers = (document.openClawModalLayers ??= new Set<HTMLElement>());
+const modalLayers = (document.mirallyModalLayers ??= new Set<HTMLElement>());
 
 function setModalLayer(modal: HTMLElement, open: boolean) {
   const wasOpen = modalLayers.size > 0;
@@ -17,12 +17,12 @@ function setModalLayer(modal: HTMLElement, open: boolean) {
   const isOpen = modalLayers.size > 0;
   if (wasOpen !== isOpen) {
     window.dispatchEvent(
-      new CustomEvent("openclaw:native-modal-state", { detail: { open: isOpen } }),
+      new CustomEvent("mirally:native-modal-state", { detail: { open: isOpen } }),
     );
   }
 }
 
-export class OpenClawModalDialog extends OpenClawLitElement {
+export class MirallyModalDialog extends MirallyLitElement {
   @property({ type: Boolean }) open = true;
   @property({ type: Boolean, reflect: true }) manual = false;
   @property() label = "";
@@ -42,19 +42,19 @@ export class OpenClawModalDialog extends OpenClawLitElement {
   static override styles = css`
     :host {
       /* Slotted document panels share the standard/fullscreen shell height limit. */
-      --openclaw-modal-height-limit: var(--openclaw-modal-max-height, calc(100dvh - 48px));
+      --mirally-modal-height-limit: var(--mirally-modal-max-height, calc(100dvh - 48px));
       display: contents;
     }
 
     wa-dialog {
-      --width: min(var(--openclaw-modal-width, 540px), calc(100vw - 48px));
+      --width: min(var(--mirally-modal-width, 540px), calc(100vw - 48px));
       --spacing: 0;
-      --backdrop-filter: var(--openclaw-modal-backdrop-filter, blur(4px));
+      --backdrop-filter: var(--mirally-modal-backdrop-filter, blur(4px));
     }
 
     wa-dialog::part(dialog) {
-      max-width: var(--openclaw-modal-max-width, calc(100vw - 48px));
-      max-height: var(--openclaw-modal-height-limit);
+      max-width: var(--mirally-modal-max-width, calc(100vw - 48px));
+      max-height: var(--mirally-modal-height-limit);
       padding: 0;
       border: 0;
       background: transparent;
@@ -68,7 +68,7 @@ export class OpenClawModalDialog extends OpenClawLitElement {
     }
 
     :host(.fullscreen) {
-      --openclaw-modal-height-limit: calc(100dvh - 20px);
+      --mirally-modal-height-limit: calc(100dvh - 20px);
     }
 
     :host(.fullscreen) wa-dialog {
@@ -104,14 +104,14 @@ export class OpenClawModalDialog extends OpenClawLitElement {
     }
 
     :host(.palette) wa-dialog {
-      --openclaw-modal-backdrop-filter: none;
+      --mirally-modal-backdrop-filter: none;
       --wa-color-overlay-modal: color-mix(in oklab, black 12%, transparent);
       --show-duration: 0ms;
       --hide-duration: 0ms;
     }
 
     :host(.drawer) wa-dialog {
-      --width: min(var(--openclaw-modal-width, 100vw), 100vw);
+      --width: min(var(--mirally-modal-width, 100vw), 100vw);
       --show-duration: 200ms;
       --hide-duration: 0ms;
     }
@@ -125,18 +125,18 @@ export class OpenClawModalDialog extends OpenClawLitElement {
     }
 
     :host(.drawer) wa-dialog[open]::part(dialog) {
-      animation: openclaw-drawer-in 200ms cubic-bezier(0.32, 0.72, 0, 1);
+      animation: mirally-drawer-in 200ms cubic-bezier(0.32, 0.72, 0, 1);
     }
 
     :host(.drawer--floating) {
-      --openclaw-drawer-inset: 20px;
-      --openclaw-modal-height-limit: calc(100dvh - var(--openclaw-drawer-inset) * 2);
+      --mirally-drawer-inset: 20px;
+      --mirally-modal-height-limit: calc(100dvh - var(--mirally-drawer-inset) * 2);
     }
 
     :host(.drawer--floating) wa-dialog {
       --width: min(
-        var(--openclaw-modal-width, 620px),
-        calc(100vw - var(--openclaw-drawer-inset) * 2)
+        var(--mirally-modal-width, 620px),
+        calc(100vw - var(--mirally-drawer-inset) * 2)
       );
     }
 
@@ -145,16 +145,16 @@ export class OpenClawModalDialog extends OpenClawLitElement {
     }
 
     :host(.drawer--floating) wa-dialog::part(dialog) {
-      height: calc(100dvh - var(--openclaw-drawer-inset) * 2);
-      max-width: calc(100vw - var(--openclaw-drawer-inset) * 2);
-      max-height: calc(100dvh - var(--openclaw-drawer-inset) * 2);
-      margin: var(--openclaw-drawer-inset) var(--openclaw-drawer-inset) auto auto;
+      height: calc(100dvh - var(--mirally-drawer-inset) * 2);
+      max-width: calc(100vw - var(--mirally-drawer-inset) * 2);
+      max-height: calc(100dvh - var(--mirally-drawer-inset) * 2);
+      margin: var(--mirally-drawer-inset) var(--mirally-drawer-inset) auto auto;
       border-radius: var(--radius-xl);
     }
 
-    @keyframes openclaw-drawer-in {
+    @keyframes mirally-drawer-in {
       from {
-        transform: translateX(calc(100% + var(--openclaw-drawer-inset, 0px)));
+        transform: translateX(calc(100% + var(--mirally-drawer-inset, 0px)));
       }
       to {
         transform: translateX(0);
@@ -172,19 +172,19 @@ export class OpenClawModalDialog extends OpenClawLitElement {
     }
     @media (max-width: 640px) {
       :host(.drawer--floating) {
-        --openclaw-drawer-inset: 12px;
+        --mirally-drawer-inset: 12px;
       }
 
       :host {
-        --openclaw-modal-height-limit: 90dvh;
+        --mirally-modal-height-limit: 90dvh;
       }
 
       wa-dialog {
-        --width: min(var(--openclaw-modal-width, 540px), calc(100vw - 24px));
+        --width: min(var(--mirally-modal-width, 540px), calc(100vw - 24px));
       }
 
       wa-dialog::part(dialog) {
-        max-width: var(--openclaw-modal-max-width, calc(100vw - 24px));
+        max-width: var(--mirally-modal-max-width, calc(100vw - 24px));
       }
     }
 
@@ -419,16 +419,16 @@ export class OpenClawModalDialog extends OpenClawLitElement {
   }
 }
 
-if (!customElements.get("openclaw-modal-dialog")) {
-  customElements.define("openclaw-modal-dialog", OpenClawModalDialog);
+if (!customElements.get("mirally-modal-dialog")) {
+  customElements.define("mirally-modal-dialog", MirallyModalDialog);
 }
 
 declare global {
   interface Document {
-    openClawModalLayers?: Set<HTMLElement>;
+    mirallyModalLayers?: Set<HTMLElement>;
   }
 
   interface HTMLElementTagNameMap {
-    "openclaw-modal-dialog": OpenClawModalDialog;
+    "mirally-modal-dialog": MirallyModalDialog;
   }
 }

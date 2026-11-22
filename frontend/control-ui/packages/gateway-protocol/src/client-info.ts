@@ -4,28 +4,28 @@
  * These values cross the WebSocket handshake boundary, so additions must stay
  * aligned with protocol schemas and server policy checks.
  */
-import { normalizeOptionalLowercaseString } from "@openclaw/normalization-core/string-coerce";
+import { normalizeOptionalLowercaseString } from "@mirally/normalization-core/string-coerce";
 
 /** Canonical client ids accepted in gateway hello/connect payloads. */
 export const GATEWAY_CLIENT_IDS = {
   WEBCHAT_UI: "webchat-ui",
-  CONTROL_UI: "openclaw-control-ui",
-  BROWSER_COPILOT: "openclaw-browser-copilot",
-  TUI: "openclaw-tui",
+  CONTROL_UI: "mirally-control-ui",
+  BROWSER_COPILOT: "mirally-browser-copilot",
+  TUI: "mirally-tui",
   WEBCHAT: "webchat",
   CLI: "cli",
   GATEWAY_CLIENT: "gateway-client",
-  MACOS_APP: "openclaw-macos",
+  MACOS_APP: "mirally-macos",
   // Native Linux UI uses the same trusted-client admission class as the macOS app.
-  LINUX_APP: "openclaw-linux",
-  IOS_APP: "openclaw-ios",
-  WATCHOS_APP: "openclaw-watchos",
-  ANDROID_APP: "openclaw-android",
+  LINUX_APP: "mirally-linux",
+  IOS_APP: "mirally-ios",
+  WATCHOS_APP: "mirally-watchos",
+  ANDROID_APP: "mirally-android",
   NODE_HOST: "node-host",
-  WORKER: "openclaw-worker",
+  WORKER: "mirally-worker",
   TEST: "test",
   FINGERPRINT: "fingerprint",
-  PROBE: "openclaw-probe",
+  PROBE: "mirally-probe",
 } as const;
 
 /** Stable gateway client ids used on the wire during hello/connect handshakes. */

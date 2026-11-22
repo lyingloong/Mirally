@@ -69,7 +69,7 @@ class I18nManager {
       return null;
     }
     try {
-      return storage.getItem("openclaw.i18n.locale");
+      return storage.getItem("mirally.i18n.locale");
     } catch {
       return null;
     }
@@ -81,7 +81,7 @@ class I18nManager {
       return;
     }
     try {
-      storage.setItem("openclaw.i18n.locale", locale);
+      storage.setItem("mirally.i18n.locale", locale);
     } catch {
       // Ignore storage write failures in private/blocked contexts.
     }
@@ -93,7 +93,7 @@ class I18nManager {
       return;
     }
     try {
-      storage.removeItem("openclaw.i18n.locale");
+      storage.removeItem("mirally.i18n.locale");
     } catch {
       // Ignore storage write failures in private/blocked contexts.
     }
@@ -280,7 +280,7 @@ export const t = (key: string, params?: Record<string, string>) => i18n.t(key, p
 export const translateActive = (key: string) => i18n.translateActive(key);
 
 if (typeof process !== "undefined" && (process.env?.VITEST || process.env?.NODE_ENV === "test")) {
-  (globalThis as Record<PropertyKey, unknown>)[Symbol.for("openclaw.i18nManagerTestApi")] = {
+  (globalThis as Record<PropertyKey, unknown>)[Symbol.for("mirally.i18nManagerTestApi")] = {
     createI18nManager(loadLocaleTranslation: LocaleTranslationLoader) {
       return new I18nManager(loadLocaleTranslation);
     },

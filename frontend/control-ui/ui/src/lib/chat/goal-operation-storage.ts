@@ -1,13 +1,13 @@
-import { gatewayCredentialScope } from "@openclaw/gateway-client/browser";
-import { safeParseJson } from "@openclaw/normalization-core";
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { gatewayCredentialScope } from "@mirally/gateway-client/browser";
+import { safeParseJson } from "@mirally/normalization-core";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 
 // Keep cleanup in the startup graph without importing chat controllers or payload schemas.
 type RecoveryOwner = [scope: string | null, generation: number];
 const owners = new Map<string, RecoveryOwner>();
 
 function gatewayPrefix(gatewayUrl: string): string {
-  return `openclaw.control.goalOperation.v1:${JSON.stringify(gatewayCredentialScope(gatewayUrl))}:`;
+  return `mirally.control.goalOperation.v1:${JSON.stringify(gatewayCredentialScope(gatewayUrl))}:`;
 }
 
 export function goalOperationScopePrefix(gatewayUrl: string, recoveryScope: string): string {

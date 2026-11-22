@@ -1,5 +1,5 @@
-import type { ProgressCard } from "@openclaw/gateway-protocol";
-import { bucketRelativeTimeMs, type RelativeTimeUnit } from "@openclaw/normalization-core";
+import type { ProgressCard } from "@mirally/gateway-protocol";
+import { bucketRelativeTimeMs, type RelativeTimeUnit } from "@mirally/normalization-core";
 import { html, nothing } from "lit";
 import type { SessionParticipant } from "../../../packages/gateway-protocol/src/schema/session-participant.js";
 import type {
@@ -297,15 +297,15 @@ function renderSessionAttribution({
   }
   const primaryAvatar = creator
     ? row.channelAvatarUrl
-      ? html`<openclaw-channel-avatar
+      ? html`<mirally-channel-avatar
           class="session-hovercard__creator-avatar"
           .routeUrl=${row.channelAvatarUrl}
           .authTokens=${avatarAuth?.authTokens ?? []}
           .authReady=${avatarAuth?.authReady ?? false}
           .fallback=${avatarFallback}
           aria-hidden="true"
-        ></openclaw-channel-avatar>`
-      : html`<openclaw-viewer-avatar
+        ></mirally-channel-avatar>`
+      : html`<mirally-viewer-avatar
           class="session-hovercard__creator-avatar"
           .user=${{
             id: creator.id,
@@ -317,9 +317,9 @@ function renderSessionAttribution({
           .identity=${creator.identity}
           variant="session"
           aria-hidden="true"
-        ></openclaw-viewer-avatar>`
+        ></mirally-viewer-avatar>`
     : primaryParticipant
-      ? html`<openclaw-viewer-avatar
+      ? html`<mirally-viewer-avatar
           class="session-hovercard__creator-avatar"
           .user=${{
             id: primaryParticipant.identity.id,
@@ -331,7 +331,7 @@ function renderSessionAttribution({
           .identity=${primaryParticipant.identity}
           variant="session"
           aria-hidden="true"
-        ></openclaw-viewer-avatar>`
+        ></mirally-viewer-avatar>`
       : nothing;
   const remainingParticipants = creator ? participants : participants.slice(1);
   const attributionLabel = [
@@ -357,7 +357,7 @@ function renderSessionAttribution({
       ${
         otherCount > 0
           ? remainingParticipants.length > 0
-            ? html`<openclaw-tooltip
+            ? html`<mirally-tooltip
                 class="session-hovercard__participants-tooltip"
                 .describe=${false}
                 open-on-click
@@ -373,7 +373,7 @@ function renderSessionAttribution({
                   ${otherLabel}
                 </button>
                 ${renderParticipantMenu(remainingParticipants, otherCount, personActivity)}
-              </openclaw-tooltip>`
+              </mirally-tooltip>`
             : html`<span class="session-hovercard__attribution-others">${otherLabel}</span>`
           : nothing
       }
@@ -382,7 +382,7 @@ function renderSessionAttribution({
       ${renderPersonAvatarLink(primaryAvatar, primaryActivity)}
       ${
         remainingParticipants.length > 0
-          ? html`<openclaw-viewer-facepile
+          ? html`<mirally-viewer-facepile
               .staticParticipants=${remainingParticipants}
               .totalCount=${otherCount}
               .maxVisible=${Math.min(
@@ -390,7 +390,7 @@ function renderSessionAttribution({
                 MAX_VISIBLE_ATTRIBUTION_PARTICIPANTS,
               )}
               .personActivity=${personActivity}
-            ></openclaw-viewer-facepile>`
+            ></mirally-viewer-facepile>`
           : nothing
       }
     </span>

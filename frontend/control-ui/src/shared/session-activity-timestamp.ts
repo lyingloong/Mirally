@@ -1,4 +1,4 @@
-import { asPositiveFiniteNumber } from "@openclaw/normalization-core/number-coercion";
+import { asPositiveFiniteNumber } from "@mirally/normalization-core/number-coercion";
 
 type SessionActivityClock = {
   lastActivityAt?: number;

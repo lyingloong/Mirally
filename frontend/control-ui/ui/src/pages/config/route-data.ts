@@ -1,4 +1,4 @@
-import type { RouteLocation } from "@openclaw/uirouter";
+import type { RouteLocation } from "@mirally/ui-router";
 import { INTERNAL_MEMORY_PATH_PARAM } from "../../app-route-paths.ts";
 import type { AgentSelectionCapability } from "../../app/agent-selection.ts";
 

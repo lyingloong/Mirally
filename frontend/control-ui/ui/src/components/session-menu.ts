@@ -3,7 +3,7 @@ import { property } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
 import { t } from "../i18n/index.ts";
 import { mirallyNavigationText } from "../app-navigation.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import { DropdownMenuController } from "./dropdown-menu-controller.ts";
 import {renderMirallySessionOrganization} from './mirally-session-organization.ts';
 import { icons } from "./icons.ts";
@@ -38,7 +38,7 @@ export type SessionMenuActionKind = SessionMenuAction["kind"];
 
 export type PluginSessionMenuAction = { id: string; label: string; disabled?: boolean };
 
-class SessionMenu extends OpenClawLightDomElement {
+class SessionMenu extends MirallyLightDomElement {
   @property({ attribute: false }) session: SessionMenuData = EMPTY_SESSION_MENU_DATA;
   @property({ attribute: false }) compact = false;
   @property({ attribute: false }) navigationAllowed = false;
@@ -76,7 +76,7 @@ class SessionMenu extends OpenClawLightDomElement {
     // Sidebar-hosted menus live inside the nav stacking context (z-index 10),
     // which paints below the sidebar resizer divider (z-index 20); promoting
     // the menu to the popover top layer keeps app chrome from bleeding
-    // through it (same pattern as openclaw-native-link-menu).
+    // through it (same pattern as mirally-native-link-menu).
     promoteToPopoverTopLayer(this);
   }
 
@@ -193,6 +193,6 @@ class SessionMenu extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-session-menu")) {
-  customElements.define("openclaw-session-menu", SessionMenu);
+if (!customElements.get("mirally-session-menu")) {
+  customElements.define("mirally-session-menu", SessionMenu);
 }

@@ -1,4 +1,4 @@
-import type { DesktopObserveResult, DesktopSource } from "@openclaw/gateway-protocol";
+import type { DesktopObserveResult, DesktopSource } from "@mirally/gateway-protocol";
 import type { DesktopCredentials } from "./desktop-panel-connection.ts";
 
 const DESKTOP_CREDENTIALS_REQUIRED_CODE = "DESKTOP_CREDENTIALS_REQUIRED";

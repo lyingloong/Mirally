@@ -1,4 +1,4 @@
-import { definePage } from "@openclaw/uirouter";
+import { definePage } from "@mirally/ui-router";
 import { html } from "lit";
 import { routePageSpec } from "../../app-route-paths.ts";
 import type { ApplicationContext } from "../../app/context.ts";
@@ -38,6 +38,6 @@ export const page = definePage({
     import("./devices-page.ts").then(() => ({
       header: true,
       render: (data: DevicesRouteData | undefined) =>
-        html`<openclaw-devices-page .routeData=${data}></openclaw-devices-page>`,
+        html`<mirally-devices-page .routeData=${data}></mirally-devices-page>`,
     })),
 });

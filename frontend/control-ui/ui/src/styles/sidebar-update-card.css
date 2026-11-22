@@ -20,11 +20,11 @@
 }
 
 /* Native hosts hide the web cluster; onboarding never mounts it. */
-html.openclaw-native-nav
+html.mirally-native-nav
   .shell:not(.shell--mobile-nav)
   .sidebar-update-card--floating
   .sidebar-update-card,
-html.openclaw-native-web-chrome
+html.mirally-native-web-chrome
   .shell:not(.shell--mobile-nav)
   .sidebar-update-card--floating
   .sidebar-update-card,
@@ -34,11 +34,11 @@ html.openclaw-native-web-chrome
 }
 
 /* Native dashboard actions must also clear the window's titlebar. */
-html:is(.openclaw-native-macos, .openclaw-native-desktop)
+html:is(.mirally-native-macos, .mirally-native-desktop)
   .shell:not(.shell--mobile-nav)
   .sidebar-update-card--floating
   .sidebar-update-card {
-  margin-top: calc(var(--openclaw-native-titlebar-height, 50px) + 2px);
+  margin-top: calc(var(--mirally-native-titlebar-height, 50px) + 2px);
 }
 
 .sidebar-update-card__action {

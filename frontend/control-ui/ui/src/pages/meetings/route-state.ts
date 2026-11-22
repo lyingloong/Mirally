@@ -1,4 +1,4 @@
-import type { TranscriptsListParams } from "@openclaw/gateway-protocol";
+import type { TranscriptsListParams } from "@mirally/gateway-protocol";
 
 export const TRANSCRIPT_PAGE_SIZE = 50;
 export const TRANSCRIPT_QUERY_LIMIT = 256;

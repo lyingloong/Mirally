@@ -1,4 +1,4 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { isIncognitoSessionKey } from "./incognito-session-key.js";
 
 export type SessionMutationOperatorScope = "operator.write" | "operator.admin";

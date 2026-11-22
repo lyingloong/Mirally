@@ -8,9 +8,9 @@ import {
   isLegacyIpv4Literal,
   parseCanonicalIpAddress,
   parseLooseIpAddress,
-} from "@openclaw/net-policy/ip";
-import { hasHttpUrlPrefix } from "@openclaw/net-policy/url-protocol";
-import { expectDefined } from "@openclaw/normalization-core";
+} from "@mirally/net-policy/ip";
+import { hasHttpUrlPrefix } from "@mirally/net-policy/url-protocol";
+import { expectDefined } from "@mirally/normalization-core";
 import type { MarkdownImageSpan as MarkdownImageMatch } from "../../packages/markdown-core/src/image-spans.js";
 import { findCodeRegions } from "../shared/text/code-regions.js";
 import { parseInlineDirectives } from "../utils/directive-tags.js";

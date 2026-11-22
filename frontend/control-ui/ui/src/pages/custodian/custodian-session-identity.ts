@@ -1,7 +1,7 @@
 import { generateUUID } from "../../lib/uuid.ts";
 import { getSafeLocalStorage } from "../../local-storage.ts";
 
-const CUSTODIAN_SESSION_STORAGE_KEY = "openclaw.custodian.session.v1";
+const CUSTODIAN_SESSION_STORAGE_KEY = "mirally.custodian.session.v1";
 
 function isStoredCustodianSessionId(value: string | null): value is string {
   return value !== null && value.length <= 512 && value.trim().length > 0;

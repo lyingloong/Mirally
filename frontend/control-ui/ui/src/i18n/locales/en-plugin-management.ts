@@ -4,7 +4,7 @@ import { en } from "./en.ts";
 // Plugin management and its lazy sibling surfaces register this shared copy on use.
 const enPluginManagement = {
   custodian: {
-    pluginPlaceholder: "Ask OpenClaw about {plugin}",
+    pluginPlaceholder: "Ask Mirally about {plugin}",
     pluginIntroTitle: "Ask about {plugin}",
     pluginStarterPurpose: "What does it do?",
     pluginStarterTools: "What tools does it have?",
@@ -13,7 +13,7 @@ const enPluginManagement = {
     pluginPromptTools: "What tools does {plugin} provide?",
     pluginPromptSetup: "How do I set up {plugin}?",
     pluginHelpQuestion: "Explain {setting}",
-    pluginHelpFailed: "Could not prepare the setting question. Try Ask OpenClaw again.",
+    pluginHelpFailed: "Could not prepare the setting question. Try Ask Mirally again.",
     pluginHelpUnset: "Not set",
     pluginHelpValue: "Current value: {value}",
   },
@@ -64,7 +64,7 @@ const enPluginManagement = {
       permissions: "Permissions",
       actions: "Actions for {name}",
       reset: "Reset value",
-      ask: "Ask OpenClaw",
+      ask: "Ask Mirally",
     },
     credentials: {
       stored: "••••••••",
@@ -208,7 +208,7 @@ const enPluginManagement = {
     detailSensitive: "Sensitive",
     detailMinimumGateway: "Minimum Gateway version",
     detailPluginApi: "Plugin API",
-    detailBuiltWith: "Built with OpenClaw",
+    detailBuiltWith: "Built with Mirally",
     detailSdkVersion: "Plugin SDK",
     detailSourceCommit: "Source commit",
     detailSourcePath: "Source path",
@@ -263,7 +263,7 @@ const enPluginManagement = {
     reload: "Reload",
     installSaved: "Installation of {name} was saved. {error}",
     installSavedNotApplied:
-      "Installation of {name} was saved, but the Gateway has not applied it. {error} Fix the reported problem, then run openclaw plugins reload {name}.",
+      "Installation of {name} was saved, but the Gateway has not applied it. {error} Fix the reported problem before trying again.",
     runtimeFailurePhase: "Runtime phase: {phase}.",
     enableAction: "Enable",
     working: "Working…",
@@ -271,7 +271,7 @@ const enPluginManagement = {
     detailPackage: "Package",
     detailPluginId: "Plugin ID",
     offlineBody: "Connect to browse installed and recommended plugins.",
-    optionalCapability: "Optional OpenClaw capability.",
+    optionalCapability: "Optional Mirally capability.",
     enabled: "Enabled",
     disabled: "Disabled",
     available: "Available",

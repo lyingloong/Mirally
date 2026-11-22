@@ -1,4 +1,4 @@
-import { ErrorCodes, GatewayProtocolRequestError } from "@openclaw/gateway-client/browser";
+import { ErrorCodes, GatewayProtocolRequestError } from "@mirally/gateway-client/browser";
 import { t } from "../../i18n/index.ts";
 import { formatUiError } from "../format-error.ts";
 import type {

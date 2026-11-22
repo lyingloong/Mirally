@@ -2,13 +2,13 @@ import { consume } from "@lit/context";
 // Controller for the curated Talk settings page. Owns the talk.catalog read
 // that feeds the provider/model/voice pickers; all writes go through the shared
 // config form draft so the embedded schema editor below stays in sync.
-import type { TalkCatalogResult } from "@openclaw/gateway-protocol";
+import type { TalkCatalogResult } from "@mirally/gateway-protocol";
 import { html, type TemplateResult } from "lit";
 import { property, state } from "lit/decorators.js";
 import { applicationContext, type ApplicationContext } from "../../app/context.ts";
 import { t } from "../../i18n/index.ts";
 import { isGatewayMethodAdvertised } from "../../lib/gateway-methods.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import type { VoiceWakeEditorState } from "./talk-device.ts";
 import {
@@ -303,7 +303,7 @@ function voiceWakeOwner(gateway: ApplicationContext["gateway"]): VoiceWakeSettin
   return owner;
 }
 
-class TalkSettingsPage extends OpenClawLightDomElement {
+class TalkSettingsPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -641,16 +641,16 @@ class TalkSettingsPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-talk-settings")) {
-  customElements.define("openclaw-talk-settings", TalkSettingsPage);
+if (!customElements.get("mirally-talk-settings")) {
+  customElements.define("mirally-talk-settings", TalkSettingsPage);
 }
 
 export function renderTalkPage(props: TalkPageProps) {
   return html`
-    <openclaw-talk-settings
+    <mirally-talk-settings
       .configObject=${props.configObject}
       .mutationDisabled=${props.mutationDisabled}
       .buildEditor=${props.buildEditor}
-    ></openclaw-talk-settings>
+    ></mirally-talk-settings>
   `;
 }

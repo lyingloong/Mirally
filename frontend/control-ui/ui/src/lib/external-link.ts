@@ -1,5 +1,5 @@
 // Control UI module implements external link behavior.
-import { normalizeOptionalLowercaseString } from "@openclaw/normalization-core/string-coerce";
+import { normalizeOptionalLowercaseString } from "@mirally/normalization-core/string-coerce";
 
 const REQUIRED_EXTERNAL_REL_TOKENS = ["noopener", "noreferrer"] as const;
 

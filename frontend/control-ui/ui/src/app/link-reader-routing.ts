@@ -47,7 +47,7 @@ export function startLinkReaderRouting(snapshot: () => ApplicationGatewaySnapsho
     if (
       !anchor ||
       !path.some(
-        (element) => element instanceof Element && element.localName === "openclaw-app-shell",
+        (element) => element instanceof Element && element.localName === "mirally-app-shell",
       ) ||
       anchor.hasAttribute("download") ||
       anchor.hasAttribute("data-file-path") ||
@@ -69,7 +69,7 @@ export function startLinkReaderRouting(snapshot: () => ApplicationGatewaySnapsho
         trigger: anchor,
         newTab: !path.some(
           (element) =>
-            element instanceof Element && element.localName === "openclaw-link-reader-panel",
+            element instanceof Element && element.localName === "mirally-link-reader-panel",
         ),
       },
     });

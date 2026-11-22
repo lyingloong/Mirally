@@ -1,5 +1,5 @@
 // Control UI response helpers own bounded browser body consumption.
-import { consumeResponseBytes } from "@openclaw/normalization-core";
+import { consumeResponseBytes } from "@mirally/normalization-core";
 
 type ResponseTextLimitOptions = {
   maxBytes: number;

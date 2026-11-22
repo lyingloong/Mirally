@@ -1,7 +1,7 @@
 import { consume } from "@lit/context";
 import { initialState, Task } from "@lit/task";
-import { parseStrictPositiveInteger } from "@openclaw/normalization-core/number-coercion";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { parseStrictPositiveInteger } from "@mirally/normalization-core/number-coercion";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import { html, nothing, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
@@ -62,7 +62,7 @@ import { requestSessionInvolvement } from "../../lib/sessions/session-requests.t
 import { searchVisibleSessionTranscripts } from "../../lib/sessions/transcript-search.ts";
 import { formatPreservedWorktreesNotice } from "../../lib/sessions/worktree-preservation.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { runControlUiPluginAction } from "../../plugins/control-ui-actions.ts";
 import { sessionAgentIdentityById, sessionAgentIds } from "./agent-scope.ts";
@@ -102,7 +102,7 @@ type SessionsPageListBinding = {
   transcriptKey: string;
 };
 
-class SessionsPage extends OpenClawLightDomElement {
+class SessionsPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context?: ApplicationContext;
 
@@ -1616,7 +1616,7 @@ class SessionsPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-sessions-page")) {
-  customElements.define("openclaw-sessions-page", SessionsPage);
+if (!customElements.get("mirally-sessions-page")) {
+  customElements.define("mirally-sessions-page", SessionsPage);
 }
 /* oxlint-disable max-lines -- TODO: split this grandfathered oversized file. */

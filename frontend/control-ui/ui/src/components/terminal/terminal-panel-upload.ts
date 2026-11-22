@@ -1,4 +1,4 @@
-import type { GhosttyTerminalController } from "@openclaw/libterminal/browser";
+import type { GhosttyTerminalController } from "@mirally/terminal-runtime/browser";
 import { html, nothing } from "lit";
 import { TERMINAL_UPLOAD_RETENTION_MS } from "../../../../packages/gateway-protocol/src/schema/terminal-constants.js";
 import { t } from "../../i18n/index.ts";

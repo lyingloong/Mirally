@@ -1,10 +1,10 @@
 {
-  "name": "@openclaw/gateway-protocol",
+  "name": "@mirally/gateway-protocol",
   "version": "2026.9.6",
-  "description": "Typed schemas and runtime validators for the OpenClaw Gateway WebSocket protocol",
+  "description": "Typed schemas and runtime validators for the Mirally Gateway WebSocket protocol",
   "keywords": [
     "gateway",
-    "openclaw",
+    "mirally",
     "protocol",
     "typebox",
     "websocket"
@@ -96,7 +96,7 @@
     "typebox": "1.3.30"
   },
   "devDependencies": {
-    "@openclaw/normalization-core": "workspace:*"
+    "@mirally/normalization-core": "workspace:*"
   },
   "engines": {
     "node": ">=22.19.0"
@@ -104,7 +104,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "openclaw": {
+  "mirally": {
     "release": {
       "publishToNpm": true
     }

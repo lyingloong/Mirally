@@ -15,6 +15,8 @@
 
 [PR 工作流](../../.github/workflows/mirally-pr.yml)在 PR、`main` push 和手动运行时保留开发工具测试、源码与文档链接检查。只有改动完全属于[范围选择器](../../tools/check_ci_scope.py)列出的文档、开发工具和网站路径时，才跳过 Windows 产品依赖安装、内核/前端构建及产品测试；产品代码及依赖、产品或共享 CI 配置、选择器本身和未知路径仍运行原有完整离线子集（包含记忆测试）。检查名称保持不变，跳过的产品 job 显示 `skipped`。
 
+`windows-core` 的 Python 子集是纯离线、秒级的产品核心回归保护，清单位于「Test Python product core」步骤的 `$tests`。新增纯离线测试模块默认在同一 PR 加入该子集，或显式注明为什么暂不入：没有被 CI 执行的回归保护合并后只靠人工重跑。清单按模块名唯一、字母序排列，追加时按“读取现有清单 → 去重 → 与目标模块取并集 → 字母序写回”执行，重复运行不产生重复条目；[`tests/development/test_ci_scope.py`](../../tests/development/test_ci_scope.py) 校验清单唯一、有序且对应测试文件存在。
+
 PR 比较事件的 base 与 GitHub 合并预览提交，`main` push 比较事件的 before/after；删除和重命名也计入。浅历史缺少比较基线、分类失败、空 diff 或开发工具检查失败时运行完整产品检查。手动 `workflow_dispatch` 始终运行完整检查，可用于复核或排查。代码 Draft PR 与正式 PR 使用相同规则，合并后的产品集成验证继续保留。
 
 pip、npm 和 pnpm 缓存只复用包下载；每次仍安装依赖并重新构建，不复用 `.venv`、`node_modules` 或构建产物。缓存未命中时照常安装。CI 的离线子集不替代受影响领域的本地验证或实际页面验收。
@@ -32,7 +34,7 @@ npm --prefix website run preview
 
 `dist/` 和单文件 `exports/Mirally.html` 均位于 `website/`，属于可重新生成的忽略产物。[网站工作流](../../.github/workflows/website.yml)在网站相关 PR 中独立构建；`main` push 确认存在网站变更后发布 Pages，手动运行仅允许从 `main` 发布。网站检查不替代产品检查，混合改动分别验证。
 
-发布目标为 `https://lyingloong.github.io/Mirally/`。先验证新站首页、`/updates/` 和日期深链接、图片/字体及窄窗口/键盘操作，再将旧站切为保留路径、query 与 hash 的跳转，并核对跳转后的实际页面。构建成功不等于线上部署或重定向已生效；每次发布以工作流结果和实际访问为准。[历史验收记录](../../website/VERIFICATION.md)保留迁移前证据，不代表本次合仓或新地址验收。
+发布目标为 `https://lyingloong.github.io/Mirally/`。核验 Actions 部署结果，并实际访问首页、`/updates/` 和日期深链接，检查图片、字体、窄窗口与键盘操作。旧站链接的现状见[网站说明](../../website/README.md)，迁移前的验收证据见[历史验收记录](../../website/VERIFICATION.md)。
 
 ### 本地命令
 
@@ -44,8 +46,12 @@ node --test tests/test_test_dependencies.cjs
 ```
 
 ```powershell
-# 产品 Python 测试（不需要 UFO 子模块或额外依赖）
+# 产品 Python 测试
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
+
+# 记事本与桌面、微信回环链路（先构建内核）
+.\.venv\Scripts\python.exe -m unittest tests.test_framework_notebook -v
+node --test tests/test_framework_notebook_tools.mjs tests/test_framework_notebook_e2e.mjs
 
 # Node/产品链路测试
 node --test tests/test_*.mjs
@@ -67,13 +73,13 @@ npm --prefix frontend/control-ui run build
 
 完整 Python 套件依赖可写的临时目录；同一 `TEMP` 目录残留旧数据时，个别记忆/观察分页用例可能报与本改动无关的失败。重跑前换用新的可写临时目录（例如 `$env:TEMP` 指向仓库内 gitignored 的空目录）即可复现全绿；CI runner 使用真实 Temp，不需要此覆盖。
 
-验证产物统一写到 `output/tmp/<工具或开发点>/<运行标识>/`（`output/` 已忽略）。仓库根出现未被忽略的 `tmp*` 条目会让 `git status` 长期带噪声，用只读检查确认：
+验证产物统一写到 `output/tmp/<工具或开发点>/<运行标识>/`。保留 `output/agent-workflow/` 的本机开发状态。仓库根如有未被忽略的 `tmp*` 条目，用只读检查确认：
 
 ```powershell
 .\.venv\Scripts\python.exe tools\check_local_artifacts.py
 ```
 
-它只报告、不写盘、不删除、不改 `.gitignore`：退出码 `0` 干净，`1` 有未忽略的根级 `tmp*` 条目（逐个列出），`2` 不是仓库根。清理是显式的人工动作——把需要的文件挪进 `output/tmp/`，其余自行删除；仓库不提供自动清理，也不替你判断哪些还能用。
+`check_local_artifacts.py` 只报告仓库根的 `tmp*` 条目。退出码 `0` 表示干净，`1` 表示有未忽略的条目，`2` 表示不是仓库根。要检查 `output/tmp/` 下过期的运行目录，可执行 `tools/check_cleanup_local_artifacts.py` 预览。该命令只有显式加 `--apply` 才清理符合条件的目录。
 
 ```powershell
 # 对显式 --test-mode --home 的隔离宿主，GUI 顺序运行
@@ -87,7 +93,10 @@ node tools/verify_framework_weixin_browser.mjs <隔离home/runtime.json>
 .\.venv\Scripts\python.exe tools\verify_framework_shell.py
 .\.venv\Scripts\python.exe tools\verify_framework_shell.py --close-exit
 .\.venv\Scripts\python.exe tools\verify_framework_shell.py --page-quit --reuse-host
+.\.venv\Scripts\python.exe tools\verify_framework_desktop_observation.py --require-image
 ```
+
+手机网页脚本以隔离宿主的 `runtime.json` 为入口。它创建合成会话、从桌面配对手机、验证消息往返和设备偏好，再撤销本次配对。默认把截图写到 `output/tmp/verify-framework-mobile-browser/`。
 
 `--test-mode` 必须同时指定独立 `--home`，用于确定性 UI 测试，不是生产失败回退。
 
@@ -103,6 +112,7 @@ node tools/verify_framework_weixin_browser.mjs <隔离home/runtime.json>
 | 活动与记忆 | 采集器、真实 UIA/WGC/OCR fixture、知识投影、事件视图、历史浏览器、记忆召回与纠正 |
 | 扩展 | 纯说明 Skill、资源 Skill、脚本确认与指纹、MCP 全部接入面、可信插件启停 |
 | 桌面 | WebView2 原生裁剪、命中区域、最小化/托盘、伙伴交互、关闭与明确退出；真实窗口顺序运行 |
+| Windows 控件操作 | 在测试窗口用真实 UIA 检查编号、标注图、填值回读、按钮效果及失效目标。会话审批与来源用隔离测试验证 |
 | 前端 | 固定来源逐文件校验、正式构建、浏览器模块 import 检查、主要产品页面与窄屏 |
 
 最近一批完整记录集中在 2026-10-29 的微信、日历和定时能力；2026-10-31 的会话中心重构（移除工作 owner、通用后台作业、摘要）以对应提交的隔离测试和实际页面检查为准，本文不重复抄录每次数量。
@@ -113,7 +123,7 @@ node tools/verify_framework_weixin_browser.mjs <隔离home/runtime.json>
 - **真实外部模型**：除一次 DeepSeek 官方连接实测外，未对所有供应商、模型、代理和长期成本做验收；模型质量与任务成功率不能由短用例保证。
 - **真实微信**：当前用户完成过扫码和一次文字往返；媒体格式、长期主动发送、平台限流、断线恢复和多账号差异仍需实机验证。
 - **桌面环境**：多显示器、混合 DPI、RDP、锁屏/UAC、不同捕获驱动和长时间采集未完整覆盖。
-- **桌面动作**：Windows 单步点击/输入未通过交互式桌面实机验收，未向模型开放；桌面接管不是当前能力。
+- **桌面动作**：第三方应用的 UIA 控件支持率、混合 DPI、长期使用和真实微信操作需要单独验收。当前支持可定位控件的按钮触发与填值。
 - **语音**：真实麦克风、系统权限、微信语音编码、本地 Whisper 模型和不同设备兼容性仍需实测。
 - **手机远程**：私人 HTTPS 转发、公网可达性、实体手机长期使用和跨网络恢复未验证。
 - **长期运行**：长时间后台模型预算、内存/磁盘增长、崩溃恢复和主动联系质量没有完整长周期数据。

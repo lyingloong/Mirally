@@ -27,7 +27,7 @@ function fixture(handler = method => method === 'conversation.list' ? {conversat
   const sandbox = {
     html, nothing: Symbol('nothing'), live: value => value, document,
     customElement: () => target => target, state: () => () => {},
-    OpenClawLightDomElement: class {isConnected = true; connectedCallback() {} disconnectedCallback() {}},
+    MirallyLightDomElement: class {isConnected = true; connectedCallback() {} disconnectedCallback() {}},
     window: {addEventListener: (name, fn) => listeners.set('window.' + name, fn),
       removeEventListener: name => listeners.delete('window.' + name)},
     setTimeout: (fn, delay) => {const id = ++timerId; timers.set(id, {fn, delay}); return id;},

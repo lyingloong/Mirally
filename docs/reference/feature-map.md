@@ -28,7 +28,8 @@
 | 命令、后台作业、状态与停止 | [shell-capabilities.mjs](../../kernel/dsh/packages/mirally/mirally-product/src/shell-capabilities.mjs)、[native-runtime.mjs](../../kernel/dsh/packages/mirally/mirally-product/src/native-runtime.mjs) | Mirally 受管理命令和 DSH 原生作业分别持有进程/输出；[job-notifications.mjs](../../kernel/dsh/packages/mirally/mirally-product/src/job-notifications.mjs)登记结束通知。停止回复与停止作业分别处理 | [会话作业](../../tests/test_framework_session_shell_jobs.mjs)、[作业通知](../../tests/test_framework_job_notifications.mjs) |
 | 动作审批、临时信任与持续信任 | [action-approvals.ts](../../frontend/control-ui/ui/src/pages/mirally/action-approvals.ts)、[action-gate.mjs](../../kernel/dsh/packages/mirally/mirally-product/src/action-gate.mjs) | Host 准入与 ActionGate 绑定会话、命令及动作；DSH 原生沙箱/审批是另一执行机制，改动时核对[权限边界](../architecture/overview.md#会话作业与权限) | [ActionGate](../../tests/test_framework_action_gate.mjs)、[权限往返](../../tests/test_framework_action_permissions_roundtrip.mjs) |
 | 文件、材料、成果与网页搜索 | [capabilities-settings.ts](../../frontend/control-ui/ui/src/pages/mirally/capabilities-settings.ts)、[basic-capabilities.mjs](../../kernel/dsh/packages/mirally/mirally-product/src/basic-capabilities.mjs)、[materials.mjs](../../kernel/dsh/packages/mirally/mirally-product/src/materials.mjs) | [capabilities.py](../../mirally/framework/capabilities.py)负责授权根与开关；[materials.py](../../mirally/framework/materials.py)负责有限材料提取；原生文件工具仍走 DSH | [能力边界](../../tests/test_framework_capabilities.py)、[材料链路](../../tests/test_framework_materials.mjs)、[能力设置草稿与失败处理](../../tests/test_framework_capabilities_settings_ui.mjs) |
-| 独立浏览器、桌面观察 | [browser-capabilities.mjs](../../kernel/dsh/packages/mirally/mirally-product/src/browser-capabilities.mjs)、[desktop-observation.mjs](../../kernel/dsh/packages/mirally/mirally-product/src/desktop-observation.mjs) | 浏览器执行器与[桌面观察适配](../../mirally/framework/desktop_observation.py)持有实际观察/动作；能力开放范围以[能力矩阵](capabilities.md)为准 | [浏览器生命周期](../../tests/test_framework_browser_lifecycle.mjs)、[桌面观察](../../tests/test_framework_desktop_observation.mjs) |
+| 独立浏览器 | [browser-capabilities.mjs](../../kernel/dsh/packages/mirally/mirally-product/src/browser-capabilities.mjs) | 浏览器执行器持有进程、页面和动作 | [浏览器生命周期](../../tests/test_framework_browser_lifecycle.mjs) |
+| [Windows 窗口观察和操作](../architecture/desktop.md#对话中的-windows-操作) | [desktop-observation.mjs](../../kernel/dsh/packages/mirally/mirally-product/src/desktop-observation.mjs)、[desktop_observation.py](../../mirally/framework/desktop_observation.py) | Host 持有会话审批和快照范围。[UIA 实现](../../mirally/framework/desktop_controls.py)读取并重验控件，[窗口标注](../../mirally/framework/desktop_snapshot_image.py)绘制同一组编号 | [工具权限及生命周期](../../tests/test_framework_desktop_observation.mjs)、[Windows 验证](../../tools/verify_framework_desktop_observation.py) |
 
 ## 渠道、提醒与扩展
 
@@ -48,7 +49,9 @@
 | --- | --- | --- | --- |
 | [活动采集、投影与查询](../architecture/activity.md) | [activity_experience.py](../../mirally/framework/activity_experience.py)、[runtime/activity](../../mirally/runtime/activity/) | [core/activity](../../mirally/core/activity/)保存观察与知识投影；[platform/activity](../../mirally/platform/activity/)适配 Windows；[framework_workers.py](../../mirally/framework_workers.py)管理后台生命周期 | [产品活动体验](../../tests/test_framework_activity_experience.py)、[采集生命周期](../../tests/test_activity_monitor.py) |
 | [记忆、个性化与上下文读取](../architecture/memory.md) | [memory-page.ts](../../frontend/control-ui/ui/src/pages/mirally/memory-page.ts)、[context.py](../../mirally/framework/context.py)、[runtime/memory](../../mirally/runtime/memory/) | [core/memory](../../mirally/core/memory/)持有记忆；Context 按需只读组合来源；显式偏好和主动联系设置归产品 owner | [记忆 owner](../../tests/test_memory_service.py)、[记忆与会话回放](../../tests/test_framework_memory_replay.py) |
-| 后台模型、主动候选与收件箱 | [settings-page.ts](../../frontend/control-ui/ui/src/pages/mirally/settings-page.ts)、[messages-page.ts](../../frontend/control-ui/ui/src/pages/mirally/messages-page.ts)、[framework_workers.py](../../mirally/framework_workers.py) | [service.py](../../mirally/framework/service.py)管理预算相关产品设置、候选、约定及收件箱；后台请求复用原模型桥 | [产品状态](../../tests/test_framework_product.py)、[后台 worker](../../tests/test_framework_workers.py)、[消息与提醒刷新状态](../../tests/test_framework_messages_ui.mjs) |
+| [对话记事与目录](../architecture/notebook.md) | [notebook-tools.mjs](../../kernel/dsh/packages/mirally/mirally-product/src/notebook-tools.mjs) | [notebook.py](../../mirally/framework/notebook.py)持有记录、目录、修订和查询规则 | [记事 owner 与历史回查](../../tests/test_framework_notebook.py)、[工具授权与审批](../../tests/test_framework_notebook_tools.mjs)、[桌面和微信链路](../../tests/test_framework_notebook_e2e.mjs) |
+| 后台模型、主动候选与收件箱 | [settings-page.ts](../../frontend/control-ui/ui/src/pages/mirally/settings-page.ts)、[messages-page.ts](../../frontend/control-ui/ui/src/pages/mirally/messages-page.ts)、[手机入口](../../frontend/control-ui/ui/src/mobile/app.ts) | [service.py](../../mirally/framework/service.py)管理后台预算、候选、约定及收件箱。桌面和配对手机共享服务端未读筛选与分页 | [产品状态](../../tests/test_framework_product.py)、[后台 worker](../../tests/test_framework_workers.py)、[消息界面](../../tests/test_framework_messages_ui.mjs)、[两端浏览器验收](../../tools/verify_framework_messages.mjs) |
+| 投递健康诊断 | [delivery_health.py](../../mirally/framework/delivery_health.py) | 在同一只读快照统计通用投递与日历渠道尝试，按渠道和状态汇总 | [产品状态](../../tests/test_framework_product.py) |
 | [窗口、托盘、伙伴三形态与关闭](../architecture/desktop.md) | [framework_host.py](../../mirally/framework_host.py)、[framework_shell.py](../../mirally/framework_shell.py)、[desktop_surface.py](../../mirally/desktop_surface.py) | Python 壳持有原生窗口/托盘与退出流程；公共 surface 保留伙伴、裁剪和主动截图行为 | [窗口壳与托盘](../../tests/test_framework_shell.py)、[伙伴还原](../../tests/test_framework_companion_restore.py)；原生 GUI 按[验证文档](validation.md)顺序验收 |
 | [页面、导航、主题、品牌与快捷开始](../architecture/frontend.md) | [route.ts](../../frontend/control-ui/ui/src/pages/mirally/route.ts)、[侧栏](../../frontend/control-ui/ui/src/components/app-sidebar-render.ts)、[我的 Mirally 菜单（设置入口）](../../frontend/control-ui/ui/src/components/app-sidebar-identity-menu.ts)、[产品页面目录](../../frontend/control-ui/ui/src/pages/mirally/)、[客户端适配](../../frontend/control-ui/ui/src/app/mirally-client.ts) | 复用原前端组件；品牌/伙伴资源见[资源说明](../../mirally/assets/README.md)。修改固定来源文件前核对[来源维护](../architecture/frontend.md#来源维护) | [当前客户端](../../tests/test_framework_original_client.mjs)、[请求边界](../../tests/test_framework_ui_races.mjs)、[首次引导、建议草稿与新对话入口](../../tests/test_framework_model_onboarding_ui.mjs)；同时遵守[UI 规范](../standards/ui-guidelines.md) |
 
@@ -62,11 +65,12 @@
 
 ## 开发工作流与工具
 
-开发工作流不改变产品事实；它由仓库内的状态助手和流程文档驱动，队长推进状态，合并仍由用户批准。
+开发工作流的目录、工具和状态归属见 [开发与协作](../development/README.md)。DSH 团队负责执行与汇报，状态助手记录开发点，用户或已获授权的 Codex 在 GitHub 合并。
 
 | 要修改的功能 | 从哪里开始 | 状态与执行归属 | 代表测试 |
 | --- | --- | --- | --- |
-| 开发点状态、并发/配额闸门与待合并池 | [状态助手](../../tools/dev_workflow/agent_workflow.py)、[AgentTeams 工作流](../development/agent-teams-workflow.md) | 队长用状态助手推进 `proposed → … → awaiting_merge`；审查通过仍需用户批准，不自动合并；本机状态与配置在 `output/agent-workflow/`（gitignore，不是产品数据） | [状态机与闸门测试](../../tests/development/test_agent_workflow.py) |
+| 开发点状态、并发/配额闸门与待合并池 | [状态助手](../../tools/dev_workflow/agent_workflow.py)、[AgentTeams 工作流](../development/agent-teams-workflow.md) | 队长用状态助手推进 `proposed → … → awaiting_merge`；审查通过后交用户或已获授权的 Codex 合并，队长与成员不自行 merge；本机状态与配置在 `output/agent-workflow/`（gitignore，不是产品数据） | [状态机与闸门测试](../../tests/development/test_agent_workflow.py) |
+| 只读进度页与数据快照 | [进度页生成器](../../tools/dev_workflow/progress_page.py)、[进度页说明](../development/agent-teams-workflow.md#进度页) | 只读呈现 `state.json`、spec/verification/review、`page-tasks.json`、`page-decisions.md` 与 `pr-cache.json` 为 `progress.html` + `progress.data.json`；不写状态、不触发合并，`--refresh-pr` 是唯一联网步骤 | [进度页测试](../../tests/development/test_progress_page.py) |
 | 审查经验与可复用准则 | [审查经验库](../development/review-experience.md) | 审查师维护；候选先写入 `output/agent-workflow/experience-candidates.md`，整理走独立 docs PR | 无自动化测试；实现/审查前人工核对相关条目 |
 | 仓库文档链接守卫 | [链接检查器](../../tools/check_docs_links.py) | 文档改动后由改动者运行；入口是否仍正确、测试是否覆盖目标行为仍需审查核对 | `python tools/check_docs_links.py` 输出 0 broken |
 | CI 影响范围与依赖缓存 | [PR 工作流](../../.github/workflows/mirally-pr.yml)、[范围选择器](../../tools/check_ci_scope.py) | 明确的文档/开发工具改动只运行轻量检查，网站改动另走网站工作流；未知或无法比较时运行完整产品检查，规则见[验证](validation.md#github-actions-检查范围) | [范围与 Git 差异测试](../../tests/development/test_ci_scope.py) |
@@ -77,7 +81,7 @@
 2. 确认变更会触及的 owner、持久状态、命令/来源校验及生命周期；涉及不同执行器时分别检查真实状态和停止语义。
 3. 从代表测试扩展到受影响的交互与失败路径。测试命令、构建准备及真实 GUI/API 的边界见[验证](validation.md)；新 worktree 的数据与依赖隔离见[协作指南](../../CONTRIBUTING.md)。
 
-找不到条目时，先查[能力矩阵](capabilities.md)、[DSH 组合入口](../../kernel/dsh/packages/mirally/mirally-product/composition.mjs)和对应领域目录。`mirally/runtime/ufo/` 是保留的参考/冻结适配（UFO 子模块源码已移除），当前默认框架不加载；拟议桌面能力见[研究记录](../product/research-2026-10-31-ufo.md)，不能当作已开放功能入口。
+找不到条目时，先查[能力矩阵](capabilities.md)、[DSH 组合入口](../../kernel/dsh/packages/mirally/mirally-product/composition.mjs)和对应领域目录。
 
 ## 维护约定
 

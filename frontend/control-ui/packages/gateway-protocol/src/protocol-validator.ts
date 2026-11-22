@@ -1,4 +1,4 @@
-import { normalizeTypeBoxValidationErrors } from "@openclaw/normalization-core/json-schema";
+import { normalizeTypeBoxValidationErrors } from "@mirally/normalization-core/json-schema";
 import type { Static, TSchema } from "typebox";
 import { Compile, type Validator as TypeBoxValidator } from "typebox/compile";
 import type { ValidationError } from "./validation-errors.js";

@@ -1,5 +1,5 @@
-import { asNullableRecord as recordOrNull } from "@openclaw/normalization-core/record-coerce";
-import { normalizeOptionalString as stringValue } from "@openclaw/normalization-core/string-coerce";
+import { asNullableRecord as recordOrNull } from "@mirally/normalization-core/record-coerce";
+import { normalizeOptionalString as stringValue } from "@mirally/normalization-core/string-coerce";
 import { readTranscriptSenderIdentity } from "../../../../src/chat/sender-identity.js";
 import { readSessionChangedEvent } from "../../lib/sessions/reconcile.ts";
 import { uiSessionEventMatches } from "../../lib/sessions/session-key.ts";
@@ -28,7 +28,7 @@ function clearTypingActorForUserMessage(
     return false;
   }
   const identity = readTranscriptSenderIdentity(
-    recordOrNull(message?.["__openclaw"])?.senderIdentity,
+    recordOrNull(message?.["__mirally"])?.senderIdentity,
   );
   const actorId = identity?.type === "profile" ? identity.id : undefined;
   if (!actorId || !actors.delete(actorId)) {

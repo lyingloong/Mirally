@@ -1,4 +1,4 @@
-import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
+import { asOptionalRecord } from "@mirally/normalization-core/record-coerce";
 import { readPresenceEntries, resolveSelfPresenceUser } from "../../app/user-profile.ts";
 import { normalizeSenderIdentity, type SenderIdentity } from "./sender-label.ts";
 

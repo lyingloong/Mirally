@@ -1,17 +1,17 @@
 // Control UI module implements session key behavior.
-import { normalizeAgentId } from "@openclaw/normalization-core/agent-id";
+import { normalizeAgentId } from "@mirally/normalization-core/agent-id";
 import {
   normalizeLowercaseStringOrEmpty,
   normalizeOptionalLowercaseString,
   normalizeOptionalString,
-} from "@openclaw/normalization-core/string-coerce";
+} from "@mirally/normalization-core/string-coerce";
 import {
   buildAgentMainSessionKey,
   DEFAULT_MAIN_KEY,
   normalizeMainKey,
   parseAgentSessionKeyParts,
   type ParsedAgentSessionKey,
-} from "@openclaw/session-url-contract";
+} from "@mirally/session-url-contract";
 
 export { buildAgentMainSessionKey, DEFAULT_MAIN_KEY };
 export const DEFAULT_AGENT_ID = "main";

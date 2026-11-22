@@ -1,4 +1,4 @@
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 
 export function normalizeProviderId(provider: string): string {
   return normalizeLowercaseStringOrEmpty(provider);

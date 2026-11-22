@@ -1,4 +1,4 @@
-import type { RouteLocation } from "@openclaw/uirouter";
+import type { RouteLocation } from "@mirally/ui-router";
 import type { ApplicationContext } from "../../app/context.ts";
 
 /** A history-free route remains owned until a newer navigation or app shutdown. */

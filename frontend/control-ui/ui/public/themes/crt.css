@@ -11,7 +11,7 @@
   --radius-lg: 4px;
   --radius-xl: 6px;
   --radius: 3px;
-  --openclaw-corner-radius-scale: 0.25;
+  --mirally-corner-radius-scale: 0.25;
 }
 
 :root[data-theme="crt"] {

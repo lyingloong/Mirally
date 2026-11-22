@@ -18,7 +18,7 @@ test('durable queued user materials retain one receipt and real owned image/file
   assert.equal(rows[0].content[1].type, 'image'); assert.equal(rows[0].content[1].fileName, '画面.png');
   assert.equal(rows[0].content[1].url, `/api/sessions/owned%20conversation/attachments/image/${hash}`);
   assert.equal(rows[0].content[2].type, 'attachment'); assert.equal(rows[0].content[2].attachment.label, '资料.txt');
-  assert.equal(rows[0].__openclaw.idempotencyKey, 'run:user'); assert.equal(JSON.stringify(log), before);
+  assert.equal(rows[0].__mirally.idempotencyKey, 'run:user'); assert.equal(JSON.stringify(log), before);
   const internal = {...input, id: 'internal', source: {kind: 'runtime-context'}};
   assert.deepEqual(projectMessages([event(0, 'user/message', internal)], [], 0, scope), []);
   assert.deepEqual(nativeUserAttachments([event(0, 'user/message', internal)]), []);
@@ -38,7 +38,7 @@ test('historical tools use native call sequence identities, settle from actual r
   assert.deepEqual(tools.map(row => row.id), [1, 5, 7].map(seq => toolPresentationId('native-one', seq)));
   assert.deepEqual(JSON.parse(JSON.stringify(tools[1].content[0].arguments)), {query: '第二轮'}); assert.equal(tools[1].content[1].isError, true);
   assert.equal(tools[2].content.length, 1, 'An interrupted call without a result is not a completed operation');
-  assert.equal(tools.some(row => row.__openclawToolStreamLive), false, 'Historical calls never spin as a live operation');
+  assert.equal(tools.some(row => row.__mirallyToolStreamLive), false, 'Historical calls never spin as a live operation');
   const moved = projectMessages(log, [command('run-one', 'one'), command('run-two', 'two')], 100, {...scope, nativeSessionId: 'native-two'});
   assert.equal(moved[1].seq, 102); assert.notEqual(moved[1].id, tools[0].id, 'Generations may reuse raw provider call IDs and native sequence values');
 });

@@ -26,7 +26,7 @@ export const WIDGET_THEME_TOKENS = [
 
 export type WidgetThemeToken = (typeof WIDGET_THEME_TOKENS)[number];
 
-export const WIDGET_THEME_MESSAGE_TYPE = "openclaw:widget-theme";
+export const WIDGET_THEME_MESSAGE_TYPE = "mirally:widget-theme";
 
 export type WidgetThemeMessage = {
   type: typeof WIDGET_THEME_MESSAGE_TYPE;

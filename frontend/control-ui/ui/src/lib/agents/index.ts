@@ -1,4 +1,4 @@
-import { gatewayCredentialScope } from "@openclaw/gateway-client/browser";
+import { gatewayCredentialScope } from "@mirally/gateway-client/browser";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import type {
   AgentsFilesGetResult,

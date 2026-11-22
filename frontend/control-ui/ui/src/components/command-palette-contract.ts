@@ -4,7 +4,7 @@ import {
 } from "../lib/keyboard-shortcut-contract.ts";
 
 export const COMMAND_PALETTE_DIALOG_STYLE =
-  "--openclaw-modal-width: min(740px, calc(100vw - 32px));";
+  "--mirally-modal-width: min(740px, calc(100vw - 32px));";
 
 export type CommandPaletteInputSnapshot = Pick<
   HTMLTextAreaElement,
@@ -23,9 +23,9 @@ export type CommandPaletteOpenInput = CommandPaletteInputSnapshot & {
 /** Read the live cold input when replacement focus is accepted; undefined means retired. */
 export type CommandPaletteInputHandoff = () => CommandPaletteOpenInput | undefined;
 
-export const COMMAND_PALETTE_TARGET_EVENT = "openclaw-command-palette-target";
-export const COMMAND_PALETTE_OPEN_EVENT = "openclaw:command-palette-open";
-export const SHELL_NAV_DRAWER_TOGGLE_EVENT = "openclaw:shell-nav-drawer-toggle";
+export const COMMAND_PALETTE_TARGET_EVENT = "mirally-command-palette-target";
+export const COMMAND_PALETTE_OPEN_EVENT = "mirally:command-palette-open";
+export const SHELL_NAV_DRAWER_TOGGLE_EVENT = "mirally:shell-nav-drawer-toggle";
 
 export type ShellNavDrawerToggleDetail = {
   trigger: HTMLElement;

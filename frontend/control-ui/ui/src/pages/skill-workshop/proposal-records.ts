@@ -1,5 +1,5 @@
-import type { SkillsProposalsListResultSchema } from "@openclaw/gateway-protocol";
-import { parseDateStringTimestampMs } from "@openclaw/normalization-core/number-coercion";
+import type { SkillsProposalsListResultSchema } from "@mirally/gateway-protocol";
+import { parseDateStringTimestampMs } from "@mirally/normalization-core/number-coercion";
 import type { Static } from "typebox";
 import { formatBytes } from "../../lib/agents/display.ts";
 import type {

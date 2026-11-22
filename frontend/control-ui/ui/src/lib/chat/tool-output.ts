@@ -1,4 +1,4 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { applyEdits, format } from "jsonc-parser";
 import { parseMarkdownJson } from "../../components/markdown-json.ts";
 import { t } from "../../i18n/index.ts";
@@ -13,7 +13,7 @@ export function isLegacyToolOutputUnavailable(card: ToolCard): boolean {
     !card.outputTruncated &&
     (card.toolOutput?.captureTruncated === true ||
       (!card.toolOutput &&
-        /\n\.\.\.\(OpenClaw truncated Codex native tool output: original \d+ chars, showing \d+; rerun with narrower args\.\)\s*$/u.test(
+        /\n\.\.\.\(Mirally truncated Codex native tool output: original \d+ chars, showing \d+; rerun with narrower args\.\)\s*$/u.test(
           card.outputText ?? "",
         )))
   );

@@ -26,7 +26,7 @@ import { resolveEditableSnapshotConfig } from "../../lib/config/config-state-mod
 import { formatUiError } from "../../lib/format-error.ts";
 import { canCallGatewayMethod } from "../../lib/gateway-methods.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { CloudWorkerConfigSave } from "./cloud-worker-config-save.ts";
 import {
@@ -56,7 +56,7 @@ function formControlValue(event: Event): string {
     : "";
 }
 
-class CloudWorkersPage extends OpenClawLightDomElement {
+class CloudWorkersPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -587,12 +587,12 @@ class CloudWorkersPage extends OpenClawLightDomElement {
             },
           }),
         )}
-        ${this.view === "profiles" ? body : html`<openclaw-cloud-worker-snapshots></openclaw-cloud-worker-snapshots>`}
+        ${this.view === "profiles" ? body : html`<mirally-cloud-worker-snapshots></mirally-cloud-worker-snapshots>`}
       `)}
     `;
   }
 }
 
-if (!customElements.get("openclaw-cloud-workers-page")) {
-  customElements.define("openclaw-cloud-workers-page", CloudWorkersPage);
+if (!customElements.get("mirally-cloud-workers-page")) {
+  customElements.define("mirally-cloud-workers-page", CloudWorkersPage);
 }

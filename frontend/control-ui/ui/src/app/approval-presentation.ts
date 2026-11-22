@@ -1,4 +1,4 @@
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 
 export function compactApprovalCommand(command: string): string {
   const singleLine = command.replace(/\s+/g, " ").trim();

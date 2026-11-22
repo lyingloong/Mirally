@@ -1,5 +1,5 @@
-import { ErrorCodes } from "@openclaw/gateway-client/browser";
-import { asNullableRecord } from "@openclaw/normalization-core/record-coerce";
+import { ErrorCodes } from "@mirally/gateway-client/browser";
+import { asNullableRecord } from "@mirally/normalization-core/record-coerce";
 
 /**
  * Acknowledges unread state at most once per unread episode: the pending flag

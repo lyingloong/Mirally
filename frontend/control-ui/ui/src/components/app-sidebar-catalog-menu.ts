@@ -1,5 +1,5 @@
 // Owns catalog-row menu state, actions, focus anchor, and rendering for AppSidebar.
-import type { SessionsCatalogArchiveParams } from "@openclaw/gateway-protocol";
+import type { SessionsCatalogArchiveParams } from "@mirally/gateway-protocol";
 import { html, nothing } from "lit";
 import { pathForRoute } from "../app-route-paths.ts";
 import { t } from "../i18n/index.ts";
@@ -152,7 +152,7 @@ export class SidebarCatalogMenuController {
       return nothing;
     }
     return html`
-      <openclaw-catalog-session-menu
+      <mirally-catalog-session-menu
         .x=${menu.x}
         .y=${menu.y}
         .trigger=${this.trigger}
@@ -161,7 +161,7 @@ export class SidebarCatalogMenuController {
         .terminalDisabled=${!menu.canOpenTerminal || !this.hooks.terminalAvailable()}
         .onAction=${(action: CatalogSessionMenuAction) => this.handleAction(menu, action)}
         .onClose=${() => this.close()}
-      ></openclaw-catalog-session-menu>
+      ></mirally-catalog-session-menu>
     `;
   }
 }

@@ -7,7 +7,7 @@ import {
   renderSettingsSection, renderSettingsStatus, renderSettingsToggle, renderSettingsValue,
 } from '../../components/settings-ui.ts';
 import {renderSettingsWorkspace} from '../../components/settings-workspace.ts';
-import {OpenClawLightDomElement} from '../../lit/openclaw-element.ts';
+import {MirallyLightDomElement} from '../../lit/mirally-element.ts';
 import {rpcProduct, type ProductData} from './api.ts';
 import './product.css';
 import './mobile-settings.ts';
@@ -41,7 +41,7 @@ function expiryText(value?: number | string): string {
 
 /** The channel is another entrance to the same product session, never an agent owner. */
 @customElement('mirally-channels-page')
-export class MirallyChannelsPage extends OpenClawLightDomElement {
+export class MirallyChannelsPage extends MirallyLightDomElement {
   @state() private status: WeixinStatus | null = null;
   @state() private typingEnabled: boolean | null = null;
   @state() private conversations: Conversation[] = [];
@@ -194,7 +194,7 @@ export class MirallyChannelsPage extends OpenClawLightDomElement {
     const challenge = status.state === 'need_verifycode' || login?.needs_verify_code;
     const expiry = expiryText(login?.expires_at);
     return renderSettingsSection({title: '连接你的微信', description: '使用本人微信扫码，手机确认后再在这里完成绑定。'}, html`
-      ${renderSettingsRow({title: '授权页面', description: '微信授权页可能显示 OpenClaw，这是当前微信通道的名称。'})}
+      ${renderSettingsRow({title: '授权页面', description: '微信授权页可能显示 Mirally，这是当前微信通道的名称。'})}
       ${login?.qr_content && (status.state === 'waiting_scan' || status.state === 'scanned') ? renderSettingsRow({title: '微信扫码', description: expiry ? `二维码有效至 ${expiry}。请勿分享此二维码。` : '请勿分享此二维码。', stackedOnNarrow: true,
         control: html`<div class="mirally-weixin-qr" data-testid="mirally-weixin-qr"><wa-qr-code .value=${login.qr_content}
           label="使用本人微信扫描以连接 Mirally" size="200" fill="#111111" background="#ffffff"></wa-qr-code></div>`}) : nothing}

@@ -530,7 +530,7 @@
   cursor: var(--cursor-action);
 }
 
-/* openclaw-tooltip is display:contents, so the title span itself is the flex
+/* mirally-tooltip is display:contents, so the title span itself is the flex
    item; growing it pins the stop button to the card's right edge even for
    short titles. */
 .chat-tasks-rail__task-title {
@@ -1071,7 +1071,7 @@
   min-height: 0;
 }
 
-openclaw-session-discussion {
+mirally-session-discussion {
   display: flex;
   flex: 1 1 0;
   height: 100%;
@@ -2218,7 +2218,7 @@ openclaw-session-discussion {
   tab-size: 4;
 }
 
-openclaw-session-diff-menu[popover] {
+mirally-session-diff-menu[popover] {
   width: 0;
   height: 0;
   margin: 0;
@@ -2324,7 +2324,7 @@ wa-dropdown.session-diff-menu::part(menu) {
   padding: 5px;
 }
 
-openclaw-chat-files-panel,
+mirally-chat-files-panel,
 .chat-files-panel__content,
 .chat-files-panel__page:not([hidden]) {
   display: flex;

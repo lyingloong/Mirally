@@ -10,14 +10,10 @@ import type {
   DevicePairSetupAccess,
   DevicePairSetupLifecycle,
 } from "../../lib/device-pair-setup.ts";
-import { buildExternalLinkRel, EXTERNAL_LINK_TARGET } from "../../lib/external-link.ts";
 import { formatCountdown } from "../../lib/format.ts";
 
 registerDevicesEnglish();
 
-const MOBILE_PAIRING_DOCS_URL =
-  "https://docs.openclaw.ai/channels/pairing#pair-from-the-control-ui-recommended";
-const NODE_PAIRING_DOCS_URL = "https://docs.openclaw.ai/gateway/pairing#one-paste-node-pairing";
 const PAIRING_ACCESS_OPTIONS = [
   ["full", "devices.pairing.fullAccess", "devices.pairing.fullAccessHint"],
   ["limited", "devices.pairing.limitedAccess", "devices.pairing.limitedAccessHint"],
@@ -66,8 +62,6 @@ export function renderDevicePairSetup(props: DevicePairSetupProps) {
   const setup = lifecycle.phase === "waiting" ? lifecycle.setup : null;
   const gatewayUrls = setup?.gatewayUrls ?? (setup ? [setup.gatewayUrl] : []);
   const isNodeSetup = lifecycle.access === "node";
-  const pairingDocsUrl = isNodeSetup ? NODE_PAIRING_DOCS_URL : MOBILE_PAIRING_DOCS_URL;
-  const nodeCommand = setup ? `openclaw node run --pair "oc-pair://${setup.setupCode}"` : "";
   const setupExpired = Boolean(setup && setup.expiresAtMs <= props.nowMs);
   const showAccessChoices =
     lifecycle.phase !== "success" &&
@@ -79,7 +73,7 @@ export function renderDevicePairSetup(props: DevicePairSetupProps) {
     (lifecycle.phase === "error" && lifecycle.source === "create");
 
   return html`
-    <openclaw-modal-dialog label=${title} description=${description} @modal-cancel=${props.onClose}>
+    <mirally-modal-dialog label=${title} description=${description} @modal-cancel=${props.onClose}>
       <section class="device-pair-setup">
         <header class="device-pair-setup__header">
           <div class="device-pair-setup__phone" aria-hidden="true">
@@ -186,14 +180,6 @@ export function renderDevicePairSetup(props: DevicePairSetupProps) {
                   ${
                     isNodeSetup
                       ? html`<div class="device-pair-setup__command">
-                          ${
-                            setupExpired
-                              ? nothing
-                              : html`<div class="login-gate__command">
-                                  <code>${nodeCommand}</code>
-                                  ${renderCopyButton(nodeCommand, t("connection.help.copyCommand"))}
-                                </div>`
-                          }
                           <p class="device-pair-setup__waiting" role="timer" aria-live="off">
                             ${
                               setupExpired
@@ -350,22 +336,11 @@ export function renderDevicePairSetup(props: DevicePairSetupProps) {
         </div>
 
         <footer class="device-pair-setup__footer">
-          <a
-            href=${pairingDocsUrl}
-            target=${EXTERNAL_LINK_TARGET}
-            rel=${buildExternalLinkRel()}
-            aria-label=${t("devices.pairing.helpNewTab")}
-          >
-            <span>${t("devices.pairing.help")}</span>
-            <span class="device-pair-setup__external-icon" aria-hidden="true"
-              >${icons.externalLink}</span
-            >
-          </a>
           <button class="btn btn--ghost" type="button" @click=${props.onManageDevices}>
             ${t("devices.pairing.manageDevices")}
           </button>
         </footer>
       </section>
-    </openclaw-modal-dialog>
+    </mirally-modal-dialog>
   `;
 }

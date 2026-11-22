@@ -143,7 +143,7 @@ wa-dropdown-item.session-menu__item[data-new-tab-action]:not([disabled], [aria-d
 
 @supports (corner-shape: superellipse(1.5)) {
   wa-dropdown.session-menu {
-    --menu-radius: calc(10px * var(--openclaw-corner-radius-scale));
+    --menu-radius: calc(10px * var(--mirally-corner-radius-scale));
     --menu-item-radius: calc(var(--menu-radius) - var(--menu-padding));
   }
 

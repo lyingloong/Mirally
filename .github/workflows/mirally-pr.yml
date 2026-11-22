@@ -87,24 +87,31 @@ jobs:
       - name: Test Python product core
         run: |
           $tests = @(
-            'tests.test_framework_entry',
+            'tests.test_activity_projection',
+            'tests.test_delivery_invalidation',
             'tests.test_desktop_surface',
-            'tests.test_framework_lifecycle',
-            'tests.test_framework_workers',
             'tests.test_framework_activity_views',
-            'tests.test_framework_product',
-            'tests.test_framework_channels',
             'tests.test_framework_calendar',
             'tests.test_framework_capabilities',
-            'tests.test_framework_model_connections',
-            'tests.test_framework_materials',
-            'tests.test_framework_conversation_resolve',
-            'tests.test_framework_weixin_assistant_security',
+            'tests.test_framework_channels',
             'tests.test_framework_conversation_metadata',
+            'tests.test_framework_conversation_resolve',
+            'tests.test_framework_desktop_controls',
+            'tests.test_framework_desktop_snapshot_image',
+            'tests.test_framework_entry',
+            'tests.test_framework_lifecycle',
+            'tests.test_framework_materials',
+            'tests.test_framework_memory_replay',
+            'tests.test_framework_model_connections',
+            'tests.test_framework_notebook',
+            'tests.test_framework_product',
             'tests.test_framework_recaps',
-            'tests.test_memory_store',
+            'tests.test_framework_weixin_assistant_security',
+            'tests.test_framework_workers',
             'tests.test_memory_recall',
-            'tests.test_memory_synthesis'
+            'tests.test_memory_store',
+            'tests.test_memory_synthesis',
+            'tests.test_semantic_pipeline'
           )
           .\.venv\Scripts\python.exe -m unittest @tests -v
 
@@ -118,7 +125,8 @@ jobs:
             'tests/test_framework_model_validation_ui.mjs',
             'tests/test_framework_capabilities_settings_ui.mjs',
             'tests/test_framework_messages_ui.mjs',
-            'tests/test_framework_without_ufo.mjs',
+            'tests/test_framework_desktop_boundary.mjs',
+            'tests/test_framework_desktop_observation.mjs',
             'tests/test_control_ui_activity.cjs',
             'tests/test_control_ui_files.cjs',
             'tests/test_control_ui_memory.cjs',
@@ -129,6 +137,8 @@ jobs:
             'tests/test_framework_mobile_ui.mjs',
             'tests/test_framework_weixin_channel.mjs',
             'tests/test_framework_weixin_assistant_tools.mjs',
+            'tests/test_framework_notebook_tools.mjs',
+            'tests/test_framework_notebook_e2e.mjs',
             'tests/test_control_ui_office.cjs'
           )
           node --test @tests

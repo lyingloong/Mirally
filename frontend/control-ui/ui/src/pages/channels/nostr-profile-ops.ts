@@ -1,6 +1,6 @@
 // Nostr profile HTTP operations for the channels page: gateway REST calls for
 // publishing and importing the relay profile, plus validation-error parsing.
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import type { NostrProfile } from "../../api/types.ts";
 import { fetchWithControlUiAuth, readControlUiJsonResponse } from "../../app/control-ui-auth.ts";
 import { formatUiExternalText } from "../../lib/format-error.ts";

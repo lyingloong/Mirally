@@ -1,5 +1,5 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
-import { readNonBlankString } from "@openclaw/normalization-core/string-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
+import { readNonBlankString } from "@mirally/normalization-core/string-coerce";
 import type { ControlUiSessionPreview } from "../../../src/gateway/control-ui-contract.js";
 import type { GatewayBrowserClient } from "../api/gateway.ts";
 import { pathForSession } from "../app-session-path-builder.ts";

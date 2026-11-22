@@ -13,7 +13,6 @@ Mirally 是面向 Windows 的 personal agent 应用，名称取自 MIRA + ally�
 | 当前系统由哪些模块组成、数据归谁、默认行为是什么 | [系统概览](architecture/overview.md) |
 | 产品长期方向、设计原则和暂不实现的范围 | [产品方向](product/vision.md) |
 | 按时间查看产品决策、取舍与演进 | [产品思考记录](product/product-notes.md) |
-| UFO 桌面能力复盘与可借鉴方案（研究，待评估） | [UFO 框架复盘](product/research-2026-10-31-ufo.md) |
 | 为什么选择同仓 DSH、哪些原生能力已继承 | [DSH 运行时](architecture/native-dsh.md) |
 | 会话、停止、分代、后台作业和提醒 | [会话与作业](architecture/conversations.md) |
 | 微信、语音和手机网页 | [消息渠道](architecture/channels.md) |
@@ -33,11 +32,9 @@ Mirally 是面向 Windows 的 personal agent 应用，名称取自 MIRA + ally�
 
 | 我想了解 | 文档 |
 | --- | --- |
-| 仓库开发工作流、并发与合并闸门 | [AgentTeams 工作流](development/agent-teams-workflow.md) |
-| 用户需求、候选种子、来源与关联开发点 | [需求与种子池](development/requirements-pool.md) |
-| 审查经验、代码准则和反复出现的问题 | [审查经验库](development/review-experience.md) |
-| 需求规格模板（P0-only、时间盒） | [需求规格模板](development/spec-template.md) |
-| 队长状态操作（待合并池、记录 PR） | [队长状态操作](development/workflow-helper.md) |
+| 手工开发、DSH AgentTeams、脚本和本机状态归属 | [开发与协作](development/README.md) |
+| 可提交的目录、文件和依赖布局 | [仓库布局](reference/repository-layout.md) |
+| 审查经验和可复用的准则 | [审查经验库](development/review-experience.md) |
 
 ## 目录结构
 
@@ -56,7 +53,7 @@ docs/
 - **只写已实现行为。** 现行文档中的能力、默认值和限制应能在代码、配置或测试中找到依据。未实现的方向写入[产品方向](product/vision.md)；有讨论价值但尚未确定的判断写入[产品思考记录](product/product-notes.md)。
 - **一个主题一篇。** 专题文档之间只链接，不复制长段。安装与启动只在[项目 README](../README.md)和[系统概览](architecture/overview.md)各保留必要部分。
 - **写清状态。** 每篇文首标注更新日期、状态和主要依据。行为改变时同步修改对应文档，不把旧结论留在正文里。
-- **历史不进正文。** 已完成的计划、旧入口和历史验收不再保留副本；需要时通过 Git 历史或产品记录追溯。
+- **区分现行说明和研究记录。** 现行正文围绕 Mirally 的实现和能力组织。外部参考按具体问题记录，复用来源与协议说明放在对应专题。选型历史和已完成的迁移通过 Git 历史或产品记录追溯。
 - **链接可检查。** 移动或重命名文档后运行 `python tools/check_docs_links.py`，确认相对链接仍可解析。
 
 ## 相关入口

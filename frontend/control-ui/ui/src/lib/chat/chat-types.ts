@@ -1,5 +1,5 @@
-import type { HumanMention } from "@openclaw/gateway-protocol";
-import type { MediaKind } from "@openclaw/media-core/constants";
+import type { HumanMention } from "@mirally/gateway-protocol";
+import type { MediaKind } from "@mirally/media-core/constants";
 import type { ChatWorkContext } from "../../../../packages/gateway-protocol/src/chat-work-context.js";
 /**
  * Chat message types for the UI layer.

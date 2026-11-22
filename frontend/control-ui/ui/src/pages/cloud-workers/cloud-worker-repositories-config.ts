@@ -1,4 +1,4 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { normalizeCloudRepo } from "../../../../src/config/cloud-worker-project-profiles.js";
 
 export type CloudWorkerRepository = { repository: string; profileId: string };

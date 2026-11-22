@@ -8,7 +8,7 @@ export function isImageLightboxEvent(event: Event): boolean {
   return event
     .composedPath()
     .some(
-      (target) => target instanceof HTMLElement && target.localName === "openclaw-image-lightbox",
+      (target) => target instanceof HTMLElement && target.localName === "mirally-image-lightbox",
     );
 }
 
@@ -54,7 +54,7 @@ export function renderChatImageLightbox(
     return nothing;
   }
   return html`
-    <openclaw-image-lightbox
+    <mirally-image-lightbox
       .mediaKind=${item.kind ?? "image"}
       .gallery=${item.gallery}
       .loadFullResolution=${item.loadFullResolution}
@@ -64,6 +64,6 @@ export function renderChatImageLightbox(
       .imageWidth=${item.width}
       .imageHeight=${item.height}
       @image-lightbox-close=${onClose}
-    ></openclaw-image-lightbox>
+    ></mirally-image-lightbox>
   `;
 }

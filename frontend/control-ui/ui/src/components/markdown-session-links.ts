@@ -1,6 +1,6 @@
-import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
-import { readNonBlankString } from "@openclaw/normalization-core/string-coerce";
-import type { ControlUiSessionNamespace } from "@openclaw/session-url-contract";
+import { asOptionalRecord } from "@mirally/normalization-core/record-coerce";
+import { readNonBlankString } from "@mirally/normalization-core/string-coerce";
+import type { ControlUiSessionNamespace } from "@mirally/session-url-contract";
 import type { MarkdownIt, Token } from "markdown-it";
 import { resolveGatewayPublicOrigin } from "../../../src/config/gateway-public-origin.js";
 import { sessionRefFromPath } from "../app-session-route-paths.ts";
@@ -173,7 +173,7 @@ export function markdownSessionLinkFromEvent(
   }
   // Lit assigns context before the lazy provider upgrades; routing must not wait for its card.
   const context = anchor?.closest<HTMLElement & { context?: ApplicationContext | null }>(
-    "openclaw-session-progress-hovercard-provider",
+    "mirally-session-progress-hovercard-provider",
   )?.context;
   const href = anchor?.getAttribute("href") ?? anchor?.dataset.sessionHref;
   const path = href

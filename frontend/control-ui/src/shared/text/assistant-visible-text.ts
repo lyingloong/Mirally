@@ -1,6 +1,6 @@
-import { expectDefined } from "@openclaw/normalization-core";
+import { expectDefined } from "@mirally/normalization-core";
 // Assistant visible text helpers strip hidden reasoning and control marker text.
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 import {
   consumeLineBreak,
   skipHorizontalWhitespace,

@@ -1,7 +1,7 @@
 import {
   buildControlUiSessionPath,
   type ControlUiSessionNamespace,
-} from "@openclaw/session-url-contract";
+} from "@mirally/session-url-contract";
 
 type SessionPathDetails = {
   displayName?: string | null;

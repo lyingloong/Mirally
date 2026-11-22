@@ -31,13 +31,13 @@ const fixture = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
   body{background:#edf3f9} .fixture-context{position:fixed;inset:0;padding:40px;color:#627387;pointer-events:none}
 </style><link rel="stylesheet" href="/companion.css"></head><body>
 <div class="fixture-context">Mirally · offline interaction fixture</div>
-<openclaw-app></openclaw-app><openclaw-chat-pane class="chat-pane-cache__pane--active"></openclaw-chat-pane>
+<mirally-app></mirally-app><mirally-chat-pane class="chat-pane-cache__pane--active"></mirally-chat-pane>
 <script>
   window.__posts=[];window.__probes=[];window.__pendingProbe=null;
   window.chrome=window.chrome||{};
   window.chrome.webview={postMessage:value=>window.__posts.push({...value,at:performance.now()})};
-  document.querySelector('openclaw-app').context={};
-  window.fixturePane=document.querySelector('openclaw-chat-pane');
+  document.querySelector('mirally-app').context={};
+  window.fixturePane=document.querySelector('mirally-chat-pane');
   fixturePane.paneId='interaction-fixture';fixturePane.paneTitle='一起打磨手头的工作';
   fixturePane.state={sessionKey:'interaction-fixture',connected:true,chatMessage:'',chatAttachments:[],
     chatMessages:[{role:'user',content:'一起检查这份设计方案'}],

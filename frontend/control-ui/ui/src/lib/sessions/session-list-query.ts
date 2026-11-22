@@ -1,4 +1,4 @@
-import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
+import { asOptionalRecord } from "@mirally/normalization-core/record-coerce";
 import type { SessionsListResult } from "../../api/types.ts";
 import type { createSessionEventRefreshCoordinator } from "./event-refresh-coordinator.ts";
 import { sessionMatchesArchivedFilter } from "./navigation.ts";

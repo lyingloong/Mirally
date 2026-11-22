@@ -3,7 +3,7 @@ import {
   getGatewaySessionMessageSubscriptionCoordinator,
   releaseGatewaySessionMessageSubscription,
   resetGatewaySessionMessageSubscriptionCoordinator,
-} from "@openclaw/gateway-client/browser";
+} from "@mirally/gateway-client/browser";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import type {
   SessionBranch,

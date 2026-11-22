@@ -1,5 +1,5 @@
 // Control UI chat module implements chat avatar behavior.
-import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
+import { asOptionalRecord } from "@mirally/normalization-core/record-coerce";
 import { html, nothing } from "lit";
 import { isReservedSystemAgentId } from "../../../../src/system-agent/agent-id.js";
 import type { GatewayBrowserClient, GatewayHelloOk } from "../../api/gateway.ts";

@@ -14,9 +14,9 @@ import { resolveGatewayHttpOrigin, resolveSandboxHostUrl } from "../sandbox-host
 
 // Keep in sync with the identical literal in chat widget-card.ts: a shared
 // module is not worth its startup-bundle cost for one string.
-const WIDGET_SIZE_MESSAGE_TYPE = "openclaw:widget-size";
-const WIDGET_BOARD_HOST_MESSAGE_TYPE = "openclaw:widget-board-host";
-const WIDGET_SCROLL_MESSAGE_TYPE = "openclaw:widget-scroll";
+const WIDGET_SIZE_MESSAGE_TYPE = "mirally:widget-size";
+const WIDGET_BOARD_HOST_MESSAGE_TYPE = "mirally:widget-board-host";
+const WIDGET_SCROLL_MESSAGE_TYPE = "mirally:widget-scroll";
 const MAX_FRAME_REFRESH_ATTEMPTS = 3;
 const TICKET_REFRESH_LEAD_MS = 15_000;
 const TICKET_REFRESH_MIN_DELAY_MS = 1_000;
@@ -370,7 +370,7 @@ export class BoardWidgetFrameLifecycle {
   private verifyAuthorization(event: Event, widget: BoardWidget): void {
     const frame = event.currentTarget;
     const src = frame instanceof HTMLIFrameElement ? (frame.getAttribute("src") ?? "") : "";
-    if (!src.startsWith("/__openclaw__/board/")) {
+    if (!src.startsWith("/__mirally__/board/")) {
       return;
     }
     const probeGeneration = this.frameProbeGeneration + 1;
@@ -579,7 +579,7 @@ export class BoardWidgetFrameLifecycle {
       this.sandboxHost.update(options);
     }
     this.sandboxHost.handleMessage(event);
-    if (event.data?.type === "openclaw:widget-bridge-ready") {
+    if (event.data?.type === "mirally:widget-bridge-ready") {
       // The sandbox proxy replaces its inner iframe after the outer frame's
       // load event. Reissue per-document host state only after that replacement
       // announces readiness so scroll authority reaches the live document.

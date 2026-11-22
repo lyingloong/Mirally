@@ -16,7 +16,7 @@ import { createIdleImport } from "../../lib/idle-import.ts";
 import "../../components/web-awesome-popover.ts";
 import { sessionNavigationTarget } from "../../lib/sessions/route-navigation.ts";
 import { buildAgentMainSessionKey } from "../../lib/sessions/session-key.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import { focusChatComposerFromPrintableKeydown } from "../chat/chat-pane-shared.ts";
 import { chatStartupStatusLabel } from "../chat/chat-run-startup.ts";
@@ -54,7 +54,7 @@ registerNewSessionSetupEnglish();
 const { activateDraft, restoreDraft, restoreDraftOwner, retainDraft } = drafts;
 
 const attachmentPanelElement = {
-  tagName: "openclaw-chat-detail-panel",
+  tagName: "mirally-chat-detail-panel",
   get label() {
     return t("chat.attachments.pastedText");
   },
@@ -64,7 +64,7 @@ const attachmentPanelElement = {
   },
 };
 
-export class NewSessionPage extends OpenClawLightDomElement {
+export class NewSessionPage extends MirallyLightDomElement {
   @property({ attribute: false }) data: NewSessionRouteData | undefined;
 
   @consume({ context: applicationContext, subscribe: true })
@@ -240,7 +240,7 @@ export class NewSessionPage extends OpenClawLightDomElement {
         this.routeOwnerKey() === owner &&
         // A later interaction owns focus even if this draft is still mounted.
         (document.activeElement === previousFocus || document.activeElement === document.body) &&
-        !document.openClawModalLayers?.size
+        !document.mirallyModalLayers?.size
       ) {
         this.submission.composerTextarea.getTextarea()?.focus({ preventScroll: true });
       }
@@ -562,10 +562,10 @@ export class NewSessionPage extends OpenClawLightDomElement {
                     ? html`<div role="status">${t("common.loading")}</div>`
                     : nothing
               }
-              <openclaw-chat-detail-panel
+              <mirally-chat-detail-panel
                 .content=${{ ...this.attachmentPanel.content }}
                 @chat-detail-panel-close=${this.closeAttachmentPanel}
-              ></openclaw-chat-detail-panel>
+              ></mirally-chat-detail-panel>
             </aside>`
           : nothing
       }

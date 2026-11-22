@@ -13,7 +13,7 @@ const html=(strings,...values)=>({strings,values});
 function fixture(file,extra={}){
   const storage=new Map(),calls=[],timers=new Map();let timer=0;
   const sandbox={html,nothing:Symbol(),live:value=>value,unsafeHTML:value=>value,customElement:()=>target=>target,state:()=>()=>{},property:()=>()=>{},
-    OpenClawLightDomElement:class{isConnected=true;connectedCallback(){}disconnectedCallback(){}dispatchEvent(){}},
+    MirallyLightDomElement:class{isConnected=true;connectedCallback(){}disconnectedCallback(){}dispatchEvent(){}},
     document:{hidden:false,addEventListener(){},removeEventListener(){}},window:{},location:{hash:'',pathname:'/mobile',search:''},history:{replaceState(){}},
     sessionStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)},
     CustomEvent:class{constructor(type,data){this.type=type;this.detail=data.detail;}},URL,URLSearchParams,AbortController,crypto:{randomUUID:()=>`id-${calls.length}`},
@@ -42,10 +42,45 @@ test('hidden entries keep settings reachable and navigation repairs duplicate ID
   const f=fixture('mobile/api.ts');const result=f.run("mobileNavigation({...DEFAULT_MOBILE_PREFERENCES,navigation:['inbox','inbox','bogus'],hidden:['work','conversations','settings']})");
   assert.deepEqual(Array.from(result),['inbox','settings']);
 });
-test('boot honors conversation or per-browser last-page preference without selecting Weixin route',async()=>{
-  const f=mobile(async method=>method==='mobile.preferences.get'?{effective:{home:'last'},revision:3}: {conversations:[]});
-  f.storage.set('mirally.mobile.view.v1','conversations');f.app.token='phone';await f.app.boot();await settle();
+test('conversation home ignores a saved last page without selecting Weixin route',async()=>{
+  const f=mobile(async method=>method==='mobile.preferences.get'?{effective:{home:'conversations'},revision:3}: {conversations:[]});
+  f.storage.set('mirally.mobile.view.v1','inbox');f.app.token='phone';await f.app.boot();await settle();
   assert.equal(f.app.view,'conversations');assert.ok(f.calls.every(call=>!call.method.startsWith('weixin.')));
+});
+test('paired reload restores the saved view before the first page request',async()=>{
+  let releasePreferences;
+  const preferences=new Promise(resolve=>{releasePreferences=resolve;});
+  const f=mobile(async method=>method==='mobile.preferences.get'?preferences:{items:[],next_cursor:null});
+  const key='mirally.mobile.view.v1';
+  f.storage.set(key,'inbox');f.app.token='phone';
+  f.app.connectedCallback();
+  f.app.updated?.(new Map([['view',undefined]]));
+  await f.app.refresh(); // a visibility change or manual refresh while preferences are in flight
+  assert.equal(f.storage.get(key),'inbox');
+  assert.deepEqual(f.calls.map(call=>call.method),['mobile.preferences.get']);
+  releasePreferences({effective:{home:'last'},revision:3});await settle();
+  assert.equal(f.app.view,'inbox');
+  assert.deepEqual(f.calls.map(call=>call.method),['mobile.preferences.get','inbox.list']);
+  f.app.navigate('settings');await settle();
+  assert.equal(f.storage.get(key),'settings');
+  assert.deepEqual(f.calls.map(call=>call.method),['mobile.preferences.get','inbox.list','mobile.preferences.get']);
+});
+test('phone inbox keeps its cursor during polling and restarts when filtering unread',async()=>{
+  const f=mobile(async(method,params)=>{
+    assert.equal(method,'inbox.list');
+    if(params.unread_only)return{items:[{title:'旧未读',state:'unread'}],next_cursor:null};
+    if(params.before_delivery_id==='first-end')return{items:[{title:'第二页'}],next_cursor:null};
+    return{items:[{title:'第一页'}],next_cursor:'first-end'};
+  });
+  f.app.view='inbox';f.app.token='phone';await f.app.refresh();
+  assert.match(stringify(f.app.inboxView()),/第一页/);
+  f.app.changeInboxPage('older');await settle();
+  assert.equal(f.calls.at(-1).params.before_delivery_id,'first-end');
+  assert.match(stringify(f.app.inboxView()),/第二页/);
+  f.app.changeInboxFilter({target:{checked:true}});await settle();
+  assert.equal(f.calls.at(-1).params.before_delivery_id,null);
+  assert.equal(f.calls.at(-1).params.unread_only,true);
+  assert.match(stringify(f.app.inboxView()),/旧未读/);
 });
 test('metadata mutations send captured owner version and support archive/restore',async()=>{
   const f=mobile(async method=>method==='conversation.list'?{conversations:[]}:{});f.app.currentConversation='c1';f.app.currentConversationMeta={conversation_id:'c1',metadata_version:7,title:'旧标题'};f.app.conversations=[{...f.app.currentConversationMeta}];

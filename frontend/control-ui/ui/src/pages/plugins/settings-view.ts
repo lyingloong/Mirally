@@ -376,12 +376,12 @@ export function renderPluginSettingsDetail(props: DetailProps): TemplateResult {
     return renderSettingsPage(
       html`
         ${notices}
-        <openclaw-plugin-settings-editor
+        <mirally-plugin-settings-editor
           .model=${props}
           .renderCredential=${props.renderCredential}
           .onAskSetting=${props.onAskSetting}
           .permissions=${permissionSettings(props)}
-        ></openclaw-plugin-settings-editor>
+        ></mirally-plugin-settings-editor>
       `,
       { wide: true, carapace: true },
     );
@@ -416,11 +416,11 @@ export function renderPluginSettingsDetail(props: DetailProps): TemplateResult {
       ),
       identity: renderPluginPublisher(catalog, props.inspection?.overview?.publisherName),
       titleAction: props.installProgress
-        ? html`<openclaw-plugin-install-action
+        ? html`<mirally-plugin-install-action
               .buttonClass=${"btn oc-action plugin-catalog-detail__install"}
               .primary=${true}
               .progress=${props.installProgress}
-            ></openclaw-plugin-install-action
+            ></mirally-plugin-install-action
             >${renderPluginAskAction(props.onAskPlugin, false)}`
         : renderPluginLifecycle(
             {

@@ -1,6 +1,6 @@
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 // Control UI module implements tool display behavior.
-import SHARED_TOOL_DISPLAY_JSON from "../../../../apps/shared/OpenClawKit/Sources/OpenClawKit/Resources/tool-display.json" with { type: "json" };
+import SHARED_TOOL_DISPLAY_JSON from "./tool-display.json" with { type: "json" };
 import {
   defaultTitle,
   normalizeToolDisplayName,
@@ -10,9 +10,9 @@ import {
 import type { ToolDetailMode } from "../../../../src/agents/tool-display-exec.js";
 import type { ControlUiEmbedSandboxMode } from "../../../../src/gateway/control-ui-bootstrap-contract.js";
 
-const A2UI_PATH = "/__openclaw__/a2ui";
-const CANVAS_HOST_PATH = "/__openclaw__/canvas";
-const CANVAS_CAPABILITY_PATH_PREFIX = "/__openclaw__/cap";
+const A2UI_PATH = "/__mirally__/a2ui";
+const CANVAS_HOST_PATH = "/__mirally__/canvas";
+const CANVAS_CAPABILITY_PATH_PREFIX = "/__mirally__/cap";
 
 type ToolDisplaySpec = ToolDisplaySpecBase & {
   icon?: string;

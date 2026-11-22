@@ -2,14 +2,14 @@ import { html } from 'lit';
 import { state } from 'lit/decorators.js';
 import { renderSettingsPage, renderSettingsPageHeader, renderSettingsSection } from '../../components/settings-ui.ts';
 import { renderSettingsWorkspace } from '../../components/settings-workspace.ts';
-import { OpenClawLightDomElement } from '../../lit/openclaw-element.ts';
+import { MirallyLightDomElement } from '../../lit/mirally-element.ts';
 import { errorMessage, rpcProduct } from './api.ts';
 import './product.css';
 const draftKey='mirally.memory.draft.v1';
 function readDraft(){try{const value=JSON.parse(sessionStorage.getItem(draftKey)||'{}');return value&&typeof value==='object'?value:{};}catch{return {};}}
 
 /** Keep the existing Mirally memory browser and add explicit user corrections. */
-class MirallyMemoryPage extends OpenClawLightDomElement {
+class MirallyMemoryPage extends MirallyLightDomElement {
   @state() private content=String(readDraft().content||'').slice(0,16000);
   @state() private memoryId=String(readDraft().memoryId||'').slice(0,512);
   @state() private busy=false;

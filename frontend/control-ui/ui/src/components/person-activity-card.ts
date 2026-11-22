@@ -100,11 +100,11 @@ function elapsed(
     datetime=${date.toISOString()}
     title=${date.toLocaleString(i18n.getLocale())}
     aria-label=${display === "minute-compact" ? nothing : date.toLocaleString(i18n.getLocale())}
-    ><openclaw-elapsed-time
+    ><mirally-elapsed-time
       .startMs=${timestamp}
       .minimumUnit=${display === "minute-compact" ? "minute" : "second"}
       .singleUnit=${display === "single-unit"}
-    ></openclaw-elapsed-time
+    ></mirally-elapsed-time
   ></time>`;
 }
 
@@ -210,12 +210,12 @@ function renderSessions(
 function renderPersonCardHeader(user: PresenceViewer, detail: unknown = nothing) {
   const label = presenceUserLabel(user, t("presence.card.person"));
   return html` <header class="person-activity-card__header">
-    <openclaw-viewer-avatar
+    <mirally-viewer-avatar
       .user=${user}
       .markAsViewer=${false}
       variant="footer"
       aria-hidden="true"
-    ></openclaw-viewer-avatar>
+    ></mirally-viewer-avatar>
     <div>
       <h2>${label.name}</h2>
       ${detail}

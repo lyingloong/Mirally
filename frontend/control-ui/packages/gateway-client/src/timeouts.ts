@@ -103,7 +103,7 @@ export function clampConnectChallengeTimeoutMs(
 export function getConnectChallengeTimeoutMsFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): number | undefined {
-  const raw = env.OPENCLAW_CONNECT_CHALLENGE_TIMEOUT_MS;
+  const raw = env.MIRALLY_CONNECT_CHALLENGE_TIMEOUT_MS;
   if (raw) {
     const parsed = parsePositiveTimeoutSetting(raw);
     if (parsed !== undefined) {
@@ -151,8 +151,8 @@ export function resolvePreauthHandshakeTimeoutMs(params?: {
 }): number {
   const env = params?.env ?? process.env;
   const configuredTimeout =
-    env.OPENCLAW_HANDSHAKE_TIMEOUT_MS ||
-    (isTestRuntimeEnv(env) ? env.OPENCLAW_TEST_HANDSHAKE_TIMEOUT_MS : undefined);
+    env.MIRALLY_HANDSHAKE_TIMEOUT_MS ||
+    (isTestRuntimeEnv(env) ? env.MIRALLY_TEST_HANDSHAKE_TIMEOUT_MS : undefined);
   if (configuredTimeout) {
     const parsed = parsePositiveTimeoutSetting(configuredTimeout);
     if (parsed !== undefined) {

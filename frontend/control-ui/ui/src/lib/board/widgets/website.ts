@@ -8,13 +8,13 @@ import { icons } from "../../../components/icons.ts";
 import { resolveGatewayHttpOrigin } from "../../../components/sandbox-host.ts";
 import { t } from "../../../i18n/index.ts";
 import { registerBoardWebsiteEnglish } from "../../../i18n/locales/en-board-website.ts";
-import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../../lit/mirally-element.ts";
 import type { BoardWidget } from "../types.ts";
 import "./website.css";
 
 registerBoardWebsiteEnglish();
 
-class OpenClawWebsiteWidget extends OpenClawLightDomElement {
+class MirallyWebsiteWidget extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context?: ApplicationContext;
 
@@ -72,12 +72,12 @@ class OpenClawWebsiteWidget extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-website-widget")) {
-  customElements.define("openclaw-website-widget", OpenClawWebsiteWidget);
+if (!customElements.get("mirally-website-widget")) {
+  customElements.define("mirally-website-widget", MirallyWebsiteWidget);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-website-widget": OpenClawWebsiteWidget;
+    "mirally-website-widget": MirallyWebsiteWidget;
   }
 }

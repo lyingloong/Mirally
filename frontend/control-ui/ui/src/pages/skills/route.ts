@@ -1,4 +1,4 @@
-import { definePage, type RouteLoaderOptions } from "@openclaw/uirouter";
+import { definePage, type RouteLoaderOptions } from "@mirally/ui-router";
 import { html, nothing } from "lit";
 import { routePageSpec } from "../../app-route-paths.ts";
 import type { ApplicationContext } from "../../app/context.ts";
@@ -81,10 +81,10 @@ function defineSkillsPage(routeId: "skills" | "skill-settings", surface: "discov
         header: true,
         render: (data: SkillsRouteData | undefined) =>
           data
-            ? html`<openclaw-skills-page
+            ? html`<mirally-skills-page
                 .routeData=${data}
                 .surface=${surface}
-              ></openclaw-skills-page>`
+              ></mirally-skills-page>`
             : nothing,
       })),
   });

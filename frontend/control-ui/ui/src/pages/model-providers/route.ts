@@ -1,4 +1,4 @@
-import { definePage, type RouteLoaderOptions } from "@openclaw/uirouter";
+import { definePage, type RouteLoaderOptions } from "@mirally/ui-router";
 import { html } from "lit";
 import { routePageSpec } from "../../app-route-paths.ts";
 import type { ApplicationContext } from "../../app/context.ts";
@@ -90,9 +90,9 @@ export const page = definePage({
     import("./model-providers-page.ts").then(() => ({
       header: true,
       render: (data: ModelProvidersRouteData | undefined, loaderPending = false) =>
-        html`<openclaw-model-providers-page
+        html`<mirally-model-providers-page
           .routeData=${data}
           .loaderPending=${loaderPending}
-        ></openclaw-model-providers-page>`,
+        ></mirally-model-providers-page>`,
     })),
 });

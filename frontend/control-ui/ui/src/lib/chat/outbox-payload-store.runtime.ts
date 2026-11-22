@@ -1,4 +1,4 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { getSafeSessionStorage } from "../../local-storage.ts";
 import { generateUUID } from "../uuid.ts";
 import type { ChatQueueItem, DurableComposerDraftAttachment } from "./chat-types.ts";
@@ -181,7 +181,7 @@ export async function removeOutboxPayloads(references: readonly PayloadReference
   }
 }
 
-const TAB_STORAGE_KEY = "openclaw.control.outboxTab.v1";
+const TAB_STORAGE_KEY = "mirally.control.outboxTab.v1";
 let tabPromise: Promise<string> | null = null;
 export function outboxPayloadTab(): Promise<string> {
   return (tabPromise ??= (async () => {
@@ -201,7 +201,7 @@ export function outboxPayloadTab(): Promise<string> {
     const claim = (id: string) =>
       new Promise<boolean>((resolve, reject) => {
         void locks
-          .request(`openclaw-outbox:${id}`, { ifAvailable: true }, (lock) => {
+          .request(`mirally-outbox:${id}`, { ifAvailable: true }, (lock) => {
             resolve(Boolean(lock));
             // A document holds its tab identity until the browser destroys it. A
             // duplicated sessionStorage must claim a new identity before using bytes.

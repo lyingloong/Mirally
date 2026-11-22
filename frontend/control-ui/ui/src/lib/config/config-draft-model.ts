@@ -1,7 +1,7 @@
 import {
   asNullableRecord as asConfigRecord,
   isRecord,
-} from "@openclaw/normalization-core/record-coerce";
+} from "@mirally/normalization-core/record-coerce";
 import { GatewayRequestError } from "../../api/gateway.ts";
 import type { ConfigSnapshot } from "../../api/types.ts";
 import { coerceConfigFormNumberString } from "../../components/config-form.numeric.ts";

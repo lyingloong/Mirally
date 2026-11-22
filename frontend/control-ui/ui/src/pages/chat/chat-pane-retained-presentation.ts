@@ -1,4 +1,4 @@
-import type { ProgressCard } from "@openclaw/gateway-protocol";
+import type { ProgressCard } from "@mirally/gateway-protocol";
 import { html, nothing } from "lit";
 import { gatewayPresentationScope } from "../../app/gateway-presentation-scope.ts";
 import "../../components/modal-dialog.ts";
@@ -333,7 +333,7 @@ export abstract class ChatPaneRetainedPresentation extends ChatPaneBoard {
     const title = t("chat.board.resetTitle");
     const description = t("chat.board.resetDescription");
     return html`
-      <openclaw-modal-dialog
+      <mirally-modal-dialog
         label=${title}
         description=${description}
         @modal-cancel=${() => this.settleResetConfirmation(false)}
@@ -363,7 +363,7 @@ export abstract class ChatPaneRetainedPresentation extends ChatPaneBoard {
             </button>
           </div>
         </div>
-      </openclaw-modal-dialog>
+      </mirally-modal-dialog>
     `;
   }
 

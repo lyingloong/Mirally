@@ -22,7 +22,7 @@ export class AgentsHomePage extends AgentRosterElement {
         onRetry: () => void this.refresh(),
         canCreate: canCallGatewayMethod(
           this.context.gateway.snapshot,
-          "openclaw.chat",
+          "mirally.chat",
           "operator.admin",
         ),
       });
@@ -31,8 +31,8 @@ export class AgentsHomePage extends AgentRosterElement {
 }
 
 export const header = true;
-export const render = () => html`<openclaw-agents-home-page></openclaw-agents-home-page>`;
+export const render = () => html`<mirally-agents-home-page></mirally-agents-home-page>`;
 
-if (!customElements.get("openclaw-agents-home-page")) {
-  customElements.define("openclaw-agents-home-page", AgentsHomePage);
+if (!customElements.get("mirally-agents-home-page")) {
+  customElements.define("mirally-agents-home-page", AgentsHomePage);
 }

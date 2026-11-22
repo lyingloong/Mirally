@@ -50,7 +50,7 @@
     const pane = active(), state = pane?.state;
     // A transient pane replacement must not remove the mode navigation.
     const main = document.querySelector('#control-ui-main');
-    const chatRoute = main?.classList.contains('content--chat') === true || !!main?.querySelector('openclaw-new-session-page');
+    const chatRoute = main?.classList.contains('content--chat') === true || !!main?.querySelector('mirally-new-session-page');
     if (main) main.inert = shown && chatRoute && !!pane && document.documentElement.dataset.mirallyMode !== 'companion';
     const entry = document.querySelector('.mirally-companion-entry');
     if (entry) {

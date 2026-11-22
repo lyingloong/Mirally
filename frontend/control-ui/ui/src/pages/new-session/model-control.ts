@@ -1,5 +1,5 @@
-import { DEFAULT_GATEWAY_REQUEST_TIMEOUT_MS } from "@openclaw/gateway-client/browser";
-import type { ChatAccountSelection, UserModelAccount } from "@openclaw/gateway-protocol";
+import { DEFAULT_GATEWAY_REQUEST_TIMEOUT_MS } from "@mirally/gateway-client/browser";
+import type { ChatAccountSelection, UserModelAccount } from "@mirally/gateway-protocol";
 import type {
   FastMode,
   GatewayAgentRow,

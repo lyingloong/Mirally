@@ -116,7 +116,7 @@ test('assistant coordinates the original DSH session with remote authority', {ti
         };
       });
       await page.goto(`${runtime.url}/settings/general#token=${runtime.token}`);
-      await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected');
+      await page.waitForFunction(()=>document.querySelector('mirally-app')?.context?.gateway?.snapshot?.phase==='connected');
       const settings=page.locator('mirally-speech-settings');await settings.getByLabel('识别服务').selectOption('openai_compatible');
       await settings.getByLabel('语音服务地址').fill(`http://127.0.0.1:${fixture.address().port}/v1`);
       await settings.getByLabel('语音模型').fill('fixture-asr');await settings.getByLabel('语音 API 密钥').fill('fixture-key');
@@ -125,7 +125,7 @@ test('assistant coordinates the original DSH session with remote authority', {ti
       const screenshots=join(root,'.artifacts','speech-ui');await mkdir(screenshots,{recursive:true});
       await settings.scrollIntoViewIfNeeded();await page.screenshot({path:join(screenshots,'settings.png')});
       await page.goto(`${runtime.url}/chat/main/${encodeURIComponent(targetId)}#token=${runtime.token}`);
-      const sidebar=page.locator('openclaw-app-sidebar');
+      const sidebar=page.locator('mirally-app-sidebar');
       const pinned=sidebar.locator('.sidebar-session-content').getByText('微信助理',{exact:true});
       await pinned.waitFor({state:'visible'});
       assert.equal(await sidebar.locator('.sidebar-nav').getByText('微信助理',{exact:true}).count(),0);
@@ -135,17 +135,17 @@ test('assistant coordinates the original DSH session with remote authority', {ti
       await page.waitForURL(url=>url.pathname.includes(assistant.conversation_id));
       await sidebar.locator('.sidebar-session-content').getByText('实验',{exact:true}).click();
       await page.waitForURL(url=>url.pathname.includes(targetId));
-      const pane=page.locator('openclaw-chat-pane.chat-pane-cache__pane--active'),input=pane.locator('textarea[aria-label="聊天输入框"]');
+      const pane=page.locator('mirally-chat-pane.chat-pane-cache__pane--active'),input=pane.locator('textarea[aria-label="聊天输入框"]');
       await input.fill('原有草稿');const voice=pane.locator('mirally-voice-input');await voice.getByRole('button',{name:'语音输入'}).click();
       await voice.getByRole('button',{name:'停止录音'}).click();
-      await page.waitForFunction(()=>document.querySelector('openclaw-chat-pane.chat-pane-cache__pane--active textarea[aria-label="聊天输入框"]')?.value.includes('语音识别测试'),null,{timeout:8000}).catch(async error=>{throw Error(`${error.message} voice=${await voice.evaluate(e=>JSON.stringify({html:e.innerHTML,phase:e.phase,generation:e.generation,session:e.sessionKey,capture:e.captureSession,draft:e.draft,handler:typeof e.onDraftChange}))} draft=${await input.inputValue()} paths=${JSON.stringify(paths.slice(-10))} pageErrors=${JSON.stringify(pageErrors)} logs=${logs}`);});
+      await page.waitForFunction(()=>document.querySelector('mirally-chat-pane.chat-pane-cache__pane--active textarea[aria-label="聊天输入框"]')?.value.includes('语音识别测试'),null,{timeout:8000}).catch(async error=>{throw Error(`${error.message} voice=${await voice.evaluate(e=>JSON.stringify({html:e.innerHTML,phase:e.phase,generation:e.generation,session:e.sessionKey,capture:e.captureSession,draft:e.draft,handler:typeof e.onDraftChange}))} draft=${await input.inputValue()} paths=${JSON.stringify(paths.slice(-10))} pageErrors=${JSON.stringify(pageErrors)} logs=${logs}`);});
       assert.equal(await input.inputValue(),'原有草稿 语音识别测试');
       await page.screenshot({path:join(screenshots,'chat-wide.png')});
       await page.route('**/api/sessions/*/recap', async route => {
         if (route.request().method() !== 'POST') return route.continue();
         await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'ready',recap:{text:'测试摘要',stale:false}})});
       });
-      const sessionMenu=pane.locator('openclaw-chat-header-session-menu');
+      const sessionMenu=pane.locator('mirally-chat-header-session-menu');
       await sessionMenu.locator('button[aria-haspopup="menu"]').click();
       await sessionMenu.getByText('会话摘要',{exact:true}).click();
       const recap=page.locator('dialog.mirally-recap-dialog');

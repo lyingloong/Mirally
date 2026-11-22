@@ -82,13 +82,13 @@ export function renderGatewayCpuVital(
   });
   const cpu = eventLoop?.cpuBreakdown;
   return html`
-    <openclaw-tooltip class="gateway-cpu-tooltip" placement="top-start" open-on-click auto-size>
+    <mirally-tooltip class="gateway-cpu-tooltip" placement="top-start" open-on-click auto-size>
       <button
         type="button"
         class="gateway-cpu-trigger"
         aria-label=${t("debug.overlay.cpuBreakdown")}
       >
-        <openclaw-sparkline
+        <mirally-sparkline
           class="gateway-vital gateway-vital--cpu"
           data-degraded=${cpuDegraded ? "" : nothing}
           .label=${t("debug.overlay.cpu")}
@@ -97,7 +97,7 @@ export function renderGatewayCpuVital(
           .format=${formatPercent}
           .floorMax=${1}
           .stackColors=${["var(--cpu-main)", "var(--cpu-workers)", "var(--cpu-other)"]}
-        ></openclaw-sparkline>
+        ></mirally-sparkline>
       </button>
       <div slot="content" class="gateway-cpu-detail">
         <strong>${t("debug.overlay.cpuBreakdownCurrent")}</strong>
@@ -121,7 +121,7 @@ export function renderGatewayCpuVital(
           </div>
         </dl>
       </div>
-    </openclaw-tooltip>
+    </mirally-tooltip>
   `;
 }
 
@@ -148,14 +148,14 @@ export function renderGatewayMemoryVital(
           value: formatGatewayMemory(status.processMemory.heapUsedBytes),
         })
       : "";
-  return html`<openclaw-sparkline
+  return html`<mirally-sparkline
     class="gateway-vital gateway-vital--memory"
     .label=${t("debug.overlay.memory")}
     .sub=${heapSub}
     .samples=${collectGatewayStatusSamples(history, (sample) => sample.processMemory?.rssBytes)}
     .format=${formatGatewayMemory}
     autorange
-  ></openclaw-sparkline>`;
+  ></mirally-sparkline>`;
 }
 
 export function renderGatewayVitals(
@@ -171,7 +171,7 @@ export function renderGatewayVitals(
   return html`
     <div class="gateway-vitals">
       ${renderGatewayCpuVital(status, history)} ${renderGatewayMemoryVital(status, history)}
-      <openclaw-sparkline
+      <mirally-sparkline
         class="gateway-vital gateway-vital--delay"
         data-degraded=${delayDegraded ? "" : nothing}
         .label=${t("debug.overlay.delayP99")}
@@ -179,7 +179,7 @@ export function renderGatewayVitals(
         .samples=${collectGatewayStatusSamples(history, (sample) => sample.eventLoop?.delayP99Ms)}
         .format=${formatDelayMs}
         .floorMax=${20}
-      ></openclaw-sparkline>
+      ></mirally-sparkline>
     </div>
   `;
 }

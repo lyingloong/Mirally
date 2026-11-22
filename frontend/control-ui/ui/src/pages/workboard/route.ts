@@ -1,5 +1,5 @@
-import type { RouteLocation } from "@openclaw/uirouter";
-import { definePage } from "@openclaw/uirouter";
+import type { RouteLocation } from "@mirally/ui-router";
+import { definePage } from "@mirally/ui-router";
 import { html } from "lit";
 import { routePageSpec } from "../../app-route-paths.ts";
 import type { ApplicationContext } from "../../app/context.ts";
@@ -27,10 +27,10 @@ export const page = definePage({
     import("../plugin/plugin-page.ts").then(() => ({
       header: true,
       render: (data: WorkboardRouteData | undefined) =>
-        html`<openclaw-plugin-page
+        html`<mirally-plugin-page
           .pluginId=${"workboard"}
           .tabId=${"workboard"}
           .params=${{ boardId: data?.boardFilter ?? "__all__" }}
-        ></openclaw-plugin-page>`,
+        ></mirally-plugin-page>`,
     })),
 });

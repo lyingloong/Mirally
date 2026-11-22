@@ -1,6 +1,6 @@
 import {html, nothing, type PropertyValues} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
-import {OpenClawLightDomElement} from '../../lit/openclaw-element.ts';
+import {MirallyLightDomElement} from '../../lit/mirally-element.ts';
 import {rpcProduct, errorMessage} from './api.ts';
 import './product.css';
 
@@ -11,7 +11,7 @@ type Answer = {id:string; selected:string[]; custom?:string};
 
 /** Native DSH waits stay on their actual turn; the card only carries the human answer. */
 @customElement('mirally-native-interactions')
-export class MirallyNativeInteractions extends OpenClawLightDomElement {
+export class MirallyNativeInteractions extends MirallyLightDomElement {
   @property() sessionKey = '';
   @property({type:Boolean}) presented = true;
   @state() private requests: Request[] = [];

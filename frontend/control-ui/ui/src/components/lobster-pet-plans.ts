@@ -385,7 +385,7 @@ export function planLobsterBottle(seed: number): LobsterBottlePlan | null {
 // The pet notices gateway upgrades: the first page load on a new version, it
 // shows up carrying a bindle (moving day). The very first version sighting
 // only records a baseline - no bindle without a previous home.
-const MOVING_DAY_KEY = "openclaw.control.lobsterpet.gatewayVersion.v1";
+const MOVING_DAY_KEY = "mirally.control.lobsterpet.gatewayVersion.v1";
 
 export function detectLobsterMovingDay(version: string): boolean {
   try {

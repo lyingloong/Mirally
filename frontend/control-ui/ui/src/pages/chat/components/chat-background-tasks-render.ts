@@ -21,7 +21,7 @@ export function renderBackgroundTasksToggle(
   }
   const expanded = !backgroundTasks.collapsed;
   const label = t(expanded ? "chat.backgroundTasks.collapse" : "chat.backgroundTasks.show");
-  return html`<openclaw-tooltip .content=${label}>
+  return html`<mirally-tooltip .content=${label}>
     <button
       class="btn btn--ghost btn--icon chat-icon-btn chat-tasks-toggle"
       type="button"
@@ -38,7 +38,7 @@ export function renderBackgroundTasksToggle(
           : nothing
       }
     </button>
-  </openclaw-tooltip>`;
+  </mirally-tooltip>`;
 }
 
 function renderTaskRows(
@@ -76,7 +76,7 @@ export function renderBackgroundTasksRail(
   const loaded = backgroundTasks.tasks !== null;
   const empty = loaded && active.length === 0 && recent.length === 0;
   const collapseButton = html`
-    <openclaw-tooltip .content=${t("chat.backgroundTasks.collapse")}>
+    <mirally-tooltip .content=${t("chat.backgroundTasks.collapse")}>
       <button
         type="button"
         class="rail-header__action chat-tasks-rail__collapse-toggle"
@@ -88,7 +88,7 @@ export function renderBackgroundTasksRail(
           >${backgroundTasks.narrowLayout ? icons.panelBottomClose : icons.panelRightClose}</span
         >
       </button>
-    </openclaw-tooltip>
+    </mirally-tooltip>
   `;
   return html`
     <aside
@@ -107,7 +107,7 @@ export function renderBackgroundTasksRail(
                 <strong class="rail-header__title">${t("chat.backgroundTasks.title")}</strong>
               </div>
               <div class="rail-header__actions chat-tasks-rail__actions">
-                <openclaw-tooltip .content=${t("chat.backgroundTasks.refresh")}>
+                <mirally-tooltip .content=${t("chat.backgroundTasks.refresh")}>
                   <button
                     class="rail-header__action chat-tasks-rail__refresh"
                     type="button"
@@ -117,7 +117,7 @@ export function renderBackgroundTasksRail(
                   >
                     ${icons.refresh}
                   </button>
-                </openclaw-tooltip>
+                </mirally-tooltip>
                 ${collapseButton}
               </div>
             </div>`

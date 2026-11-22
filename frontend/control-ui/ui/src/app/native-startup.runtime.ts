@@ -17,16 +17,16 @@ export async function startNativeCapabilities(
   const nativeWindow = window as Window & {
     webkit?: {
       messageHandlers?: {
-        openclawDeviceSettings?: { postMessage?: unknown };
-        openclawNotifications?: { postMessage?: unknown };
-        openclawGateways?: { postMessage?: unknown };
+        mirallyDeviceSettings?: { postMessage?: unknown };
+        mirallyNotifications?: { postMessage?: unknown };
+        mirallyGateways?: { postMessage?: unknown };
       };
     };
   };
   const handlers = nativeWindow.webkit?.messageHandlers;
   const capabilities: NativeCapabilities = { deviceSettings: null, notifications: null };
   const steps: StartupStep[] = [];
-  if (typeof handlers?.openclawDeviceSettings?.postMessage === "function") {
+  if (typeof handlers?.mirallyDeviceSettings?.postMessage === "function") {
     steps.push(async () => {
       const { createNativeDeviceSettingsCapability } = await import("./native-device-settings.ts");
       if (!lifecycle.signal.aborted) {
@@ -37,7 +37,7 @@ export async function startNativeCapabilities(
       return undefined;
     });
   }
-  if (typeof handlers?.openclawNotifications?.postMessage === "function") {
+  if (typeof handlers?.mirallyNotifications?.postMessage === "function") {
     steps.push(async () => {
       const { createNativeNotificationsCapability } = await import("./native-notifications.ts");
       if (!lifecycle.signal.aborted) {
@@ -48,7 +48,7 @@ export async function startNativeCapabilities(
       return undefined;
     });
   }
-  if (typeof handlers?.openclawGateways?.postMessage === "function") {
+  if (typeof handlers?.mirallyGateways?.postMessage === "function") {
     steps.push(async () => {
       const { startNativeGatewayHealthReporting } =
         await import("./native-gateway-health.runtime.ts");

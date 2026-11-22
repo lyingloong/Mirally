@@ -1,5 +1,5 @@
 import "../styles/lobster-pet.css";
-import { expectDefined } from "@openclaw/normalization-core";
+import { expectDefined } from "@mirally/normalization-core";
 import { nothing, svg } from "lit";
 import { fnv1aUtf16 } from "../lib/fnv1a.ts";
 import type {
@@ -86,7 +86,7 @@ const ACCESSORIES: Array<[LobsterPetAccessory, number]> = [
   ["crown", 10],
 ];
 
-// OpenClaw's repository was born 2025-11-24 (GitHub created_at); on the
+// Mirally's repository was born 2025-11-24 (GitHub created_at); on the
 // anniversary every visitor dresses as the classic logo and parties.
 const ANNIVERSARY = { month: 10, day: 24 } as const;
 

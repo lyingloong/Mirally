@@ -1,5 +1,5 @@
 import { consume } from "@lit/context";
-import type { CanvasDocumentViewResult } from "@openclaw/gateway-protocol";
+import type { CanvasDocumentViewResult } from "@mirally/gateway-protocol";
 import { html, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
@@ -10,7 +10,7 @@ import { getCanvasWidgetFrameConnectionGeneration } from "../../../lib/chat/canv
 import type { EmbedSandboxMode } from "../../../lib/chat/tool-display.ts";
 import { formatUiError } from "../../../lib/format-error.ts";
 import { WidgetSandboxHost, WIDGET_LOAD_TIMEOUT_MS } from "../../../lib/widget-sandbox-host.ts";
-import { OpenClawLightDomContentsElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomContentsElement } from "../../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../../lit/subscriptions-controller.ts";
 import { prepareHtmlPreviewLinks } from "./chat-html-preview-links.ts";
 
@@ -23,7 +23,7 @@ type PreviewBinding = {
 };
 
 /** Only transfers document bytes. Ordinary files never receive widget host APIs. */
-export class ChatHtmlPreview extends OpenClawLightDomContentsElement {
+export class ChatHtmlPreview extends MirallyLightDomContentsElement {
   @consume({ context: applicationContext, subscribe: true })
   @property({ attribute: false })
   private context?: ApplicationContext;
@@ -261,12 +261,12 @@ export class ChatHtmlPreview extends OpenClawLightDomContentsElement {
   }
 }
 
-if (!customElements.get("openclaw-chat-html-preview")) {
-  customElements.define("openclaw-chat-html-preview", ChatHtmlPreview);
+if (!customElements.get("mirally-chat-html-preview")) {
+  customElements.define("mirally-chat-html-preview", ChatHtmlPreview);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-chat-html-preview": ChatHtmlPreview;
+    "mirally-chat-html-preview": ChatHtmlPreview;
   }
 }

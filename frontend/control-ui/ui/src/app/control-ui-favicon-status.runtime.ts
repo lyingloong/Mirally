@@ -66,7 +66,7 @@ export function connectControlUiFavicon(
     synchronizeScope();
     const snapshot = context.gateway.snapshot;
     let working = false;
-    for (const pane of shell.querySelectorAll<ChatPaneBase>("openclaw-chat-pane")) {
+    for (const pane of shell.querySelectorAll<ChatPaneBase>("mirally-chat-pane")) {
       const activity = pane.runActivity;
       const completion = activity?.completion;
       const unseen = completion && !seenCompletions.has(completion);

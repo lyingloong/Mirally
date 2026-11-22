@@ -5,7 +5,7 @@ import { isNativeWebChromeHost } from "./native-web-chrome.ts";
 // port cannot read routes stored by the old origin and falls back to the
 // default route. Accepted — local gateways (the common case) have stable
 // origins, and the degraded path matches pre-route-memory behavior.
-const NATIVE_LAST_ROUTE_KEY = "openclaw.native.lastRoute";
+const NATIVE_LAST_ROUTE_KEY = "mirally.native.lastRoute";
 
 type StoredNativeRoute = {
   routeId: RouteId;

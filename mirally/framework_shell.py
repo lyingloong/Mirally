@@ -13,6 +13,7 @@ import webbrowser
 from urllib.parse import parse_qsl, urlsplit
 
 from mirally.desktop_surface import ASSETS, DesktopSurface, startup_html
+from mirally.platform.window_identity import mark_mirally_window, unmark_mirally_window
 
 
 class FrameworkShell(DesktopSurface):
@@ -456,6 +457,7 @@ class FrameworkShell(DesktopSurface):
 
         def apply():
             form.Opacity = 0
+            self._bind_native_window_identity(form)
             form.Text = ""
             form.Icon = Icon(str(ASSETS / "mirally.ico"))
             form.ShowIcon = True
@@ -479,6 +481,30 @@ class FrameworkShell(DesktopSurface):
                 menu.install()
                 self._system_menu = menu
         form.Invoke(Action(apply))
+
+    def _bind_native_window_identity(self, form) -> None:
+        # Window actions must never reach Mirally's own conversation approvals.
+        hwnd = None
+
+        def mark(*_):
+            nonlocal hwnd
+            candidate = int(form.Handle.ToInt64())
+            try:
+                mark_mirally_window(candidate)
+            except OSError:
+                form.Enabled = False
+                raise
+            hwnd = candidate
+
+        def unmark(*_):
+            nonlocal hwnd
+            if hwnd is not None:
+                unmark_mirally_window(hwnd)
+                hwnd = None
+
+        form.HandleDestroyed += unmark
+        mark()
+        form.HandleCreated += mark
 
     def _install_tray(self) -> None:
         from System import Action

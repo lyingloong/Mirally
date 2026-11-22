@@ -3,7 +3,7 @@ import { property } from "lit/decorators.js";
 import type { UpdateRunRecord, UpdateRunStep } from "../../../src/infra/update-run-record.ts";
 import { projectUpdateRun } from "../app/update-run-projection.ts";
 import { t } from "../i18n/index.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import { StreamAutoFollowController } from "../lit/stream-auto-follow-controller.ts";
 import "../styles/update-run-view.css";
 
@@ -16,7 +16,7 @@ const STEP_MARKS = {
 } as const;
 const ORACLE_MARKS = { pass: "✓", warn: "!", fail: "×", pending: "○" } as const;
 
-class UpdateRunView extends OpenClawLightDomElement {
+class UpdateRunView extends MirallyLightDomElement {
   @property({ attribute: false }) run: UpdateRunRecord | null = null;
   @property({ type: Boolean }) connected = true;
 
@@ -107,6 +107,6 @@ ${view.details || t("updates.run.noDetails")}</pre>
   }
 }
 
-if (!customElements.get("openclaw-update-run-view")) {
-  customElements.define("openclaw-update-run-view", UpdateRunView);
+if (!customElements.get("mirally-update-run-view")) {
+  customElements.define("mirally-update-run-view", UpdateRunView);
 }

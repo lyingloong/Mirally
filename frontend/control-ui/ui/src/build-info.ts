@@ -1,5 +1,5 @@
 // Compile-time identity for the Control UI artifact.
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import { normalizeControlUiBuildInfo } from "./build-info-normalizers.ts";
 import type { ControlUiBuildInfo } from "./build-info-types.ts";
 
@@ -8,11 +8,11 @@ export type { ControlUiBuildInfo } from "./build-info-types.ts";
 declare global {
   // Vite replaces this property with one object so the UI and service worker
   // share the exact artifact identity without separate compile-time constants.
-  var OPENCLAW_CONTROL_UI_BUILD_INFO: ControlUiBuildInfo | undefined;
+  var MIRALLY_CONTROL_UI_BUILD_INFO: ControlUiBuildInfo | undefined;
 }
 
 export const CONTROL_UI_BUILD_INFO =
-  globalThis.OPENCLAW_CONTROL_UI_BUILD_INFO ?? normalizeControlUiBuildInfo(undefined);
+  globalThis.MIRALLY_CONTROL_UI_BUILD_INFO ?? normalizeControlUiBuildInfo(undefined);
 
 /** Whether a service worker activation retires this document, so it has to
  * reload onto the announced build. The announcement (`ui/public/sw.js`) is the

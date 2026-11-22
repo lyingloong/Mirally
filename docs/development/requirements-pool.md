@@ -1,6 +1,6 @@
 # 需求与种子池
 
-本文件保存“值得做、但还不是已批准开发点”的需求线索，以及已经形成的具体需求。它不是任务队列，也不替代 `output/agent-workflow/state.json`。
+本文件记录需求来源、长期线索、关联开发点和已有交付。实时队列与进度由本机状态助手和 GitHub 记录维护。
 
 ## 1. 用途
 
@@ -48,7 +48,6 @@
 | `SEED-MEMORY` | 调研并建设 Mirally 自有记忆系统 | `user-request` | 整理：“调研记忆机制，考虑我们怎么做自己的记忆系统；实现我们自己的记忆系统” | selected | `REQ-MEMORY-RESEARCH`、`REQ-MEMORY-IMPL`、`REQ-MEMORY-ACTIVITY` |
 | `SEED-ACTIVITY` | 活动记录完善度与记忆/日历融合 | `user-request` | 整理：“活动记录啥的目前功能完善吗；记忆系统怎么和活动记录、日历之类的有机融合，是否可扩展” | selected | `REQ-ACTIVITY-AUDIT`、`REQ-MEMORY-ACTIVITY` |
 | `SEED-MODEL-PROVIDER` | 适配其他模型服务商接口 | `user-request` | 逐字：“能否适配上其他模型服务商的接口？” | selected | `REQ-MODEL-PROVIDER` |
-| `SEED-UFO-CLEANUP` | 移除 UFO 子模块与专用测试依赖 | `user-request` | 摘录：“UFO的测试啥的可以去掉了…submodule也可以去掉了”（跨消息摘录，非全文） | active | `REQ-UFO-CLEANUP` |
 | `SEED-TEST-NOISE` | 优化本地验证噪声/临时目录 | `user-request` | 摘录：“本地验证噪声…可以对应提需求尝试优化”（摘录，非全文） | selected | `REQ-UFO-CLEANUP`（部分） |
 | `SEED-WORKFLOW-CONTROL` | 仓库内维护 AgentTeams 控制核心 | `user-request` | 摘录：“控制核心也属于我们的workflow，所以也要放到仓库…要和产品隔离开”（摘录，非全文） | active | `REQ-WORKFLOW-CONTROL` |
 
@@ -56,6 +55,7 @@
 
 | 种子 ID | 种子 | 来源 | 依据 | 状态 | 关联需求 |
 | --- | --- | --- | --- | --- | --- |
+| `SEED-UFO-CLEANUP` | 退役早期桌面适配及其依赖 | `user-request` | 摘录：“UFO的测试啥的可以去掉了…submodule也可以去掉了”（跨消息摘录，非全文） | done | `REQ-UFO-CLEANUP` |
 | `SEED-FEATURE-MAP` | feature map 补开发工作流入口 | `existing-seed` | dev-0011 规格；PR #3 漏更新地图 | active | `REQ-FEATURE-MAP` |
 | `SEED-WEIXIN-TEXT` | 微信端中文提示优化 | `existing-seed` | dev-0001 | done | `REQ-WEIXIN-TEXT` |
 | `SEED-CLI-ENCODING` | 状态助手非 UTF-8 输出修复 | `existing-seed` | dev-0002 | done | `REQ-CLI-ENCODING` |
@@ -63,19 +63,19 @@
 
 ## 4. 具体需求
 
-| 需求 ID | 具体需求 | 来源 | 种子 | dev 点 | 状态 |
+| 需求 ID | 具体需求 | 来源 | 种子 | dev 点 | 交付记录 |
 | --- | --- | --- | --- | --- | --- |
-| `REQ-MEMORY-RESEARCH` | 调研现有记忆机制并设计自有记忆系统 | `user-request` | `SEED-MEMORY` | dev-0013 | queued；规格已完成 |
-| `REQ-MEMORY-IMPL` | 实现自有记忆系统 | `user-request` | `SEED-MEMORY` | dev-0014 | queued；依赖 0013 |
-| `REQ-MEMORY-ACTIVITY` | 记忆与活动/日历融合及扩展性 | `user-request` | `SEED-MEMORY`、`SEED-ACTIVITY` | dev-0015 | queued；依赖 0013/0016 |
-| `REQ-ACTIVITY-AUDIT` | 活动记录完善度评估 | `user-request` | `SEED-ACTIVITY` | dev-0016 | queued；规格已完成 |
-| `REQ-MODEL-PROVIDER` | 其他模型服务商接口适配调研 | `user-request` | `SEED-MODEL-PROVIDER` | dev-0017 | queued |
-| `REQ-UFO-CLEANUP` | 移除 UFO 子模块与专用测试依赖 | `user-request` | `SEED-UFO-CLEANUP` | dev-0012 | PR #16 open |
-| `REQ-WORKFLOW-CONTROL` | 控制核心/工作流默认值/PR 规范 | `user-request` | `SEED-WORKFLOW-CONTROL` | — | PR #15 open |
-| `REQ-FEATURE-MAP` | feature map 开发工作流章节 | `agent` | `SEED-FEATURE-MAP` | dev-0011 | verifying；PR #17 |
+| `REQ-MEMORY-RESEARCH` | 调研现有记忆机制并设计自有记忆系统 | `user-request` | `SEED-MEMORY` | dev-0013 | — |
+| `REQ-MEMORY-IMPL` | 实现自有记忆系统 | `user-request` | `SEED-MEMORY` | dev-0014 | — |
+| `REQ-MEMORY-ACTIVITY` | 记忆与活动/日历融合及扩展性 | `user-request` | `SEED-MEMORY`、`SEED-ACTIVITY` | dev-0015 | — |
+| `REQ-ACTIVITY-AUDIT` | 活动记录完善度评估 | `user-request` | `SEED-ACTIVITY` | dev-0016 | — |
+| `REQ-MODEL-PROVIDER` | 其他模型服务商接口适配调研 | `user-request` | `SEED-MODEL-PROVIDER` | dev-0017 | — |
+| `REQ-UFO-CLEANUP` | 退役早期桌面适配及其依赖 | `user-request` | `SEED-UFO-CLEANUP` | dev-0012 | PR #16、#55 已合并 |
+| `REQ-WORKFLOW-CONTROL` | 控制核心/工作流默认值/PR 规范 | `user-request` | `SEED-WORKFLOW-CONTROL` | — | PR #15 已合并 |
+| `REQ-FEATURE-MAP` | feature map 开发工作流章节 | `agent` | `SEED-FEATURE-MAP` | dev-0011 | PR #17 已合并 |
 | `REQ-WEIXIN-TEXT` | 微信端中文提示优化 | `user` | `SEED-WEIXIN-TEXT` | dev-0001 | done；PR #5 |
 | `REQ-CLI-ENCODING` | CLI 非 UTF-8 输出修复 | `agent` | `SEED-CLI-ENCODING` | dev-0002 | done；PR #6 |
-| `REQ-WORKFLOW-STATE` | 状态并发锁 + CI Python 子集 | `agent` | `SEED-WORKFLOW-STATE` | dev-0009/0010 | PR #13/#14 open |
+| `REQ-WORKFLOW-STATE` | 状态并发锁 + CI Python 子集 | `agent` | `SEED-WORKFLOW-STATE` | dev-0009/0010 | PR #13、#14 已合并 |
 
 ## 5. 需求师如何使用
 
@@ -93,9 +93,9 @@
 
 - **单一维护者**：队长或指定的需求师负责最终写入；其他需求师/工程师在任务/PR 中提交种子和建议，合并后由维护者统一追加，避免并行分支各改一份。
 - **未合并协调**：未合并分支里的新种子先在 PR/任务说明中标出，维护者按 ID 去重；重复条目合并到原条目，不新建平行需求。
-- **状态同步时机**：`state.json` 是执行状态权威；本文件只在需求登记、进入待合并池、合并/关闭时更新，不要求每次状态变化都同步，避免频繁冲突。
+- **记录时机**：登记或修改需求范围时更新。具体实现完成后补 PR 交付记录；排队、正在审查等实时状态查队长状态助手。
 - 用户新增需求/种子时，维护者追加原文/摘录/整理标记和定位。
-- 具体需求状态变化时更新“关联需求/状态”，不删除历史。
+- 需求改由其他开发点实现时更新关联，保留原始来源。
 - `done/rejected` 保留，供后续复盘和学习。
 - 本文件只记录开发需求与方向，不记录凭据、私有数据或日常任务流水账。
 - 具体执行状态仍以 `output/agent-workflow/state.json` 和 AgentTeams 任务为准；本文件不替代状态机。

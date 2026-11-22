@@ -1,10 +1,10 @@
-// Control UI adapter for Web Awesome tooltips. OpenClaw keeps its terse
+// Control UI adapter for Web Awesome tooltips. Mirally keeps its terse
 // wrapper API and manual dismissal; Web Awesome owns positioning and rendering.
 import "@awesome.me/webawesome/dist/components/tooltip/tooltip.js";
 import type WaTooltip from "@awesome.me/webawesome/dist/components/tooltip/tooltip.js";
 import { css, html } from "lit";
 import { property, query } from "lit/decorators.js";
-import { OpenClawLitElement } from "../lit/openclaw-element.ts";
+import { MirallyLitElement } from "../lit/mirally-element.ts";
 import {
   isTooltipTextRedundant,
   isTooltipTriggerElement,
@@ -20,10 +20,10 @@ const RICH_CONTENT_CLOSE_DELAY = 100;
 let nextTooltipId = 0;
 
 function createTooltipId() {
-  return `openclaw-tooltip-${++nextTooltipId}`;
+  return `mirally-tooltip-${++nextTooltipId}`;
 }
 
-class TooltipProvider extends OpenClawLitElement {
+class TooltipProvider extends MirallyLitElement {
   @property({ type: Number }) delay = HOVER_DELAY;
   @property({ type: Number }) skipDelay = SKIP_DELAY;
 
@@ -93,7 +93,7 @@ class TooltipProvider extends OpenClawLitElement {
   }
 }
 
-class Tooltip extends OpenClawLitElement {
+class Tooltip extends MirallyLitElement {
   static readonly #activeByDocument = new WeakMap<Document, Tooltip>();
 
   static readonly consumeEscape = (event: KeyboardEvent, ownerDocument: Document): boolean => {
@@ -173,28 +173,28 @@ class Tooltip extends OpenClawLitElement {
     }
 
     wa-tooltip {
-      --max-width: var(--openclaw-tooltip-max-width, min(260px, calc(100vw - 16px)));
-      --wa-tooltip-arrow-size: var(--openclaw-tooltip-arrow-size, 0px);
+      --max-width: var(--mirally-tooltip-max-width, min(260px, calc(100vw - 16px)));
+      --wa-tooltip-arrow-size: var(--mirally-tooltip-arrow-size, 0px);
       --wa-tooltip-background-color: var(
-        --openclaw-tooltip-background-color,
+        --mirally-tooltip-background-color,
         color-mix(in srgb, var(--bg-elevated) 97%, var(--text) 3%)
       );
       --wa-tooltip-border-color: var(
-        --openclaw-tooltip-border-color,
+        --mirally-tooltip-border-color,
         var(--overlay-border, var(--border-strong))
       );
       --wa-tooltip-border-width: 1px;
       --wa-tooltip-border-style: solid;
       --wa-tooltip-content-color: var(--text);
-      --wa-tooltip-border-radius: var(--openclaw-tooltip-border-radius, var(--radius-md));
-      --show-duration: var(--openclaw-tooltip-popup-show-duration, var(--wa-transition-fast));
-      --hide-duration: var(--openclaw-tooltip-popup-hide-duration, var(--wa-transition-fast));
+      --wa-tooltip-border-radius: var(--mirally-tooltip-border-radius, var(--radius-md));
+      --show-duration: var(--mirally-tooltip-popup-show-duration, var(--wa-transition-fast));
+      --hide-duration: var(--mirally-tooltip-popup-hide-duration, var(--wa-transition-fast));
       font-family: var(--font-body);
     }
 
     wa-tooltip::part(body) {
-      padding: var(--openclaw-tooltip-padding, 5px 7px);
-      box-shadow: var(--openclaw-tooltip-shadow, var(--overlay-shadow, var(--shadow-md)));
+      padding: var(--mirally-tooltip-padding, 5px 7px);
+      box-shadow: var(--mirally-tooltip-shadow, var(--overlay-shadow, var(--shadow-md)));
       font-size: 11px;
       font-weight: 500;
       line-height: 1.25;
@@ -202,7 +202,7 @@ class Tooltip extends OpenClawLitElement {
     }
 
     :host(.sidebar-hover-tooltip) wa-tooltip[open]::part(base__popup) {
-      animation: var(--openclaw-tooltip-open-animation);
+      animation: var(--mirally-tooltip-open-animation);
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -216,7 +216,7 @@ class Tooltip extends OpenClawLitElement {
       }
     }
 
-    @keyframes openclaw-tooltip-hover-card-in {
+    @keyframes mirally-tooltip-hover-card-in {
       from {
         opacity: 0;
         transform: scale(0.95);
@@ -285,7 +285,7 @@ class Tooltip extends OpenClawLitElement {
     this.#tooltipProvider = null;
     let owner: Element | null = trigger;
     while (owner) {
-      const provider = owner.closest<TooltipProvider>("openclaw-tooltip-provider");
+      const provider = owner.closest<TooltipProvider>("mirally-tooltip-provider");
       if (provider) {
         this.#tooltipProvider = provider;
         break;
@@ -738,7 +738,7 @@ class Tooltip extends OpenClawLitElement {
 export const consumeTooltipEscape = Tooltip.consumeEscape;
 
 export function focusWithoutTooltip(target: HTMLElement | null | undefined) {
-  const tooltip = target?.closest<Tooltip>("openclaw-tooltip");
+  const tooltip = target?.closest<Tooltip>("mirally-tooltip");
   if (tooltip && target) {
     tooltip.focusTriggerWithoutOpening(target);
   } else {
@@ -746,17 +746,17 @@ export function focusWithoutTooltip(target: HTMLElement | null | undefined) {
   }
 }
 
-if (!customElements.get("openclaw-tooltip-provider")) {
-  customElements.define("openclaw-tooltip-provider", TooltipProvider);
+if (!customElements.get("mirally-tooltip-provider")) {
+  customElements.define("mirally-tooltip-provider", TooltipProvider);
 }
 
-if (!customElements.get("openclaw-tooltip")) {
-  customElements.define("openclaw-tooltip", Tooltip);
+if (!customElements.get("mirally-tooltip")) {
+  customElements.define("mirally-tooltip", Tooltip);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-tooltip-provider": TooltipProvider;
-    "openclaw-tooltip": Tooltip;
+    "mirally-tooltip-provider": TooltipProvider;
+    "mirally-tooltip": Tooltip;
   }
 }

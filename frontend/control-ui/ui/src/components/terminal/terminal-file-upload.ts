@@ -1,4 +1,4 @@
-import { containsAsciiControlCharacter } from "@openclaw/normalization-core/string-normalization";
+import { containsAsciiControlCharacter } from "@mirally/normalization-core/string-normalization";
 import type {
   TerminalUploadPathStyle,
   TerminalUploadResult,

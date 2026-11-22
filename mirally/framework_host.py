@@ -22,23 +22,34 @@ def product_home(explicit: str | Path | None = None) -> Path:
     return (Path(local) / "Mirally/framework" if local else Path.home() / ".local/share/mirally/framework").resolve()
 
 
-def discover_node(root: Path, explicit: str | None = None) -> Path:
+def node_candidates(root: Path, explicit: str | None = None) -> list[str]:
     candidates = [explicit, os.environ.get("MIRALLY_NODE"), shutil.which("node")]
     candidates.extend(str(path) for path in sorted((root / ".artifacts/node").glob("*/node.exe"), reverse=True))
-    for candidate in candidates:
-        if not candidate:
-            continue
+    return [candidate for candidate in candidates if candidate]
+
+
+def node_version(path: Path) -> tuple[int, ...] | None:
+    """Read-only probe of a Node executable's version tuple, or None when unusable."""
+    try:
+        result = subprocess.run([str(path), "--version"], capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    try:
+        parts = tuple(int(part) for part in result.stdout.strip().lstrip("v").split(".")[:3])
+    except ValueError:
+        return None
+    return parts if result.returncode == 0 else None
+
+
+def discover_node(root: Path, explicit: str | None = None) -> Path:
+    for candidate in node_candidates(root, explicit):
         path = Path(candidate).expanduser()
         if not path.is_file():
             if candidate in (explicit, os.environ.get("MIRALLY_NODE")):
                 raise RuntimeError("Configured Node executable does not exist")
             continue
-        result = subprocess.run([str(path), "--version"], capture_output=True, text=True, timeout=15)
-        try:
-            parts = tuple(int(part) for part in result.stdout.strip().lstrip("v").split(".")[:3])
-        except ValueError:
-            continue
-        if result.returncode == 0 and ((parts[0] == 22 and parts >= (22, 19, 0)) or parts[0] >= 24):
+        parts = node_version(path)
+        if parts is not None and ((parts[0] == 22 and parts >= (22, 19, 0)) or parts[0] >= 24):
             return path.resolve()
     raise RuntimeError("Prepare Node 22.19+ (22.x) or Node 24+, or set MIRALLY_NODE. Then run tools/setup_framework.py.")
 

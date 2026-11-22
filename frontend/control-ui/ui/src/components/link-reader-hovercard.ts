@@ -514,7 +514,7 @@ export class LinkReaderHovercardProvider extends ReactiveElement {
     const card =
       existing ??
       createPortaledHovercard(
-        "openclaw-link-reader-hovercard-" + ++nextHovercardId,
+        "mirally-link-reader-hovercard-" + ++nextHovercardId,
         "link-reader-hovercard",
       );
     if (preview) {
@@ -653,7 +653,7 @@ export class LinkReaderHovercardProvider extends ReactiveElement {
     const existing = this.hovercard.card;
     const card =
       existing ??
-      createPortaledHovercard("openclaw-link-preview-" + ++nextHovercardId, "link-hovercard");
+      createPortaledHovercard("mirally-link-preview-" + ++nextHovercardId, "link-hovercard");
     renderPagePreview(
       card,
       page.href,

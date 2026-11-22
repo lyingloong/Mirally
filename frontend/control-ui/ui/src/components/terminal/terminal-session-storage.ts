@@ -1,14 +1,14 @@
 // Session ids deliberately use per-tab storage: attach is a takeover, so shared
 // local storage could let one Control UI window steal another window's shells.
 
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import type {
   TerminalPanelAction,
   TerminalPanelCatalogReference,
 } from "./terminal-panel-session-types.ts";
 
-const TERMINAL_SESSIONS_KEY = "openclaw.terminal.sessions.v1";
-const TERMINAL_ACTIONS_KEY = "openclaw.terminal.actions.v1";
+const TERMINAL_SESSIONS_KEY = "mirally.terminal.sessions.v1";
+const TERMINAL_ACTIONS_KEY = "mirally.terminal.actions.v1";
 
 function nonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;

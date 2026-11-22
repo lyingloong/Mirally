@@ -1,4 +1,4 @@
-import { asNonArrayRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNonArrayRecord } from "@mirally/normalization-core/record-coerce";
 import { normalizeSidebarLayout } from "./sidebar-layout-normalize.ts";
 import type { SidebarLayout } from "./sidebar-layout.ts";
 

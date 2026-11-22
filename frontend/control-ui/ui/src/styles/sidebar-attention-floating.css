@@ -1,10 +1,10 @@
 /* Floating footer controls clear collapsed chrome and feed their resting width
    back into the first-row safe edge. */
-.shell--nav-collapsed:has(openclaw-sidebar-attention.sidebar-attention--floating) {
+.shell--nav-collapsed:has(mirally-sidebar-attention.sidebar-attention--floating) {
   --shell-attention-width: 40px;
 }
 
-openclaw-sidebar-attention.sidebar-attention--floating {
+mirally-sidebar-attention.sidebar-attention--floating {
   --sidebar-bg: var(--bg-content, var(--bg));
   --sidebar-issues-border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   --sidebar-issues-background: color-mix(in srgb, var(--panel) 92%, transparent);
@@ -19,27 +19,27 @@ openclaw-sidebar-attention.sidebar-attention--floating {
 }
 
 /* Native navigation hides the web controls. */
-html.openclaw-native-nav openclaw-sidebar-attention.sidebar-attention--floating {
+html.mirally-native-nav mirally-sidebar-attention.sidebar-attention--floating {
   left: calc(var(--shell-chrome-controls-inset) + 6px);
 }
 
-html.openclaw-native-macos openclaw-sidebar-attention.sidebar-attention--floating {
+html.mirally-native-macos mirally-sidebar-attention.sidebar-attention--floating {
   top: 52px;
 }
 
 /* The borderless Inbox badge extends 1px beyond its 32px control. Keep the
    existing 8px title clearance measured from the badge edge, not the button. */
-html.openclaw-native-web-chrome
-  .shell--nav-collapsed:has(openclaw-sidebar-attention.sidebar-attention--floating) {
+html.mirally-native-web-chrome
+  .shell--nav-collapsed:has(mirally-sidebar-attention.sidebar-attention--floating) {
   --shell-attention-width: 41px;
 }
 
 /* Native titlebar actions stay borderless; only controls floating over page content need chrome. */
-html.openclaw-native-web-chrome openclaw-sidebar-attention.sidebar-attention--floating {
+html.mirally-native-web-chrome mirally-sidebar-attention.sidebar-attention--floating {
   --sidebar-issues-border: 0;
   --sidebar-issues-background: transparent;
 
-  top: calc((var(--openclaw-native-titlebar-height, 50px) - var(--shell-chrome-control-size)) / 2);
+  top: calc((var(--mirally-native-titlebar-height, 50px) - var(--shell-chrome-control-size)) / 2);
   left: calc(
     var(--shell-native-titlebar-controls-inset) + var(--shell-native-titlebar-controls-width) +
       var(--shell-chrome-controls-gap)
@@ -53,7 +53,7 @@ html.openclaw-native-web-chrome openclaw-sidebar-attention.sidebar-attention--fl
 }
 
 /* Inherited chrome survives late entry CSS; direct hover/expanded fills still win. */
-:where(html:not(.openclaw-native-web-chrome) openclaw-sidebar-attention.sidebar-attention--floating)
+:where(html:not(.mirally-native-web-chrome) mirally-sidebar-attention.sidebar-attention--floating)
   .sidebar-issues-button {
   box-shadow: var(--shadow-sm);
   backdrop-filter: blur(10px);

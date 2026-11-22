@@ -1,7 +1,7 @@
 import type {
   SessionsCatalogStartTerminalParams,
   SessionsCatalogStartTerminalResult,
-} from "@openclaw/gateway-protocol";
+} from "@mirally/gateway-protocol";
 import { pathForRoute } from "../../app-route-paths.ts";
 import type { ApplicationContext } from "../../app/context.ts";
 import type { TerminalGatewayClient } from "../../components/terminal/terminal-connection.ts";

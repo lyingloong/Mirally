@@ -1,7 +1,7 @@
 import {
   buildModelCatalogRef,
   parseModelCatalogRef,
-} from "@openclaw/model-catalog-core/model-catalog-refs";
+} from "@mirally/model-catalog-core/model-catalog-refs";
 import {
   newSessionLocationFromSearch,
   newSessionSearch,

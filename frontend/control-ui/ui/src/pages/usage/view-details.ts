@@ -1,6 +1,6 @@
-import { expectDefined } from "@openclaw/normalization-core";
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { expectDefined } from "@mirally/normalization-core";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import { html, svg, nothing } from "lit";
 import type { PanelRefreshStatus } from "../../components/panel-refresh-status.ts";
 import { renderSettingsSegmented } from "../../components/settings-ui.ts";
@@ -302,7 +302,7 @@ function renderSessionDetailPanel(
               : nothing
           }
         </div>
-        <openclaw-tooltip .content=${t("usage.details.close")}>
+        <mirally-tooltip .content=${t("usage.details.close")}>
           <button
             class="btn btn--sm btn--ghost"
             @click=${onClose}
@@ -310,7 +310,7 @@ function renderSessionDetailPanel(
           >
             ×
           </button>
-        </openclaw-tooltip>
+        </mirally-tooltip>
       </div>
       ${
         session.scope === "family" && session.includedSessionIds?.length

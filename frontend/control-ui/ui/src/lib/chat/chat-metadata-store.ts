@@ -1,8 +1,8 @@
 import {
   DEFAULT_GATEWAY_REQUEST_TIMEOUT_MS,
   resolveGatewayStartupRetryAfterMs,
-} from "@openclaw/gateway-client/browser";
-import { stableStringify } from "@openclaw/normalization-core/stable-stringify";
+} from "@mirally/gateway-client/browser";
+import { stableStringify } from "@mirally/normalization-core/stable-stringify";
 import type { ChatMetadataParams } from "../../../../packages/gateway-protocol/src/index.js";
 import { createDeferredCore } from "../../../../src/shared/deferred.js";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const CLAWHUB_RECOMMENDATION_LIMIT = 3;
-export const CLAWHUB_RECOMMENDATIONS_CHANNEL_DATA_KEY = "openclawClawHubRecommendations";
+export const CLAWHUB_RECOMMENDATIONS_CHANNEL_DATA_KEY = "mirallyClawHubRecommendations";
 
 const recommendationFields = {
   type: z.literal("clawhub"),

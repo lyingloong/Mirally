@@ -1,4 +1,4 @@
-import { asOptionalRecord, readStringField } from "@openclaw/normalization-core/record-coerce";
+import { asOptionalRecord, readStringField } from "@mirally/normalization-core/record-coerce";
 import {
   fetchGatewayContextResource,
   readAvatarGatewayContext,

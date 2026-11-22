@@ -1,5 +1,5 @@
-import { isGatewayProtocolResponseError } from "@openclaw/gateway-client/browser";
-import { asOptionalRecord } from "@openclaw/normalization-core/record-coerce";
+import { isGatewayProtocolResponseError } from "@mirally/gateway-client/browser";
+import { asOptionalRecord } from "@mirally/normalization-core/record-coerce";
 import type { CapabilityConsentErrorDetails } from "../../../../packages/gateway-protocol/src/capability-consent-error-details.js";
 import type { PluginsSetEnabledParams } from "../../../../packages/gateway-protocol/src/schema/plugins.js";
 import { GatewayRequestError, type GatewayBrowserClient } from "../../api/gateway.ts";

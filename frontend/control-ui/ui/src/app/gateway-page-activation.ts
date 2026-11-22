@@ -41,7 +41,7 @@ export function startGatewayPageActivation(
       void import("./sw-refresh.runtime.ts")
         .then(({ refreshControlUiServiceWorker }) => refreshControlUiServiceWorker())
         .catch((error: unknown) => {
-          console.warn("OpenClaw service worker refresh failed after page activation.", error);
+          console.warn("Mirally service worker refresh failed after page activation.", error);
         });
     });
   };

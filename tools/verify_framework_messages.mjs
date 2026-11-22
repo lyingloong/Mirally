@@ -80,7 +80,7 @@ async function noHorizontalOverflow(width) {
 
 try {
   await page.goto(runtime.url+'/inbox#token='+encodeURIComponent(runtime.token));
-  await page.waitForFunction(()=>document.querySelector('openclaw-app')?.context?.gateway?.snapshot?.phase==='connected');
+  await page.waitForFunction(()=>document.querySelector('mirally-app')?.context?.gateway?.snapshot?.phase==='connected');
   await controller.waitFor();await settled();
   for(let index=0;index<fixtureCount;index++)await rpc('commitment.create',{
     title:`${tag} ${String(index).padStart(2,'0')}：阅读与刷新`,
@@ -162,6 +162,45 @@ try {
   await rows.last().scrollIntoViewIfNeeded();
   await page.screenshot({path:join(output,'05-narrow.png')});
   check('desktop and 375px inbox fit without horizontal overflow',{desktop,narrow});
+
+  const bulkTag=`${tag} newer read`;
+  await rpc('calendar.settings.update',{channels:{desktop:false,weixin:false}});
+  for(let index=0;index<51;index++)await rpc('commitment.create',{
+    title:`${bulkTag} ${index}`,due_at_utc_ms:Date.now()-1000,request_id:randomUUID(),
+  });
+  const bulk=(await rpc('inbox.list')).items.filter(item=>item.title.startsWith(bulkTag));
+  assert.equal(bulk.length,51);
+  for(const item of bulk)await rpc('inbox.ack',{delivery_id:item.delivery_id,state:'read'});
+  const pagination=controller.getByRole('navigation',{name:'消息分页'});
+  await refresh();await settled();
+  assert.equal(await rows.filter({hasNotText:bulkTag}).count(),0);
+  await pagination.getByRole('button',{name:'较早消息'}).click();await settled();
+  await rows.filter({hasNotText:bulkTag}).first().waitFor();
+  await pagination.getByRole('button',{name:'较新消息'}).click();await settled();
+  assert.equal(await rows.filter({hasNotText:bulkTag}).count(),0);
+  await page.getByTestId('mirally-inbox-unread').check();await settled();
+  await page.waitForFunction(({tag,count})=>[...document.querySelectorAll('[data-testid="mirally-inbox-item"]')]
+    .filter(row=>row.textContent.includes(tag)&&row.getAttribute('data-unread')==='true').length===count,
+    {tag,count:fixtureCount-1});
+  check('desktop pagination and server-side filter reveal older unread messages');
+
+  await rpc('mobile.configure',{enabled:true});
+  const pairing=await rpc('mobile.pair.create',{device_name:'收件箱验收手机'});
+  assert.ok(['127.0.0.1','localhost','[::1]'].includes(new URL(pairing.url).hostname));
+  const phone=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+  phone.on('pageerror',error=>report.errors.push(error.message));
+  await phone.goto(pairing.url);
+  await phone.getByRole('button',{name:'配对并进入',exact:true}).click();
+  await phone.getByRole('navigation',{name:'主要导航'}).getByRole('button',{name:'消息',exact:true}).click();
+  const phonePaging=phone.getByRole('navigation',{name:'消息分页'});
+  await phonePaging.getByRole('button',{name:'较早消息'}).click();
+  await phone.getByRole('heading',{name:readTitle,exact:true}).waitFor();
+  await phone.getByRole('checkbox',{name:'只看未读'}).check();
+  await phone.getByText('没有未读消息。',{exact:true}).waitFor({state:'hidden'});
+  await phone.waitForFunction(({tag,bulkTag,count})=>[...document.querySelectorAll('mirally-mobile-app article h2')]
+    .filter(row=>row.textContent.includes(tag)&&!row.textContent.includes(bulkTag)).length===count,
+    {tag,bulkTag,count:fixtureCount-1});
+  check('paired phone pagination and unread filter use the same isolated product data');
   assert.deepEqual(report.errors,[],'No uncaught browser errors.');
   report.verdict='PASS';
 } catch(error) {

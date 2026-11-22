@@ -61,12 +61,12 @@
 }
 
 /* Plain-browser chat owns the only narrow chrome row in its pane header. */
-html:not(.openclaw-native-macos):not(.openclaw-native-nav):not(.openclaw-native-web-chrome)
+html:not(.mirally-native-macos):not(.mirally-native-nav):not(.mirally-native-web-chrome)
   .shell--mobile-nav.shell--merged-chat-chrome {
   --shell-topbar-height: 0px;
 }
 
-html:not(.openclaw-native-macos):not(.openclaw-native-nav):not(.openclaw-native-web-chrome)
+html:not(.mirally-native-macos):not(.mirally-native-nav):not(.mirally-native-web-chrome)
   .shell--mobile-nav.shell--merged-chat-chrome
   .topbar {
   display: none;
@@ -258,42 +258,42 @@ html:not(.openclaw-native-macos):not(.openclaw-native-nav):not(.openclaw-native-
    brand moves first, clears the traffic lights, and stays non-interactive
    under the AppKit drag region (x 78-254, y < 46); the drawer toggle and
    search sit to its right. */
-html.openclaw-native-macos body .shell--mobile-nav {
+html.mirally-native-macos body .shell--mobile-nav {
   --shell-topbar-height: 58px;
 }
 
-html.openclaw-native-macos body .shell--mobile-nav .topbar {
+html.mirally-native-macos body .shell--mobile-nav .topbar {
   padding: 0 12px 0 92px !important;
 }
 
-html.openclaw-native-macos body .shell--mobile-nav .topnav-shell {
+html.mirally-native-macos body .shell--mobile-nav .topnav-shell {
   display: flex;
   gap: 8px;
   min-height: 58px;
 }
 
-html.openclaw-native-macos body .shell--mobile-nav .topnav-shell__content {
+html.mirally-native-macos body .shell--mobile-nav .topnav-shell__content {
   order: -1;
   flex: 0 0 auto;
   min-width: 176px;
   justify-content: flex-start;
 }
 
-html.openclaw-native-macos body .shell--mobile-nav .topnav-shell__actions {
+html.mirally-native-macos body .shell--mobile-nav .topnav-shell__actions {
   margin-left: auto;
 }
 
 /* Desktop webviews keep their caption buttons when resized into drawer mode. */
-html.openclaw-native-desktop body .shell--mobile-nav {
-  --shell-topbar-height: var(--openclaw-native-titlebar-height, 52px);
+html.mirally-native-desktop body .shell--mobile-nav {
+  --shell-topbar-height: var(--mirally-native-titlebar-height, 52px);
 
   .topbar {
-    padding: 0 calc(var(--openclaw-native-window-controls-width, 0px) + 12px) 0
-      var(--openclaw-native-controls-inset, 12px);
+    padding: 0 calc(var(--mirally-native-window-controls-width, 0px) + 12px) 0
+      var(--mirally-native-controls-inset, 12px);
   }
 
   .topnav-shell {
-    min-height: var(--openclaw-native-titlebar-height, 52px);
+    min-height: var(--mirally-native-titlebar-height, 52px);
   }
 }
 
@@ -471,13 +471,13 @@ html.openclaw-native-desktop body .shell--mobile-nav {
     max-height: 380px;
   }
 
-  .content:has(openclaw-logs-page) {
+  .content:has(mirally-logs-page) {
     display: block;
     overflow-y: auto;
   }
 
-  .content:has(openclaw-logs-page) > openclaw-router-outlet,
-  .content openclaw-logs-page,
+  .content:has(mirally-logs-page) > mirally-router-outlet,
+  .content mirally-logs-page,
   .content .settings-workspace--fill-height,
   .content .settings-workspace--fill-height > .settings-workspace__body,
   .content .settings-workspace--fill-height .logs-card {

@@ -145,7 +145,7 @@ async function showTableDialog(
   if (state.closeDialog) {
     return;
   }
-  let dialog: HTMLElementTagNameMap["openclaw-modal-dialog"] | undefined;
+  let dialog: HTMLElementTagNameMap["mirally-modal-dialog"] | undefined;
   const close = () => {
     if (state.closeDialog === close) {
       delete state.closeDialog;
@@ -159,7 +159,7 @@ async function showTableDialog(
     if (state.closeDialog !== close || !owner.isConnected || !trigger.isConnected) {
       return;
     }
-    dialog = document.createElement("openclaw-modal-dialog");
+    dialog = document.createElement("mirally-modal-dialog");
     dialog.className = "markdown-table-modal";
     dialog.label = t("common.expandedTable");
     dialog.setReturnFocusTarget(trigger);

@@ -52,7 +52,7 @@ function detectModelSetup(
   signal?: AbortSignal,
 ): Promise<SystemAgentSetupDetectResult> {
   return client.request<SystemAgentSetupDetectResult>(
-    "openclaw.setup.detect",
+    "mirally.setup.detect",
     agentId ? { agentId } : {},
     { timeoutMs: MODEL_SETUP_DETECT_TIMEOUT_MS, ...(signal ? { signal } : {}) },
   );
@@ -65,7 +65,7 @@ function verifyModelSetup(
   modelTarget?: "utility",
 ): Promise<SystemAgentSetupVerifyResult> {
   return client.request<SystemAgentSetupVerifyResult>(
-    "openclaw.setup.verify",
+    "mirally.setup.verify",
     { ...(agentId ? { agentId } : {}), ...(modelTarget ? { modelTarget } : {}) },
     { timeoutMs: MODEL_SETUP_VERIFY_TIMEOUT_MS, ...(signal ? { signal } : {}) },
   );

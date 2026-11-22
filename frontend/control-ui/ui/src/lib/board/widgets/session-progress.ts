@@ -1,12 +1,12 @@
 import { consume } from "@lit/context";
-import type { BoardGetParams, ProgressCardGetParams } from "@openclaw/gateway-protocol";
+import type { BoardGetParams, ProgressCardGetParams } from "@mirally/gateway-protocol";
 import { html, nothing } from "lit";
 import { property } from "lit/decorators.js";
 import { applicationContext, type ApplicationContext } from "../../../app/context.ts";
 import { SessionProgressCardController } from "../../../components/session-progress-card-controller.ts";
 import { renderSessionProgressCard } from "../../../components/session-progress-card.ts";
 import { t } from "../../../i18n/index.ts";
-import { OpenClawLightDomElement } from "../../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../../lit/mirally-element.ts";
 import { SubscriptionsController } from "../../../lit/subscriptions-controller.ts";
 import { resolveSessionProgressCardTarget } from "../../session-progress-cards.ts";
 import { isSessionRunActive } from "../../session-run-state.ts";
@@ -26,7 +26,7 @@ function resolveSessionTarget(
     : boardSession;
 }
 
-class OpenClawSessionProgressWidget extends OpenClawLightDomElement {
+class MirallySessionProgressWidget extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context?: ApplicationContext;
 
@@ -178,12 +178,12 @@ class OpenClawSessionProgressWidget extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-session-progress-widget")) {
-  customElements.define("openclaw-session-progress-widget", OpenClawSessionProgressWidget);
+if (!customElements.get("mirally-session-progress-widget")) {
+  customElements.define("mirally-session-progress-widget", MirallySessionProgressWidget);
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "openclaw-session-progress-widget": OpenClawSessionProgressWidget;
+    "mirally-session-progress-widget": MirallySessionProgressWidget;
   }
 }

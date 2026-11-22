@@ -1,7 +1,7 @@
 import { css } from "lit";
 
 /**
- * Canonical scrollbar profile for OpenClaw Lit shadow roots (terminal, browser,
+ * Canonical scrollbar profile for Mirally Lit shadow roots (terminal, browser,
  * desktop panels): base.css's ::-webkit-scrollbar rules don't cross a shadow
  * boundary, so every shadow scroll surface includes this in `static styles`.
  */

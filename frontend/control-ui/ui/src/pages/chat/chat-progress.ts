@@ -1,4 +1,4 @@
-import { asNullableRecord as asRecord } from "@openclaw/normalization-core/record-coerce";
+import { asNullableRecord as asRecord } from "@mirally/normalization-core/record-coerce";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import type { GatewaySessionRow } from "../../api/types.ts";
 import { t } from "../../i18n/index.ts";
@@ -14,7 +14,7 @@ type WorkingProgress = {
 
 type WorkingProgressCache = WorkingProgress;
 
-const CONTEXT_COMPACTION_CUSTOM_TYPE = "openclaw.context-compaction";
+const CONTEXT_COMPACTION_CUSTOM_TYPE = "mirally.context-compaction";
 
 export function isContextCompactionMessage(message: unknown): boolean {
   const record = asRecord(message);
@@ -23,7 +23,7 @@ export function isContextCompactionMessage(message: unknown): boolean {
 
 export function matchesCompactionOperation(message: unknown, status: CompactionStatus): boolean {
   const record = asRecord(message);
-  const marker = asRecord(record?.["__openclaw"]);
+  const marker = asRecord(record?.["__mirally"]);
   return Boolean(
     (marker?.kind === "compaction" || isContextCompactionMessage(message)) &&
     status.runId &&
@@ -239,7 +239,7 @@ export function resolveWorkingProgress(
       .map((segment) => segment.ts),
     ...toolProgress
       .filter((message) => !explicitRunId || message?.runId === explicitRunId)
-      .map((message) => message?.["__openclawToolStreamReceivedAt"]),
+      .map((message) => message?.["__mirallyToolStreamReceivedAt"]),
   ].filter((value): value is number => typeof value === "number" && Number.isFinite(value));
   const startedAt = candidates.length > 0 ? Math.min(...candidates) : Date.now();
   const key =

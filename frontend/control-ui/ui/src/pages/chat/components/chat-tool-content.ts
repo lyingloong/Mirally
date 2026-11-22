@@ -1,5 +1,5 @@
-import { asNullableRecord, isRecord } from "@openclaw/normalization-core/record-coerce";
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { asNullableRecord, isRecord } from "@mirally/normalization-core/record-coerce";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import { html, nothing } from "lit";
 import { ref } from "lit/directives/ref.js";
 import { renderCopyButton } from "../../../components/copy-button.ts";
@@ -398,7 +398,7 @@ export function renderExpandedToolCardContent(
   const sidebarActionContent = previewSidebarContent ?? outputDetails;
   const sidebarAction = canOpenSidebar
     ? html`
-        <openclaw-tooltip content=${t("chat.toolCards.openDetails")}>
+        <mirally-tooltip content=${t("chat.toolCards.openDetails")}>
           <button
             class="chat-tool-card__action-btn"
             type="button"
@@ -407,7 +407,7 @@ export function renderExpandedToolCardContent(
           >
             <span class="chat-tool-card__action-icon">${icons.panelRightOpen}</span>
           </button>
-        </openclaw-tooltip>
+        </mirally-tooltip>
       `
     : nothing;
   const diffCopyAction =

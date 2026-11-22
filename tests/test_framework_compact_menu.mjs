@@ -179,7 +179,7 @@ function menuFixture(compact) {
   const actions = [];
   const sandbox = {
     html, nothing: Symbol('nothing'), property: () => () => {}, state: () => () => {},
-    OpenClawLightDomElement: class {},
+    MirallyLightDomElement: class {},
     EMPTY_SESSION_MENU_DATA: {label: 'Current conversation', sessionId: 'native-one'},
     SessionMenuActions: class { handleSelect() { return false; } },
     compactSessionMenuViewForValue: () => undefined,

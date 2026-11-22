@@ -3,7 +3,7 @@ import { html, nothing, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import { live } from "lit/directives/live.js";
 import { t } from "../i18n/index.ts";
-import { OpenClawLightDomElement } from "../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../lit/mirally-element.ts";
 import { configureAnchoredPopup } from "./anchored-overlay.ts";
 import { icons } from "./icons.ts";
 import "../styles/select-picker.css";
@@ -38,12 +38,12 @@ let pickerCount = 0;
 
 function nextPickerId() {
   pickerCount += 1;
-  return `openclaw-picker-${pickerCount}`;
+  return `mirally-picker-${pickerCount}`;
 }
 
 export class SelectPicker<
   Option extends PickerOption = PickerOption,
-> extends OpenClawLightDomElement {
+> extends MirallyLightDomElement {
   @property({ attribute: false }) params!: PickerParams<Option>;
   @state() private mode: "closed" | "compact" | "search" = "closed";
   @state() private query = "";
@@ -365,14 +365,14 @@ export class SelectPicker<
   }
 }
 
-if (!customElements.get("openclaw-select-picker")) {
-  customElements.define("openclaw-select-picker", SelectPicker);
+if (!customElements.get("mirally-select-picker")) {
+  customElements.define("mirally-select-picker", SelectPicker);
 }
 
 export function renderPicker<Option extends PickerOption>(params: PickerParams<Option>) {
-  return html`<openclaw-select-picker
+  return html`<mirally-select-picker
     class=${`settings-select picker-select ${params.className ?? ""}`}
     style="width:100%;min-width:min(138px,100%)"
     .params=${params}
-  ></openclaw-select-picker>`;
+  ></mirally-select-picker>`;
 }

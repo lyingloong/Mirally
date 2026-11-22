@@ -1,4 +1,4 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import type { SessionBoardFace } from "../../../../src/shared/session-types.js";
 import type { BoardTab } from "./types.ts";
 

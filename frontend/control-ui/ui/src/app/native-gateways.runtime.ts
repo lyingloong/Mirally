@@ -11,10 +11,10 @@ export type NativeGateway = {
 
 export type NativeGatewaysSnapshot = { gateways: NativeGateway[]; currentId: string };
 type NativeGatewaysWindow = Window & {
-  __OPENCLAW_NATIVE_GATEWAYS__?: unknown;
+  __MIRALLY_NATIVE_GATEWAYS__?: unknown;
 };
 
-const NATIVE_GATEWAYS_CHANGED_EVENT = "openclaw:native-gateways-changed";
+const NATIVE_GATEWAYS_CHANGED_EVENT = "mirally:native-gateways-changed";
 
 export type NativeGatewaysCapability = {
   readonly snapshot: NativeGatewaysSnapshot | null;
@@ -43,7 +43,7 @@ function createNativeGatewaysCapability(): NativeGatewaysCapability | null {
     return null;
   }
   const nativeWindow = window as NativeGatewaysWindow;
-  const handler = webKitHostWindow()?.webkit?.messageHandlers?.openclawGateways;
+  const handler = webKitHostWindow()?.webkit?.messageHandlers?.mirallyGateways;
   if (!handler?.postMessage) {
     return null;
   }
@@ -52,7 +52,7 @@ function createNativeGatewaysCapability(): NativeGatewaysCapability | null {
     type: "select" | "open-window" | "set-primary" | "reconnect" | "reconnect-cancel",
     id: string,
   ) => post({ type, id });
-  let snapshot = snapshotFrom(nativeWindow["__OPENCLAW_NATIVE_GATEWAYS__"]);
+  let snapshot = snapshotFrom(nativeWindow["__MIRALLY_NATIVE_GATEWAYS__"]);
   const listeners = new Set<(snapshot: NativeGatewaysSnapshot) => void>();
   const onChange = (event: Event) => {
     const next = snapshotFrom((event as CustomEvent<unknown>).detail);

@@ -12,7 +12,7 @@ const enCron = {
       filters: "Filters",
       shownOf: "{shown} of {total}",
       emptyTitle: "No automations yet",
-      emptyHint: "Describe what OpenClaw should do and when — it runs on schedule.",
+      emptyHint: "Describe what Mirally should do and when — it runs on schedule.",
       noMatching: "No automations match the current filters.",
       loadMore: "Load more",
       loading: "Loading...",

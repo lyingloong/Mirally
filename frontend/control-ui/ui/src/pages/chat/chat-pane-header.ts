@@ -131,7 +131,7 @@ export abstract class ChatPaneHeader extends ChatPaneDiscussion {
     }
     ${
       split || layout.expanded
-        ? html`<openclaw-tooltip .content=${focusLabel}>
+        ? html`<mirally-tooltip .content=${focusLabel}>
             <button
               class="btn btn--ghost btn--icon chat-icon-btn chat-panel-focus"
               type="button"
@@ -145,12 +145,12 @@ export abstract class ChatPaneHeader extends ChatPaneDiscussion {
             >
               ${layout.expanded ? icons.minimize : icons.maximize}
             </button>
-          </openclaw-tooltip>`
+          </mirally-tooltip>`
         : nothing
     }
     ${
       split && side && swapLabel
-        ? html`<openclaw-tooltip .content=${swapLabel}>
+        ? html`<mirally-tooltip .content=${swapLabel}>
             <button
               class="btn btn--ghost btn--icon chat-icon-btn chat-panel-swap"
               type="button"
@@ -159,7 +159,7 @@ export abstract class ChatPaneHeader extends ChatPaneDiscussion {
             >
               ${icons.arrowLeftRight}
             </button>
-          </openclaw-tooltip>`
+          </mirally-tooltip>`
         : nothing
     }
     ${
@@ -347,7 +347,7 @@ export abstract class ChatPaneHeader extends ChatPaneDiscussion {
     const currentLayout = sidebarLayout ?? this.state?.sidebarLayout;
     const sidePanelOpen = currentLayout?.open === true && !currentLayout.expanded;
     const toggleSidePanel = () => this.setChatSidePanelOpen(!sidePanelOpen, sidebarLayout);
-    const sidePanelAction = html`<openclaw-tooltip
+    const sidePanelAction = html`<mirally-tooltip
       .content=${t(sidePanelOpen ? "chat.sidePanel.minimize" : "chat.sidePanel.label")}
     >
       <button
@@ -359,9 +359,9 @@ export abstract class ChatPaneHeader extends ChatPaneDiscussion {
       >
         ${sidePanelOpen ? icons.panelRightClose : icons.panelRightOpen}
       </button>
-    </openclaw-tooltip>`;
+    </mirally-tooltip>`;
     const browserPanelAction = sessionWorkspace.onToggleBrowser
-      ? html`<openclaw-tooltip .content=${t("browser.toggle")}>
+      ? html`<mirally-tooltip .content=${t("browser.toggle")}>
           <button
             class="btn btn--ghost btn--icon chat-icon-btn chat-browser-panel-toggle"
             type="button"
@@ -370,7 +370,7 @@ export abstract class ChatPaneHeader extends ChatPaneDiscussion {
           >
             ${icons.globe}
           </button>
-        </openclaw-tooltip>`
+        </mirally-tooltip>`
       : nothing;
     const backgroundTasksAction = catalog ? nothing : renderBackgroundTasksToggle(backgroundTasks);
     const sessionRailMode = this.selectedSessionRailMode(this.state?.sessionKey ?? "");
@@ -586,13 +586,13 @@ export abstract class ChatPaneHeader extends ChatPaneDiscussion {
       sessionRailAction: nothing,
       workspaceAction: nothing,
       presence: viewers?.length
-        ? html`<openclaw-viewer-facepile
+        ? html`<mirally-viewer-facepile
             class="chat-pane__presence"
             .staticUsers=${viewers}
             .maxVisible=${4}
             .personActivity=${personActivity}
             variant="session"
-          ></openclaw-viewer-facepile>`
+          ></mirally-viewer-facepile>`
         : nothing,
       faceControl: nothing,
       sharingControl:
@@ -617,7 +617,7 @@ export abstract class ChatPaneHeader extends ChatPaneDiscussion {
       }),
       sessionMenuAction:
         row && this.state
-          ? html`<openclaw-chat-header-session-menu
+          ? html`<mirally-chat-header-session-menu
               .session=${this.headerSessionMenuData(row, pinnable)}
               .worktreePath=${row.execNode || !isNativeLocalGateway() ? null : workspace.root}
               .onboarding=${this.onboarding}
@@ -651,7 +651,7 @@ export abstract class ChatPaneHeader extends ChatPaneDiscussion {
                 window.dispatchEvent(new Event(COMMAND_PALETTE_OPEN_EVENT))}
               .onSettingsChange=${this.state.applySettings}
               .onAction=${(action: HeaderMenuAction) => this.handleHeaderSessionAction(action, row)}
-            ></openclaw-chat-header-session-menu>`
+            ></mirally-chat-header-session-menu>`
           : nothing,
       onboarding: this.onboarding,
       onBeginRename: () => row && this.beginHeaderRename(row),

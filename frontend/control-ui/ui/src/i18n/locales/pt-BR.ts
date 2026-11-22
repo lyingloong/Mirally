@@ -1,1 +1,1 @@
-export { default as pt_BR } from "virtual:openclaw-control-ui-locale/pt-BR";
+export { default as pt_BR } from "virtual:mirally-control-ui-locale/pt-BR";

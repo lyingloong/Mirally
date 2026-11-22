@@ -1,4 +1,4 @@
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { truncateUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import { BoundedSerialQueue } from "../shared/bounded-serial-queue.js";
 
 const VOICE_TRANSCRIPT_MAX_CHARS = 8_000;

@@ -2,7 +2,7 @@
 import {
   normalizeLowercaseStringOrEmpty,
   normalizeOptionalLowercaseString,
-} from "@openclaw/normalization-core/string-coerce";
+} from "@mirally/normalization-core/string-coerce";
 import { removeDirectiveSpan } from "./directive-parsing.js";
 
 const INLINE_SIMPLE_COMMAND_ALIASES = new Map<string, string>([

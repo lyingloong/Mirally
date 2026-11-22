@@ -1,4 +1,4 @@
-import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
+import { normalizeLowercaseStringOrEmpty } from "@mirally/normalization-core/string-coerce";
 // Dedicated sidebar for the full-page settings takeover (see app-host.ts).
 import { html, nothing } from "lit";
 import type { AgentsListResult } from "../api/types.ts";
@@ -296,7 +296,7 @@ function renderSettingsAgentSelector(props: SettingsSidebarProps) {
     description: creatorAgentId ? t("agents.createdBy", { id: creatorAgentId }) : undefined,
   }));
   return html`<div class="settings-sidebar__agent">
-    <openclaw-agent-select
+    <mirally-agent-select
       .options=${options}
       .identityById=${Object.fromEntries(
         props.agentIdentity.entries().map((identity) => [identity.agentId, identity]),
@@ -307,7 +307,7 @@ function renderSettingsAgentSelector(props: SettingsSidebarProps) {
       .disabled=${options.length <= 1}
       .onSelect=${(agentId: string) => props.settingsAgentSelection.set(agentId)}
       @wa-show=${() => void props.agentIdentity.ensure(agents.map((agent) => agent.id))}
-    ></openclaw-agent-select>
+    ></mirally-agent-select>
   </div>`;
 }
 
@@ -339,9 +339,9 @@ function renderEmbeddedSettingsHeader(props: SettingsSidebarProps) {
     }
     ${
       props.connectionStatus === null
-        ? html`<openclaw-settings-save-indicator
+        ? html`<mirally-settings-save-indicator
             .props=${props.saveIndicator}
-          ></openclaw-settings-save-indicator>`
+          ></mirally-settings-save-indicator>`
         : nothing
     }
   </header>`;
@@ -463,17 +463,17 @@ export function renderSettingsSidebar(props: SettingsSidebarProps) {
         }
         ${
           props.connectionStatus === null
-            ? html`<openclaw-settings-save-indicator
+            ? html`<mirally-settings-save-indicator
                 .props=${props.saveIndicator}
-              ></openclaw-settings-save-indicator>`
+              ></mirally-settings-save-indicator>`
             : nothing
         }
-        <openclaw-sidebar-build-chip
+        <mirally-sidebar-build-chip
           .basePath=${props.basePath}
           .gatewayVersion=${props.gatewayVersion || null}
           .variant=${"settings"}
           .onNavigate=${() => props.onNavigate("about")}
-        ></openclaw-sidebar-build-chip>
+        ></mirally-sidebar-build-chip>
       </footer>
     </aside>
   `;

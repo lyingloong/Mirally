@@ -1,11 +1,11 @@
 {
-  "name": "@openclaw/gateway-client",
+  "name": "@mirally/gateway-client",
   "version": "2026.9.6",
-  "description": "Reference WebSocket client for the OpenClaw Gateway protocol",
+  "description": "Reference WebSocket client for the Mirally Gateway protocol",
   "keywords": [
     "client",
     "gateway",
-    "openclaw",
+    "mirally",
     "websocket"
   ],
   "homepage": "https://github.com/openclaw/openclaw#readme",
@@ -65,12 +65,12 @@
     "build": "tsdown src/index.ts src/browser.ts src/readiness.ts src/scope-upgrade.ts src/timeouts.ts src/websocket-data.ts --no-config --platform node --format esm --dts --out-dir dist --clean"
   },
   "dependencies": {
-    "@openclaw/gateway-protocol": "workspace:*",
+    "@mirally/gateway-protocol": "workspace:*",
     "ipaddr.js": "2.5.0",
     "ws": "8.21.3"
   },
   "devDependencies": {
-    "@openclaw/normalization-core": "workspace:*"
+    "@mirally/normalization-core": "workspace:*"
   },
   "engines": {
     "node": ">=22.19.0"
@@ -78,7 +78,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "openclaw": {
+  "mirally": {
     "release": {
       "publishToNpm": true
     }

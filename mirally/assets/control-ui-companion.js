@@ -66,7 +66,7 @@
   const message = row => row.message ?? row;
   const content = row => {
     const m = message(row);
-    if (m.__openclawToolStreamLive) return '';
+    if (m.__mirallyToolStreamLive) return '';
     return typeof m.content === 'string' ? m.content : (m.content ?? [])
       .filter(part => part.type === 'text').map(part => part.text).join('\n');
   };
@@ -74,15 +74,15 @@
     const clean = String(value || '').replace(/^[#*>\s]+/gm, '').replace(/\*\*|__|`/g, '').trim();
     return clean.length > limit ? clean.slice(0, limit) + '…' : clean;
   };
-  const active = () => [...document.querySelectorAll('openclaw-chat-pane.chat-pane-cache__pane--active')]
+  const active = () => [...document.querySelectorAll('mirally-chat-pane.chat-pane-cache__pane--active')]
     .find(candidate => candidate.presented !== false && candidate.state?.handleSendChat);
   const rows = state => state.sessionsResult?.sessions ?? app?.context?.sessions?.state?.result?.sessions ?? [];
   const attachmentsLabel = state => state.chatAttachments?.length ? `${state.chatAttachments.length} 份材料已带上` : 'Mirally · 随时在这里';
   async function ensureReady() {
     if (active()) return active();
     if (preparing) return preparing;
-    const page = document.querySelector('openclaw-new-session-page');
-    const context = document.querySelector('openclaw-app')?.context;
+    const page = document.querySelector('mirally-new-session-page');
+    const context = document.querySelector('mirally-app')?.context;
     const submission = page?.submission, client = context?.gateway.snapshot.client;
     if (!submission || !client || !page.isConnected) return null;
     if (submission.submitting || submission.attachmentDraft.pendingReads) {
@@ -101,7 +101,7 @@
         if (!page.isConnected || context.gateway.snapshot.client !== client) return null;
         retained = submission.callbacks.retainForHandoff?.();
         const handoff = {draft:submission.message,mentions:submission.mentions,attachments:[...submission.attachmentDraft.attachments],send:false};
-        document.querySelector('openclaw-app-shell')?.selectChatSession(result.key,params.agentId);
+        document.querySelector('mirally-app-shell')?.selectChatSession(result.key,params.agentId);
         const deadline = performance.now()+10000;
         let target;
         while (performance.now()<deadline) {
@@ -276,7 +276,7 @@
     const key = target?.state?.sessionKey;
     const current = () => active() === target && target.state.sessionKey === key;
     if (!current()) return;
-    const region = target.querySelector('openclaw-chat-sidebar-region');
+    const region = target.querySelector('mirally-chat-sidebar-region');
     if (region?.callbacks?.openSlot) {
       region.callbacks.openSlot('workspace');
       await target.updateComplete;
@@ -290,7 +290,7 @@
     returnAfterAttention = pane?.state?.sessionKey;
     workspace(() => {
       if (pane?.state?.chatSessionApprovalQueue?.length) {
-        document.querySelector('openclaw-app-shell')?.openApprovals?.();
+        document.querySelector('mirally-app-shell')?.openApprovals?.();
       } else {
         pane?.querySelector('.chat-question-card, .chat-question, .chat-attention')?.scrollIntoView({block:'center'});
       }
@@ -345,7 +345,7 @@
     }));
   }
   function background(state) {
-    const sidebar = document.querySelector('openclaw-app-sidebar');
+    const sidebar = document.querySelector('mirally-app-sidebar');
     const resolver = sidebar?.resolveSessionAttention;
     const loaded = app?.context?.sessions?.state?.result?.sessions ?? [];
     const others = loaded.filter(row => row.key !== state.sessionKey && !row.archived).map(row => ({row,
@@ -415,7 +415,7 @@
   }
   function sync() {
     frame = null;
-    app = document.querySelector('openclaw-app');
+    app = document.querySelector('mirally-app');
     pane = active();
     // Lit can replace its footer during route/session updates. Remount before
     // checking the pane, which is briefly absent during those same updates.
@@ -423,7 +423,7 @@
     const destination = footer || document.body;
     if (entry.parentElement !== destination) destination.prepend(entry);
     entry.hidden = false;
-    const newPage = document.querySelector('openclaw-new-session-page');
+    const newPage = document.querySelector('mirally-new-session-page');
     const ready = !!pane?.state?.handleChatDraftChange || !!(newPage?.submission && newPage.gateway?.connected);
     for (const button of entry.querySelectorAll('[data-entry="dock"],[data-entry="office"]')) button.disabled = !!preparing || !ready;
     window.__mirallyWork?.sync();
@@ -459,7 +459,7 @@
     const finalReply = reply && history.indexOf(reply) > history.indexOf(task);
     const identity = row => {
       const m = message(row);
-      return [m.id, m.__openclaw?.runId, m.sequence, m.timestamp ?? m.ts, content(row)];
+      return [m.id, m.__mirally?.runId, m.sequence, m.timestamp ?? m.ts, content(row)];
     };
     const busy = !loading && (pane.runActivity?.working === true || !!state.chatSending);
     const waiting = loading ? 0 : (pane.questionProjection?.prompts?.length ?? 0) + (state.chatSessionApprovalQueue?.length ?? 0);
@@ -916,7 +916,7 @@
     });
     new ResizeObserver(syncShape).observe(surface);
     window.addEventListener('resize', syncShape);
-    for (const event of ['openclaw-chat-route-ready', 'openclaw-chat-pane-lifecycle-changed', 'openclaw-chat-run-activity-changed']) document.addEventListener(event, schedule);
+    for (const event of ['mirally-chat-route-ready', 'mirally-chat-pane-lifecycle-changed', 'mirally-chat-run-activity-changed']) document.addEventListener(event, schedule);
     const observer = new MutationObserver(records => {
       // The body survives native root replacements and cached pane switches.
       // Ignore our own rendering so updates cannot form a loop.

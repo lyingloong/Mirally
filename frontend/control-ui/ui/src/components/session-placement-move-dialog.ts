@@ -105,7 +105,7 @@ export function showSessionPlacementTargetDialog(
       const action = t(`sessionsView.${options.mode}SessionAction`);
       render(() => {
         return html`
-          <openclaw-modal-dialog label=${title} @modal-cancel=${() => finish(null)}>
+          <mirally-modal-dialog label=${title} @modal-cancel=${() => finish(null)}>
             <form class="exec-approval-card" @submit=${submit}>
               <div class="exec-approval-header">
                 <div class="exec-approval-title">${title}</div>
@@ -271,7 +271,7 @@ export function showSessionPlacementTargetDialog(
                 </button>
               </div>
             </form>
-          </openclaw-modal-dialog>
+          </mirally-modal-dialog>
         `;
       });
     }

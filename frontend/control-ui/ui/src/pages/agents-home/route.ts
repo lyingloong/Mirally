@@ -1,4 +1,4 @@
-import { definePage } from "@openclaw/uirouter";
+import { definePage } from "@mirally/ui-router";
 import { routePageSpec } from "../../app-route-paths.ts";
 
 export const page = definePage({

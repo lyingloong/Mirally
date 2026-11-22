@@ -3,7 +3,7 @@ import {ref} from 'lit/directives/ref.js';
 import {customElement, property, state} from 'lit/decorators.js';
 import {icons} from '../../components/icons.ts';
 import {syncDropdownItemRadio} from '../../components/web-awesome.ts';
-import {OpenClawLightDomElement} from '../../lit/openclaw-element.ts';
+import {MirallyLightDomElement} from '../../lit/mirally-element.ts';
 import {rpcProduct, openProductPage, errorMessage} from './api.ts';
 import './product.css';
 
@@ -12,7 +12,7 @@ type Plan = {available:boolean; active:boolean; pending?:boolean};
 
 /** Composer choices show effective product policy, never an ineffective off switch. */
 @customElement('mirally-chat-options')
-export class MirallyChatOptions extends OpenClawLightDomElement {
+export class MirallyChatOptions extends MirallyLightDomElement {
   @property() sessionKey = '';
   @property({type:Boolean}) presented = true;
   @state() private permission: Permission | null = null;

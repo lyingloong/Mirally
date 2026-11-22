@@ -1,4 +1,4 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import type { ToolsGitHubAuthorizeStartResult } from "../../api/types.ts";
 import type { RuntimeConfigCapability } from "../../lib/config/runtime-config-capability.ts";

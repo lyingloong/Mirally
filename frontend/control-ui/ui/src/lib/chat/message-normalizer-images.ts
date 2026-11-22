@@ -1,6 +1,6 @@
-import { asFiniteNumber } from "@openclaw/normalization-core/number-coercion";
-import { asOptionalRecord, readStringField } from "@openclaw/normalization-core/record-coerce";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import { asFiniteNumber } from "@mirally/normalization-core/number-coercion";
+import { asOptionalRecord, readStringField } from "@mirally/normalization-core/record-coerce";
+import { normalizeOptionalString } from "@mirally/normalization-core/string-coerce";
 import type { MessageContentItem, MessageImageSource } from "./chat-types.ts";
 
 function imageDataUrl(data: unknown, mimeType: unknown): string | undefined {
@@ -63,7 +63,7 @@ export function normalizeImageContentBlock(
       ],
     };
   }
-  if (item.type === "openclaw_pairing_qr") {
+  if (item.type === "mirally_pairing_qr") {
     return {
       type: "image",
       sources: [

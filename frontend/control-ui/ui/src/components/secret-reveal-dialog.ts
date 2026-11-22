@@ -58,7 +58,7 @@ export function showSecretRevealDialog(options: SecretRevealDialogOptions): Prom
     const paint = () => {
       render(() => {
         return html`
-          <openclaw-modal-dialog
+          <mirally-modal-dialog
             label=${options.title}
             description=${options.message}
             @modal-cancel=${handleCancel}
@@ -102,7 +102,7 @@ export function showSecretRevealDialog(options: SecretRevealDialogOptions): Prom
                 </button>
               </div>
             </div>
-          </openclaw-modal-dialog>
+          </mirally-modal-dialog>
         `;
       });
     };

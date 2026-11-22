@@ -1,8 +1,8 @@
 import {
   normalizeLowercaseStringOrEmpty,
   normalizeOptionalString,
-} from "@openclaw/normalization-core/string-coerce";
-import { sliceUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+} from "@mirally/normalization-core/string-coerce";
+import { sliceUtf16Safe } from "@mirally/normalization-core/utf16-slice";
 import { isCronSessionDisplayKey } from "../../../src/shared/session-list-visibility.ts";
 import type { GatewaySessionRow } from "../api/types.ts";
 import { t } from "../i18n/index.ts";
@@ -41,7 +41,7 @@ function shortenOpaqueIdRuns(text: string): string {
   return text.replace(OPAQUE_ID_RUN_RE, (match) => `…${match.slice(-4)}`);
 }
 
-const WORKTREE_BRANCH_PREFIX = "openclaw/";
+const WORKTREE_BRANCH_PREFIX = "mirally/";
 
 // `dm` is the pre-#11881 spelling of `direct`; those keys still persist and the
 // canonical parser still accepts both (src/sessions/session-key-utils.ts).

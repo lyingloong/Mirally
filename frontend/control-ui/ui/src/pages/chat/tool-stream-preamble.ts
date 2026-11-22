@@ -1,4 +1,4 @@
-import { readAssistantStreamSegmentIdentity } from "@openclaw/gateway-client/browser";
+import { readAssistantStreamSegmentIdentity } from "@mirally/gateway-client/browser";
 import { isCompleteAgentPreamble } from "../../../../src/agents/agent-activity-presentation.js";
 import { stripInlineDirectiveTagsForDelivery } from "../../../../src/utils/directive-tags.js";
 import { reconcileChatRunStartup } from "./chat-run-startup.ts";

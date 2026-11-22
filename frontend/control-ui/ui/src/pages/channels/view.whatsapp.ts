@@ -1,5 +1,5 @@
 // Channels page renders WhatsApp status.
-import { formatInternationalPhoneNumberForDisplay } from "@openclaw/normalization-core/phone-presentation";
+import { formatInternationalPhoneNumberForDisplay } from "@mirally/normalization-core/phone-presentation";
 import { html, nothing } from "lit";
 import type { WhatsAppStatus } from "../../api/types.ts";
 import { i18n, t } from "../../i18n/index.ts";

@@ -1,5 +1,7 @@
 # Agent 协作约定
 
+开工前核对分支、工作目录和已有改动，读目标目录的 `AGENTS.md`，再按 [Feature map](docs/reference/feature-map.md) 与 [审查经验库](docs/development/review-experience.md) 定位代码和相关准则。自动开发与队长运行入口见 [开发与协作](docs/development/README.md)。
+
 ## 项目边界
 
 - 产品展示名为 Mirally；Python 包和配置目录统一使用 `mirally`，产品环境变量使用 `MIRALLY_` 前缀。模块职责见 `mirally/ARCHITECTURE.md`。
@@ -7,19 +9,18 @@
 - 产品目标是自有 personal agent 产品框架：长期方向见 [产品方向](docs/product/vision.md)，当前结构、默认宿主与交付边界见 [系统概览](docs/architecture/overview.md)，扩展契约见 [扩展接口与生态兼容](docs/architecture/extensions.md)。用户已授权将 DSH 源码直接纳入 `kernel/dsh/` 作为可侵入修改的内核；Mirally 拥有产品状态、交互规则及能力边界，长期方案不等同于全部功能已实现。
 - 长期产品框架面向覆盖生活与工作的 personal agent，整体考虑活动理解、记忆与个性化、主动联系、陪伴交互和行动等方向，不以单一场景限定架构；以整体体验和结构质量作取舍，允许有依据地调整、延后或舍弃个别目标，不为凑齐功能增加核心复杂度。扩展性是核心设计要求，通过明确接口接入和组合来源、服务、模型、执行与交互等能力；借鉴 DSH 插件思想，接口围绕 Mirally 职责设计。
 - 长期框架应正式兼容 Skill、MCP 和版本化插件接入；保留生态格式与协议，通过明确适配组合。区分 Skill 说明/资源/脚本、MCP 工具/资源/提示模板，以及不同宿主插件的兼容范围，按实际能力与版本验收；设计见 [扩展接口与生态兼容](docs/architecture/extensions.md)。
-- OpenClaw 旧运行链路已退役：不保留启动器、Gateway 集成、旧配置导入/档案浏览或兼容回退；历史实现通过 Git 提交 `2eeb778a` 追溯。当前只维护 Mirally 自有 UI 与同仓 DSH。共享的窗口、伙伴、活动与记忆能力须迁入现行模块；不得以“冻结参考”为由把已弃用的可执行链路留在当前代码中，也不因清理而删除用户本机私有数据或凭据。
-- 重构时评估并验证 Mirally 已有产品成果：开屏动画、品牌与主题、桌宠与伙伴三形态、窗口裁剪及菜单、材料接入、进展/回复/交接、活动与记忆管理等优先复用已有实现与资源。现有交互见[前端](docs/architecture/frontend.md)与[桌面与伙伴](docs/architecture/desktop.md)；有价值的能力应保留或迁移，产品概念和页面可按新设计调整，确需舍弃时记录理由。区分原宿主专有能力、未实现设想和 Mirally 自有功能，不因复用界面引入第二条会话或模型主链。
-- 前端沿用原 Mirally 的整体视觉、布局习惯、组件、动画和桌宠。用户已确认导航、页面内容与操作可按 Mirally 自有产品重新组织，不再保留不匹配的 OpenClaw 后台管理内容；这更新此前“只改后端接缝”的限制，不授权另造一套简化视觉。优先复用已有组件与产品体验，页面以真实 Mirally 能力和状态为依据；须通过实际页面与操作验收，保留草稿、材料、会话与成果归属。
+- 产品界面、启动与构建身份、组件名、内部事件和配置统一使用 Mirally 名称。现行文档从 Mirally 自身的架构、接口和可验证能力写起。外部项目可按具体问题参考实现。复用代码、调用服务或接入协议时，在对应位置准确记录来源、许可证和互操作边界。源码清理不得删除用户本机私有数据或凭据。
+- 重构时评估并验证 Mirally 已有产品成果：开屏动画、品牌与主题、桌宠与伙伴三形态、窗口裁剪及菜单、材料接入、进展/回复/交接、活动与记忆管理等优先复用已有实现与资源。现有交互见[前端](docs/architecture/frontend.md)与[桌面与伙伴](docs/architecture/desktop.md)；有价值的能力应保留或迁移，产品概念和页面可按新设计调整，确需舍弃时记录理由。区分已实现能力和设计设想，界面复用沿用 Mirally 现有会话与模型主链。
+- 前端沿用原 Mirally 的整体视觉、布局习惯、组件、动画和桌宠。用户已确认导航、页面内容与操作可按 Mirally 自有产品重新组织，保持产品现有视觉和交互质量。优先复用已有组件与产品体验，页面以真实 Mirally 能力和状态为依据；须通过实际页面与操作验收，保留草稿、材料、会话与成果归属。
 - 关闭主窗口、隐藏到托盘与明确退出是不同操作：关闭行为可设置，默认有可用托盘时隐藏；托盘单击必须恢复原窗口，明确退出须完成自己连接的产品宿主与后台收尾，包含启动中与复用宿主情形。默认产品页面、首次空状态、重连/失败页、图标及安装身份均使用 Mirally 品牌；源码标识、协议兼容与许可证来源不以盲目替换文本清理。
-- 本阶段不接入 UFO：新默认框架不加载 UFO 执行器、注册相关模型工具或开放任务入口。UFO 子模块与其专用测试依赖已移除；`mirally/runtime/ufo/` 产品适配、`config/mirally/ufo/` 配置与 [UFO 复盘](docs/product/research-2026-10-31-ufo.md) 保留作参考，后续围绕 Mirally 的产品接口借鉴其 Windows 适配，不以接入 UFO 作为框架依赖。原 Mirally 自有桌宠、窗口交互和用户主动截图不受此调整影响；不恢复旧 Activity native plugin 或接入 Galaxy。
-- UFO 产品适配放在 `mirally/runtime/ufo/`，Python 测试放在根目录 `tests/`；子模块源码不再随仓库提供，仓库也不再提供需要 UFO 源码的验证入口，后续 Windows 适配按 Mirally 自有接口设计，设计参考见 [UFO 复盘](docs/product/research-2026-10-31-ufo.md) 与 PN-0085。
+- Windows 桌面能力按 Mirally 自有接口设计，按具体操作验证权限、行为与结果。活动采集及其生命周期统一由 Mirally 自有模块维护。
 - `kernel/dsh/` 是本仓库直接管理的源码，不是只读 vendor 或 submodule；允许直接调整 Agent loop、Session、Host、模型/工具链和 UI，无需为内核修改再次取得授权。保留 [上游基线与改动说明](kernel/dsh/UPSTREAM.md)、许可证和第三方声明；新增内核行为须同步相关调用方、文档和针对性验证。上游插件优先等策略仅作为参考，不能阻止本分支已授权的侵入式设计；产品领域仍保持清晰职责与可扩展接口。
-- 不编辑 `node_modules/` 或未纳入源码管理的上游发行包。当前前端保留的第三方来源、许可证与独立 UI 库标识按实际用途维护，不因弃用旧宿主而盲目改名。UFO 产品 YAML 只维护在 `config/mirally/ufo/`。
+- 不编辑 `node_modules/` 或未纳入源码管理的上游发行包。按实际用途维护前端第三方依赖、来源和许可证。
 
 ## 多人和多 Agent 协作
 
 - `main` 是当前集成基线。并行任务从最新 `origin/main` 建立独立分支与工作目录，完成后向 `main` 提 PR；具体操作及交接见 [协作指南](CONTRIBUTING.md)。用户另有指定时遵从其目标分支。
-- AgentTeams 常驻开发工作流（需求师/工程师/审查师、并发调度、AI 点自动启动、用户合并闸门、配额退避）见 [AgentTeams 工作流](docs/development/agent-teams-workflow.md)。
+- DSH AgentTeams 的编排规则、队长操作与状态归属见 [开发与协作](docs/development/README.md)。共享流程进仓库；团队会话、运行状态、模型路由及产出的内部报告留在本机。工作成员在 GitHub 更新自己的 PR，用户或已获授权的 Codex 负责合并。
 - 工程师实现/修复前、审查师审查前先读 [审查经验库](docs/development/review-experience.md) 中与任务相关的准则；审查师负责持续整理，不把一次性评论直接当准则。
 - 按功能定位改动时先查 [Feature map](docs/reference/feature-map.md)，再核对实际调用链和专题文档。新增/移除功能、迁移主要入口或 owner、改变代表测试时，在同一 PR 更新对应条目；地图是导航，能力状态和验收边界以相关实现及现行文档为准。
 - 开工前核对任务、分支、工作目录和已有改动；不同任务不要同时修改同一 checkout。明确共享接口或高冲突文件的负责人和协调方式，不覆盖、重置或代提交他人的未确认改动。
@@ -59,22 +60,5 @@
 
 - 开发、回放和验收可按任务需要直接读取、复制、打印和分析本地原始数据，包括截图、OCR/UIA、输入、剪贴板、日志和配置凭据，无需脱敏。私有配置不擅自覆盖，凭据与调试数据不提交。
 - 生产默认保护敏感数据；普通问答不触发桌面动作，敏感操作须获确认。默认离线验证，真实桌面或 API 验证须在当前任务授权范围内并说明副作用；GUI 验证顺序运行。
-- 使用根目录 `.venv/Scripts/python.exe`。按改动运行相关测试；修改 UFO 导入或初始化适配时，按现行测试与隔离进程验证可导入/降级路径——真实 UFO 子模块链路测试已随子模块移除。兼容补丁必须限定作用域并在异常时恢复。
+- 使用工作区根目录的 `.venv/Scripts/python.exe`。按改动选择 [验证](docs/reference/validation.md) 中的目标域测试与 CI 子集。
 - 用户可见功能、修复或安装配置变化，适当更新 `CHANGELOG.md` 的 `[Unreleased]` 及相关文档。交接说明改动、验证和未覆盖边界，不把规划或 mock 测试当作已实现能力；适时 commit/push。
-
-产品层测试分两层，按改动选择（仓库根目录 PowerShell）：
-
-```powershell
-# 按改动运行目标域测试，例如渠道或开发工作流状态
-.\.venv\Scripts\python.exe -m unittest tests.test_framework_channels -v
-```
-
-全量套件还包含保留的 UFO 参考适配测试，需先准备只读子模块与可选依赖（默认产品不启用 UFO）。未准备时的整批失败属预期，不要判为本次回归：
-
-```powershell
-git submodule update --init UFO
-.\.venv\Scripts\python.exe -m pip install -r requirements-ufo.txt
-.\.venv\Scripts\python.exe -m unittest discover -s tests -v
-```
-
-PR 门禁以目标域测试加 CI 的离线子集判定，CI 不等同全量 discover；出现整批失败时按 [验证](docs/reference/validation.md) 的分层命令与失败 id 差分归因，不把预期失败记为回归。

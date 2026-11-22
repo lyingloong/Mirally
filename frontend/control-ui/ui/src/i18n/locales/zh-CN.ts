@@ -1,1 +1,1 @@
-export { default as zh_CN } from "virtual:openclaw-control-ui-locale/zh-CN";
+export { default as zh_CN } from "virtual:mirally-control-ui-locale/zh-CN";

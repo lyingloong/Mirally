@@ -1,5 +1,5 @@
-import { isRecord } from "@openclaw/normalization-core/record-coerce";
-import { normalizeOptionalLowercaseString } from "@openclaw/normalization-core/string-coerce";
+import { isRecord } from "@mirally/normalization-core/record-coerce";
+import { normalizeOptionalLowercaseString } from "@mirally/normalization-core/string-coerce";
 
 export type ParsedLogLine = {
   time?: string;

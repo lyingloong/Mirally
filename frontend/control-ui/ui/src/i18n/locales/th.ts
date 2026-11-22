@@ -1,1 +1,1 @@
-export { default as th } from "virtual:openclaw-control-ui-locale/th";
+export { default as th } from "virtual:mirally-control-ui-locale/th";

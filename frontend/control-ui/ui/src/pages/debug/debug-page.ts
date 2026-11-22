@@ -16,7 +16,7 @@ import {
   loadGatewayDiagnostics,
 } from "../../lib/gateway-diagnostics.ts";
 import { GatewayPageController } from "../../lit/gateway-page-controller.ts";
-import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { MirallyLightDomElement } from "../../lit/mirally-element.ts";
 import { PollController } from "../../lit/poll-controller.ts";
 import { SubscriptionsController } from "../../lit/subscriptions-controller.ts";
 import "../../styles/debug-data.css";
@@ -25,7 +25,7 @@ import { renderDebug } from "./view.ts";
 
 const DEBUG_POLL_INTERVAL_MS = 3000;
 
-class DebugPage extends OpenClawLightDomElement {
+class DebugPage extends MirallyLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
@@ -274,6 +274,6 @@ class DebugPage extends OpenClawLightDomElement {
   }
 }
 
-if (!customElements.get("openclaw-debug-page")) {
-  customElements.define("openclaw-debug-page", DebugPage);
+if (!customElements.get("mirally-debug-page")) {
+  customElements.define("mirally-debug-page", DebugPage);
 }

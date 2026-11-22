@@ -314,18 +314,18 @@
   border-left: 1px solid color-mix(in srgb, var(--muted) 20%, transparent);
 }
 
-openclaw-chat-detail-panel,
+mirally-chat-detail-panel,
 .side-panel__panel
   > :is(
     .chat,
     .chat-workspace-rail,
     .chat-tasks-rail,
     .chat-task-detail,
-    openclaw-chat-session-rail,
-    openclaw-session-discussion,
-    openclaw-terminal-panel,
-    openclaw-browser-panel,
-    openclaw-desktop-panel
+    mirally-chat-session-rail,
+    mirally-session-discussion,
+    mirally-terminal-panel,
+    mirally-browser-panel,
+    mirally-desktop-panel
   ) {
   display: flex;
   width: 100%;

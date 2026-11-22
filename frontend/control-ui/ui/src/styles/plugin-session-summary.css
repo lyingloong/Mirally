@@ -41,7 +41,7 @@
 
 .plugin-session-summary__avatar,
 .plugin-session-summary__avatar .chat-author-avatar,
-.plugin-session-summary__avatar openclaw-agent-avatar {
+.plugin-session-summary__avatar mirally-agent-avatar {
   display: inline-flex;
   align-items: center;
   justify-content: center;

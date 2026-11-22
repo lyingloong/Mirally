@@ -1,4 +1,4 @@
-import type { RouteLocation, RouterHistory } from "@openclaw/uirouter";
+import type { RouteLocation, RouterHistory } from "@mirally/ui-router";
 import { pluginSlugCandidate, sameRouteLocation } from "../../app-route-paths.ts";
 import type { ApplicationContext } from "../../app/context.ts";
 import { canCallGatewayMethod } from "../../lib/gateway-methods.ts";
@@ -69,7 +69,7 @@ export async function startModelSetupFirstRunRedirectAfterLocation(params: {
     const defaults = readSessionDefaults(snapshot);
     const selectedAgentId = context.agentSelection.state.selectedId?.trim() || null;
     if (
-      canCallGatewayMethod(snapshot, "openclaw.setup.detect", "operator.admin") &&
+      canCallGatewayMethod(snapshot, "mirally.setup.detect", "operator.admin") &&
       (!selectedAgentId || selectedAgentId === defaults?.defaultAgentId?.trim()) &&
       isStillDefaultLanding()
     ) {
@@ -77,7 +77,7 @@ export async function startModelSetupFirstRunRedirectAfterLocation(params: {
         redirect();
       } else if (defaults?.modelConfigured) {
         try {
-          if (localStorage.getItem("openclaw.modelSetup.pendingActivation.v1")) {
+          if (localStorage.getItem("mirally.modelSetup.pendingActivation.v1")) {
             const ownerRevision = context.gateway.connectionRevision;
             // Crypto stays lazy; only an existing receipt suspends startup.
             void import("./model-setup-page.ts")

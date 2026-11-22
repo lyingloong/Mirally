@@ -2,8 +2,8 @@ import {
   readSystemAgentSessionInvalidatedErrorDetails,
   readSystemAgentInferenceUnavailableErrorDetails,
   type SystemAgentChatParams,
-} from "@openclaw/gateway-protocol";
-import type { SystemAgentPluginReference } from "@openclaw/gateway-protocol/system-agent-context";
+} from "@mirally/gateway-protocol";
+import type { SystemAgentPluginReference } from "@mirally/gateway-protocol/system-agent-context";
 import { inferBasePathFromPathname, routeIdFromPath } from "../../app-route-paths.ts";
 
 export type CustodianSessionVariant = "onboarding" | "new-agent" | "caretaker";

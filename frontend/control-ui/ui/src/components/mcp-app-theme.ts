@@ -1,7 +1,7 @@
 /**
  * Control UI custom properties published to embedded MCP apps, keyed by the
  * specification variable they satisfy. The key set is closed by the MCP Apps
- * specification, so an OpenClaw name can never be added here; the canonical
+ * specification, so an Mirally name can never be added here; the canonical
  * meaning of each key lives in the carapace embed contract.
  *
  * Only keys Control UI can honestly source are listed. The specification lets

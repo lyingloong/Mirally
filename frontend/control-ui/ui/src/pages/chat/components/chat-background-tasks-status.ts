@@ -68,7 +68,7 @@ function renderStatusPreviewRow(task: TaskSummary): TemplateResult {
                 <span>
                   ${
                     active
-                      ? html`<openclaw-elapsed-time .startMs=${timeMs}></openclaw-elapsed-time>`
+                      ? html`<mirally-elapsed-time .startMs=${timeMs}></mirally-elapsed-time>`
                       : formatRelativeTimestamp(timeMs)
                   }
                 </span>`
@@ -142,7 +142,7 @@ export function renderBackgroundTasksStatusRow(
     <div class="chat-tasks-status" id=${backgroundTasks.statusRowId}>
       <span class="chat-tasks-status__dot" aria-hidden="true"></span>
       <span class="sr-only" role="status">${label}</span>
-      <openclaw-tooltip class="chat-tasks-status__preview">
+      <mirally-tooltip class="chat-tasks-status__preview">
         <button
           class="chat-tasks-status__link"
           type="button"
@@ -151,13 +151,13 @@ export function renderBackgroundTasksStatusRow(
           ${label}
         </button>
         ${renderStatusPreview(remainingTasks)}
-      </openclaw-tooltip>
+      </mirally-tooltip>
       ${
         status.startedMs !== null
           ? html`
               <span class="chat-tasks-status__sep" aria-hidden="true">·</span>
               <span class="chat-tasks-status__time" aria-hidden="true">
-                <openclaw-elapsed-time .startMs=${status.startedMs}></openclaw-elapsed-time>
+                <mirally-elapsed-time .startMs=${status.startedMs}></mirally-elapsed-time>
               </span>
             `
           : nothing
