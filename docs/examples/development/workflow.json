@@ -112,8 +112,16 @@
       "concurrency": 1,
       "config": {
         "cwd": "$input.cwd",
-        "provider": "ustc-pool",
-        "model": "deepseek-flash",
+        "models": [
+          {
+            "provider": "ustc-pool",
+            "model": "deepseek-flash"
+          },
+          {
+            "provider": "deepseek-account",
+            "model": "deepseek-flash"
+          }
+        ],
         "outcomes": [
           "proposal",
           "idle"
@@ -201,8 +209,16 @@
       "concurrency": 1,
       "config": {
         "cwd": "$input.cwd",
-        "provider": "ustc-pool",
-        "model": "deepseek-flash",
+        "models": [
+          {
+            "provider": "ustc-pool",
+            "model": "deepseek-flash"
+          },
+          {
+            "provider": "deepseek-account",
+            "model": "deepseek-flash"
+          }
+        ],
         "outcomes": [
           "complete"
         ],
@@ -251,8 +267,16 @@
       "concurrency": 3,
       "config": {
         "cwd": "$input.cwd",
-        "provider": "ustc-pool",
-        "model": "deepseek-flash",
+        "models": [
+          {
+            "provider": "ustc-pool",
+            "model": "deepseek-flash"
+          },
+          {
+            "provider": "deepseek-account",
+            "model": "deepseek-flash"
+          }
+        ],
         "outcomes": [
           "complete"
         ],
@@ -294,8 +318,16 @@
       "concurrency": 3,
       "config": {
         "cwd": "$input.cwd",
-        "provider": "ustc-pool",
-        "model": "deepseek-flash",
+        "models": [
+          {
+            "provider": "ustc-pool",
+            "model": "deepseek-flash"
+          },
+          {
+            "provider": "deepseek-account",
+            "model": "deepseek-flash"
+          }
+        ],
         "outcomes": [
           "pass",
           "revise"
