@@ -8,7 +8,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { git, checkedWorktree, targetReady, checkApproval, ancestor, commitId, clean } from './worktrees.mjs';
 
 const execute = promisify(execFile);
-const PR_FIELDS = 'number,url,state,isDraft,headRefOid,mergeCommit,mergedAt,closed,reviewDecision,body,statusCheckRollup,comments,reviews';
+const PR_FIELDS = 'number,url,state,isDraft,headRefOid,mergeCommit,mergedAt,closed,reviewDecision,body,statusCheckRollup,comments,reviews,labels';
 const STAGES = new Set(['implementing', 'verifying', 'reviewing', 'repairing', 'merge-ready', 'blocked']);
 const MERGE_LABEL = 'workflow:merge-ready';
 const TEMPLATE_PATH = '.github/pull_request_template.md';
