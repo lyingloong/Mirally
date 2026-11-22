@@ -1,7 +1,7 @@
 {
   "apiVersion": 2,
   "name": "Mirally development worker pools",
-  "description": "Mirally adaptation of the dsh-auto-workflow development example: workflow-owned requirements, one retained detached worktree per item, 3+3 review pools, human merge gate and local-only integration into integration/auto-workflow. Start one producer packet explicitly at mine-gate; user arrivals enqueue dispatch.",
+  "description": "Workflow-owned Mirally requirements and one retained worktree per item until verified PR merge. Start one producer packet explicitly at mine-gate; user arrivals enqueue dispatch. Nodes are persistent pools; only individual packets finish.",
   "entry": "dispatch",
   "concurrency": 6,
   "historyLimit": 100,
@@ -116,7 +116,7 @@
           "proposal",
           "idle"
         ],
-        "prompt": "Mine one seed for genuinely useful, varied work. Read the seed JSON at input.dataRef, the requirement queue under input.dataRoot/requirements, recent commits, tests, docs and relevant source in cwd. First generate 3-5 candidate directions, covering correctness/regression, reliability/error handling, performance, UX/accessibility, test gaps/observability, security/data safety and maintainability/tooling. For each candidate state evidence, impact, risk and the smallest verifiable acceptance. Discard duplicates of existing requirements, weak or evidence-free ideas, pure style preferences and anything not independently shippable. Then choose the single highest-value concrete change. Seeds with origin=baseline are discovery directions, not proof: return idle if the repository does not support a concrete proposal. Do not invent another seed or requirement id. Do not edit the repository or business store and do not invoke approval services. Risk is your assessment: low (local reversible), mid (cross-module/uncertain), high (security/destructive/external). Return outcome proposal with output {proposal:{title,description,risk,priority:1..9,tags:[]}}, or outcome idle with output {proposal:null}. The record command derives the same stable requirement id from this seed. No default task deadline is set.\n\nProject adaptation (Mirally): the repository is a Python product (mirally/) with an in-repo DeepSeek Harness kernel (kernel/dsh/), tests (tests/) and docs (docs/). Read AGENTS.md before proposing. Prefer a scoped change with a concrete verification path; avoid proposals that require remote services, credentials, deployment or GUI-only verification that cannot be checked from the worktree."
+        "prompt": "Mine one seed for genuinely useful, varied work in the Mirally repository. Read the seed JSON at input.dataRef, the requirement queue under input.dataRoot/requirements, and the repository in cwd: AGENTS.md, docs/development/README.md, docs/development/review-experience.md, docs/reference/feature-map.md, docs/reference/validation.md, recent commits, tests, docs and relevant source. First generate 3-5 candidate directions covering correctness/regression, reliability/error handling, performance, UX/accessibility, test gaps/observability, security/data safety and maintainability/tooling. For each candidate state evidence, impact, risk and the smallest verifiable acceptance. Discard duplicates of existing requirements, weak or evidence-free ideas, pure style preferences, speculative rewrites, credential/private-config work and anything not independently shippable. Then choose the single highest-value concrete change. Seeds with origin=baseline are discovery directions, not proof: return idle if the repository does not support a concrete proposal. Do not invent another seed or requirement id. Do not edit the repository or business store and do not invoke approval services. Risk is your assessment: low (local reversible), mid (cross-module/uncertain), high (security/destructive/external or product-wide behavior). Return outcome proposal with output {proposal:{title,description,risk,priority:1..9,tags:[]}}, or outcome idle with output {proposal:null}. The record command derives the same stable requirement id from this seed. No default task deadline is set."
       }
     },
     {
@@ -202,7 +202,7 @@
         "outcomes": [
           "complete"
         ],
-        "prompt": "Read input.dataRef, especially current revision and human requirement feedback. Revise this SAME requirement; never create a new id and never edit store files directly. Return output {proposal:{expectedRevision:<current revision>,title,description,risk:low|mid|high,tags:[]}}. Explain intended behavior in description and honor rejection feedback. The command persists revision+1 on the original id and retains its worktree."
+        "prompt": "Read input.dataRef, especially the current revision and human requirement feedback, plus the repository guidance in AGENTS.md, docs/development/README.md and docs/development/review-experience.md. Revise this SAME requirement; never create a new id and never edit store files directly. Return output {proposal:{expectedRevision:<current revision>,title,description,risk:low|mid|high,tags:[]}}. Explain intended behavior and acceptance in description, and honor the rejection feedback. The command persists revision+1 on the original id and retains its worktree."
       }
     },
     {
@@ -250,7 +250,7 @@
         "outcomes": [
           "complete"
         ],
-        "prompt": "Work ONLY in input.cwd (the retained per-requirement Git worktree). Read input.dataRef for the stable requirement, current revision, previous immutable implementation/reviews and human feedback. Implement and run the repository's actual verification. Commit the implementation locally in this worktree so HEAD is clean. Never merge, push, delete worktrees, change base-branch checkout, edit business JSON, spawn agents, or call approval services. Return output {summary:<non-empty string describing concise changes>,verification:<non-empty string containing actual commands and results, NOT an array or object>}. Snapshot command will pin commit/tree and requirement revision; false success will fail downstream. No default task deadline.\n\nProject adaptation (Mirally): read AGENTS.md at the repository root and follow it. This worktree has no .venv: resolve the primary checkout by running `git rev-parse --git-common-dir` and taking its parent directory, then use `<parent>/.venv/Scripts/python.exe`. Run targeted tests for the modules you touch, for example `.venv/Scripts/python.exe -m unittest tests.<module> -v`; the full `-m unittest discover -s tests` suite includes optional UFO reference tests and is not the required gate, so do not treat that wholesale failure as a regression and never weaken or delete tests to pass. For documentation changes run `.venv/Scripts/python.exe tools/check_docs_links.py` and `.venv/Scripts/python.exe tools/check_sources.py`. For user-visible changes update CHANGELOG.md [Unreleased]. Keep the change scoped to the requirement; do not touch the integration checkout, other worktrees, credentials or product data."
+        "prompt": "Work ONLY in input.cwd (the retained per-requirement Git worktree). Read input.dataRef for the stable requirement, current revision, previous immutable implementation/reviews and human feedback. Read AGENTS.md and the relevant docs (docs/development/README.md, docs/development/review-experience.md, docs/reference/feature-map.md, docs/reference/validation.md) before changing code. Follow docs/examples/development/README.md for the shared Python interpreter and validation setup; the worktree may have no .venv or installed Node dependencies. Implement the smallest coherent change, run targeted tests for the affected area, and do not claim checks you did not run. Update CHANGELOG.md [Unreleased] and affected docs for user-visible changes. Commit the implementation locally in this worktree so HEAD is clean. Never merge, push, delete worktrees, change the base-branch checkout, edit business JSON, spawn agents, or call approval services. Return output {summary:<non-empty string describing concise changes>,verification:<non-empty string containing actual commands and results, NOT an array or object>}. Snapshot command will pin commit/tree and requirement revision; false success will fail downstream. No default task deadline."
       }
     },
     {
@@ -292,7 +292,7 @@
           "pass",
           "revise"
         ],
-        "prompt": "You are the ONE reviewer assigned this item from a pool of three. Read input.artifactRef, the requirement JSON at input.dataRef, and pinned commit input.commit. Review ONLY that immutable artifact, run appropriate verification, and do not edit/commit the worktree or store. Return outcome pass or revise with output {decision:<same outcome>,summary:<non-empty string of findings or rationale>,verification:<non-empty string containing actual commands and results, NOT an array or object>,reviewer:<non-empty string reviewer label>}. Never approve merge or invoke external approval services. A valid negative review goes to the SAME engineer worktree/id, not model failover.\n\nProject adaptation (Mirally): read AGENTS.md. Resolve the primary checkout with `git rev-parse --git-common-dir` (parent directory) and use its `.venv/Scripts/python.exe` for targeted verification. Full `discover -s tests` includes optional UFO tests and is not the required gate; do not fail a change solely for that wholesale failure, and do not accept weakened tests. For documentation changes require `tools/check_docs_links.py` and `tools/check_sources.py`; for user-visible changes check CHANGELOG.md [Unreleased]. Apply docs/development/review-experience.md, and docs/standards/ui-guidelines.md for UI changes. Do not edit or commit anything."
+        "prompt": "You are the ONE reviewer assigned this item from a pool of three. Read input.artifactRef, the requirement JSON at input.dataRef, and pinned commit input.commit. Read AGENTS.md, docs/development/review-experience.md and docs/reference/validation.md, then review ONLY that immutable artifact: inspect the full diff, run appropriate verification, check behavior, tests, documentation and CHANGELOG coverage, and look for security, data and UX regressions. Do not edit or commit the worktree or store. Return outcome pass or revise with output {decision:<same outcome>,summary:<non-empty string of actionable findings or rationale>,verification:<non-empty string containing actual commands and results, NOT an array or object>,reviewer:<non-empty string reviewer label>}. Never approve merge or invoke external approval services. A valid negative review goes to the SAME engineer worktree/id, not model failover."
       }
     },
     {
@@ -319,7 +319,7 @@
       "type": "human",
       "title": "Human pending pool",
       "config": {
-        "title": "Approve this exact reviewed artifact for local merge, request changes, or reject (retain worktree)",
+        "title": "Approve this exact reviewed PR for ready/merge, request changes, or reject (retain worktree/PR)",
         "outcomes": [
           "approve",
           "revise",
@@ -375,16 +375,6 @@
       },
       "config": {
         "command": "node docs/examples/development/driver.mjs merge-decision",
-        "json": true
-      }
-    },
-    {
-      "id": "integrate",
-      "type": "command",
-      "title": "Integrate one at a time",
-      "concurrency": 1,
-      "config": {
-        "command": "node docs/examples/development/driver.mjs integrate",
         "json": true
       }
     },
@@ -518,6 +508,102 @@
       }
     },
     {
+      "id": "busy-cleanup",
+      "type": "gate",
+      "config": {
+        "delayMs": 1000
+      }
+    },
+    {
+      "id": "publish-pr",
+      "type": "command",
+      "title": "Push branch and open draft PR",
+      "concurrency": 1,
+      "config": {
+        "command": "node docs/examples/development/driver.mjs publish-pr",
+        "json": true
+      }
+    },
+    {
+      "id": "brief",
+      "type": "command",
+      "title": "Build Human/PR merge brief",
+      "config": {
+        "command": "node docs/examples/development/driver.mjs brief",
+        "json": true
+      }
+    },
+    {
+      "id": "ready-pr",
+      "type": "command",
+      "title": "Mark approved PR ready",
+      "concurrency": 1,
+      "config": {
+        "command": "node docs/examples/development/driver.mjs ready-pr",
+        "json": true
+      }
+    },
+    {
+      "id": "check-pr",
+      "type": "command",
+      "title": "Check own PR merge state",
+      "concurrency": 1,
+      "config": {
+        "command": "node docs/examples/development/driver.mjs check-pr",
+        "json": true
+      }
+    },
+    {
+      "id": "pr-gate",
+      "type": "gate",
+      "title": "Wait for external PR merge",
+      "concurrency": 1,
+      "config": {
+        "delayMs": 30000
+      }
+    },
+    {
+      "id": "busy-publish-pr",
+      "type": "gate",
+      "config": {
+        "delayMs": 1000
+      }
+    },
+    {
+      "id": "busy-ready-pr",
+      "type": "gate",
+      "config": {
+        "delayMs": 1000
+      }
+    },
+    {
+      "id": "busy-check-pr",
+      "type": "gate",
+      "config": {
+        "delayMs": 1000
+      }
+    },
+    {
+      "id": "integration-route",
+      "type": "command",
+      "title": "Choose PR or local integration",
+      "concurrency": 1,
+      "config": {
+        "command": "node docs/examples/development/driver.mjs integration-route",
+        "json": true
+      }
+    },
+    {
+      "id": "integrate",
+      "type": "command",
+      "title": "Local integration fallback",
+      "concurrency": 1,
+      "config": {
+        "command": "node docs/examples/development/driver.mjs integrate",
+        "json": true
+      }
+    },
+    {
       "id": "busy-integrate",
       "type": "gate",
       "config": {
@@ -525,7 +611,61 @@
       }
     },
     {
-      "id": "busy-cleanup",
+      "id": "busy-brief",
+      "type": "gate",
+      "config": {
+        "delayMs": 1000
+      }
+    },
+    {
+      "id": "busy-integration-route",
+      "type": "gate",
+      "config": {
+        "delayMs": 1000
+      }
+    },
+    {
+      "id": "self-merge-human",
+      "type": "human",
+      "title": "Approve workflow self-merge",
+      "config": {
+        "title": "External merge did not happen within the grace period. Approve this exact PR for the workflow to self-merge?",
+        "outcomes": [
+          "approve",
+          "revise",
+          "reject"
+        ]
+      }
+    },
+    {
+      "id": "approve-self",
+      "type": "command",
+      "title": "Record self-merge approval",
+      "config": {
+        "command": "node docs/examples/development/driver.mjs merge-decision",
+        "json": true
+      },
+      "inputs": {
+        "dataRef": "$input.dataRef",
+        "claimId": "$input.claimId",
+        "artifactRef": "$nodes.record-review.output.artifactRef",
+        "decision": "approve",
+        "note": "$prev.note",
+        "actor": "$prev.actor"
+      }
+    },
+    {
+      "id": "self-merge-pr",
+      "type": "command",
+      "title": "Self-merge approved PR",
+      "concurrency": 1,
+      "config": {
+        "command": "node docs/examples/development/driver.mjs self-merge-pr",
+        "json": true
+      }
+    },
+    {
+      "id": "busy-self-merge-pr",
       "type": "gate",
       "config": {
         "delayMs": 1000
@@ -649,11 +789,6 @@
       "on": "complete"
     },
     {
-      "from": "snapshot",
-      "to": "review-input",
-      "on": "complete"
-    },
-    {
       "from": "review-input",
       "to": "reviewer",
       "on": "complete"
@@ -674,11 +809,6 @@
       "on": "revise"
     },
     {
-      "from": "record-review",
-      "to": "merge-human",
-      "on": "pass"
-    },
-    {
       "from": "merge-human",
       "to": "approve-merge",
       "on": "approve"
@@ -694,22 +824,7 @@
       "on": "reject"
     },
     {
-      "from": "approve-merge",
-      "to": "integrate",
-      "on": "approve"
-    },
-    {
       "from": "request-changes",
-      "to": "begin-engineering",
-      "on": "revise"
-    },
-    {
-      "from": "integrate",
-      "to": "cleanup",
-      "on": "merged"
-    },
-    {
-      "from": "integrate",
       "to": "begin-engineering",
       "on": "revise"
     },
@@ -884,6 +999,111 @@
       "on": "complete"
     },
     {
+      "from": "cleanup",
+      "to": "busy-cleanup",
+      "on": "busy"
+    },
+    {
+      "from": "busy-cleanup",
+      "to": "cleanup",
+      "on": "complete"
+    },
+    {
+      "from": "snapshot",
+      "to": "publish-pr",
+      "on": "complete"
+    },
+    {
+      "from": "publish-pr",
+      "to": "review-input",
+      "on": "complete"
+    },
+    {
+      "from": "record-review",
+      "to": "brief",
+      "on": "pass"
+    },
+    {
+      "from": "ready-pr",
+      "to": "check-pr",
+      "on": "complete"
+    },
+    {
+      "from": "check-pr",
+      "to": "cleanup",
+      "on": "merged"
+    },
+    {
+      "from": "check-pr",
+      "to": "pr-gate",
+      "on": "waiting"
+    },
+    {
+      "from": "check-pr",
+      "to": "begin-engineering",
+      "on": "closed"
+    },
+    {
+      "from": "pr-gate",
+      "to": "check-pr",
+      "on": "complete"
+    },
+    {
+      "from": "publish-pr",
+      "to": "busy-publish-pr",
+      "on": "busy"
+    },
+    {
+      "from": "busy-publish-pr",
+      "to": "publish-pr",
+      "on": "complete"
+    },
+    {
+      "from": "ready-pr",
+      "to": "busy-ready-pr",
+      "on": "busy"
+    },
+    {
+      "from": "busy-ready-pr",
+      "to": "ready-pr",
+      "on": "complete"
+    },
+    {
+      "from": "check-pr",
+      "to": "busy-check-pr",
+      "on": "busy"
+    },
+    {
+      "from": "busy-check-pr",
+      "to": "check-pr",
+      "on": "complete"
+    },
+    {
+      "from": "ready-pr",
+      "to": "cleanup",
+      "on": "merged"
+    },
+    {
+      "from": "integration-route",
+      "to": "ready-pr",
+      "on": "pr"
+    },
+    {
+      "from": "publish-pr",
+      "to": "review-input",
+      "on": "skipped"
+    },
+    {
+      "from": "integrate",
+      "to": "cleanup",
+      "on": "merged"
+    },
+    {
+      "from": "integrate",
+      "to": "begin-engineering",
+      "on": "revise"
+    },
+    {
       "from": "integrate",
       "to": "busy-integrate",
       "on": "busy"
@@ -894,14 +1114,79 @@
       "on": "complete"
     },
     {
-      "from": "cleanup",
-      "to": "busy-cleanup",
+      "from": "brief",
+      "to": "busy-brief",
       "on": "busy"
     },
     {
-      "from": "busy-cleanup",
-      "to": "cleanup",
+      "from": "busy-brief",
+      "to": "brief",
       "on": "complete"
+    },
+    {
+      "from": "integration-route",
+      "to": "busy-integration-route",
+      "on": "busy"
+    },
+    {
+      "from": "busy-integration-route",
+      "to": "integration-route",
+      "on": "complete"
+    },
+    {
+      "from": "brief",
+      "to": "integration-route",
+      "on": "complete"
+    },
+    {
+      "from": "approve-merge",
+      "to": "integrate",
+      "on": "approve"
+    },
+    {
+      "from": "check-pr",
+      "to": "self-merge-human",
+      "on": "approval-needed"
+    },
+    {
+      "from": "self-merge-human",
+      "to": "approve-self",
+      "on": "approve"
+    },
+    {
+      "from": "self-merge-human",
+      "to": "request-changes",
+      "on": "revise"
+    },
+    {
+      "from": "self-merge-human",
+      "to": "reject-merge",
+      "on": "reject"
+    },
+    {
+      "from": "approve-self",
+      "to": "self-merge-pr",
+      "on": "approve"
+    },
+    {
+      "from": "self-merge-pr",
+      "to": "cleanup",
+      "on": "merged"
+    },
+    {
+      "from": "self-merge-pr",
+      "to": "busy-self-merge-pr",
+      "on": "busy"
+    },
+    {
+      "from": "busy-self-merge-pr",
+      "to": "self-merge-pr",
+      "on": "complete"
+    },
+    {
+      "from": "integration-route",
+      "to": "merge-human",
+      "on": "local"
     }
   ]
 }

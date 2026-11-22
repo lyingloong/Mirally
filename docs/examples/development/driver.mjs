@@ -4,6 +4,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DevelopmentStore, BusinessBusy, absolute, seedId } from './store.mjs';
 import * as worktrees from './worktrees.mjs';
+import * as pullRequests from './pr.mjs';
 
 export async function stage(name, input) {
   try { return await executeStage(name, input); }
@@ -48,6 +49,14 @@ async function executeStage(name, input) {
     const item = await store.proposeSeed({ seedId: input.seedId, claimId: input.claimId, proposal: input.proposal });
     return item ? result('queued', store.envelope(item)) : result('idle', { dataRef: ref, cwd: store.config.repoRoot, label: 'No proposal; seed retained as idle' });
   }
+  if (name === 'pr-init') {
+    const baseBranch = input.baseBranch ?? 'main';
+    const repoRoot = input.dataRoot
+      ? (await DevelopmentStore.open(absolute(input.dataRoot, 'dataRoot'))).config.repoRoot
+      : absolute(input.repoRoot, 'repoRoot');
+    const initialized = await pullRequests.initPr({ config: { repoRoot, baseBranch } }, { apply: Boolean(input.apply) });
+    return result(initialized.ready ? 'complete' : 'blocked', initialized);
+  }
   const store = await DevelopmentStore.fromRef(input.dataRef);
   const id = path.basename(input.dataRef, '.json'), claimId = input.claimId;
   if (name === 'route') {
@@ -65,6 +74,20 @@ async function executeStage(name, input) {
     const action = name === 'snapshot' ? worktrees.snapshot : worktrees.reconcileSnapshot;
     const saved = await action(store, id, claimId, input);
     return result('complete', store.envelope(saved.item, { artifactRef: saved.artifactRef, artifactRevision: saved.artifactRevision, commit: saved.commit }));
+  }
+  if (name === 'integration-route') {
+    const item = await store.get(id);
+    return result(store.config.integrationMode === 'pull-request' ? 'pr' : 'local', store.envelope(item));
+  }
+  if (name === 'publish-pr' || name === 'ready-pr' || name === 'check-pr' || name === 'self-merge-pr') {
+    const action = name === 'publish-pr' ? pullRequests.publish : name === 'ready-pr' ? pullRequests.ready : name === 'self-merge-pr' ? pullRequests.selfMerge : pullRequests.check;
+    const changed = await action(store, id, claimId);
+    return result(changed.outcome, store.envelope(changed.item, { ...(changed.item.implementation ?? {}), pr: changed.item.pr ?? null, integration: changed.item.integration ?? null }));
+  }
+  if (name === 'brief') {
+    const item = await worktrees.mergeBrief(store, id, claimId);
+    await pullRequests.updateBody(store, item);
+    return result('complete', store.envelope(item, { brief: item.brief ?? null, pr: item.pr ?? null }));
   }
   if (name === 'review-input') {
     const item = await store.mutate(id, claimId, item => {
