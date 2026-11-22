@@ -2,7 +2,7 @@
 
 > 面向队长的小型 CLI：待合并池列表、记录规格路径、一次写入 PR/分支/任务信息。
 >
-> 更新：2026-11-01 · 状态：active
+> 更新：2026-11-23 · 状态：active
 
 ## 为什么单独一个文件
 
@@ -31,12 +31,12 @@
 
 `pending --json` 输出机器可读列表。
 
-登记最新 GitHub PR 的完整提交 SHA。审查通过时用 `review-pass <dev-id> --head-sha <审查通过的完整 SHA>` 核对当前登记值，再生成进度页。新提交或替换 PR 后，按新版本复审并重新记录。
+登记最新 GitHub PR 的完整提交 SHA。审查通过时用 `tools\dev_workflow\agent_workflow.py review-pass <dev-id> --head-sha <审查通过的完整 SHA>` 核对当前登记值，再生成进度页。新提交或替换 PR 后，按新版本复审并重新记录。
 
 ## 边界
 
 - `record --status` 仍走 `agent_workflow.py` 的 transition/并发/配额闸门；不会绕过 start/promote/merge 规则。
-- `merging`、`done`、`blocked`、`awaiting_merge` 是受限状态，必须使用专用命令；`record` 默认拒绝，不能用来绕过合并队首/批准检查。
+- `merging`、`done`、`blocked`、`awaiting_merge` 是受限状态，必须使用 `agent_workflow.py` 的专用命令：`block`、`review-pass`、`merge-approved`、`merge-done`（直接合并的非队首场景用 `merge-reconcile`）。同一条闸门在 `ops.py record` 与被包装的 `agent_workflow.py set-status` 上都生效；`record` 默认拒绝，不能用来绕过合并队首/批准检查。
 - `--force` 只用于明确恢复；正常流程不要使用。
 - `spec-path` 要求文件已存在，且路径可从当前目录访问。
 - 人类可读输出会按控制台编码降级；GBK/ASCII 控制台不会因 emoji/中文标题崩溃。
