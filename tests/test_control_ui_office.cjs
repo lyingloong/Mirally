@@ -128,13 +128,23 @@ test('unknown and absent sections do not fabricate a completion or decision', ()
   assert.deepEqual(office.handoff('## 交接\n### 待确认\n预算尚未获批'), {completed:'',attention:'预算尚未获批',next:''});
 });
 test('quick starts carry the selected task without forcing a handoff or a file', () => {
-  assert.equal(office.workflows.length,10);
+  assert.equal(office.workflows.length,11);
   for(const item of office.workflows) {
     assert.match(office.compose(item.id,'整理这些材料'), /材料/);
     assert.doesNotMatch(office.compose(item.id,'整理这些材料'), /## 交接/);
     assert.match(office.compose(item.id,'整理这些材料'), /直接在对话中呈现/);
   }
   assert.equal(office.compose('unknown','目标'), '');
+});
+test('the article digest quick start keeps sources honest and labels new tools in Chinese', () => {
+  const digest=office.workflows.find(item=>item.id==='digest');
+  assert.ok(digest && digest.kind==='web');
+  assert.match(office.compose('digest','想看备份调度','reply'),/3–5 条/);
+  assert.match(office.compose('digest','想看备份调度','reply'),/搜索不可用或没有结果时如实说明/);
+  assert.match(office.compose('digest','想看备份调度','reply'),/不编造来源/);
+  assert.equal(office.toolLabel('mirally_search_material'),'检索材料原文');
+  assert.equal(office.toolLabel('mirally_article_digest'),'查找近期文章');
+  assert.equal(office.toolLabel('mirally_web_search'),'搜索网页资料');
 });
 test('different work preparations preserve user material, audience and task focus', () => {
   const source='https://example.test/a\nhttps://example.test/b';

@@ -42,6 +42,51 @@ export class ProductMaterials {
       child.stdin.end(JSON.stringify({name, data}));
     });
   }
+  async search({conversation_id, query, material, limit = 8}) {
+    if (typeof conversation_id !== 'string' || !conversation_id) throw new Error('Invalid material search conversation');
+    if (typeof query !== 'string' || !query.trim() || Array.from(query.trim()).length > 512) throw new Error('检索词需为 1–512 字符');
+    if (material !== undefined && (typeof material !== 'string' || !material || Array.from(material).length > 200)) throw new Error('Invalid material name filter');
+    if (!Number.isInteger(limit) || limit < 1 || limit > 20) limit = 8;
+    const needle = query.trim().toLowerCase();
+    const wanted = typeof material === 'string' ? material.trim().toLowerCase() : null;
+    await mkdir(this.directory, {recursive: true});
+    const files = await readdir(this.directory);
+    const hits = []; let scanned = 0; let hasText = false; let truncated = false;
+    const snippet = (text, at) => {
+      const start = Math.max(0, at - 120); const end = Math.min(text.length, at + needle.length + 120);
+      return (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '');
+    };
+    outer: for (const file of files) {
+      if (!file.endsWith('.json')) continue;
+      if (++scanned > 300) { truncated = true; break; }
+      let record; try { record = JSON.parse(await readFile(join(this.directory, file), 'utf8')); } catch { continue; }
+      if (record.conversation_id !== conversation_id || record.kind !== 'file') continue;
+      if (wanted && !String(record.name || '').toLowerCase().includes(wanted)) continue;
+      const extraction = record.extraction || {};
+      const pages = Array.isArray(extraction.pages) && extraction.pages.length
+        ? extraction.pages : (extraction.text ? [{page: null, text: extraction.text, truncated: !!extraction.truncated}] : []);
+      for (const page of pages) {
+        const text = typeof page.text === 'string' ? page.text : '';
+        if (!text) continue;
+        hasText = true;
+        const haystack = text.toLowerCase();
+        let from = 0;
+        for (;;) {
+          const at = haystack.indexOf(needle, from);
+          if (at < 0) break;
+          if (hits.length >= limit) { truncated = true; break outer; }
+          hits.push({material: record.name, material_id: record.id, page: page.page ?? null,
+            page_truncated: page.truncated === true, snippet: snippet(text, at)});
+          from = at + needle.length;
+        }
+      }
+    }
+    const status = hits.length ? 'ready' : hasText ? 'empty' : 'unsupported';
+    const note = status === 'unsupported' ? '当前会话的材料没有可检索的已提取文字；扫描页或尚未解析的格式不能据此回答。'
+      : status === 'empty' ? '没有在已提取的材料文字中找到该检索词；这不代表原文没有相关内容，可换关键词或确认材料是否为扫描页。'
+        : (truncated || hits.some(hit => hit.page_truncated) ? '结果或命中的页面文字有截断，回答时按已给出的片段说明，不声称读完了全文。' : undefined);
+    return {status, hits, truncated, ...(note ? {note} : {})};
+  }
   async content(ids, conversationId) {
     if (!Array.isArray(ids) || ids.length > 12) throw new Error('At most 12 explicit materials can accompany one message');
     const blocks = [];

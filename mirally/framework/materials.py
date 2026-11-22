@@ -59,9 +59,34 @@ def extract(name: str, data: bytes) -> dict:
         reader = PdfReader(io.BytesIO(data))
         if reader.is_encrypted:
             return {"status": "unsupported", "note": "加密 PDF 需先解密。"}
-        text = "\n\n".join((page.extract_text() or "") for page in reader.pages[:100])
-        return {"status": "partial", "text": text[:MAX_TEXT], "truncated": len(text) > MAX_TEXT or len(reader.pages) > 100,
-                "note": "最多前 100 页文字，扫描画面、图表和排版不代表已经读取。"}
+        # Page numbers follow the physical PDF page, starting at 1, so quoted
+        # answers and search hits cite the same page the reader sees.
+        pages: list[dict] = []
+        parts: list[str] = []
+        used = 0
+        budget_reached = False
+        for index, page in enumerate(reader.pages[:100], 1):
+            page_text = (page.extract_text() or "").strip()
+            remaining = MAX_TEXT - used
+            if remaining <= 0:
+                budget_reached = True
+                break
+            page_truncated = len(page_text) > remaining
+            if page_truncated:
+                page_text = page_text[:remaining]
+            used += len(page_text)
+            entry = {"page": index, "text": page_text}
+            if page_truncated:
+                entry["truncated"] = True
+            pages.append(entry)
+            parts.append(f"【第 {index} 页】\n{page_text}")
+            if page_truncated:
+                budget_reached = True
+                break
+        text = "\n\n".join(parts)
+        return {"status": "partial", "text": text, "truncated": budget_reached or len(reader.pages) > 100,
+                "pages": pages,
+                "note": "最多前 100 页文字，正文按物理页码标注【第 N 页】；扫描画面、图表和排版不代表已经读取。"}
     else:
         return {"status": "unsupported", "note": "材料已保存，但此格式尚未自动解析；音视频需要已配置的转写能力，不能当作已听过或看过。"}
     return {"status": "ready", "text": text[:MAX_TEXT], "truncated": len(text) > MAX_TEXT}
