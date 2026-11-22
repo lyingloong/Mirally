@@ -270,7 +270,7 @@
         "models": [
           {
             "provider": "ustc-pool",
-            "model": "deepseek-flash"
+            "model": "qwen3.8-flash-next"
           },
           {
             "provider": "deepseek-account",
@@ -321,7 +321,7 @@
         "models": [
           {
             "provider": "ustc-pool",
-            "model": "deepseek-flash"
+            "model": "glm-5.3-flash"
           },
           {
             "provider": "deepseek-account",
