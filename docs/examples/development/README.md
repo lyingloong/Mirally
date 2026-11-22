@@ -19,7 +19,7 @@
 - **业务数据**：`C:\Users\lazeloong\Code\Mirally-auto-workflow-data-v2`，在仓库外、canonical、已初始化；保存需求队列、种子、不可变产物/review、需求 worktree 和锁。初始化后不可静默更换。
 - **集成方式**：`integrationMode=pull-request`，base `integration/auto-workflow`，remote `origin`，默认 `after-verified-merge` 清理；draft PR 在 review/brief 后标记 ready，外部可随时 merge，宽限期 5 分钟后才请求工作流自合并的 Human 批准。
 - **权限**：command 使用 allowlist `node docs/examples/development/driver.mjs`；HTTP deny。该授权信任整个 driver，不是只读授权，也不是文件系统沙箱。agent 的工具权限由宿主策略管理。
-- **模型**：四个 agent 节点固定 `provider=ustc-pool`、`model=deepseek-flash`。宿主默认路由在 workflow 子 agent 启动时曾返回 `host-default: Cannot read properties of undefined (reading 'id')`；固定路由是当前可用配置，宿主路由变化时同步调整。
+- **模型**：四个 agent 节点按顺序尝试 `ustc-pool/deepseek-flash`、`deepseek-account/deepseek-flash`；宿主默认路由在 workflow 子 agent 启动时会返回 `Cannot read properties of undefined (reading 'id')`，因此不使用 host-default。`ustc-pool` 配额阻塞时自动落到 `deepseek-account`，与 AgentTeams 的退避约定一致。
 
 ### 宿主兼容补丁
 
