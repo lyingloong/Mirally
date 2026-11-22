@@ -116,7 +116,8 @@
         "models": [
           {
             "provider": "ustc-pool",
-            "model": "deepseek-flash"
+            "model": "deepseek-flash",
+            "reasoningEffort": "max"
           }
         ],
         "outcomes": [
@@ -210,7 +211,8 @@
         "models": [
           {
             "provider": "ustc-pool",
-            "model": "deepseek-flash"
+            "model": "deepseek-flash",
+            "reasoningEffort": "max"
           }
         ],
         "outcomes": [
@@ -264,7 +266,8 @@
         "models": [
           {
             "provider": "ustc-pool",
-            "model": "qwen3.8-flash-next"
+            "model": "qwen3.8-flash-next",
+            "reasoningEffort": "max"
           }
         ],
         "outcomes": [
@@ -311,7 +314,8 @@
         "models": [
           {
             "provider": "ustc-pool",
-            "model": "glm-5.3-flash"
+            "model": "glm-5.3-flash",
+            "reasoningEffort": "max"
           }
         ],
         "outcomes": [

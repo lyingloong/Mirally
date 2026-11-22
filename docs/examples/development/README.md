@@ -19,7 +19,7 @@
 - **业务数据**：`C:\Users\lazeloong\Code\Mirally-auto-workflow-data-v4`，在仓库外、canonical、已初始化；保存需求队列、种子轮转、不可变产物/review、需求 worktree 和锁。业务 store 为 `version: 3`，不再接受 v2 dataRoot；初始化后不可静默更换。
 - **集成方式**：`integrationMode=pull-request`，base `integration/auto-workflow`，remote `origin`，默认 `after-verified-merge` 清理；draft PR 在 review/brief 后标记 ready，外部可随时 merge，宽限期 5 分钟后才请求工作流自合并的 Human 批准。
 - **权限**：command 使用 allowlist `node docs/examples/development/driver.mjs`；HTTP deny。该授权信任整个 driver，不是只读授权，也不是文件系统沙箱。agent 的工具权限由宿主策略管理。
-- **模型**：按角色分工，需求 agent（`miner`、`analyst-revise`）用 `ustc-pool/deepseek-flash`，工程 agent（`engineer`）用 `ustc-pool/qwen3.8-flash-next`，审查 agent（`reviewer`）用 `ustc-pool/glm-5.3-flash`。**不使用 `deepseek-account` 兜底**：USTC 统一池所有渠道都不可用时，agent 节点直接失败，运行终止；每 6 小时由会话定时提醒检查，必要时新起 run 恢复。
+- **模型**：按角色分工，需求 agent（`miner`、`analyst-revise`）用 `ustc-pool/deepseek-flash`，工程 agent（`engineer`）用 `ustc-pool/qwen3.8-flash-next`，审查 agent（`reviewer`）用 `ustc-pool/glm-5.3-flash`；所有候选统一 `reasoningEffort: max`。**不使用 `deepseek-account` 兜底**：USTC 统一池所有渠道都不可用时，agent 节点直接失败，运行终止；每 6 小时由会话定时提醒检查，必要时新起 run 恢复。
 
 ### 宿主版本
 
