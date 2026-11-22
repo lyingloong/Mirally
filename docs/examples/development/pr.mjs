@@ -109,8 +109,18 @@ function stripProtocol(body) {
   return String(body ?? '').replace(/^<!-- workflow\r?\n[\s\S]*?\r?\n-->\s*/, '');
 }
 
+// PR bodies are public GitHub text. Keep verification useful but never publish
+// machine-specific absolute paths or credentials copied from local evidence.
+const ABSOLUTE_PATH = /(?:[A-Za-z]:[\\/][^\s`"'()[\]<]+|\\\\[^\s`"'()[\]<]+|(?<![A-Za-z0-9])\/Users\/[^\s`"'()[\]<]+|(?<![A-Za-z0-9])\/home\/[^\s`"'()[\]<]+)/g;
+const CREDENTIAL = /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,})\b/g;
+function publicText(value) {
+  return String(value ?? '')
+    .replace(ABSOLUTE_PATH, '<local-path>')
+    .replace(CREDENTIAL, '<redacted>');
+}
+
 function protocolBody(markdown, state) {
-  return `${renderProtocol(state)}\n\n${stripProtocol(markdown)}`;
+  return `${renderProtocol(state)}\n\n${publicText(stripProtocol(markdown))}`;
 }
 
 function roleHeader(item, role) {
@@ -144,7 +154,7 @@ function validateRoleComments(item, head, comments = [], reviews = []) {
 }
 
 function prTitle(item) {
-  return `${item.id}: ${item.title}`.slice(0, 240);
+  return publicText(`${item.id}: ${item.title}`).slice(0, 240);
 }
 
 function basicBody(item) {

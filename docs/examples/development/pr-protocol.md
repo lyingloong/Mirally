@@ -46,6 +46,17 @@ ci=pass
 
 评论不是状态。head 变化时，状态立即失效，回到 `reviewing` 并移除 merge-ready 标签。
 
+## 2.1 公开内容
+
+PR body、review 和评论都是公开的 GitHub 内容。除代码本身的仓库相对路径外，不写入：
+
+- 绝对本地路径（`C:\...`、`/Users/...`、`/home/...`、UNC 路径）；
+- 用户名、机器名、登录身份或私有目录；
+- 凭据、token、API key、Cookie；
+- `dataRoot`、worktree、`.venv` 等机器特定环境路径。
+
+验证证据写仓库相对路径、命令和结果；解释器写“系统 Python 3.14”这类通用名称。`pr.mjs` 会对已知路径/凭据模式做兜底脱敏，但 author 和 reviewer 仍必须主动检查；reviewer 发现公开内容泄漏时应给出 `revise`，不能只因为测试通过就 pass。
+
 ## 3. 顶层评论
 
 顶层评论只允许四类，且必须带角色头：

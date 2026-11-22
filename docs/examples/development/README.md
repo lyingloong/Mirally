@@ -74,6 +74,10 @@ node docs/examples/development/driver.mjs rearm-seed
 - 仓库仍允许 squash/rebase；合并必须用 **merge commit**，否则 `check-pr` 会明确报错而不是放宽绑定。
 - 若要加分支保护，把 CI 的 PR 触发扩到 `integration/auto-workflow`，或把 base 切回 `main`。
 
+### 公开内容
+
+PR body、review 和评论都是公开的 GitHub 内容；不写绝对本地路径、用户名、`dataRoot`/worktree 路径、`.venv` 等机器特定信息或凭据。`pr.mjs` 会对已知的绝对路径和凭据模式做兜底脱敏，但 engineer 仍应使用仓库相对路径和通用解释器名称，reviewer 发现泄漏必须给 `revise`。此规则同样适用于 brief 和验证证据。
+
 ## 边界
 
 - 工作流 push `auto/req-*` 分支、创建/更新自己的 draft PR；外部人或 Codex 负责 merge。只有宽限期后未 merge 且 Human 明确批准时，才由工作流用 merge commit 自合并自己的 PR。
