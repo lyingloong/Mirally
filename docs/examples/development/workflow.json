@@ -116,10 +116,6 @@
           {
             "provider": "ustc-pool",
             "model": "deepseek-flash"
-          },
-          {
-            "provider": "deepseek-account",
-            "model": "deepseek-flash"
           }
         ],
         "outcomes": [
@@ -213,10 +209,6 @@
           {
             "provider": "ustc-pool",
             "model": "deepseek-flash"
-          },
-          {
-            "provider": "deepseek-account",
-            "model": "deepseek-flash"
           }
         ],
         "outcomes": [
@@ -271,10 +263,6 @@
           {
             "provider": "ustc-pool",
             "model": "qwen3.8-flash-next"
-          },
-          {
-            "provider": "deepseek-account",
-            "model": "deepseek-flash"
           }
         ],
         "outcomes": [
@@ -322,10 +310,6 @@
           {
             "provider": "ustc-pool",
             "model": "glm-5.3-flash"
-          },
-          {
-            "provider": "deepseek-account",
-            "model": "deepseek-flash"
           }
         ],
         "outcomes": [
