@@ -1,6 +1,6 @@
 # Mirally 自动开发工作流（dsh-auto-workflow）
 
-> 更新：2026-11-22，Asia/Shanghai。状态：现行（本机常驻开发配置）。来源：[dsh-auto-workflow](https://github.com/lyingloong/dsh-auto-workflow) v1.1.0 主示例（MIT）。本目录保留上游的 driver/store/worktrees/pr 与 `workflow.json`，只补充 Mirally 的提示词、解释器和验证约定。[流程与保证](https://github.com/lyingloong/dsh-auto-workflow/blob/main/docs/workflow-summary.md) 以上游为准。
+> 更新：2026-11-23，Asia/Shanghai。状态：现行（本机常驻开发配置）。来源：[dsh-auto-workflow](https://github.com/lyingloong/dsh-auto-workflow) v1.2.0 主示例（MIT）。本目录保留上游的 driver/store/worktrees/pr 与 `workflow.json`，只补充 Mirally 的提示词、解释器和验证约定。[流程与保证](https://github.com/lyingloong/dsh-auto-workflow/blob/main/docs/workflow-summary.md) 以上游为准。
 
 ## 组件
 
@@ -16,41 +16,43 @@
 ## 本仓库配置
 
 - **集成 checkout**：`C:\Users\lazeloong\Code\Mirally-auto-workflow`，分支 `integration/auto-workflow`，从最新 `origin/main` 合并后建立。运行期间该 checkout 必须保持干净、停在该分支且没有进行中的 merge；不要与主 checkout 或其他 Agent 同时修改它。
-- **业务数据**：`C:\Users\lazeloong\Code\Mirally-auto-workflow-data-v3`，在仓库外、canonical、已初始化；保存需求队列、种子、不可变产物/review、需求 worktree 和锁。初始化后不可静默更换。
+- **业务数据**：`C:\Users\lazeloong\Code\Mirally-auto-workflow-data-v4`，在仓库外、canonical、已初始化；保存需求队列、种子轮转、不可变产物/review、需求 worktree 和锁。业务 store 为 `version: 3`，不再接受 v2 dataRoot；初始化后不可静默更换。
 - **集成方式**：`integrationMode=pull-request`，base `integration/auto-workflow`，remote `origin`，默认 `after-verified-merge` 清理；draft PR 在 review/brief 后标记 ready，外部可随时 merge，宽限期 5 分钟后才请求工作流自合并的 Human 批准。
 - **权限**：command 使用 allowlist `node docs/examples/development/driver.mjs`；HTTP deny。该授权信任整个 driver，不是只读授权，也不是文件系统沙箱。agent 的工具权限由宿主策略管理。
-- **模型**：按角色分工，需求 agent（`miner`、`analyst-revise`）用 `ustc-pool/deepseek-flash`，工程 agent（`engineer`）用 `ustc-pool/qwen3.8-flash-next`，审查 agent（`reviewer`）用 `ustc-pool/glm-5.3-flash`。**不使用 `deepseek-account` 兜底**：USTC 统一池所有渠道都不可用时，agent 节点直接失败，运行终止；每 6 小时由会话定时提醒检查，必要时新起 run 恢复。宿主默认路由在 workflow 子 agent 启动时会返回 `Cannot read properties of undefined (reading 'id')`，因此不使用 host-default。
+- **模型**：按角色分工，需求 agent（`miner`、`analyst-revise`）用 `ustc-pool/deepseek-flash`，工程 agent（`engineer`）用 `ustc-pool/qwen3.8-flash-next`，审查 agent（`reviewer`）用 `ustc-pool/glm-5.3-flash`。**不使用 `deepseek-account` 兜底**：USTC 统一池所有渠道都不可用时，agent 节点直接失败，运行终止；每 6 小时由会话定时提醒检查，必要时新起 run 恢复。
 
-### 宿主兼容补丁
+### 宿主版本
 
-本机安装的 DSH 使用扁平的 `ctx.subagents.startActivation` spec（`parent`、`prompt`、`cwd`、`agentOptions` 在顶层），而 dsh-auto-workflow 1.1.0 源码仍用 `request` 包裹。本机 `.local-deployments/1.1.0/src/executors.mjs` 已应用下面的改动；重新部署插件时必须重新应用，否则 agent 节点会以 `Cannot read properties of undefined (reading 'id')` 失败：
-
-```diff
--              request: {
--                prompt: [{ type: 'text', text: prompt }],
--                parent: exec.agent,
--                cwd: agentCwd,
--                ...(options ? { agentOptions: options } : {}),
--              },
-+              prompt: [{ type: 'text', text: prompt }],
-+              parent: exec.agent,
-+              cwd: agentCwd,
-+              ...(options ? { agentOptions: options } : {}),
-```
-
-这是安装包与插件源码的 API 差异，不是工作流图的配置问题。
+本机插件固定为 `1.2.0` 本地部署（`C:\Users\lazeloong\Code\agent-team-workflow\.local-deployments\1.2.0`），要求 DSH `>=0.2.2-rc.2`。v1.2.0 已按宿主顶层的 `SubagentActivationSpec` 启动 agent（`parent`、`prompt`、`cwd`、`agentOptions` 在顶层），不再需要 v1.1.0 的本地兼容补丁。重新部署时保留当前 profile 的 link 指向，或按 release 说明重新安装 `1.2.0`。
 
 ## 启动与操作
 
 1. 在持有本 checkout 的 DSH 会话中调用 `auto_workflow_define` 提交 `workflow.json` 与本机批准的 permissions。
-2. `auto_workflow_start` 绑定集成 checkout 的绝对 `cwd` 和 `{ "dataRoot": "C:\\Users\\lazeloong\\Code\\Mirally-auto-workflow-data-v3" }`，再调用 `auto_workflow_run`。
-3. 向 `mine-gate` **只 enqueue 一次** producer；它每轮经 60 秒 gate、backlog 水位检查、seed claim、detached miner、队列 dispatch 后回到 gate。backlog 深于 3 时只 dispatch 已有队列。
+2. `auto_workflow_start` 绑定集成 checkout 的绝对 `cwd` 和 `{ "dataRoot": "C:\\Users\\lazeloong\\Code\\Mirally-auto-workflow-data-v4" }`，再调用 `auto_workflow_run`。
+3. 向 `mine-gate` **只 enqueue 一次** producer；它每轮经 60 秒 gate、backlog 水位检查、seed claim、detached miner、队列 dispatch 后回到 gate。`maxMiningSeeds`（默认 3）限制在挖 seed 数，backlog 与在途 miner 共同决定本轮是否继续采矿；seed 空闲后会回到轮转，而不是永久消耗。
 4. 用户需求用 `driver requirement` 写入；需要立即准入时再 enqueue 一次 `dispatch`。不要重复启动 producer。
 5. 人工闸门：挖掘出的 mid/high 风险需求进入 `requirement-human`；外部未在宽限期 merge 时进入 `self-merge-human`。用看板或 `auto_workflow_decide` 决定。
 
 ```powershell
-$env:DSH_WORKFLOW_INPUT = '{"dataRoot":"C:/Users/lazeloong/Code/Mirally-auto-workflow-data-v3","requirement":{"id":"req-example","source":"user","title":"具体改动","description":"期望行为与验收方式。","risk":"high","tags":["user"]}}'
+$env:DSH_WORKFLOW_INPUT = '{"dataRoot":"C:/Users/lazeloong/Code/Mirally-auto-workflow-data-v4","requirement":{"id":"req-example","source":"user","title":"具体改动","description":"期望行为与验收方式。","risk":"high","tags":["user"]}}'
 node docs/examples/development/driver.mjs requirement
+```
+
+seed 恢复/轮转（`staleClaimMs` 默认 1800000，即 30 分钟；运行时不自动回收）：
+
+```powershell
+# 查看 seed 状态与过期 claim
+$env:DSH_WORKFLOW_INPUT = '{"dataRoot":"C:/Users/lazeloong/Code/Mirally-auto-workflow-data-v4"}'
+node docs/examples/development/driver.mjs status
+
+# 回收无主/过期的 mining claim（先加 dryRun:true 预览）
+$env:DSH_WORKFLOW_INPUT = '{"dataRoot":"C:/Users/lazeloong/Code/Mirally-auto-workflow-data-v4","dryRun":true}'
+node docs/examples/development/driver.mjs recover-seeds
+
+# 重新入队或退休一个方向
+$env:DSH_WORKFLOW_INPUT = '{"dataRoot":"C:/Users/lazeloong/Code/Mirally-auto-workflow-data-v4","seedId":"seed-baseline-docs"}'
+node docs/examples/development/driver.mjs rearm-seed
+# node docs/examples/development/driver.mjs retire-seed
 ```
 
 ## 验证适配
@@ -65,17 +67,17 @@ node docs/examples/development/driver.mjs requirement
 
 ## PR 契约现状
 
-`pr-init` 已创建 `workflow:merge-ready` 标签。以下检查在本仓库当前设置下不通过，工作流因此依赖自身 gate 与人工合并，而不是 GitHub 分支保护：
+`pr-init` 以 `manualGate:true` 运行（仓库不设 branch protection）：
 
-- `integration/auto-workflow` 未设置 branch protection、required conversation resolution 或 required checks；仓库 CI 只在 PR 到 `main` 时触发，因此到集成分支的 PR 没有 GitHub 检查。
-- 仓库允许 squash/rebase；本工作流要求 **merge commit**。合并这些 PR 时必须使用“Create a merge commit”，否则 `check-pr` 会明确报错而不是放宽绑定。
-- 现有 `.github/pull_request_template.md` 没有 workflow 状态块；工作流创建的 PR 由 `pr.mjs` 生成正文，未改动现有模板。
-
-若这条链路成为主开发路径，建议在集成分支启用分支保护并把 CI 的 PR 触发扩展到该分支，或在此目录的设置提交进入 `main` 后把 base 切换为 `main`。
+- 硬性：`gh` 认证、repo 访问、允许 merge commit、`workflow:merge-ready` 标签、PR template 的 workflow 状态块。已补齐 label 和 `.github/pull_request_template.md` 状态块。
+- 警告：`integration/auto-workflow` 没有 branch protection / required conversation resolution / required checks；仓库 CI 只在 PR 到 `main` 时触发，所以到集成分支的 PR 没有 GitHub 检查。工作流依赖自身 gate + 人工合并。
+- 仓库仍允许 squash/rebase；合并必须用 **merge commit**，否则 `check-pr` 会明确报错而不是放宽绑定。
+- 若要加分支保护，把 CI 的 PR 触发扩到 `integration/auto-workflow`，或把 base 切回 `main`。
 
 ## 边界
 
 - 工作流 push `auto/req-*` 分支、创建/更新自己的 draft PR；外部人或 Codex 负责 merge。只有宽限期后未 merge 且 Human 明确批准时，才由工作流用 merge commit 自合并自己的 PR。
 - 不替其他 PR 背书、不绕过 branch protection、不部署、不修改宿主凭据和私有配置。
-- 中断或失败执行不自动重放；先检查业务 store、worktree、分支和 PR，再显式续接或新建 run。snapshot 中断可用 `reconcile-snapshot`，其余不确定副作用须人工对账。
+- 中断或失败执行不自动重放；先检查业务 store、worktree、分支和 PR，再显式续接或新建 run。snapshot 中断可用 `reconcile-snapshot`，seed 卡在 `mining` 可用 `recover-seeds` 回收，其余不确定副作用须人工对账。
+- 业务 store 为 `version: 3`；v1/v2 的旧 dataRoot（`Mirally-auto-workflow-data*`）不迁移，保留作证据，新工作使用 v4。
 - `after-verified-merge` 在验证合并后删除 worktree 和本地需求分支；提交、不可变 artifact/review、PR 引用和清理记录保留。

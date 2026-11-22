@@ -1,3 +1,13 @@
+<!-- workflow
+task=
+head=
+base=
+stage=implementing
+next=
+order=
+ci=pending
+-->
+
 <!-- PR 默认合并到 main；存在明确的集成分支时，请核对目标分支。 -->
 
 ## 用户原始需求（仅用户点）
