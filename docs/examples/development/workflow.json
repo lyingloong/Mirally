@@ -1,7 +1,7 @@
 {
   "apiVersion": 2,
-  "name": "Mirally development worker pools",
-  "description": "Workflow-owned Mirally requirements and one retained worktree per item until verified PR merge. Start one producer packet explicitly at mine-gate; user arrivals enqueue dispatch. Nodes are persistent pools; only individual packets finish.",
+  "name": "Development worker pools",
+  "description": "Workflow-owned requirements and one detached worktree per item until verified merge. Start one producer packet explicitly at mine-gate; user arrivals enqueue dispatch. Nodes are persistent pools; only individual packets finish.",
   "entry": "dispatch",
   "concurrency": 6,
   "historyLimit": 100,
@@ -28,6 +28,76 @@
         "items": "$prev.items",
         "target": "route",
         "detached": true
+      }
+    },
+    {
+      "id": "intake-record",
+      "type": "command",
+      "title": "Record raw intake",
+      "concurrency": 1,
+      "config": {
+        "command": "node docs/examples/development/driver.mjs intake-record",
+        "json": true
+      }
+    },
+    {
+      "id": "busy-intake-record",
+      "type": "gate",
+      "config": {
+        "delayMs": 1000
+      }
+    },
+    {
+      "id": "intake-plan",
+      "type": "agent",
+      "title": "Plan intake",
+      "concurrency": 1,
+      "inputs": {
+        "dataRef": "$nodes.intake-record.output.dataRef",
+        "claimId": "$nodes.intake-record.output.claimId",
+        "dataRoot": "$nodes.intake-record.output.dataRoot",
+        "cwd": "$nodes.intake-record.output.cwd",
+        "text": "$nodes.intake-record.output.text"
+      },
+      "config": {
+        "cwd": ".cwd",
+        "reasoningEffort": "max",
+        "outcomes": [
+          "planned",
+          "unclear"
+        ],
+        "prompt": "Plan a broad user request into one concrete requirement and optional discovery directions. Read the raw request at input.text, the requirement queue under input.dataRoot/requirements, existing seeds, recent commits, tests, docs and relevant source in cwd. Decide whether the request is already concrete: if so, produce only the single requirement that should be implemented first. If it is broad, produce that same first concrete requirement plus 0-3 follow-up seeds that name genuinely separate work visible after the first delivery; each seed needs a title, concrete evidence locations and an acceptance direction. Deduplicate against existing requirements, seeds, branches and pull requests (when gh is available); skip anything already covered. Never start, claim or mint requirements from these seeds; they enter the normal rotation. Do not edit the repository or business store and do not invoke approval services. Return outcome planned with output {requirement:{title,description,risk:low|mid|high,tags:[]},seeds:[{title,evidence,tags:[],category}],reason}, or outcome unclear with output {reason}. Keep the requirement description factual and testable.\n\nMirally context: read AGENTS.md, docs/development/README.md, docs/development/review-experience.md, docs/reference/feature-map.md and docs/reference/validation.md in cwd. Derive at most three seed directions, each with concrete evidence; use repo-relative paths and never put absolute local paths, usernames, credentials, dataRoot/worktree paths or machine-specific environment details into public requirement or issue text.",
+        "models": [
+          {
+            "provider": "ustc-pool",
+            "model": "deepseek-flash",
+            "reasoningEffort": "max"
+          }
+        ]
+      }
+    },
+    {
+      "id": "intake-apply",
+      "type": "command",
+      "title": "Persist intake plan",
+      "concurrency": 1,
+      "inputs": {
+        "dataRef": "$nodes.intake-record.output.dataRef",
+        "claimId": "$nodes.intake-record.output.claimId",
+        "requirement": "$prev.requirement",
+        "seeds": "$prev.seeds",
+        "reason": "$prev.reason"
+      },
+      "config": {
+        "command": "node docs/examples/development/driver.mjs intake-apply",
+        "json": true
+      }
+    },
+    {
+      "id": "busy-intake-apply",
+      "type": "gate",
+      "config": {
+        "delayMs": 1000
       }
     },
     {
@@ -113,18 +183,18 @@
       "concurrency": 1,
       "config": {
         "cwd": "$input.cwd",
+        "outcomes": [
+          "proposal",
+          "idle"
+        ],
+        "prompt": "Mine one seed for genuinely useful, varied work. Read the seed JSON at input.dataRef, the requirement queue under input.dataRoot/requirements, existing branches and pull requests (when gh is available), recent commits, tests, docs and relevant source in cwd. First generate 3-5 candidate directions, covering correctness/regression, reliability/error handling, performance, UX/accessibility, test gaps/observability, security/data safety and maintainability/tooling. For each candidate state evidence, impact, risk and the smallest verifiable acceptance. Discard duplicates of existing requirements, work already proposed or merged in a branch or PR, weak or evidence-free ideas, pure style preferences and anything not independently shippable. Then choose the single highest-value concrete change. Seeds with origin=baseline are discovery directions, not proof: when the direction is already covered or the repository does not support a concrete proposal, return idle with a short reason instead of inventing work. Do not invent another seed or requirement id. Do not edit the repository or business store and do not invoke approval services. Risk is your assessment: low (local reversible), mid (cross-module/uncertain), high (security/destructive/external). Return outcome proposal with output {proposal:{title,description,risk,priority:1..9,tags:[]}}, or outcome idle with output {proposal:null,reason:why this direction has no new work}. The record command derives the stable requirement id from this seed (a repeat after the previous requirement settled gets a suffixed id); an idle seed returns to the seed rotation and is retried after the other directions. No default task deadline is set.\n\nMirally context: read AGENTS.md and the relevant docs (docs/development/README.md, docs/development/review-experience.md, docs/reference/feature-map.md, docs/reference/validation.md) in cwd. Use repo-relative paths and never put absolute local paths, usernames, credentials, dataRoot/worktree paths or machine-specific environment details into proposal text.",
         "models": [
           {
             "provider": "ustc-pool",
             "model": "deepseek-flash",
             "reasoningEffort": "max"
           }
-        ],
-        "outcomes": [
-          "proposal",
-          "idle"
-        ],
-        "prompt": "Mine one seed for genuinely useful, varied work in the Mirally repository. Read the seed JSON at input.dataRef, the requirement queue under input.dataRoot/requirements, existing branches and pull requests (when gh is available), recent commits, tests, docs and relevant source in cwd: AGENTS.md, docs/development/README.md, docs/development/review-experience.md, docs/reference/feature-map.md, docs/reference/validation.md. First generate 3-5 candidate directions covering correctness/regression, reliability/error handling, performance, UX/accessibility, test gaps/observability, security/data safety and maintainability/tooling. For each candidate state evidence, impact, risk and the smallest verifiable acceptance. Discard duplicates of existing requirements, work already proposed or merged in a branch or PR, weak or evidence-free ideas, pure style preferences, speculative rewrites, credential/private-config work and anything not independently shippable. Then choose the single highest-value concrete change. Seeds with origin=baseline are discovery directions, not proof: when the direction is already covered or the repository does not support a concrete proposal, return idle with a short reason instead of inventing work. Do not invent another seed or requirement id. Do not edit the repository or business store and do not invoke approval services. Risk is your assessment: low (local reversible), mid (cross-module/uncertain), high (security/destructive/external or product-wide behavior). Return outcome proposal with output {proposal:{title,description,risk,priority:1..9,tags:[]}}, or outcome idle with output {proposal:null,reason:why this direction has no new work}. The record command derives the stable requirement id from this seed (a repeat after the previous requirement settled gets a suffixed id); an idle seed returns to the seed rotation and is retried after the other directions. No default task deadline is set. Use only repo-relative paths or stable identifiers in proposal and evidence text; never include absolute local paths, usernames, credentials, dataRoot/worktree paths or machine-specific environment details."
+        ]
       }
     },
     {
@@ -155,49 +225,45 @@
       }
     },
     {
-      "id": "requirement-human",
-      "type": "human",
-      "title": "Requirement pending",
-      "config": {
-        "title": "Approve mid/high risk requirement or reject with feedback",
-        "outcomes": [
-          "approve",
-          "reject"
-        ]
-      }
-    },
-    {
-      "id": "approve-requirement",
+      "id": "publish-requirement-issue",
       "type": "command",
-      "title": "Record approval",
-      "inputs": {
-        "dataRef": "$input.dataRef",
-        "claimId": "$input.claimId",
-        "expectedRevision": "$nodes.route.output.revision",
-        "decision": "approve",
-        "note": "$prev.note",
-        "actor": "$prev.actor"
-      },
+      "title": "Publish requirement review issue",
+      "concurrency": 1,
       "config": {
-        "command": "node docs/examples/development/driver.mjs requirement-decision",
+        "command": "node docs/examples/development/driver.mjs publish-requirement-issue",
         "json": true
       }
     },
     {
-      "id": "reject-requirement",
-      "type": "command",
-      "title": "Record feedback",
-      "inputs": {
-        "dataRef": "$input.dataRef",
-        "claimId": "$input.claimId",
-        "expectedRevision": "$nodes.route.output.revision",
-        "decision": "reject",
-        "note": "$prev.note",
-        "actor": "$prev.actor"
-      },
+      "id": "busy-publish-requirement-issue",
+      "type": "gate",
       "config": {
-        "command": "node docs/examples/development/driver.mjs requirement-decision",
+        "delayMs": 1000
+      }
+    },
+    {
+      "id": "check-requirement-issue",
+      "type": "command",
+      "title": "Read requirement decision",
+      "concurrency": 1,
+      "config": {
+        "command": "node docs/examples/development/driver.mjs check-requirement-issue",
         "json": true
+      }
+    },
+    {
+      "id": "busy-check-requirement-issue",
+      "type": "gate",
+      "config": {
+        "delayMs": 1000
+      }
+    },
+    {
+      "id": "requirement-gate",
+      "type": "gate",
+      "title": "Poll requirement review issue",
+      "config": {
+        "delayMs": 1800000
       }
     },
     {
@@ -208,17 +274,17 @@
       "concurrency": 1,
       "config": {
         "cwd": "$input.cwd",
+        "outcomes": [
+          "complete"
+        ],
+        "prompt": "Read input.dataRef, especially current revision and human requirement feedback. Revise this SAME requirement; never create a new id and never edit store files directly. Return output {proposal:{expectedRevision:<current revision>,title,description,risk:low|mid|high,tags:[]}}. Explain intended behavior in description and honor rejection feedback. The command persists revision+1 on the original id and retains its worktree.\n\nMirally context: honor human feedback and the repository guidance in AGENTS.md and docs/development/. Use repo-relative paths and never put absolute local paths, usernames, credentials or machine-specific environment details into public text.",
         "models": [
           {
             "provider": "ustc-pool",
             "model": "deepseek-flash",
             "reasoningEffort": "max"
           }
-        ],
-        "outcomes": [
-          "complete"
-        ],
-        "prompt": "Read input.dataRef, especially the current revision and human requirement feedback, plus the repository guidance in AGENTS.md, docs/development/README.md and docs/development/review-experience.md. Revise this SAME requirement; never create a new id and never edit store files directly. Return output {proposal:{expectedRevision:<current revision>,title,description,risk:low|mid|high,tags:[]}}. Explain intended behavior and acceptance in description, and honor the rejection feedback. The command persists revision+1 on the original id and retains its worktree. Use only repo-relative paths or stable identifiers; never include absolute local paths, usernames, credentials or machine-specific environment details."
+        ]
       }
     },
     {
@@ -263,17 +329,17 @@
       "concurrency": 3,
       "config": {
         "cwd": "$input.cwd",
+        "outcomes": [
+          "complete"
+        ],
+        "prompt": "Work ONLY in input.cwd (the retained per-requirement Git worktree). Read input.dataRef for the stable requirement, current revision, previous immutable implementation/reviews and human feedback. Implement and run the repository's actual verification. Commit the implementation locally in this worktree so HEAD is clean. Never merge, push, delete worktrees, change base-branch checkout, edit business JSON, spawn agents, or call approval services. Return output {summary:<non-empty string describing concise changes>,verification:<non-empty string containing actual commands and results, NOT an array or object>}. Snapshot command will pin commit/tree and requirement revision; false success will fail downstream. No default task deadline.\n\nMirally context: follow docs/examples/development/README.md for the shared interpreter and validation setup; run targeted tests for the changed area; update CHANGELOG.md [Unreleased] and affected docs for user-visible changes. Use repo-relative paths and generic interpreter names; never put absolute local paths, usernames, credentials, dataRoot/worktree paths or machine-specific environment details in summary or verification.",
         "models": [
           {
             "provider": "ustc-pool",
             "model": "qwen3.8-flash-next",
             "reasoningEffort": "max"
           }
-        ],
-        "outcomes": [
-          "complete"
-        ],
-        "prompt": "Work ONLY in input.cwd (the retained per-requirement Git worktree). Read input.dataRef for the stable requirement, current revision, previous immutable implementation/reviews and human feedback. Read AGENTS.md and the relevant docs (docs/development/README.md, docs/development/review-experience.md, docs/reference/feature-map.md, docs/reference/validation.md) before changing code. Follow docs/examples/development/README.md for the shared Python interpreter and validation setup; the worktree may have no .venv or installed Node dependencies. Implement the smallest coherent change, run targeted tests for the affected area, and do not claim checks you did not run. Update CHANGELOG.md [Unreleased] and affected docs for user-visible changes. Commit the implementation locally in this worktree so HEAD is clean. Never merge, push, delete worktrees, change the base-branch checkout, edit business JSON, spawn agents, or call approval services. Return output {summary:<non-empty string describing concise changes>,verification:<non-empty string containing actual commands and results, NOT an array or object>}. Snapshot command will pin commit/tree and requirement revision; false success will fail downstream. No default task deadline. In summary and verification, use repo-relative paths and generic interpreter names; never include absolute local paths, usernames, credentials, dataRoot/worktree paths or machine-specific environment details."
+        ]
       }
     },
     {
@@ -311,18 +377,18 @@
       "concurrency": 3,
       "config": {
         "cwd": "$input.cwd",
+        "outcomes": [
+          "pass",
+          "revise"
+        ],
+        "prompt": "You are the ONE reviewer assigned this item from a pool of three. Read input.artifactRef, the requirement JSON at input.dataRef, and pinned commit input.commit. Review ONLY that immutable artifact, run appropriate verification, and do not edit/commit the worktree or store. Return outcome pass or revise with output {decision:<same outcome>,summary:<non-empty string of findings or rationale>,verification:<non-empty string containing actual commands and results, NOT an array or object>,reviewer:<non-empty string reviewer label>}. Never approve merge or invoke external approval services. A valid negative review goes to the SAME engineer worktree/id, not model failover.\n\nBefore pass, check PR-visible text for public safety: no absolute local paths, usernames, credentials, dataRoot/worktree paths or machine-specific environment details; request revise if present. Read AGENTS.md, docs/development/review-experience.md and docs/reference/validation.md, and run appropriate verification.",
         "models": [
           {
             "provider": "ustc-pool",
             "model": "glm-5.3-flash",
             "reasoningEffort": "max"
           }
-        ],
-        "outcomes": [
-          "pass",
-          "revise"
-        ],
-        "prompt": "You are the ONE reviewer assigned this item from a pool of three. Read input.artifactRef, the requirement JSON at input.dataRef, and pinned commit input.commit. Read AGENTS.md, docs/development/review-experience.md and docs/reference/validation.md, then review ONLY that immutable artifact: inspect the full diff, run appropriate verification, check behavior, tests, documentation and CHANGELOG coverage, and look for security, data and UX regressions. Do not edit or commit the worktree or store. Return outcome pass or revise with output {decision:<same outcome>,summary:<non-empty string of actionable findings or rationale>,verification:<non-empty string containing actual commands and results, NOT an array or object>,reviewer:<non-empty string reviewer label>}. Never approve merge or invoke external approval services. A valid negative review goes to the SAME engineer worktree/id, not model failover. Before pass, check PR-visible text for public safety: no absolute local paths, usernames, credentials, dataRoot/worktree paths or machine-specific environment details; request revise if present."
+        ]
       }
     },
     {
@@ -455,20 +521,6 @@
     },
     {
       "id": "busy-route",
-      "type": "gate",
-      "config": {
-        "delayMs": 1000
-      }
-    },
-    {
-      "id": "busy-approve-requirement",
-      "type": "gate",
-      "config": {
-        "delayMs": 1000
-      }
-    },
-    {
-      "id": "busy-reject-requirement",
       "type": "gate",
       "config": {
         "delayMs": 1000
@@ -769,31 +821,6 @@
       "on": "ready"
     },
     {
-      "from": "route",
-      "to": "requirement-human",
-      "on": "needs_approval"
-    },
-    {
-      "from": "requirement-human",
-      "to": "approve-requirement",
-      "on": "approve"
-    },
-    {
-      "from": "requirement-human",
-      "to": "reject-requirement",
-      "on": "reject"
-    },
-    {
-      "from": "approve-requirement",
-      "to": "prepare",
-      "on": "ready"
-    },
-    {
-      "from": "reject-requirement",
-      "to": "analyst-revise",
-      "on": "revise"
-    },
-    {
       "from": "analyst-revise",
       "to": "revise-proposal",
       "on": "complete"
@@ -916,26 +943,6 @@
     {
       "from": "busy-route",
       "to": "route",
-      "on": "complete"
-    },
-    {
-      "from": "approve-requirement",
-      "to": "busy-approve-requirement",
-      "on": "busy"
-    },
-    {
-      "from": "busy-approve-requirement",
-      "to": "approve-requirement",
-      "on": "complete"
-    },
-    {
-      "from": "reject-requirement",
-      "to": "busy-reject-requirement",
-      "on": "busy"
-    },
-    {
-      "from": "busy-reject-requirement",
-      "to": "reject-requirement",
       "on": "complete"
     },
     {
@@ -1217,6 +1224,96 @@
       "from": "integration-route",
       "to": "merge-human",
       "on": "local"
+    },
+    {
+      "from": "route",
+      "to": "publish-requirement-issue",
+      "on": "needs_approval"
+    },
+    {
+      "from": "publish-requirement-issue",
+      "to": "check-requirement-issue",
+      "on": "complete"
+    },
+    {
+      "from": "publish-requirement-issue",
+      "to": "busy-publish-requirement-issue",
+      "on": "busy"
+    },
+    {
+      "from": "busy-publish-requirement-issue",
+      "to": "publish-requirement-issue",
+      "on": "complete"
+    },
+    {
+      "from": "check-requirement-issue",
+      "to": "prepare",
+      "on": "approved"
+    },
+    {
+      "from": "check-requirement-issue",
+      "to": "analyst-revise",
+      "on": "rejected"
+    },
+    {
+      "from": "check-requirement-issue",
+      "to": "requirement-gate",
+      "on": "waiting"
+    },
+    {
+      "from": "check-requirement-issue",
+      "to": "busy-check-requirement-issue",
+      "on": "busy"
+    },
+    {
+      "from": "busy-check-requirement-issue",
+      "to": "check-requirement-issue",
+      "on": "complete"
+    },
+    {
+      "from": "requirement-gate",
+      "to": "check-requirement-issue",
+      "on": "complete"
+    },
+    {
+      "from": "intake-record",
+      "to": "intake-plan",
+      "on": "complete"
+    },
+    {
+      "from": "intake-record",
+      "to": "busy-intake-record",
+      "on": "busy"
+    },
+    {
+      "from": "busy-intake-record",
+      "to": "intake-record",
+      "on": "complete"
+    },
+    {
+      "from": "intake-plan",
+      "to": "intake-apply",
+      "on": "planned"
+    },
+    {
+      "from": "intake-plan",
+      "to": "intake-apply",
+      "on": "unclear"
+    },
+    {
+      "from": "intake-apply",
+      "to": "dispatch",
+      "on": "complete"
+    },
+    {
+      "from": "intake-apply",
+      "to": "busy-intake-apply",
+      "on": "busy"
+    },
+    {
+      "from": "busy-intake-apply",
+      "to": "intake-apply",
+      "on": "complete"
     }
   ]
 }

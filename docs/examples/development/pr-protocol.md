@@ -46,17 +46,6 @@ ci=pass
 
 评论不是状态。head 变化时，状态立即失效，回到 `reviewing` 并移除 merge-ready 标签。
 
-## 2.1 公开内容
-
-PR body、review 和评论都是公开的 GitHub 内容。除代码本身的仓库相对路径外，不写入：
-
-- 绝对本地路径（`C:\...`、`/Users/...`、`/home/...`、UNC 路径）；
-- 用户名、机器名、登录身份或私有目录；
-- 凭据、token、API key、Cookie；
-- `dataRoot`、worktree、`.venv` 等机器特定环境路径。
-
-验证证据写仓库相对路径、命令和结果；解释器写“系统 Python 3.14”这类通用名称。`pr.mjs` 会对已知路径/凭据模式做兜底脱敏，但 author 和 reviewer 仍必须主动检查；reviewer 发现公开内容泄漏时应给出 `revise`，不能只因为测试通过就 pass。
-
 ## 3. 顶层评论
 
 顶层评论只允许四类，且必须带角色头：
@@ -108,6 +97,17 @@ workflow 统一负责：
 
 **评论负责讨论，状态块负责决策；head 变了结论就失效，未 resolve 的 thread 不算关闭。**
 
+## 需求审批 issue
+
+mid/high 风险的挖掘需求在**业务仓库的 issue**上审批，每个需求复用一个 issue：
+
+- issue body 以 `<!-- workflow-requirement` 状态块开头，携带 `requirement`、`revision`、`risk`。
+- 标签：`workflow:requirement-review`（待审）、`workflow:requirement-approved`、`workflow:requirement-rejected`。
+- 决定写在评论里：`@workflow approve` 或 `@workflow reject <理由>`。只有 OWNER / MEMBER / COLLABORATOR 的评论生效；拒绝必须带理由，否则工作流回评论要求补充。
+- 决定按 revision 绑定：发布前已有的评论不计入，返修后工作流更新同一 issue 并重新打开；旧 revision 的评论不能批准新内容。
+- **发布前确定性脱敏**：绝对路径、用户主目录、邮箱、长令牌和私有地址替换为占位符；审批对象是脱敏后的公开版，执行以本地记录为准。
+- 发布后立即首查，之后每 30 分钟复查一次。
+
 ## PR 初始化
 
 在创建/启动 workflow 前，先检查仓库：
@@ -117,7 +117,7 @@ $env:DSH_WORKFLOW_INPUT = '{"dataRoot":"C:/work/project-workflow-data"}'
 node docs/examples/development/driver.mjs pr-init
 ```
 
-只读检查：GitHub 认证、merge commit、branch protection、`workflow:merge-ready` 标签、PR template、required checks。
+只读检查：GitHub 认证、merge commit、branch protection、`workflow:merge-ready` 标签、PR template、required checks，以及三个需求审批标签。
 
 初始化标签和 PR template：
 
@@ -126,7 +126,7 @@ $env:DSH_WORKFLOW_INPUT = '{"dataRoot":"C:/work/project-workflow-data","apply":t
 node docs/examples/development/driver.mjs pr-init
 ```
 
-默认只创建标签和缺失的 PR template；**不自动修改 branch protection 或仓库 merge method**。这两项会影响所有贡献者，必须由仓库管理员单独确认后手动配置。
+默认只创建标签（PR 标签和三个需求审批标签）和缺失的 PR template；**不自动修改 branch protection 或仓库 merge method**。这两项会影响所有贡献者，必须由仓库管理员单独确认后手动配置。
 
 有意使用手动合并门禁的仓库（merge commits 开启、不做 branch protection）可以加 `manualGate:true`：
 
