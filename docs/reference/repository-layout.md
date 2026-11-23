@@ -1,6 +1,6 @@
 # 仓库布局与结构约定
 
-更新：2026-11-18，Asia/Shanghai。状态：现行约定与只读审计。开发协作目录见 [开发与协作](../development/README.md)。
+更新：2026-11-23，Asia/Shanghai。状态：现行约定与只读审计。开发协作目录见 [开发与协作](../development/README.md)。
 
 本文回答“东西该放哪、什么不该入库、谁依赖谁”。执行检查用 [tools/check_structure.py](../../tools/check_structure.py)，它只报告、不改文件；目录搬迁与命名整改都要另立开发点并经用户批准。
 
@@ -77,7 +77,7 @@
 
 - 改动 `tools/`、`mirally/core/`、`mirally/runtime/`、顶层目录或文档索引时，提交前运行 `python tools/check_structure.py`（或带 `--json` 供脚本消费）。
 - 退出码：`0` 无发现；`1` 有未登记目录、生成物、命名或依赖方向问题，或无法读取 git 索引。
-- 当前为**只读报告**，尚未接入 CI 阻断（CI 步骤与多个在飞 PR 冲突，是否入 CI 属待用户决策项）；审查者仍需人工核对“入口是否正确、测试是否覆盖行为”。
+- 检查仍为**只读报告**，不改文件；违例由 PR 工作流 `workflow-tooling` job 运行 `check_structure.py` 与[源码守卫](../../tools/check_sources.py)阻断，不再依赖审查者记忆。审查者仍需人工核对“入口是否正确、测试是否覆盖行为”。
 - 审计失败时先修结构或补登记，不要为了让检查变绿而放宽白名单。
 
 ## 只报告、不执行的整改清单

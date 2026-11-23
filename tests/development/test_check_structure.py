@@ -218,6 +218,23 @@ class ReportTests(unittest.TestCase):
         self.assertFalse(report["ok"])
         self.assertEqual(report["checks"]["top_level"]["unregistered"], ["unregistered"])
 
+    def test_human_summary_fails_an_unregistered_top_level_directory(self):
+        # The CI step runs the guard without --json: the human summary must name
+        # the finding and exit 1, so the gate cannot pass on a parseable-only path.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "-C", str(root), "init", "-q"], check=True, capture_output=True)
+            (root / "README.md").write_text("# fixture\n", encoding="utf-8")
+            (root / "unregistered").mkdir()
+            (root / "unregistered" / "note.md").write_text("x\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "-A"], check=True, capture_output=True)
+            result = subprocess.run([sys.executable, str(TOOL), "--root", str(root)],
+                                    capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("top-level entries: FAIL", result.stdout)
+        self.assertIn("unregistered: unregistered", result.stdout)
+        self.assertTrue(result.stdout.rstrip().endswith("result: FAILED"), result.stdout)
+
     def test_staged_uncommitted_root_and_tools_files_are_reported(self):
         # No commit at all: the audit must follow the index, not HEAD.
         with tempfile.TemporaryDirectory() as directory:

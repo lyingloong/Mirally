@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 from contextlib import redirect_stdout
+import ast
 import io
 import json
 import os
@@ -266,6 +267,35 @@ class CiProductSubsetTests(unittest.TestCase):
         marker = "Test Python product core"
         step = text[text.index(marker):]
         self.assertIn("python.exe -m unittest @tests -v", step)
+
+
+class CiHygieneGateTests(unittest.TestCase):
+    """The read-only guards are the enforcement point for repository rules.
+
+    Both scripts are listed in ``REPOSITORY_FILES``, so a PR that breaks one of
+    them is classified repository-only and skips ``windows-core``: without these
+    steps in ``workflow-tooling`` nothing would ever run them.
+    """
+
+    def test_workflow_tooling_runs_both_repository_guards(self) -> None:
+        text = WORKFLOW.read_text(encoding="utf-8")
+        job = text[text.index("  workflow-tooling:"):]
+        for script in ("check_sources.py", "check_structure.py"):
+            self.assertIn(f"python tools/{script}", job,
+                          f"workflow-tooling no longer runs tools/{script}")
+
+    def test_guards_need_no_product_dependencies(self) -> None:
+        # The job's stated property: standard library and a git checkout only.
+        source = "\n".join((ROOT / "tools" / name).read_text(encoding="utf-8")
+                           for name in ("check_sources.py", "check_structure.py"))
+        third_party = {"yaml", "requests", "numpy", "playwright", "lxml", "PIL", "pypdf", "fitz"}
+        imported: set[str] = set()
+        for node in ast.walk(ast.parse(source)):
+            if isinstance(node, ast.Import):
+                imported.update(alias.name.split(".")[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                imported.add(node.module.split(".")[0])
+        self.assertEqual(sorted(imported & third_party), [])
 
 
 if __name__ == "__main__":

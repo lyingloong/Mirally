@@ -177,3 +177,6 @@ jobs:
 
       - name: Check documentation links
         run: python tools/check_docs_links.py
+
+      - name: Check repository structure
+        run: python tools/check_structure.py

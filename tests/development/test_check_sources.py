@@ -8,8 +8,12 @@ uses.
 from __future__ import annotations
 
 import importlib.util
+import io
+import subprocess
+import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -224,6 +228,74 @@ class CheckSourcesTests(unittest.TestCase):
             "docs/dirty.md:1: trailing whitespace",
             "docs/dirty.md:2: missing final newline",
         ])
+
+
+class CommandLineTests(unittest.TestCase):
+    """The CI gate is the process exit code, so probe `main()` and the real CLI."""
+
+    SOURCE = ROOT / "tools" / "check_sources.py"
+
+    def temp_root(self) -> Path:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        return Path(directory.name).resolve()
+
+    def write_bytes(self, root: Path, name: str, data: bytes) -> None:
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+
+    def run_main_with_tree(self, root: Path) -> tuple[int, str]:
+        """Run the guard's entry point over a fixture tree instead of this checkout.
+
+        ``check()`` takes its root as a parameter and ``main()`` does not pass one,
+        so it reads the module-level ``ROOT``; patching that alone would label the
+        fixtures against this checkout. Patching ``check`` to forward it keeps both
+        the scan and the reported labels inside the fixture.
+        """
+        stream = io.StringIO()
+        original_files, original_check = check_sources.owned_files, check_sources.check
+        check_sources.owned_files = lambda: original_files(root)
+        check_sources.check = lambda path: original_check(path, root=root)
+        try:
+            with redirect_stdout(stream):
+                code = check_sources.main()
+        finally:
+            check_sources.owned_files, check_sources.check = original_files, original_check
+        return code, stream.getvalue()
+
+    def test_clean_tree_exits_zero(self) -> None:
+        root = self.temp_root()
+        self.write_bytes(root, "docs/clean.md", b"# Title\n")
+        code, output = self.run_main_with_tree(root)
+        self.assertEqual(code, 0, output)
+        self.assertIn("OK: 1 files", output)
+
+    def test_marker_and_trailing_whitespace_exit_one_and_name_the_line(self) -> None:
+        root = self.temp_root()
+        self.write_bytes(root, "tools/dirty.py", b"value = 1\n<<<<<<< HEAD\nmerged = 2\ntrail   \n")
+        code, output = self.run_main_with_tree(root)
+        self.assertEqual(code, 1, output)
+        self.assertIn("tools/dirty.py:2: leftover merge-conflict marker", output)
+        self.assertIn("tools/dirty.py:4: trailing whitespace", output)
+
+    def test_cli_exit_code_fails_a_dirty_tree(self) -> None:
+        """Run the script as the workflow step does, over a tree it owns itself.
+
+        The guard derives its scan root from its own file, so the copy has to sit
+        in the fixture repository; running this checkout's copy would scan this
+        checkout and report it clean.
+        """
+        root = self.temp_root()
+        self.write_bytes(root, "tools/check_sources.py", self.SOURCE.read_bytes())
+        self.write_bytes(root, "docs/ok.md", b"# ok\n")
+        self.write_bytes(root, "docs/dirty.md", b"merged\n<<<<<<< HEAD\n>>>>>>> feature\n")
+        result = subprocess.run([sys.executable, "tools/check_sources.py"], cwd=str(root),
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("docs/dirty.md:2: leftover merge-conflict marker", result.stdout)
+        self.assertIn("docs/dirty.md:3: leftover merge-conflict marker", result.stdout)
+        self.assertNotIn("docs/ok.md", result.stdout)
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@
 
 ### GitHub Actions 检查范围
 
-[PR 工作流](../../.github/workflows/mirally-pr.yml)在 PR、`main` push 和手动运行时保留开发工具测试、源码与文档链接检查。只有改动完全属于[范围选择器](../../tools/check_ci_scope.py)列出的文档、开发工具和网站路径时，才跳过 Windows 产品依赖安装、内核/前端构建及产品测试；产品代码及依赖、产品或共享 CI 配置、选择器本身和未知路径仍运行原有完整离线子集（包含记忆测试）。检查名称保持不变，跳过的产品 job 显示 `skipped`。
+[PR 工作流](../../.github/workflows/mirally-pr.yml)在 PR、`main` push 和手动运行时保留开发工具测试、源码与文档链接检查。`workflow-tooling` job 同时运行[源码守卫](../../tools/check_sources.py)与[结构审计](../../tools/check_structure.py)：合并冲突标记、Python 语法错误、行尾空白、混合换行、未登记顶层入口、入库生成物和 `mirally/core` 依赖方向违例都会直接使 PR 检查失败，不再依赖审查者手工重跑。只有改动完全属于[范围选择器](../../tools/check_ci_scope.py)列出的文档、开发工具和网站路径时，才跳过 Windows 产品依赖安装、内核/前端构建及产品测试；产品代码及依赖、产品或共享 CI 配置、选择器本身和未知路径仍运行原有完整离线子集（包含记忆测试）。检查名称保持不变，跳过的产品 job 显示 `skipped`。
 
 `windows-core` 的 Python 子集是纯离线、秒级的产品核心回归保护，清单位于「Test Python product core」步骤的 `$tests`。新增纯离线测试模块默认在同一 PR 加入该子集，或显式注明为什么暂不入：没有被 CI 执行的回归保护合并后只靠人工重跑。清单按模块名唯一、字母序排列，追加时按“读取现有清单 → 去重 → 与目标模块取并集 → 字母序写回”执行，重复运行不产生重复条目；[`tests/development/test_ci_scope.py`](../../tests/development/test_ci_scope.py) 校验清单唯一、有序且对应测试文件存在。
 

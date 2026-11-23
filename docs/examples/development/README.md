@@ -61,7 +61,7 @@ node docs/examples/development/driver.mjs rearm-seed
 
 - Python：优先使用主 checkout 的共享解释器 `C:\Users\lazeloong\Code\Mirally\.venv\Scripts\python.exe`（需求 worktree 可用 `git rev-parse --git-common-dir` 定位主 checkout）。按改动运行目标域，例如 `-m unittest tests.test_framework_product -v`；具体分层见[验证](../../reference/validation.md)。
 - Node/前端/内核：改动需要时再在需求 worktree 安装对应依赖（`npm --prefix tools/testing ci --ignore-scripts --no-audit --no-fund`、`npm --prefix frontend/control-ui ci`、`kernel/dsh` 的 pnpm 安装），或把需求收敛到可离线验证的小范围。`node --test` 的目标域同样见验证文档。
-- 文档：`tools/check_docs_links.py`；源码冲突标记与 Python 语法：`tools/check_sources.py`。
+- 文档：`tools/check_docs_links.py`；源码冲突标记与 Python 语法：`tools/check_sources.py`；结构审计：`tools/check_structure.py`。三者已进入 PR 工作流的 `workflow-tooling` job，本地先跑可提前发现失败。
 - 用户可见功能或安装配置变化：更新 `CHANGELOG.md` 的 `[Unreleased]` 和相关文档。
 - GUI、桌面、微信或真实外部服务的验收不在自动工作流内完成；需要时在 verification 中明确写未覆盖，交由 review 与人工合并判断。
 
