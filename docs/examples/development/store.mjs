@@ -5,7 +5,10 @@ import { mkdir, readFile, writeFile, rename, readdir, lstat, realpath, rm } from
 import { setTimeout as delay } from 'node:timers/promises';
 
 const directories = ['requirements', 'seeds', 'artifacts', 'reviews', 'worktrees', 'locks'];
-const pendingStatuses = new Set(['queued', 'intake', 'requirement-pending', 'requirement-revision', 'ready', 'preparing', 'engineering-ready', 'engineering']);
+// Human-gated states (requirement-pending/requirement-revision) do not occupy
+// an engineer or a mining slot; counting them here would let one unanswered
+// approval starve the whole producer/engineering pool.
+const pendingStatuses = new Set(['queued', 'intake', 'ready', 'preparing', 'engineering-ready', 'engineering']);
 const storeVersion = 3;
 const defaultMaxMiningSeeds = 3;
 const defaultStaleClaimMs = 1_800_000;
