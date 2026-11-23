@@ -56,6 +56,7 @@ flowchart LR
 | 持久记忆 | `<home>/memory/memory.sqlite3`、`activity-projection.sqlite3` |
 | 会话成果与材料 | 由原生附件/成果目录管理，按逻辑会话鉴权 |
 | Skill/MCP/插件配置 | 产品设置中的显式配置 |
+| 运行日志 | `<home>/logs/host.log`（宿主与 worker stderr 诊断）、`<home>/logs/activity.log`（Activity 采集） |
 
 产品数据默认位于 `%LOCALAPPDATA%/Mirally/framework`；`MIRALLY_HOME` 或 `--home` 可覆盖。不同 home 之间不共享数据库、凭据和会话。
 
@@ -99,10 +100,10 @@ Windows x64、Python 3.10、Node 24+（含 npm）和 Microsoft Edge WebView2 Run
   | 未预期错误 | `INTERNAL_ERROR` | 任何未被映射为 `FrameworkError` 的异常 |
 
   `INVALID_REQUEST`、`METHOD_NOT_FOUND`、`INVALID_PARAMS`、`CONFLICT`、`NOT_FOUND`、`FORBIDDEN`、`SCHEMA_VERSION` 来自 worker 自身的校验与路由；`CHANNEL_UNCONFIGURED` 等语义错误由具体模块抛出，沿用同一条回执通道。
-- **`INTERNAL_ERROR` 不回显请求**：回执固定为 `{"error": {"code": "INTERNAL_ERROR", "message": "product operation failed"}}`，`id` 照常回填，便于调用方配对；异常类型只写到 stderr（`framework RPC failed: <ExceptionName>`）。请求内容、参数和凭据不会出现在回执或 stderr 中。
+- **`INTERNAL_ERROR` 不回显请求**：回执固定为 `{"error": {"code": "INTERNAL_ERROR", "message": "product operation failed"}}`，`id` 照常回填，便于调用方配对。诊断只写 stderr 一行：`framework RPC failed: method=<路由名> <异常类型> <文件:行号:函数名> …`，链式异常按外到内以 `<-` 连接；仓库根内的帧显示为仓库相对路径，根外只显示文件名。该行不含异常消息、请求参数、局部变量与绝对本地路径，长度有界（2000 字符内，低于宿主 sidecar 的 4096 字符切片上限），经宿主 logger 落入 `<home>/logs/host.log`。请求内容、参数和凭据不会出现在回执或 stderr 中。
 - **`worker_lock` 单实例**：worker 启动取得 `<home>/framework/worker.lock` 的排他锁（Windows `msvcrt.locking`，其他平台 `fcntl.flock`）。同一 home 上的第二个 worker 在启动阶段失败退出、非零退出码、stdout 无输出，并在 stderr 说明原因；不同 home 互不影响。这样活动、投递和会话状态不会被两个 owner 同时改写。
 
-回归测试 `tests/test_framework_worker_protocol.py` 以子进程方式启动真实 worker，按本契约逐条覆盖上面的行、`id`、四类回执、不回显和单实例行为；它只观察协议，不替换实现。
+回归测试 `tests/test_framework_worker_protocol.py` 以子进程方式启动真实 worker，按本契约逐条覆盖上面的行、`id`、四类回执、不回显、`INTERNAL_ERROR` 单行诊断和单实例行为；它只观察协议，不替换实现。
 
 ## 默认行为
 

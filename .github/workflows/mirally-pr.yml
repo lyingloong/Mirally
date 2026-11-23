@@ -107,6 +107,7 @@ jobs:
             'tests.test_framework_product',
             'tests.test_framework_recaps',
             'tests.test_framework_weixin_assistant_security',
+            'tests.test_framework_worker_protocol',
             'tests.test_framework_workers',
             'tests.test_memory_recall',
             'tests.test_memory_store',
