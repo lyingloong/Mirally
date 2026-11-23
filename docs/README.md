@@ -33,6 +33,7 @@ Mirally 是面向 Windows 的 personal agent 应用，名称取自 MIRA + ally�
 | 我想了解 | 文档 |
 | --- | --- |
 | 手工开发、DSH AgentTeams、脚本和本机状态归属 | [开发与协作](development/README.md) |
+| 当前自动开发工作流：workflow 图、driver、每需求 worktree 和 PR 契约 | [自动开发工作流示例](examples/development/README.md) · [PR 契约](examples/development/pr-protocol.md) |
 | 可提交的目录、文件和依赖布局 | [仓库布局](reference/repository-layout.md) |
 | 审查经验和可复用的准则 | [审查经验库](development/review-experience.md) |
 
@@ -45,6 +46,7 @@ docs/
 ├─ standards/     UI 交互与视觉规范
 ├─ reference/     能力矩阵与验证边界
 ├─ development/   仓库开发与 Agent 协作流程
+├─ examples/      自动开发工作流示例：保留上游来源与本地运行配置，不复制进产品文档
 └─ design/        当前品牌与资源说明
 ```
 

@@ -13,7 +13,7 @@
 | `pr.mjs` | push 需求分支、创建/更新自己的 draft PR、维护状态块/标签、轮询外部 merge。 |
 | `github.mjs` | 示例共用的 `gh` 调用与仓库坐标解析。 |
 | `requirement-review.mjs` | 需求审批 issue：脱敏发布、读取维护者评论决定、回写需求状态。 |
-| `pr-protocol.md` | 角色头、状态块、finding、merge-ready 标签、需求审批 issue 与 PR 初始化约定。 |
+| [pr-protocol.md](pr-protocol.md) | 角色头、状态块、finding、merge-ready 标签、需求审批 issue 与 PR 初始化约定。 |
 
 ## 本仓库配置
 
