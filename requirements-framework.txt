@@ -5,6 +5,9 @@ PyYAML>=6.0.1,<7
 psutil>=5.9,<8
 requests>=2.31,<3
 fastmcp==2.11.3
+# MCP SDK is imported directly by the activity/memory MCP servers; the range
+# mirrors fastmcp 2.11.3's own bound so the installed set does not change.
+mcp>=1.12.4,<2
 pypdf>=6,<7
 tzdata>=2025.1
 tzlocal>=5.3,<6
