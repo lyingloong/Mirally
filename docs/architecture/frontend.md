@@ -1,6 +1,6 @@
 # 前端页面与导航
 
-更新：2026-11-06，Asia/Shanghai。状态：现行。相关实现：`frontend/control-ui/`、`mirally/framework_ui/`。
+更新：2026-11-25，Asia/Shanghai。状态：现行。相关实现：`frontend/control-ui/`、`mirally/framework_ui/`。
 
 前端由 Mirally 维护，沿用原有的布局、主题、动画和伙伴体验。第三方源码、许可证和固定提交见[前端来源](../../frontend/control-ui/UPSTREAM.md)。
 
@@ -28,7 +28,7 @@
 - 欢迎页的建议只在草稿为空时填入输入框并聚焦，不自动发送；点击时读取最新草稿，已有输入（包括空白）不被覆盖。输入过程中保留建议区，不再用折叠动画改变输入框位置。
 - 模型连接先呈现服务、模型与凭据等连接信息，模型参数通过原生折叠区展开；保存连接、分配用途和检查连接分别保留入口。编辑模型列表中的草稿时禁用会替换该草稿的连接切换和编辑操作。
 - 网页研究与工作区文字写入使用复选框，与授权目录和网页连接一同保存；勾选表示待保存选择。首次读取失败时提供重试，不显示未确认的可编辑权限；保存后的重新读取也成功才显示保存反馈。
-- 消息与提醒列表刷新期间继续显示上次成功读取的内容，失败或返回不完整数据时保留该份内容并显示错误；首次加载、读取失败、空列表与没有未读消息分别呈现。列表按消息投递或提醒标识复用行；切换页面清除旧页面内容，过期响应不能回填。
+- 消息、提醒与日程列表刷新期间继续显示上次成功读取的内容，失败或返回不完整数据时保留该份内容并显示错误；首次加载、读取失败、空列表与没有未读消息分别呈现，时区确认提示只在设置读取成功且未确认时出现。列表按消息投递或提醒标识复用行；切换页面清除旧页面内容，过期响应不能回填。日程编辑草稿绑定打开编辑时的时区，时区改变后要求重新打开编辑；设置响应不完整时按读取失败处理并保留上次有效设置。
 
 排版和控件继续使用[视觉基线](../standards/ui-visual-system.md)及既有主题、品牌和伙伴资源；这些行为改动不代表全界面已完成体验验收。
 
@@ -66,7 +66,7 @@ npm --prefix frontend/control-ui run build
 ```powershell
 npm --prefix frontend/control-ui run verify:source
 npm --prefix frontend/control-ui run build
-node --test tests/test_framework_model_onboarding_ui.mjs tests/test_framework_model_validation_ui.mjs tests/test_framework_capabilities_settings_ui.mjs tests/test_framework_messages_ui.mjs
+node --test tests/test_framework_model_onboarding_ui.mjs tests/test_framework_model_validation_ui.mjs tests/test_framework_capabilities_settings_ui.mjs tests/test_framework_messages_ui.mjs tests/test_framework_calendar_panel_ui.mjs
 # 对显式 --test-mode --home 的隔离宿主，GUI 顺序运行：
 node tools/verify_framework_browser.mjs <隔离home/runtime.json>
 node tools/verify_framework_experience.mjs <隔离home/runtime.json>
