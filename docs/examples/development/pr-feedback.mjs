@@ -15,6 +15,7 @@ export const AUTHORIZED_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR
 const VERDICT = /\[verdict=(pass|revise)\]/i;
 const HEAD_MARKER = /\[head=([0-9a-f]{7,64})\]/i;
 const MERGE_INTENT = /@workflow\s+merge\b/i;
+const REVISE_INTENT = /@workflow\s+(?:revise|rework|返修)/i;
 const STOP_INTENT = /@workflow\s+stop\b/i;
 const WORKFLOW_ROLE = /\[role=workflow\]/i;
 
@@ -62,6 +63,21 @@ export function mergeIntent(comments = [], { head, windowStart }) {
   return null;
 }
 
+/** The newest authorized rework command (`@workflow revise|rework|返修`). */
+export function reviseIntent(comments = [], { head, windowStart }) {
+  const ordered = [...comments].sort((a, b) => timeOf(b) - timeOf(a));
+  for (const comment of ordered) {
+    if (!authorizedComment(comment)) continue;
+    const body = bodyOf(comment);
+    if (!REVISE_INTENT.test(body) || STOP_INTENT.test(body)) continue;
+    const marker = headMarker(comment);
+    if (marker && !String(head).startsWith(marker)) continue;
+    if (timeOf(comment) < Date.parse(windowStart)) continue;
+    return { id: Number(comment.id), actor: authorOf(comment), at: comment.created_at ?? comment.createdAt ?? '', head: marker, verdict: 'revise' };
+  }
+  return null;
+}
+
 /**
  * Combine comments, reviews, unresolved threads, CI and the merge policy into
  * one deterministic decision. The newest explicit decision wins; unresolved
@@ -75,7 +91,10 @@ export function evaluateFeedback({
   const decisions = [
     ...comments.map(comment => commentDecision(comment, { head, windowStart })).filter(Boolean),
     ...reviews.map(review => reviewDecision(review, { head, authorized: authorizedReviewers.has(authorOf(review)) })).filter(Boolean),
-  ].sort((a, b) => (Date.parse(a.at) || 0) - (Date.parse(b.at) || 0) || a.id - b.id);
+  ];
+  const revise = reviseIntent(comments, { head, windowStart });
+  if (revise) decisions.push({ kind: 'command', ...revise });
+  decisions.sort((a, b) => (Date.parse(a.at) || 0) - (Date.parse(b.at) || 0) || a.id - b.id);
   const latest = decisions.at(-1) ?? null;
   let verdict = latest?.verdict ?? (aggregate === 'APPROVED' ? 'pass' : aggregate === 'CHANGES_REQUESTED' ? 'revise' : null);
   if (unresolved > 0) verdict = 'revise';
