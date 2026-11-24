@@ -250,23 +250,17 @@ export class MirallyChannelsPage extends MirallyLightDomElement {
       : html`<button class="btn btn--sm" data-testid="mirally-weixin-unbind" ?disabled=${this.busy || this.loading} @click=${() => {this.confirmingUnbind = true;}}>解除绑定</button>`}))}`;
   }
 
-  private workHelpSection() {
+  private weixinHelpSection() {
     return renderSettingsSection({title: '常用指令', description: '在微信发送“菜单”或“帮助”查看全部命令。'}, html`
+      ${renderSettingsRow({title: '助理或直接会话', description: '助理可查询其他会话并按明确要求委托；直接会话只使用所选会话。', control: html`<code>助理 · /assistant on｜会话模式 · /assistant off</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '新建会话', control: html`<code>新对话 [名称] · /new [名称]</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '查看会话列表', control: html`<code>会话 · /sessions</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '切换会话', control: html`<code>切换 1 · /use 1</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '当前会话', control: html`<code>当前会话 · /status</code>`, stackedOnNarrow: true})}
       ${renderSettingsRow({title: '回看聊天记录', description: '每次返回最近 6 条；按回复中的命令继续向前翻页。', control: html`<code>/history [更早游标]</code>`, stackedOnNarrow: true})}
-      ${renderSettingsRow({title: '查看工作列表', control: html`<code>/works</code>`, stackedOnNarrow: true})}
-      ${renderSettingsRow({title: '查看工作详情', control: html`<code>查看工作 1 · /work 工作编号</code>`, stackedOnNarrow: true})}
-      ${renderSettingsRow({title: '进入工作会话', control: html`<code>进入工作 1 · /work-use 工作编号</code>`, stackedOnNarrow: true})}
-      ${renderSettingsRow({title: '审阅待确认动作', description: '核对具体动作后获取一次性确认码。', control: html`<code>/work-review 1</code>`, stackedOnNarrow: true})}
-      ${renderSettingsRow({title: '批准一次运行', control: html`<code>/work-approve 确认码</code>`, stackedOnNarrow: true})}
-      ${renderSettingsRow({title: '停止工作运行', control: html`<code>/work-cancel 1</code>`, stackedOnNarrow: true})}
-      ${renderSettingsRow({title: '查看运行日志', control: html`<code>/work-logs 1 [字节偏移]</code>`, stackedOnNarrow: true})}
-      ${renderSettingsRow({title: '微信工作通知', description: 'on 开启，off 关闭；不带参数查看当前设置。', control: html`<code>/work-notify [on|off]</code>`, stackedOnNarrow: true})}
-      ${renderSettingsRow({title: '停止当前会话', description: '停止回复与会话后台命令；工作运行使用 /work-cancel。', control: html`<code>/stop</code>`, stackedOnNarrow: true})}
-      ${renderSettingsRow({title: '准备工作运行', description: '准备后仍需审阅并批准。', control: html`<code>/work-run 工作编号 脚本参数JSON</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '回答 Mirally 的提问', description: '提问推送到微信后，直接回复选项数字或文字。', control: html`<code>直接回复</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '查看日程', description: '再用“查看日程 1”“进入日程 1”选择具体日程。', control: html`<code>日程 · 今日日程 · 明日日程</code>`, stackedOnNarrow: true})}
+      ${renderSettingsRow({title: '停止回复', description: '只停止当前回复，后台作业不会被停止。', control: html`<code>/stop</code>`, stackedOnNarrow: true})}
     `);
   }
 
@@ -293,7 +287,7 @@ export class MirallyChannelsPage extends MirallyLightDomElement {
           ${renderSettingsRow({title: '送达待确认', description: '为避免重复发送，请先在微信核对。', control: renderSettingsValue(String(status.outbox.unknown || 0))})}
           ${renderSettingsRow({title: '发送失败', description: '可以在对应 Mirally 会话查看回复。', control: renderSettingsValue(String(status.outbox.failed || 0))})}
         `) : nothing}
-        <details data-testid="mirally-weixin-help"><summary>微信使用帮助</summary>${this.workHelpSection()}</details>
+        <details data-testid="mirally-weixin-help"><summary>微信使用帮助</summary>${this.weixinHelpSection()}</details>
         <details data-testid="mirally-mobile-options"><summary>手机网页（可选）</summary><mirally-mobile-settings></mirally-mobile-settings></details>
       </div>`))}`;
   }

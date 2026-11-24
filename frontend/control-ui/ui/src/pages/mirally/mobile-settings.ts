@@ -36,7 +36,7 @@ export class MirallyMobileSettings extends MirallyLightDomElement {
     catch(error){if(epoch===this.epoch&&this.isConnected)this.error=error instanceof Error?error.message:'操作没有完成，请刷新后重试。';}
     finally{if(epoch===this.epoch&&this.isConnected){this.busy=false;void this.refresh();}}}
   override render(){const status=this.status;return html`
-    ${renderSettingsSection({title:'手机网页（可选扩展）',description:'需要图形页面时，可在手机网页查看工作、会话和成果。此入口与微信独立；只通过微信使用时，无需配置本节，也无需私人 HTTPS。'},html`
+    ${renderSettingsSection({title:'手机网页（可选扩展）',description:'需要图形页面时，可在手机网页查看会话、消息和设置。此入口与微信独立；只通过微信使用时，无需配置本节，也无需私人 HTTPS。'},html`
       ${this.error?html`<p class="callout danger" role="alert">${this.error}</p>`:nothing}${this.notice?html`<p class="callout" role="status">${this.notice}</p>`:nothing}
       ${renderSettingsRow({title:'手机网页服务',control:renderSettingsStatus({kind:status?.enabled&&!status?.error?'ok':'muted',label:status?.error?'启动异常':status?.enabled?'已启用':'未启用'})})}
       ${status?.error?renderSettingsRow({title:'连接提示',description:'手机网页服务暂未启动。需要网页时再检查配置并重试；电脑端和微信仍可使用。'}):nothing}
@@ -49,7 +49,7 @@ export class MirallyMobileSettings extends MirallyLightDomElement {
         ${this.pairing.qr_content||this.pairing.url?html`<div class="mirally-weixin-qr"><wa-qr-code .value=${this.pairing.qr_content||this.pairing.url} label="手机网页配对二维码" size="200" fill="#111111" background="#ffffff"></wa-qr-code></div><a href=${this.pairing.url} target="_blank" rel="noopener noreferrer">打开手机页面（本机预览）</a>`:nothing}
       </div>`:nothing}
     `)}
-    ${renderSettingsSection({title:'已配对网页设备',description:'仅管理手机网页连接，不影响微信绑定。撤销后，该设备不能继续查看或发起操作。已有会话与工作保留；已批准运行需在工作详情另行停止。'},html`
+    ${renderSettingsSection({title:'已配对网页设备',description:'仅管理手机网页连接，不影响微信绑定。撤销后，该设备不能继续查看或发起操作；已有会话保留。'},html`
       ${(status?.devices||[]).length?(status!.devices as Data[]).map(device=>html`<article class="mirally-mobile-device"><strong>${device.name||device.device_name||'手机'}</strong><p class="mirally-product-meta">最近使用 ${timeLabel(device.last_seen||device.last_seen_at||device.updated_at||device.created_at)}${device.revoked||device.revoked_at?' · 已撤销':''}</p>
         ${!(device.revoked||device.revoked_at)?(this.revokeId===device.id?html`<div class="mirally-product-actions"><button class="btn danger" ?disabled=${this.busy} @click=${()=>this.action(async()=>{await rpcProduct('mobile.devices.revoke',{device_id:device.id});this.revokeId='';},'设备连接已撤销。')}>确认撤销</button><button class="btn" ?disabled=${this.busy} @click=${()=>this.revokeId=''}>取消</button></div>`:html`<button class="btn" ?disabled=${this.busy} @click=${()=>this.revokeId=device.id}>撤销连接</button>`):nothing}</article>`):html`<p class="mirally-product-empty">还没有配对的网页设备。</p>`}
     `)}`;}

@@ -136,6 +136,7 @@ jobs:
             'tests/test_framework_mobile.mjs',
             'tests/test_framework_mobile_ui.mjs',
             'tests/test_framework_weixin_channel.mjs',
+            'tests/test_framework_weixin_ui.mjs',
             'tests/test_framework_weixin_assistant_tools.mjs',
             'tests/test_framework_notebook_tools.mjs',
             'tests/test_framework_notebook_e2e.mjs',

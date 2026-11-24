@@ -60,7 +60,7 @@ test('channels renders local QR, requires explicit bind, and never renders proto
   assert.doesNotMatch(bind, /secret-token|remote-body/); assert.equal(f.calls.length, 0);
 });
 
-test('Weixin help and optional web controls are available in separate closed disclosures', () => {
+test('Weixin help lists only current commands and optional web controls are available in separate closed disclosures', () => {
   const f = fixture();
   f.page.status = {...baseStatus, state: 'connected', bound: true, enabled: true};
   const rendered = f.render(f.page);
@@ -68,12 +68,15 @@ test('Weixin help and optional web controls are available in separate closed dis
   assert.match(rendered, /<details data-testid="mirally-weixin-help"><summary>微信使用帮助/);
   assert.match(rendered, /<details data-testid="mirally-mobile-options"><summary>手机网页（可选）/);
   assert.doesNotMatch(rendered, /<details[^>]*\bopen\b/);
-  for (const command of ['/history [更早游标]', '/works', '/work 工作编号', '/work-use 工作编号', '/work-review 1', '/work-approve 确认码', '/work-cancel 1', '/work-logs 1 [字节偏移]', '/work-notify [on|off]', '/stop']) {
-    assert.ok(rendered.includes(command), `The real settings should introduce ${command}`);
+  for (const command of ['/assistant on', '/assistant off', '/new [名称]', '/sessions', '/use 1', '/status', '/history [更早游标]', '/stop']) {
+    assert.ok(rendered.includes(command), `The real settings should introduce the current command ${command}`);
   }
-  assert.match(rendered, /会话后台命令/);
+  assert.match(rendered, /日程 · 今日日程 · 明日日程/);
+  assert.match(rendered, /直接回复选项数字或文字/);
+  assert.match(rendered, /停止回复/); assert.match(rendered, /只停止当前回复，后台作业不会被停止/);
   assert.match(rendered, /“菜单”或“帮助”查看全部命令/);
   assert.match(rendered, /每次返回最近 6 条/);
+  assert.doesNotMatch(rendered, /\/work|工作|\/answer/);
   assert.doesNotMatch(rendered, /暂不执行命令/);
   assert.equal(f.calls.length, 0, 'Reading instructions must not configure or execute anything');
 });

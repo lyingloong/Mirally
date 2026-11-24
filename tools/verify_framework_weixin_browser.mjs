@@ -18,21 +18,11 @@ page.on('pageerror', error => errors.push(error.message));
 const test = id => page.getByTestId(id);
 let status = {state: 'unbound', enabled: false, bound: false, installation_id: 'browser-fixture', revision: 1,
   outbox: {pending: 0, unknown: 0, failed: 0}};
-let failNext = '', remoteControl = false;
+let failNext = '';
 await page.route('**/api/rpc', async route => {
   const data = route.request().postDataJSON();
-  if (data.method === 'settings.get') {
-    const response=await route.fetch(), json=await response.json();
-    json.result.weixin_remote_control_enabled=remoteControl;
-    return route.fulfill({response,json});
-  }
-  if (data.method === 'settings.update' && typeof data.params?.patch?.weixin_remote_control_enabled === 'boolean') {
-    assert.equal(status.bound,true,'fixture still requires a real local binding step');
-    remoteControl=data.params.patch.weixin_remote_control_enabled;
-    return route.fulfill({json:{result:{weixin_remote_control_enabled:remoteControl}}});
-  }
   if (data.method === 'conversation.list') return route.fulfill({json: {result: {conversations: [
-    {conversation_id: 'fixture-existing', title: '已有工作会话'}, {id: 'fixture-legacy', title: '另一会话'},
+    {conversation_id: 'fixture-existing', title: '已有会话'}, {id: 'fixture-legacy', title: '另一会话'},
   ]}}});
   if (!data.method.startsWith('weixin.')) return route.continue();
   calls.push(data);
@@ -48,9 +38,13 @@ await page.route('**/api/rpc', async route => {
   if (['weixin.bind', 'weixin.select', 'weixin.disconnect', 'weixin.reconnect', 'weixin.unbind'].includes(method)) {
     assert.equal(params.expected_revision, status.revision); status.revision++;
   }
+  if (method === 'weixin.mode') {
+    assert.ok(['assistant', 'direct'].includes(params.mode));
+    status = {...status, mode: params.mode, revision: status.revision + 1};
+  }
   if (method === 'weixin.bind' || method === 'weixin.select') {
     status = {...status, state: 'connected', enabled: true, bound: true,
-      conversation_id: params.conversation_id || 'fixture-new', conversation_title: params.conversation_id ? '已有工作会话' : '微信新会话'};
+      conversation_id: params.conversation_id || 'fixture-new', conversation_title: params.conversation_id ? '已有会话' : '微信新会话'};
     delete status.login;
   }
   if (method === 'weixin.disconnect') status = {...status, state: 'disconnected', enabled: false};
@@ -77,10 +71,16 @@ try {
   assert.equal(await help.getAttribute('open'),null);assert.equal(await web.getAttribute('open'),null);
   assert.equal(await help.locator('code').first().isVisible(),false);
   await help.locator('summary').click();
-  for (const command of ['/works', '/work-review', '/work-logs', '/work-notify']) assert.ok((await help.innerText()).includes(command));
+  const openedHelp = await help.innerText();
+  for (const command of ['/assistant on', '/assistant off', '/sessions', '/use', '/new', '/status', '/history', '/stop'])
+    assert.ok(openedHelp.includes(command), `The Weixin help should introduce the current command ${command}`);
+  assert.ok(openedHelp.includes('日程'), 'The Weixin help should introduce the calendar entry');
+  assert.ok(openedHelp.includes('停止回复') && openedHelp.includes('只停止当前回复，后台作业不会被停止'), 'The help should scope /stop to the current reply, not background jobs');
+  assert.ok(!openedHelp.includes('/answer'), 'The help must guide direct question replies; the pushed question never shows the /answer token');
+  for (const removed of ['/works', '/work-', '/work ']) assert.ok(!openedHelp.includes(removed), `Removed work command ${removed} must not be advertised`);
   await help.locator('summary').click();
   await web.locator('summary').click();await web.locator('mirally-mobile-settings').waitFor({state:'visible'});await web.locator('summary').click();
-  checks.push('Weixin setup remains primary; help and optional web controls expand independently');
+  checks.push('Weixin setup remains primary; the help lists current commands only and optional web controls expand independently');
 
   await test('mirally-weixin-login').evaluate(button => {button.click(); button.click();});
   await test('mirally-weixin-qr').waitFor(); await settled();
@@ -114,10 +114,20 @@ try {
   await help.locator('summary').click();
   assert.match(await help.innerText(), /\/history/);assert.match(await help.innerText(), /菜单/);
   await help.locator('summary').click();
-  const remote=test('mirally-weixin-remote-control').getByRole('switch');
-  await test('mirally-weixin-remote-control').locator('wa-switch').click();await settled();assert.equal(await remote.isChecked(),true);
-  await remote.focus();await page.keyboard.press('Space');await settled();assert.equal(await remote.isChecked(),false);
-  checks.push('verification code, explicit local binding, existing conversation identity');
+  const mode = test('mirally-weixin-mode');
+  await mode.selectOption('assistant'); await settled();
+  assert.equal(await mode.inputValue(), 'assistant');
+  assert.ok(calls.some(call => call.method === 'weixin.mode' && call.params.mode === 'assistant'),
+    'assistant mode must be saved through the real weixin.mode mutation');
+  await mode.selectOption('direct'); await settled();
+  assert.equal(await mode.inputValue(), 'direct');
+  const typing = page.getByRole('switch');
+  assert.equal(await typing.isChecked(), true, 'A fresh isolated home keeps the documented typing default');
+  await page.locator('wa-switch').click(); await settled();
+  assert.equal(await typing.isChecked(), false);
+  await typing.focus(); await page.keyboard.press('Space'); await settled();
+  assert.equal(await typing.isChecked(), true);
+  checks.push('verification code, explicit local binding, existing conversation identity, assistant mode and typing indicator persistence');
 
   await test('mirally-weixin-conversation').selectOption(''); await test('mirally-weixin-select').click(); await settled();
   assert.equal(status.conversation_id, 'fixture-new');
