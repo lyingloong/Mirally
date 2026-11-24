@@ -103,7 +103,9 @@ node docs/examples/development/driver.mjs rearm-seed
 
 ## 公开内容
 
-PR body、review、issue 和评论都是公开的 GitHub 内容。不写绝对本地路径、用户名、`dataRoot`/worktree 路径、虚拟环境路径或凭据。`pr.mjs` 和 `requirement-review.mjs` 会对已知路径/凭据模式做兜底脱敏；engineer 仍应使用仓库相对路径和通用解释器名，reviewer 发现泄漏必须给 `revise`。
+PR body、review、issue 和评论都是公开的 GitHub 内容。不写绝对本地路径、用户名、`dataRoot`/worktree 路径、虚拟环境路径或凭据。`pr.mjs`、`worktrees.mjs` 和 `requirement-review.mjs` 会对已知路径/凭据模式做兜底脱敏；engineer 仍应使用仓库相对路径和通用解释器名，reviewer 发现泄漏必须给 `revise`。
+
+Codex/评审评论必须包含机器可读的 `[verdict=pass]` 或 `[verdict=revise]`，或提交正式 GitHub review（APPROVED / CHANGES_REQUESTED）；`pr-watch` 不解析“未发现阻塞问题/建议先修正”这类自然语言。`@workflow merge` 只是合并意图，当前 head 还必须存在 pass 判决、CI 通过且无未解决 thread，`pr-merge` 才会执行。
 
 ## PR 契约现状
 
