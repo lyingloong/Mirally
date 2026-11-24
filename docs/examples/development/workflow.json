@@ -60,7 +60,7 @@
         "text": "$nodes.intake-record.output.text"
       },
       "config": {
-        "cwd": ".cwd",
+        "cwd": "$input.cwd",
         "reasoningEffort": "max",
         "outcomes": [
           "planned",
