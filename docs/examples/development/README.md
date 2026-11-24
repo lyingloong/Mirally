@@ -1,25 +1,28 @@
 # Mirally 自动开发工作流（dsh-auto-workflow）
 
-> 更新：2026-11-23，Asia/Shanghai。状态：现行（本机常驻开发配置）。来源：[dsh-auto-workflow](https://github.com/lyingloong/dsh-auto-workflow) HEAD `8c939f6`（插件包版本仍标 1.2.0，含未发版的 structured-output / runtime / intake / issue-review 修复；MIT）。本目录保留上游 driver/store/worktrees/pr/github/requirement-review 与 `workflow.json`，只补充 Mirally 的提示词、角色模型和验证约定。[流程与保证](https://github.com/lyingloong/dsh-auto-workflow/blob/main/docs/workflow-summary.md) 以上游为准。
+> 更新：2026-11-24，Asia/Shanghai。状态：现行（本机常驻开发配置）。来源：[dsh-auto-workflow](https://github.com/lyingloong/dsh-auto-workflow) HEAD `43698a6`（插件包版本仍标 1.2.0，含未发版的 structured-output / runtime / intake / GitHub 决策修复；MIT）。本目录保留上游 driver/store/worktrees/pr/pr-feedback/github/requirement-review 与 `workflow.json`，只补充 Mirally 的提示词、角色模型和验证约定。[流程与保证](https://github.com/lyingloong/dsh-auto-workflow/blob/main/docs/workflow-summary.md) 以上游为准。
+>
+> **2026-11-24 迁移**：业务 store 已从 v3 迁到 v4（decision-first 字段 + GitHub merge policy）。PR 合并不再使用看板 `merge-human`/`self-merge-human`：reviewer 通过后 `pr-watch` 轮询 GitHub 的 `[verdict=pass|revise]` 评论、正式 review、未 resolve thread、CI 和 `@workflow merge` 意图；阻塞则 `pr-request-changes` 返修，满足条件后 `pr-merge` 用 merge commit 合并。PR/issue 采用 decision-first 模板，完整证据在 `<details>`。
 
 ## 组件
 
 | 文件 | 职责 |
 | --- | --- |
-| `workflow.json` | 周期 producer、图内 intake planner、每需求 worktree、3+3 工作池、GitHub issue 需求审批、draft PR 与 Human 自合并门禁。 |
+| `workflow.json` | 周期 producer、图内 intake planner、每需求 worktree、3+3 工作池、GitHub issue 需求审批、PR 反馈 watcher 与 GitHub 决策合并。 |
 | `driver.mjs` | command 节点使用的 JSON-only CLI。 |
-| `store.mjs` | 稳定 ID、优先级/FIFO、claim、revision/epoch、seed 轮转、需求审批与反馈。 |
-| `worktrees.mjs` | 每需求 attached worktree、单 commit 快照、review、brief 与受限清理。 |
-| `pr.mjs` | push 需求分支、创建/更新自己的 draft PR、维护状态块/标签、轮询外部 merge。 |
+| `store.mjs` | 稳定 ID、优先级/FIFO、claim、revision/epoch、seed 轮转、decision-first 字段、需求审批与反馈；store v4。 |
+| `worktrees.mjs` | 每需求 attached worktree、单 commit 快照、review、decision-first brief 与受限清理。 |
+| `pr.mjs` | push 需求分支、创建/更新自己的 draft PR、读取 GitHub 反馈、按 `mergePolicy` 合并或返修、验证 merge commit。 |
+| `pr-feedback.mjs` | 纯函数：授权评论/review、head/window 绑定、最新判决、merge 策略。 |
 | `github.mjs` | 示例共用的 `gh` 调用与仓库坐标解析。 |
-| `requirement-review.mjs` | 需求审批 issue：脱敏发布、读取维护者评论决定、回写需求状态。 |
-| `pr-protocol.md` | 角色头、状态块、finding、merge-ready 标签、需求审批 issue 与 PR 初始化约定。 |
+| `requirement-review.mjs` | 需求审批 issue：decision-first 模板、脱敏发布、读取维护者评论决定、回写需求状态。 |
+| `pr-protocol.md` | 角色头、状态块、判决标记、合并策略、需求审批 issue 与 PR 初始化约定。 |
 
 ## 本仓库配置
 
 - **集成 checkout**：`C:\Users\lazeloong\Code\Mirally-auto-workflow`，分支 `integration/auto-workflow`，从最新 `origin/main` 合并后建立。运行期间保持干净、停在该分支且无进行中的 merge。
 - **业务数据**：`C:\Users\lazeloong\Code\Mirally-auto-workflow-data-v5`。旧 v4 dataRoot 保留作证据，不再混用；v5 是新图/新 store 的唯一运行数据。
-- **集成方式**：`integrationMode=pull-request`，base `integration/auto-workflow`，remote `origin`，默认 `after-verified-merge` 清理；`selfMergeAfterMs=300000`。
+- **集成方式**：`integrationMode=pull-request`，base `integration/auto-workflow`，remote `origin`，默认 `after-verified-merge` 清理；`mergePolicy=comment`（PR 上 `@workflow merge`）。
 - **PR 初始化**：`pr-init` 使用 `manualGate:true` 和 `apply:true`，创建 `workflow:merge-ready` 以及 `workflow:requirement-review` / `approved` / `rejected` 标签。
 - **权限**：command allowlist 只放 `node docs/examples/development/driver.mjs`；HTTP deny。授权信任整个 driver，不是只读授权。
 - **模型**：需求 agent（`intake-plan`、`miner`、`analyst-revise`）用 `ustc-pool/deepseek-flash`；工程 agent（`engineer`）用 `ustc-pool/qwen3.8-flash-next`；审查 agent（`reviewer`）用 `ustc-pool/glm-5.3-flash`。全部 `reasoningEffort: max`，**不使用 deepseek-account 或其他兜底**；USTC 池全不可用时节点失败，由 6 小时检查处理。
@@ -42,7 +45,7 @@
 已经具体的需求仍用：
 
 ```powershell
-$env:DSH_WORKFLOW_INPUT = '{"dataRoot":"C:/Users/lazeloong/Code/Mirally-auto-workflow-data-v5","requirement":{"id":"req-example","source":"user","title":"具体改动","description":"期望行为与验收方式。","risk":"high","tags":["user"]}}'
+$env:DSH_WORKFLOW_INPUT = '{"dataRoot":"C:/Users/lazeloong/Code/Mirally-auto-workflow-data-v5","requirement":{"id":"req-example","source":"user","title":"具体改动","summary":"期望行为的 1–2 句摘要","why":["对现有流程的影响"],"acceptance":["可观察的验收项"],"evidence":"完整分析、文件行号和备选方案放在这里，公开时折叠。","risk":"high","tags":["user"]}}'
 node docs/examples/development/driver.mjs requirement
 ```
 
@@ -64,7 +67,7 @@ miner 产出的 mid/high 需求不再占看板 Human token：
 2. `auto_workflow_start` 绑定集成 checkout 的绝对 `cwd` 和 `{ "dataRoot": "C:\\Users\\lazeloong\\Code\\Mirally-auto-workflow-data-v5" }`，再 `auto_workflow_run`。
 3. 向 `mine-gate` **只 enqueue 一次** producer；它按 60 秒 gate、backlog/在途 seed 水位、seed 轮转继续采矿。
 4. 宽泛需求 enqueue `intake-record`；具体需求写 `driver requirement`；需要立即准入时 enqueue `dispatch`。
-5. 人工闸门：需求审批在 GitHub issue；PR 合并由外部用 **merge commit** 完成，宽限期后未 merge 才进入 `self-merge-human`。
+5. 人工闸门：需求审批在 GitHub issue；PR 由 GitHub 上的 `[verdict=pass|revise]`/正式 review 决定，`@workflow merge` 明确要求合并后由 `pr-merge` 用 merge commit 执行；不再有看板 `self-merge-human`。
 
 ## Seed 轮转与恢复
 
@@ -112,4 +115,4 @@ PR body、review、issue 和评论都是公开的 GitHub 内容。不写绝对�
 - 不替其他 PR 背书、不绕过 branch protection、不部署、不修改宿主凭据和私有配置。
 - 中断或失败执行不自动重放；先检查 store、worktree、分支、PR 和 issue，再显式恢复。snapshot 中断可用 `reconcile-snapshot`，seed 卡住用 `recover-seeds`。
 - `after-verified-merge` 在验证合并后删除 worktree 和本地需求分支；提交、artifact/review、PR 引用和清理记录保留。
-- 旧 v4 dataRoot、旧 run 和 PR #61/#62 保留作证据，新图从 v5 重新开始。
+- 旧 v4 dataRoot、旧 run 和旧 PR #61/#62 保留作证据；v5 已迁移到 store v4，新的 GitHub 决策路径从 v5 继续。
