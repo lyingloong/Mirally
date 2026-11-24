@@ -3,6 +3,7 @@
  * authorized GitHub feedback on the current head, and merges only after the
  * configured policy is satisfied. It never guesses a verdict from prose. */
 import path from 'node:path';
+import { tmpdir } from 'node:os';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { git, checkedWorktree, targetReady, ancestor, commitId, clean } from './worktrees.mjs';
 import { gh, ghJson, repoCoordinates } from './github.mjs';
@@ -12,6 +13,12 @@ import { MERGE_LABEL, MERGE_INTENT_LABEL, evaluateFeedback } from './pr-feedback
 const PR_FIELDS = 'number,url,state,isDraft,headRefOid,mergeCommit,mergedAt,closed,reviewDecision,body,labels,statusCheckRollup';
 const STAGES = new Set(['implementing', 'verifying', 'reviewing', 'repairing', 'merge-ready', 'blocked']);
 const TEMPLATE_PATH = '.github/pull_request_template.md';
+
+async function writePrBodyFile(body) {
+  const file = path.join(tmpdir(), `workflow-pr-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.md`);
+  await writeFile(file, `${body}\n`, 'utf8');
+  return file;
+}
 
 async function viewPr(store, number) {
   return ghJson(store.config.repoRoot, ['pr', 'view', String(number), '--json', PR_FIELDS]);
@@ -156,7 +163,8 @@ async function setMergeLabel(store, number, wanted) {
 async function writeProtocol(store, item, pr, state) {
   const markdown = item.brief?.markdown || stripProtocol(pr.body) || basicBody(item, store.config.mergePolicy);
   const body = protocolBody(markdown, state);
-  await gh(store.config.repoRoot, 'pr', 'edit', String(pr.number), '--body', body);
+  const bodyFile = await writePrBodyFile(body);
+  await gh(store.config.repoRoot, 'pr', 'edit', String(pr.number), '--body-file', bodyFile);
   item.pr = { ...item.pr, ...pr, protocol: state, body };
   return item.pr;
 }
@@ -271,7 +279,8 @@ async function updatePr(store, item, { create = false, state } = {}) {
   if (!pr) pr = await findPr(store, branch);
   if (!pr) {
     if (!create) throw new Error('No PR recorded for this requirement');
-    const url = await gh(store.config.repoRoot, 'pr', 'create', '--draft', '--head', branch, '--base', store.config.baseBranch, '--title', title, '--body', body);
+    const bodyFile = await writePrBodyFile(body);
+    const url = await gh(store.config.repoRoot, 'pr', 'create', '--draft', '--head', branch, '--base', store.config.baseBranch, '--title', title, '--body-file', bodyFile);
     pr = await ghJson(store.config.repoRoot, ['pr', 'view', url, '--json', PR_FIELDS]);
   } else {
     if (pr.state === 'CLOSED' && !pr.mergedAt) {
@@ -282,7 +291,8 @@ async function updatePr(store, item, { create = false, state } = {}) {
       item.pr = normalisePr(pr);
       throw new Error('The PR is already merged; do not publish or rework this requirement');
     }
-    await gh(store.config.repoRoot, 'pr', 'edit', String(pr.number), '--title', title, '--body', body);
+    const bodyFile = await writePrBodyFile(body);
+    await gh(store.config.repoRoot, 'pr', 'edit', String(pr.number), '--title', title, '--body-file', bodyFile);
     pr = await viewPr(store, pr.number);
   }
   item.pr = { ...normalisePr(pr), protocol };
