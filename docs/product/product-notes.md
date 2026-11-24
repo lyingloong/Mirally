@@ -828,3 +828,19 @@
 
 - 用户要求以一套 Mirally 实现整合 PN-0098 中值得借鉴的做法，并淘汰本地参考副本。
 - 会话中的 Windows 工具用同一份快照提供可操作控件和可选标注图，以现有审批绑定窗口及具体动作。动作由 Windows UIA 在目标控件上执行，填值可用回读核实，按钮触发随后返回当前观察。其他 UIA 控件与应用专用能力按真实任务的覆盖率评估。见[现行桌面设计](../architecture/desktop.md#对话中的-windows-操作)。
+
+## PN-0100 · 2026-11-24 07:35 +08:00 · QQ 官方 Bot 接入评估与最小接入面
+
+- 类型：调研发现 / 评估记录，演进 PN-0031、PN-0032、PN-0040。
+- 来源：用户委托调研 QQ 官方 Bot API 的接入方式、凭证与权限、消息事件及群/私聊差异，对照现有微信渠道，找出最小可用、可验证的接入面与主要限制；不是要求接入。Agent 于 2026-11-24 核对官方文档，未使用真实机器人或账号验证。
+- 状态：已核对官方文档表述；接入决策待评估。QQ Bot 渠道未接入，Mirally 不承诺主动提醒或长任务通知。
+- 官方当前描述——凭证与连接：开放平台提供 AppID、ClientSecret，经 `POST https://api.bot.qq.com/app/getAppAccessToken` 换取 access_token（约 7200 秒）；业务失败仍可能返回 HTTP 200，须按响应 `code` 判断；请求头为 `Authorization: QQBot <access_token>`。事件走 WebSocket 出站长连接（取 WSS 地址后 Identify/Resume/心跳）或 Webhook 回调（需可公网访问的 HTTPS 地址并校验签名）。
+- 官方当前描述——消息与身份：私聊事件 `C2C_MESSAGE_CREATE`，群聊 @ 事件 `GROUP_AT_MESSAGE_CREATE`（另有 `GROUP_MESSAGE_CREATE`）；身份是 `user_openid`/`group_openid`，不是 QQ 号。被动回复须携带 msg_id 或 event_id 与 msg_seq，相同组合重复会失败。被动回复的有效期与每条消息可回复次数在两个页面并不一致，须以实测为准：消息收发概述（2026-11-17 更新）写单聊 60 分钟 4 次、群聊 60 分钟 5 次（机器人开发者为该群群主或管理员时 50 次）、频道 5 分钟；发送接口页写单聊 60 分钟 5 次、群聊 5 分钟 5 次。
+- 官方当前描述——收发范围：发送接口页列出 QQ 单聊、QQ 群聊、文字子频道、频道私信四种场景，消息类型含文本、Markdown、Ark、Embed 与富媒体；概述页同样列出单聊、群聊与频道三类收发场景和富媒体上传流程。这些是平台侧接口描述，不代表 Mirally 已评估或接入。
+- 平台策略可能变化——主动投递：官方文档当前并存多种说明。发送接口页公告称主动推送自 2025-04-21 起不再提供，同页又把单聊与群聊主动消息写为每月 4 条；消息收发概述仍列出主动消息频控（按认证类型给出 qps/qpm，每日上限 1000 条/用户或/群）与 30 天内 4 个周期各 1 条“互动召回”。用户可在 QQ 客户端关闭“允许主动发送”；含 URL 的消息还可能要求先在开放平台配置消息 URL。主动投递不能按可靠能力做产品承诺。
+- 平台策略可能变化——主体与账号：官方 FAQ 说明个人主体暂不支持公开使用，企业主体才可公开；个人主体的机器人只能加入创建者为群主或管理员的群，或给“开发体验用户”发私聊；机器人可能被平台封禁。
+- 与微信对照：微信是扫码绑定本人身份、桌面主动 HTTPS 长轮询、持久出站队列与投递回执。QQ 官方 Bot 没有等价的扫码绑定。`user_openid` 可在各类事件中获得，发送接口页还列出 `FRIEND_ADD`、`C2C_MSG_RECEIVE`、`INTERACTION_CREATE` 等可作为被动回复依据的事件；本方案以用户首条入站消息作为绑定入口，不展示、不猜测 openid。主动投递受平台策略、主体资质和用户端开关约束，不能按微信方式平移。
+- 结论与最小可验证接入面：群聊、频道和富媒体是平台已有接口，Mirally 未评估；建议先验证“用户发起后的单聊文字被动回复”这一窄场景，可作为未来第二渠道候选，当前不接入。日后若决定接入，按此最小面单独建需求：首版只做 QQ 单聊（C2C）文字被动回复，群聊、频道、多用户、富媒体和真实账号验收不列入首版；首次入站消息发现 user_openid 后显式绑定；复用现有唯一会话、入站准入、持久回执与助理/直接会话模式；被动回复窗口与失败按平台语义呈现，未知结果不重放；主动投递列为受限能力。
+- 未验证边界：协议行为可用注入请求与本地假 WebSocket 离线验证；真实账号、平台审核、封禁与投递效果须待用户提供机器人主体后单独验收。以上为 2026-11-24 与 2026-11-25 对官方文档的静态核对，未实测任何接口，平台策略可能变化。
+- 修订：2026-11-25 +08:00，依维护者在 PR 上的复核意见更正 openid 来源的表述，补记两个页面对单聊每条消息可回复次数的不同写法，并把“仅单聊文字可行”改为“建议先验证用户发起后的单聊文字被动回复”，同时补记平台已有的群聊、频道与富媒体接口。本条结论不变，仍为官方文档静态核对，未实测接口。
+- 依据：[access_token 获取](https://bot.qq.com/wiki/develop/api-v2/dev-prepare/access-token.html)、[WebSocket 事件](https://bot.qq.com/wiki/develop/api-v2/dev-prepare/event-emit/websocket.html)、[消息收发概述](https://bot.qq.com/wiki/develop/api-v2/server-inter/message/overview.html)、[发送消息接口与频控](https://github.com/tencent-connect/bot-docs/blob/main/docs/develop/api-v2/server-inter/message/send-receive/send.md)、[机器人 FAQ](https://bot.q.qq.com/wiki/bot_FAQ/)。相关：[渠道现状](../architecture/channels.md)、[能力矩阵](../reference/capabilities.md)。
