@@ -229,6 +229,15 @@ async function syncProtocol(store, item, pr, feedback) {
     protocol.stage = 'reviewing';
     protocol.next = 'review';
     protocol.order = '';
+  } else if (feedback.override === 'revise') {
+    protocol.stage = 'blocked';
+    protocol.next = 'repair';
+  } else if (feedback.override === 'merge' && feedback.mergeSatisfied) {
+    // The owner's explicit command is authoritative; GitHub protection/CI is
+    // still enforced by the actual merge call.
+    protocol.stage = 'merge-ready';
+    protocol.next = 'merge';
+    if (!protocol.order) protocol.order = String(await store.nextOrder()).padStart(4, '0');
   } else if (feedback.verdict === 'revise' || feedback.unresolved > 0) {
     protocol.stage = 'blocked';
     protocol.next = 'repair';
@@ -406,9 +415,13 @@ export async function watch(store, id, claimId) {
       ci: feedback.ci, unresolved: feedback.unresolved, checkedAt: new Date().toISOString(),
     };
     const protocol = await syncProtocol(store, item, pr, feedback);
-    const outcome = feedback.verdict === 'revise' || feedback.unresolved > 0
+    const outcome = feedback.override === 'revise'
       ? 'revise'
-      : protocol.stage === 'merge-ready' ? 'pass' : 'waiting';
+      : feedback.override === 'merge' && feedback.mergeSatisfied
+        ? 'pass'
+        : feedback.verdict === 'revise' || feedback.unresolved > 0
+          ? 'revise'
+          : protocol.stage === 'merge-ready' ? 'pass' : 'waiting';
     return { item, outcome, pr, feedback, reason: outcome === 'waiting' ? waitingReason(feedback) : null };
   }), 'integration');
 }
@@ -450,13 +463,19 @@ export async function merge(store, id, claimId) {
     }
     if (pr.state === 'CLOSED') return { item, outcome: 'revise', pr, feedback: null, reason: 'PR was closed before merge' };
     let feedback = await feedbackFor(store, item, pr);
-    if (feedback.verdict === 'revise' || feedback.unresolved > 0) {
+    if (feedback.override === 'revise') {
       await syncProtocol(store, item, pr, feedback);
       return { item, outcome: 'revise', pr, feedback };
     }
-    if (feedback.verdict !== 'pass' || !['pass', 'none'].includes(feedback.ci) || !feedback.mergeSatisfied) {
-      await syncProtocol(store, item, pr, feedback);
-      return { item, outcome: 'waiting', pr, feedback, reason: waitingReason(feedback) };
+    if (feedback.override !== 'merge') {
+      if (feedback.verdict === 'revise' || feedback.unresolved > 0) {
+        await syncProtocol(store, item, pr, feedback);
+        return { item, outcome: 'revise', pr, feedback };
+      }
+      if (feedback.verdict !== 'pass' || !['pass', 'none'].includes(feedback.ci) || !feedback.mergeSatisfied) {
+        await syncProtocol(store, item, pr, feedback);
+        return { item, outcome: 'waiting', pr, feedback, reason: waitingReason(feedback) };
+      }
     }
     await verifyReviewedCommit(store, item);
     // Re-read after the slow verification so a comment or push during it cannot
@@ -470,13 +489,19 @@ export async function merge(store, id, claimId) {
     }
     if (pr.state === 'CLOSED') return { item, outcome: 'revise', pr, feedback, reason: 'PR was closed during merge verification' };
     feedback = await feedbackFor(store, item, pr);
-    if (feedback.verdict === 'revise' || feedback.unresolved > 0) {
+    if (feedback.override === 'revise') {
       await syncProtocol(store, item, pr, feedback);
       return { item, outcome: 'revise', pr, feedback };
     }
-    if (feedback.verdict !== 'pass' || !['pass', 'none'].includes(feedback.ci) || !feedback.mergeSatisfied) {
-      await syncProtocol(store, item, pr, feedback);
-      return { item, outcome: 'waiting', pr, feedback, reason: waitingReason(feedback) };
+    if (feedback.override !== 'merge') {
+      if (feedback.verdict === 'revise' || feedback.unresolved > 0) {
+        await syncProtocol(store, item, pr, feedback);
+        return { item, outcome: 'revise', pr, feedback };
+      }
+      if (feedback.verdict !== 'pass' || !['pass', 'none'].includes(feedback.ci) || !feedback.mergeSatisfied) {
+        await syncProtocol(store, item, pr, feedback);
+        return { item, outcome: 'waiting', pr, feedback, reason: waitingReason(feedback) };
+      }
     }
     try {
       await gh(store.config.repoRoot, 'pr', 'merge', String(pr.number), '--merge');

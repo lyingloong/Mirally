@@ -107,6 +107,8 @@ PR body、review、issue 和评论都是公开的 GitHub 内容。不写绝对�
 
 Codex/评审评论必须包含机器可读的 `[verdict=pass]` 或 `[verdict=revise]`，或提交正式 GitHub review（APPROVED / CHANGES_REQUESTED）；`pr-watch` 不解析“未发现阻塞问题/建议先修正”这类自然语言。`@workflow merge` 只是合并意图，当前 head 还必须存在 pass 判决、CI 通过且无未解决 thread，`pr-merge` 才会执行。**本机扩展**：你也可以在 PR 评论里直接写 `@workflow 返修`（或 `@workflow revise`）让 watcher 走返修，不必先改 PR body。
 
+**授权操作者的 `@workflow` 命令最高优先级**：`@workflow merge`、`@workflow 返修`、`@workflow stop` 覆盖 Codex 判决、未解决 thread 和 CI 结论；`pr-merge` 仍会受 GitHub 分支保护/required checks 约束，失败时如实报错。带 `[role=codex]` 的评论里的 `@workflow` 命令不生效，避免 Codex 误触发。
+
 ## PR 契约现状
 
 `pr-init` 以 `manualGate:true` 运行：硬性要求是 `gh` 认证、仓库访问、允许 merge commit、`workflow:merge-ready` 标签、PR template 状态块和三个需求审批标签；branch protection/required checks 是警告。仓库 CI 只在 PR 到 `main` 时触发，集成分支 PR 没有 GitHub 检查；合并必须用 **merge commit**，squash/rebase 会让 `check-pr` 明确报错。

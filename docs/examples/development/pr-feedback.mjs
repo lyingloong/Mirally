@@ -18,6 +18,7 @@ const MERGE_INTENT = /@workflow\s+merge\b/i;
 const REVISE_INTENT = /@workflow\s+(?:revise|rework|返修)/i;
 const STOP_INTENT = /@workflow\s+stop\b/i;
 const WORKFLOW_ROLE = /\[role=workflow\]/i;
+const CODEX_ROLE = /\[role=codex\]/i;
 
 function bodyOf(entry) { return String(entry?.body ?? ''); }
 function authorOf(entry) { return String(entry?.user?.login ?? entry?.author?.login ?? 'unknown'); }
@@ -52,7 +53,7 @@ export function reviewDecision(review, { head, authorized }) {
 export function mergeIntent(comments = [], { head, windowStart }) {
   const ordered = [...comments].sort((a, b) => timeOf(b) - timeOf(a));
   for (const comment of ordered) {
-    if (!authorizedComment(comment)) continue;
+    if (!authorizedComment(comment) || CODEX_ROLE.test(bodyOf(comment))) continue;
     const body = bodyOf(comment);
     if (!MERGE_INTENT.test(body) || STOP_INTENT.test(body)) continue;
     const marker = headMarker(comment);
@@ -63,11 +64,29 @@ export function mergeIntent(comments = [], { head, windowStart }) {
   return null;
 }
 
+/** The newest explicit owner command. It outranks script verdicts and reviews. */
+export function userCommand(comments = [], { head, windowStart }) {
+  const ordered = [...comments].sort((a, b) => timeOf(b) - timeOf(a));
+  for (const comment of ordered) {
+    if (!authorizedComment(comment) || CODEX_ROLE.test(bodyOf(comment))) continue;
+    const body = bodyOf(comment);
+    const marker = headMarker(comment);
+    if (marker && !String(head).startsWith(marker)) continue;
+    if (timeOf(comment) < Date.parse(windowStart)) continue;
+    const action = STOP_INTENT.test(body) ? 'stop'
+      : MERGE_INTENT.test(body) ? 'merge'
+        : REVISE_INTENT.test(body) ? 'revise' : null;
+    if (!action) continue;
+    return { kind: 'command', action, id: Number(comment.id), actor: authorOf(comment), at: comment.created_at ?? comment.createdAt ?? '', head: marker };
+  }
+  return null;
+}
+
 /** The newest authorized rework command (`@workflow revise|rework|返修`). */
 export function reviseIntent(comments = [], { head, windowStart }) {
   const ordered = [...comments].sort((a, b) => timeOf(b) - timeOf(a));
   for (const comment of ordered) {
-    if (!authorizedComment(comment)) continue;
+    if (!authorizedComment(comment) || CODEX_ROLE.test(bodyOf(comment))) continue;
     const body = bodyOf(comment);
     if (!REVISE_INTENT.test(body) || STOP_INTENT.test(body)) continue;
     const marker = headMarker(comment);
@@ -91,17 +110,38 @@ export function evaluateFeedback({
   const decisions = [
     ...comments.map(comment => commentDecision(comment, { head, windowStart })).filter(Boolean),
     ...reviews.map(review => reviewDecision(review, { head, authorized: authorizedReviewers.has(authorOf(review)) })).filter(Boolean),
-  ];
-  const revise = reviseIntent(comments, { head, windowStart });
-  if (revise) decisions.push({ kind: 'command', ...revise });
-  decisions.sort((a, b) => (Date.parse(a.at) || 0) - (Date.parse(b.at) || 0) || a.id - b.id);
+  ].sort((a, b) => (Date.parse(a.at) || 0) - (Date.parse(b.at) || 0) || a.id - b.id);
   const latest = decisions.at(-1) ?? null;
+  const command = userCommand(comments, { head, windowStart });
   let verdict = latest?.verdict ?? (aggregate === 'APPROVED' ? 'pass' : aggregate === 'CHANGES_REQUESTED' ? 'revise' : null);
-  if (unresolved > 0) verdict = 'revise';
-  const intent = mergeIntent(comments, { head, windowStart });
-  // A repository without configured checks reports `none`; pr-init records that
-  // as a repository-hardening warning rather than blocking the merge forever.
-  const mergeSatisfied = verdict === 'pass' && (ci === 'pass' || ci === 'none') && unresolved === 0
-    && (mergePolicy === 'auto' || (mergePolicy === 'label' ? labels.includes(MERGE_INTENT_LABEL) : Boolean(intent)));
-  return { head, verdict, decision: latest, mergeIntent: intent, mergeSatisfied, ci, unresolved, mergePolicy };
+  let decision = latest;
+  let override = null;
+  let intent = mergeIntent(comments, { head, windowStart });
+  let mergeSatisfied = false;
+  if (command) {
+    override = command.action;
+    decision = command;
+    if (command.action === 'merge') {
+      // The repository owner's explicit command outranks reviewer verdicts,
+      // unresolved threads and CI. GitHub branch protection may still reject
+      // the actual merge; pr-merge surfaces that rather than hiding it.
+      verdict = 'pass';
+      mergeSatisfied = true;
+      intent = command;
+    } else if (command.action === 'revise') {
+      verdict = 'revise';
+      mergeSatisfied = false;
+    } else {
+      verdict = null;
+      mergeSatisfied = false;
+      intent = null;
+    }
+  } else {
+    if (unresolved > 0) verdict = 'revise';
+    // A repository without configured checks reports `none`; pr-init records that
+    // as a repository-hardening warning rather than blocking the merge forever.
+    mergeSatisfied = verdict === 'pass' && (ci === 'pass' || ci === 'none') && unresolved === 0
+      && (mergePolicy === 'auto' || (mergePolicy === 'label' ? labels.includes(MERGE_INTENT_LABEL) : Boolean(intent)));
+  }
+  return { head, verdict, decision, mergeIntent: intent, mergeSatisfied, ci, unresolved, mergePolicy, override };
 }
