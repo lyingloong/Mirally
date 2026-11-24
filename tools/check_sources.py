@@ -1,5 +1,5 @@
-"""Check Mirally-owned sources for merge-conflict markers, Python syntax errors
-and trace whitespace / line-ending damage.
+"""Check Mirally-owned sources for merge-conflict markers, Python and JavaScript
+syntax errors and trace whitespace / line-ending damage.
 
 Run from the repository root:
 
@@ -25,12 +25,25 @@ findings every time and never rewrite a file. A file is reported when
 Files listed in ``CRLF_EXEMPT`` are excused from the CRLF-mixing check only,
 each with a written reason; ``CRLF`` alone is not a finding, so a checkout that
 normalizes line endings on Windows does not fail the guard.
+
+Every ``.mjs``/``.cjs`` file is additionally parsed with ``node --check``:
+parse only — nothing is executed, imports are not resolved, there is no
+network access, no dependency installation and no file is rewritten. An
+unparseable file reports ``path:line: JavaScript syntax error: <message>``
+just like a Python finding, and a file that already shows merge-conflict
+markers reports only the marker, so the two layers never stack on the same
+file. A missing or unrunnable ``node`` fails the guard with an actionable
+message instead of passing silently (README.md requires Node.js 24+); the
+executable is injectable through ``--node`` for tooling and tests.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
+import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -46,6 +59,11 @@ ROOT_FILES = ("README.md", "AGENTS.md", "CONTRIBUTING.md", "CHANGELOG.md", "run.
 TEXT_SUFFIXES = {".py", ".md", ".mjs", ".cjs", ".js", ".cpp", ".ps1", ".yml", ".yaml", ".template",
                  ".json", ".toml", ".txt", ".css", ".html", ".webmanifest", ".ts", ".tsx", ".jsx"}
 MARKERS = ("<<<<<<<", "|||||||", ">>>>>>>")
+# ``node --check`` parses these unambiguously as ESM / CommonJS. ``.js`` follows
+# the nearest package.json scope, and ``.jsx`` / ``.ts`` / ``.tsx`` are covered
+# by the frontend build and ``verify:source``, so neither group is parsed here.
+JS_SUFFIXES = (".mjs", ".cjs")
+NODE_TIMEOUT_SECONDS = 60
 # Mixed CRLF/LF findings that are accepted on purpose. Every entry needs a reason;
 # anything else is reported, and the allowlist never covers trailing whitespace or
 # the missing final newline.
@@ -126,7 +144,50 @@ def whitespace_problems(label: str, data: bytes, *, line_ending_exempt: bool = F
     return problems
 
 
-def check(path: Path, *, root: Path = ROOT) -> list[str]:
+def node_syntax_problems(label: str, path: Path, *, node: str = "node") -> list[str]:
+    """Parse one .mjs/.cjs file with ``node --check``; nothing is executed."""
+    try:
+        result = subprocess.run([node, "--check", str(path)], capture_output=True, text=True,
+                                encoding="utf-8", errors="replace", timeout=NODE_TIMEOUT_SECONDS)
+    except OSError as error:  # missing, not an executable or not launchable
+        # str(error) carries a localized OS strerror, which is not printable on every
+        # console encoding; the ASCII exception class plus fixed guidance is actionable.
+        return [f"{label}: JavaScript syntax check unavailable: cannot execute '{node}' "
+                f"({type(error).__name__}); install Node.js 24+ (see README.md) or pass --node <path>"]
+    except subprocess.TimeoutExpired:
+        return [f"{label}: JavaScript syntax check timed out after {NODE_TIMEOUT_SECONDS}s: '{node} --check'"]
+    if result.returncode == 0:
+        return []
+    return [_node_check_finding(label, (result.stderr or "") + (result.stdout or ""))]
+
+
+def _node_check_finding(label: str, output: str) -> str:
+    """Fold ``node --check`` failure output into one ``label:line: …`` finding.
+
+    Node prints ``<path>:<line>``, the offending source line, a caret, then a
+    ``SyntaxError: <message>`` block and a stack. The echoed path can contain
+    colons (Windows drive letters), so only the trailing ``:<digits>`` is read.
+    """
+    lines = output.splitlines()
+    header = lines[0].strip() if lines else ""
+    match = re.fullmatch(r".*:(\d+)", header)
+    location = f"{label}:{match.group(1)}" if match else label
+    summary = ""
+    for line in lines:
+        if line.startswith(("SyntaxError:", "ReferenceError:")):
+            summary = line.split(":", 1)[1].strip()
+            break
+    else:
+        for line in lines:
+            stripped = line.strip()
+            if stripped and not stripped.startswith(("at ", "Node.js v")) and set(stripped) != {"^"} \
+                    and stripped != header:
+                summary = stripped
+                break
+    return f"{location}: JavaScript syntax error: {summary or 'unknown error'}"
+
+
+def check(path: Path, *, root: Path = ROOT, node: str = "node") -> list[str]:
     try:
         data = path.read_bytes()
     except OSError:
@@ -143,19 +204,36 @@ def check(path: Path, *, root: Path = ROOT) -> list[str]:
             compile(text, label, "exec")
         except SyntaxError as error:
             problems.append(f"{label}:{error.lineno}: syntax error: {error.msg}")
+    elif path.suffix in JS_SUFFIXES and not problems:
+        # a marked file already failed loudly; the syntax layer never stacks on it
+        problems.extend(node_syntax_problems(label, path, node=node))
     problems.extend(whitespace_problems(label, data, line_ending_exempt=label in CRLF_EXEMPT))
     return problems
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        # findings quote source snippets and OS errors, which may not encode into
+        # a legacy console codepage; printing the report must never crash the guard
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    parser = argparse.ArgumentParser(
+        prog="check_sources.py",
+        description="Check owned sources for merge-conflict markers, Python and "
+                    "JavaScript syntax errors and whitespace / line-ending damage.",
+    )
+    parser.add_argument("--node", default="node", metavar="PATH",
+                        help="node executable used to --check every .mjs/.cjs file")
+    args = parser.parse_args(sys.argv[1:] if argv is None else list(argv))
     files = owned_files()
-    problems = [p for f in files for p in check(f)]
+    js_count = sum(1 for path in files if path.suffix in JS_SUFFIXES)
+    problems = [p for f in files for p in check(f, node=args.node)]
     if problems:
         print(f"{len(problems)} source hygiene problem(s):")
         for problem in problems:
             print(f"  {problem}")
         return 1
-    print(f"OK: {len(files)} files, no merge-conflict markers, Python syntax errors, "
+    print(f"OK: {len(files)} files ({js_count} .mjs/.cjs parsed with node --check), "
+          "no merge-conflict markers, Python or JavaScript syntax errors, "
           "trailing whitespace or line-ending damage.")
     return 0
 

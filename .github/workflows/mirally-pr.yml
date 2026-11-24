@@ -165,6 +165,12 @@ jobs:
         with:
           python-version: '3.10'
 
+      # The source guard parses every .mjs/.cjs with node --check (README.md: Node 24+).
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
       - name: Select checks for the changed files
         id: scope
         run: python tools/check_ci_scope.py
@@ -172,7 +178,7 @@ jobs:
       - name: Test development workflow tooling
         run: python -m unittest discover -s tests/development -t . -v
 
-      - name: Check sources for conflict markers and Python syntax
+      - name: Check sources for conflict markers, Python and JavaScript syntax
         run: python tools/check_sources.py
 
       - name: Check documentation links
