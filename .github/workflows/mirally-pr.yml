@@ -122,6 +122,7 @@ jobs:
             'tests/test_framework_native_bridge.mjs',
             'tests/test_framework_ui_races.mjs',
             'tests/test_framework_model_onboarding_ui.mjs',
+            'tests/test_framework_model_settings.mjs',
             'tests/test_framework_model_validation_ui.mjs',
             'tests/test_framework_capabilities_settings_ui.mjs',
             'tests/test_framework_messages_ui.mjs',

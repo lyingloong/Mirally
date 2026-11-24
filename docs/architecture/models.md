@@ -1,6 +1,6 @@
 # 模型连接与能力
 
-更新：2026-10-31，Asia/Shanghai。状态：现行。相关实现：`mirally/framework/model_connections.py`、`kernel/dsh/packages/mirally/mirally-product/src/models.mjs`、`model-probe.mjs`。
+更新：2026-11-24，Asia/Shanghai。状态：现行。相关实现：`mirally/framework/model_connections.py`、`kernel/dsh/packages/mirally/mirally-product/src/models.mjs`、`model-probe.mjs`。
 
 Mirally 不内置默认服务商、基础地址或密钥。用户需要在「设置 → 模型连接」自己配置服务与模型；没有模型时空会话只保留一个连接引导。
 
@@ -23,6 +23,7 @@ Mirally 不内置默认服务商、基础地址或密钥。用户需要在「设
 ## 发现、探测与测试
 
 - 模型列表读取、采用列表能力、保存配置和文字测试是不同操作。采用会更新待保存草稿；测试使用已保存连接，不偷偷保存表单。
+- Anthropic Messages 连接按该协议以 `limit`/`after_id` 翻页读取模型列表，并采用服务声明的显示名（缺失时回退模型 ID）；读取在 1000 个模型或 10 页上限处停止并提示列表已截断，如需的模型缺失，手动填写模型 ID。OpenAI 格式保持单页读取。任一页失败都不会把不完整列表当作成功。
 - 服务探测和固定短文字测试都必须由用户明确发起，不发送已有会话、材料或记忆。
 - 连接改动会使旧请求失效；测试失败显示真实错误，不伪装为空文字成功。
 - 空配置不自动采用任何预设；DeepSeek 预设只在用户明确选择后填写地址、格式和模型。

@@ -12,11 +12,14 @@ function fixture() {
     customElement:()=>target=>target,state:()=>()=>{},property:()=>()=>{},consume:()=>()=>{},applicationContext:{},
     eventOptions:options=>(_target,_name,descriptor)=>Object.assign(descriptor.value,options),
     HTMLElement:Element,MirallyLightDomElement:class{},SubscriptionsController:class{watch(){return this;}},
-    renderSettingsSection:(_options,content)=>content,renderSettingsRow:options=>options.control,
+    renderSettingsSection:(_options,content)=>content,renderSettingsRow:options=>[options.title,options.description,options.control],
     renderSettingsEmpty:()=>'',isDeepSeekEndpoint:()=>false};
   vm.runInNewContext(source+'\nglobalThis.Page=MirallySettingsPage;',sandbox);
   return {page:new sandbox.Page(),Element};
 }
+const stringify=value=>value==null||typeof value==='symbol'||typeof value==='function'?'':Array.isArray(value)
+  ?value.map(stringify).join(''):value?.strings
+    ?value.strings.map((part,index)=>part+stringify(value.values[index])).join(''):String(value);
 test('model form captures non-bubbling invalid events and opens the invalid field disclosure',()=>{
   const {page,Element}=fixture();
   const template=page.modelPage();
@@ -53,4 +56,16 @@ test('named connection and routing option selection follows the saved identity o
   assert.equal(options.find(item=>item.values[0]==='default').values[1],false);
   const routes=templates(page.routingSection()).filter(item=>item.strings[0]==='<option value='&&item.values[0]==='other');
   assert.deepEqual(routes.map(item=>item.values[1]),[true,false]);
+});
+test('a truncated discovery result shows one actionable note that clears with the list state',()=>{
+  const {page}=fixture();
+  page.discoveredModels=[{id:'claude-new',name:'Claude New'}];page.discoveredTruncated=true;
+  const shown=stringify(page.modelPage());
+  assert.match(shown,/mirally-settings-model-truncated/);
+  assert.match(shown,/模型列表已截断/);assert.match(shown,/手动填写模型 ID/);
+  page.discoveredTruncated=false;
+  assert.doesNotMatch(stringify(page.modelPage()),/模型列表已截断/);
+  page.discoveredTruncated=true;
+  page.clearDiscovered();
+  assert.equal(page.discoveredModels,null);assert.equal(page.discoveredTruncated,false);
 });
