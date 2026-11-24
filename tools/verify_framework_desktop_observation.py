@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from ctypes import wintypes
 from pathlib import Path
@@ -23,6 +24,8 @@ WS_CHILD_VISIBLE = 0x50000000
 WS_TABSTOP = 0x00010000
 EDIT_STYLE = 0x00800000 | WS_TABSTOP | 0x80  # WS_BORDER | WS_TABSTOP | ES_AUTOHSCROLL
 ES_PASSWORD = 0x20
+DWMWA_CLOAK = 13
+DWMWA_CLOAKED = 14
 
 LRESULT = ctypes.c_ssize_t
 WINDOW_PROC = getattr(ctypes, "WINFUNCTYPE", ctypes.CFUNCTYPE)(
@@ -50,6 +53,9 @@ class DesktopFixture:
 
     def __init__(self):
         self.user = user = ctypes.WinDLL("user32", use_last_error=True)
+        self.dwm = dwm = ctypes.WinDLL("dwmapi", use_last_error=True)
+        dwm.DwmSetWindowAttribute.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
+        dwm.DwmGetWindowAttribute.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
         kernel = ctypes.WinDLL("kernel32", use_last_error=True)
         kernel.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
         kernel.GetModuleHandleW.restype = wintypes.HMODULE
@@ -163,6 +169,27 @@ class DesktopFixture:
             raise ctypes.WinError(ctypes.get_last_error())
         return {name: getattr(rect, name) for name in ("left", "top", "right", "bottom")}
 
+    def set_cloak(self, cloaked):
+        """Ask DWM to hide only this tool's own fixture window from the user."""
+        value = wintypes.DWORD(1 if cloaked else 0)
+        return self.dwm.DwmSetWindowAttribute(self.hwnd, DWMWA_CLOAK, ctypes.byref(value), ctypes.sizeof(value))
+
+    def cloak_state(self):
+        value = wintypes.DWORD()
+        result = self.dwm.DwmGetWindowAttribute(self.hwnd, DWMWA_CLOAKED, ctypes.byref(value), ctypes.sizeof(value))
+        if result != 0:
+            raise RuntimeError(f"DWMWA_CLOAKED query failed with 0x{result & 0xFFFFFFFF:08X}")
+        return value.value
+
+    def wait_for_cloak(self, cloaked, *, timeout=3.0):
+        # DWM applies cloak changes on the composition thread, so poll while keeping the fixture responsive.
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            self.pump(wait=True)
+            if bool(self.cloak_state()) == cloaked:
+                return True
+        return bool(self.cloak_state()) == cloaked
+
 
 def call_helper(fixture, kind, value=None, *, rejected=False):
     # Keep the fixture's GUI loop responsive while UIA operates cross-process.
@@ -227,6 +254,39 @@ def verify_image(fixture, snapshot, button_id, *, required):
     print(f"Annotated window image aligned ({frame['source']}).")
 
 
+def verify_cloak(fixture, window):
+    """Only a window DWM confirms as shown is listed and observable."""
+
+    from mirally.framework.desktop_observation import CLOAK_SHOWN, CLOAK_UNKNOWN, cloak_state, dwm_api
+
+    dwm = dwm_api()
+
+    def entries():
+        return [record for record in call_helper(fixture, "windows")["windows"] if record["hwnd"] == fixture.hwnd]
+
+    assert cloak_state(dwm, fixture.hwnd) == CLOAK_SHOWN, "The shown fixture window must classify as shown"
+    assert entries(), "The shown fixture window must be listed before cloaking"
+    refusal = fixture.set_cloak(True)
+    if not fixture.wait_for_cloak(True):
+        reason = (f"DwmSetWindowAttribute refused with 0x{refusal & 0xFFFFFFFF:08X}" if refusal
+                  else "DWM kept the window uncloaked")
+        print(f"Cloak round-trip unavailable ({reason}); the read-only DWMWA_CLOAKED check is the only cloak evidence.")
+        return
+    try:
+        assert not entries(), "A cloaked window must not be offered as an operable target"
+        refused = call_helper(fixture, "snapshot", {"window": window}, rejected=True)
+        assert refused["error"] == "目标窗口当前未显示。请重新观察窗口。", refused
+    finally:
+        fixture.set_cloak(False)
+        restored = fixture.wait_for_cloak(False)
+    assert restored, "The fixture window stayed cloaked after the uncloak request"
+    assert entries(), "The shown fixture window must return to the window list"
+    # DWM refuses to answer for a handle that is not a window, which must never read as shown.
+    assert cloak_state(dwm, 0) == CLOAK_UNKNOWN, "A failed cloak query must not report the window as shown"
+    print("Cloaked window left the listing and was refused for observation; showing it again restored both,")
+    print("and a refused cloak query is reported as unknown instead of shown.")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--require-image", action="store_true", help="Fail if a window screenshot is unavailable")
@@ -284,6 +344,8 @@ def main():
             assert fixture.invoke_count == 1
         finally:
             unmark_mirally_window(fixture.hwnd)
+
+        verify_cloak(fixture, window)
 
         assert fixture.user.GetForegroundWindow() != fixture.hwnd
         print("Window scope, Unicode value readback, Invoke and stale control rejection passed.")

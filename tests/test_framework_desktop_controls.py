@@ -1,17 +1,39 @@
+import ctypes
+import os
 import unittest
+from ctypes import wintypes
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from mirally.framework.desktop_controls import (
     DesktopControlError, prepare_operation, resolve_target, scan_controls, snapshot_record,
 )
-from mirally.framework.desktop_observation import _control_window
+from mirally.framework.desktop_observation import _control_window, list_windows
 from mirally.platform.window_identity import MIRALLY_WINDOW_PROPERTY, is_mirally_window
 
 
 AUTO = SimpleNamespace(PropertyId=SimpleNamespace(IsPasswordProperty=1),
                        PatternId=SimpleNamespace(InvokePattern=2, ValuePattern=3))
 BOUNDS = {'left': -100, 'top': 0, 'right': 200, 'bottom': 100}
+DWMWA_CLOAKED_SIZE = ctypes.sizeof(wintypes.DWORD)
+DWM_QUERY_FAILED = -2147024809  # E_INVALIDARG as ctypes returns the failing HRESULT.
+
+
+class FakeDwm:
+    """Answers DWMWA_CLOAKED queries with the cloak state or failure the case declares."""
+
+    def __init__(self, cloaked_by_hwnd=None, failures=(), result=0):
+        self.cloaked_by_hwnd = cloaked_by_hwnd or {}
+        self.failures = set(failures)
+        self.result = result
+        self.queries = []
+
+    def DwmGetWindowAttribute(self, hwnd, attribute, value, size):
+        self.queries.append((hwnd, attribute, size))
+        if self.result != 0 or hwnd in self.failures:
+            return self.result or DWM_QUERY_FAILED
+        ctypes.cast(value, ctypes.POINTER(wintypes.DWORD))[0] = self.cloaked_by_hwnd.get(hwnd, 0)
+        return 0
 
 
 class Control:
@@ -80,6 +102,83 @@ class DesktopControlsTests(unittest.TestCase):
             with self.assertRaises(DesktopControlError):
                 _control_window(user, 13, 20)
             read.assert_not_called()
+
+    def listed_windows(self, hwnds=(1, 2, 3), dwm=None):
+        records = {hwnd: {'hwnd': hwnd, 'pid': 42, 'title': f'窗口 {hwnd}', 'bounds': BOUNDS} for hwnd in hwnds}
+        user = MagicMock()
+        user.EnumWindows.side_effect = lambda callback, _param: all(callback(hwnd, 0) for hwnd in hwnds)
+        with patch('mirally.framework.desktop_observation.windows_api', return_value=user), \
+                patch('mirally.framework.desktop_observation.is_mirally_window', return_value=False), \
+                patch('mirally.framework.desktop_observation.window_record',
+                      side_effect=lambda _user, hwnd: records[hwnd]), \
+                patch('mirally.framework.desktop_observation.dwm_api', **(dwm or {})):
+            return list_windows()
+
+    @unittest.skipUnless(os.name == 'nt', '窗口枚举需要 Windows 的 WINFUNCTYPE')
+    def test_cloaked_windows_stay_out_of_the_window_list(self):
+        dwm = FakeDwm({2: 1})
+        listed = self.listed_windows(dwm={'return_value': dwm})
+        self.assertEqual([record['hwnd'] for record in listed['windows']], [1, 3])
+        self.assertTrue(listed['untrusted_content'])
+        self.assertEqual(dwm.queries, [(hwnd, 14, DWMWA_CLOAKED_SIZE) for hwnd in (1, 2, 3)])
+
+    @unittest.skipUnless(os.name == 'nt', '窗口枚举需要 Windows 的 WINFUNCTYPE')
+    def test_windows_with_unconfirmed_cloak_state_stay_out_of_the_window_list(self):
+        dwm = FakeDwm({2: 1}, failures=(3,))
+        listed = self.listed_windows(dwm={'return_value': dwm})
+        self.assertEqual([record['hwnd'] for record in listed['windows']], [1])
+        self.assertEqual(dwm.queries, [(hwnd, 14, DWMWA_CLOAKED_SIZE) for hwnd in (1, 2, 3)])
+
+    @unittest.skipUnless(os.name == 'nt', '窗口枚举需要 Windows 的 WINFUNCTYPE')
+    def test_window_listing_stops_when_dwm_cannot_answer(self):
+        with self.assertRaises(RuntimeError) as caught:
+            self.listed_windows(dwm={'side_effect': OSError('dwmapi')})
+        self.assertEqual(str(caught.exception), '无法确认窗口的显示状态。请稍后重试。')
+
+    def test_cloaked_window_is_rejected_before_control(self):
+        user = MagicMock()
+        user.GetAncestor.side_effect = lambda hwnd, _relationship: hwnd
+        dwm = FakeDwm({12: 1})
+        with patch('mirally.framework.desktop_observation.is_mirally_window', return_value=False), \
+                patch('mirally.framework.desktop_observation.window_record',
+                      return_value={'hwnd': 12, 'pid': 42, 'title': '窗口', 'bounds': BOUNDS}), \
+                patch('mirally.framework.desktop_observation.dwm_api', return_value=dwm):
+            with self.assertRaises(DesktopControlError) as caught:
+                _control_window(user, 12, 42)
+        self.assertEqual(str(caught.exception), '目标窗口当前未显示。请重新观察窗口。')
+        self.assertEqual(dwm.queries, [(12, 14, DWMWA_CLOAKED_SIZE)])
+
+    def test_window_with_unconfirmed_cloak_state_is_rejected_before_control(self):
+        cases = (('查询返回失败', {'return_value': FakeDwm(failures=(12,))}),
+                 ('dwmapi 不可用', {'side_effect': OSError('dwmapi')}))
+        for label, dwm in cases:
+            user = MagicMock()
+            user.GetAncestor.side_effect = lambda hwnd, _relationship: hwnd
+            with self.subTest(case=label), \
+                    patch('mirally.framework.desktop_observation.is_mirally_window', return_value=False), \
+                    patch('mirally.framework.desktop_observation.window_record',
+                          return_value={'hwnd': 12, 'pid': 42, 'title': '窗口', 'bounds': BOUNDS}), \
+                    patch('mirally.framework.desktop_observation._process_started') as started, \
+                    patch('mirally.framework.desktop_observation.dwm_api', **dwm):
+                with self.assertRaises(DesktopControlError) as caught:
+                    _control_window(user, 12, 42)
+            self.assertEqual(str(caught.exception), '无法确认目标窗口是否已显示。请重新观察窗口。')
+            started.assert_not_called()
+
+    def test_shown_window_passes_the_cloak_gate(self):
+        user = MagicMock()
+        user.GetAncestor.side_effect = lambda hwnd, _relationship: hwnd
+        dwm = FakeDwm({12: 0})
+        with patch('mirally.framework.desktop_observation.is_mirally_window', return_value=False), \
+                patch('mirally.framework.desktop_observation.window_record',
+                      return_value={'hwnd': 12, 'pid': 42, 'title': '窗口', 'bounds': BOUNDS}), \
+                patch('mirally.framework.desktop_observation._process_started', return_value='started') as started, \
+                patch('mirally.framework.desktop_observation.dwm_api', return_value=dwm):
+            with self.assertRaises(DesktopControlError) as caught:
+                _control_window(user, 12, 42)
+        self.assertEqual(str(caught.exception), '窗口状态已变化。请重新观察窗口。')
+        started.assert_called_once_with(42)
+        self.assertEqual(dwm.queries, [(12, 14, DWMWA_CLOAKED_SIZE)])
 
     def test_password_subtrees_are_masked_without_reading_names_or_values(self):
         root = Control(0)
