@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import concurrent.futures
+import contextlib
 import hashlib
 import json
 import os
@@ -1054,11 +1055,14 @@ class FrameworkProductTests(unittest.TestCase):
         future = self.base / "future" / "framework"
         future.mkdir(parents=True)
         path = future / "product.sqlite3"
-        with sqlite3.connect(path) as db:
+        # `with sqlite3.connect(...)` only commits/rolls back the transaction;
+        # closing() releases the file handle so tearDown can remove the temp
+        # dir — Windows keeps product.sqlite3 locked otherwise (WinError 32).
+        with contextlib.closing(sqlite3.connect(path)) as db:
             db.execute("PRAGMA user_version=999")
         with self.assertRaises(FrameworkError):
             FrameworkService(self.base, future.parent)
-        with sqlite3.connect(path) as db:
+        with contextlib.closing(sqlite3.connect(path)) as db:
             self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 999)
 
 
