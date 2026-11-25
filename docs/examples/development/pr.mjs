@@ -413,17 +413,27 @@ async function verifyReviewedCommit(store, item) {
 }
 
 async function verifyExternalMerge(store, item) {
-  const commit = await verifyReviewedCommit(store, item);
+  const reviewed = await verifyReviewedCommit(store, item);
   await targetReadyForMerge(store);
-  if (!await ancestor(store.config.repoRoot, commitId(commit))) {
-    throw new Error('PR is marked merged but the approved commit is not in the base branch. The repository may use squash/rebase merges; this workflow requires a merge commit.');
+  const head = commitId(await git(store.config.repoRoot, 'rev-parse', 'HEAD'));
+  const mergeCommit = item.pr?.mergeCommit ? commitId(item.pr.mergeCommit) : null;
+  const reviewedInBase = await ancestor(store.config.repoRoot, reviewed);
+  const mergedInBase = mergeCommit ? await ancestor(store.config.repoRoot, mergeCommit) : false;
+  // External merge rules are outside this workflow. Accept a GitHub-merged PR
+  // whose resulting merge/rebase commit is on the base, so squash/rebase do not
+  // strand an otherwise merged requirement. The reviewed commit remains stored
+  // for audit; it is only required to be an ancestor for merge-commit merges.
+  if (!reviewedInBase && !mergedInBase) {
+    throw new Error('PR is marked merged but neither the approved commit nor GitHub\'s merge commit is in the base branch; inspect the external merge before accepting it.');
   }
   item.status = 'merged';
   item.integration = {
     state: 'verified',
     mechanism: item.pr.mergeDecision ? 'workflow-merge' : 'external-pr',
+    externalMergeMethod: reviewedInBase ? 'merge-commit' : (mergeCommit ? 'squash-or-rebase' : 'github-reported-merged'),
+    reviewedCommit: reviewed,
     pr: item.pr,
-    mergeCommit: item.pr.mergeDecision?.mergeCommit ?? commitId(await git(store.config.repoRoot, 'rev-parse', 'HEAD')),
+    mergeCommit: item.pr.mergeDecision?.mergeCommit ?? mergeCommit ?? head,
     verifiedAt: new Date().toISOString(),
   };
   // A merged requirement is terminal: its seed returns to the rotation.

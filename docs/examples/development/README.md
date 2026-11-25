@@ -113,7 +113,7 @@ GitHub 临时错误（5xx、连接失败、超时、rate limit）由更新的 `g
 
 ## PR 契约现状
 
-`pr-init` 以 `manualGate:true` 运行：硬性要求是 `gh` 认证、仓库访问、允许 merge commit、`workflow:merge-ready` 标签、PR template 状态块和三个需求审批标签；branch protection/required checks 是警告。仓库 CI 只在 PR 到 `main` 时触发，集成分支 PR 没有 GitHub 检查；合并必须用 **merge commit**，squash/rebase 会让 `check-pr` 明确报错。
+`pr-init` 以 `manualGate:true` 运行：硬性要求是 `gh` 认证、仓库访问、允许 merge commit、`workflow:merge-ready` 标签、PR template 状态块和三个需求审批标签；branch protection/required checks 是警告。仓库 CI 只在 PR 到 `main` 时触发，集成分支 PR 没有 GitHub 检查。**外部 merge 不受本工作流约束**：外部用 merge commit、squash 或 rebase 合入都可以；`check-pr` 会验证 GitHub 的 `mergeCommit` 或已审 commit 是否在 base 中，接受外部结果并记录 `externalMergeMethod`。工作流自己执行 `pr-merge` 时仍用 merge commit。
 
 ## 边界
 
