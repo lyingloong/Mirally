@@ -4,6 +4,8 @@
 >
 > **2026-11-24 迁移**：业务 store 已从 v3 迁到 v4（decision-first 字段 + GitHub merge policy）。PR 合并不再使用看板 `merge-human`/`self-merge-human`：reviewer 通过后 `pr-watch` 轮询 GitHub 的 `[verdict=pass|revise]` 评论、正式 review、未 resolve thread、CI 和 `@workflow merge` 意图；阻塞则 `pr-request-changes` 返修，满足条件后 `pr-merge` 用 merge commit 合并。PR/issue 采用 decision-first 模板，完整证据在 `<details>`。
 
+> **2026-11-25 自然语言决策**：需求 issue 和 PR 都支持授权协作者的 `@workflow <自然语言>` 命令，由低思考 intent agent 解释为 approve/revise/stop/clarify（issue）或 merge/revise/stop/clarify（PR）。Codex 等评论只作为引用证据，不是指令；revise 会生成引用评论 id 的 brief，改完后只通知一次“请检查”并附 resolved/unresolved 映射。精确命令仍是 fallback；模糊语句回 clarify。
+
 ## 组件
 
 | 文件 | 职责 |
