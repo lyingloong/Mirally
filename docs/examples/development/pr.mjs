@@ -226,6 +226,17 @@ function waitingReason(feedback) {
   return 'No authorized verdict yet';
 }
 
+function transientGithubError(error) {
+  const message = String(error?.message ?? error);
+  if (!/rate limit|secondary rate/i.test(message)
+    && /workflow scope|refusing to allow|HTTP 401|HTTP 403|HTTP 404|not found|permission|bad credentials|not authorized/i.test(message)) return false;
+  return /ECONN|ETIMEDOUT|connectex|wsarecv|socket hang up|dial tcp|HTTP 5\d\d|rate limit|secondary rate|timed out|timeout|network is unreachable/i.test(message);
+}
+
+function transientReason(error) {
+  return `GitHub temporarily unavailable; retry: ${String(error?.message ?? error).replace(/\s+/g, ' ').slice(0, 300)}`;
+}
+
 /** Persist the protocol block and merge-ready label for the current decision. */
 async function syncProtocol(store, item, pr, feedback) {
   const previous = item.pr?.protocol ?? protocolFor(item);
@@ -404,35 +415,48 @@ async function verifyExternalMerge(store, item) {
  */
 export async function watch(store, id, claimId) {
   return store.locked(() => store.mutate(id, claimId, async item => {
-    if (!['human-pending', 'approved'].includes(item.status)) throw new Error('PR watch requires a reviewed requirement');
-    if (!item.pr?.number) throw new Error('No PR recorded for this requirement');
-    const pr = normalisePr(await viewPr(store, item.pr.number));
-    item.pr = { ...item.pr, ...pr };
-    if (pr.state === 'MERGED') {
-      await setMergeLabel(store, pr.number, false);
-      await verifyExternalMerge(store, item);
-      return { item, outcome: 'merged', pr, feedback: null };
+    try {
+      if (!['human-pending', 'approved'].includes(item.status)) throw new Error('PR watch requires a reviewed requirement');
+      if (!item.pr?.number) throw new Error('No PR recorded for this requirement');
+      const pr = normalisePr(await viewPr(store, item.pr.number));
+      item.pr = { ...item.pr, ...pr };
+      if (pr.state === 'MERGED') {
+        await setMergeLabel(store, pr.number, false);
+        await verifyExternalMerge(store, item);
+        return { item, outcome: 'merged', pr, feedback: null };
+      }
+      if (pr.state === 'CLOSED') {
+        await setMergeLabel(store, pr.number, false);
+        return { item, outcome: 'closed', pr, feedback: null, reason: 'PR was closed without merge' };
+      }
+      if (pr.isDraft) return { item, outcome: 'waiting', pr, feedback: null, reason: 'PR is still a draft' };
+      const feedback = await feedbackFor(store, item, pr);
+      item.pr.feedback = {
+        head: feedback.head, verdict: feedback.verdict, decision: feedback.decision,
+        mergeIntent: feedback.mergeIntent, mergeSatisfied: feedback.mergeSatisfied,
+        ci: feedback.ci, unresolved: feedback.unresolved, checkedAt: new Date().toISOString(),
+      };
+      const protocol = await syncProtocol(store, item, pr, feedback);
+      const outcome = feedback.override === 'revise'
+        ? 'revise'
+        : feedback.override === 'merge' && feedback.mergeSatisfied
+          ? 'pass'
+          : feedback.verdict === 'revise' || feedback.unresolved > 0
+            ? 'revise'
+            : protocol.stage === 'merge-ready' ? 'pass' : 'waiting';
+      return { item, outcome, pr, feedback, reason: outcome === 'waiting' ? waitingReason(feedback) : null };
+    } catch (error) {
+      if (!transientGithubError(error)) throw error;
+      item.pr = {
+        ...(item.pr ?? {}),
+        feedback: {
+          ...(item.pr?.feedback ?? {}),
+          lastTransientError: String(error?.message ?? error).slice(0, 500),
+          lastTransientAt: new Date().toISOString(),
+        },
+      };
+      return { item, outcome: 'waiting', pr: item.pr ?? null, feedback: null, reason: transientReason(error) };
     }
-    if (pr.state === 'CLOSED') {
-      await setMergeLabel(store, pr.number, false);
-      return { item, outcome: 'closed', pr, feedback: null, reason: 'PR was closed without merge' };
-    }
-    if (pr.isDraft) return { item, outcome: 'waiting', pr, feedback: null, reason: 'PR is still a draft' };
-    const feedback = await feedbackFor(store, item, pr);
-    item.pr.feedback = {
-      head: feedback.head, verdict: feedback.verdict, decision: feedback.decision,
-      mergeIntent: feedback.mergeIntent, mergeSatisfied: feedback.mergeSatisfied,
-      ci: feedback.ci, unresolved: feedback.unresolved, checkedAt: new Date().toISOString(),
-    };
-    const protocol = await syncProtocol(store, item, pr, feedback);
-    const outcome = feedback.override === 'revise'
-      ? 'revise'
-      : feedback.override === 'merge' && feedback.mergeSatisfied
-        ? 'pass'
-        : feedback.verdict === 'revise' || feedback.unresolved > 0
-          ? 'revise'
-          : protocol.stage === 'merge-ready' ? 'pass' : 'waiting';
-    return { item, outcome, pr, feedback, reason: outcome === 'waiting' ? waitingReason(feedback) : null };
   }), 'integration');
 }
 
