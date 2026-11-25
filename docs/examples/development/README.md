@@ -109,6 +109,8 @@ Codex/评审评论必须包含机器可读的 `[verdict=pass]` 或 `[verdict=rev
 
 **授权操作者的 `@workflow` 命令最高优先级**：`@workflow merge`、`@workflow 返修`、`@workflow stop` 覆盖 Codex 判决、未解决 thread 和 CI 结论；`pr-merge` 仍会受 GitHub 分支保护/required checks 约束，失败时如实报错。带 `[role=codex]` 的评论里的 `@workflow` 命令不生效，避免 Codex 误触发。
 
+GitHub 临时错误（5xx、连接失败、超时、rate limit）由更新的 `github.mjs`/`pr.mjs` 分类并做有界 backoff，`pr-watch` 返回 waiting 交给 `pr-gate` 重试，不再直接生成 failed token；鉴权/scope/404/冲突等永久错误仍明确失败。
+
 ## PR 契约现状
 
 `pr-init` 以 `manualGate:true` 运行：硬性要求是 `gh` 认证、仓库访问、允许 merge commit、`workflow:merge-ready` 标签、PR template 状态块和三个需求审批标签；branch protection/required checks 是警告。仓库 CI 只在 PR 到 `main` 时触发，集成分支 PR 没有 GitHub 检查；合并必须用 **merge commit**，squash/rebase 会让 `check-pr` 明确报错。
