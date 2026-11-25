@@ -10,7 +10,7 @@ import { gh, ghJson, repoCoordinates, classifyGitHubError, githubBackoff, GITHUB
 import { redactForPublic, REVIEW_LABEL, APPROVED_LABEL, REJECTED_LABEL, REQUIREMENT_LABELS } from './requirement-review.mjs';
 import { MERGE_LABEL, MERGE_INTENT_LABEL, evaluateFeedback } from './pr-feedback.mjs';
 
-const PR_FIELDS = 'number,url,state,isDraft,headRefOid,mergeCommit,mergedAt,closed,reviewDecision,body,labels,statusCheckRollup';
+const PR_FIELDS = 'number,url,state,isDraft,headRefOid,mergeCommit,mergedAt,closed,reviewDecision,body,labels,statusCheckRollup,mergeable,mergeStateStatus';
 const STAGES = new Set(['implementing', 'verifying', 'reviewing', 'repairing', 'merge-ready', 'blocked']);
 const TEMPLATE_PATH = '.github/pull_request_template.md';
 
@@ -40,6 +40,8 @@ function normalisePr(value) {
     mergedAt: value.mergedAt ?? null,
     closed: Boolean(value.closed),
     reviewDecision: value.reviewDecision ?? null,
+    mergeable: value.mergeable ?? null,
+    mergeStateStatus: value.mergeStateStatus ?? null,
     body: typeof value.body === 'string' ? value.body : '',
     checks: Array.isArray(value.statusCheckRollup) ? value.statusCheckRollup : [],
     labels: Array.isArray(value.labels) ? value.labels.map(label => typeof label === 'string' ? label : label.name).filter(Boolean) : [],
@@ -457,6 +459,16 @@ export async function watch(store, id, claimId) {
         return { item, outcome: 'closed', pr, feedback: null, reason: 'PR was closed without merge' };
       }
       if (pr.isDraft) return { item, outcome: 'waiting', pr, feedback: null, reason: 'PR is still a draft' };
+      if (pr.mergeable === 'CONFLICTING' || pr.mergeStateStatus === 'DIRTY') {
+        const feedback = {
+          head: pr.headRefOid ?? null, verdict: 'revise', override: 'revise',
+          decision: { kind: 'conflict', id: pr.headRefOid ?? item.pr.number, verdict: 'revise', head: pr.headRefOid ?? null, actor: 'github', at: new Date().toISOString() },
+          mergeIntent: null, mergeSatisfied: false, ci: 'none', unresolved: 0,
+        };
+        item.pr.feedback = { ...feedback, checkedAt: new Date().toISOString() };
+        await syncProtocol(store, item, pr, feedback);
+        return { item, outcome: 'revise', pr, feedback, reason: 'PR has merge conflicts with its base' };
+      }
       const feedback = await feedbackFor(store, item, pr);
       item.pr.feedback = {
         head: feedback.head, verdict: feedback.verdict, decision: feedback.decision,
