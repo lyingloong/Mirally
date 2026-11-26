@@ -198,7 +198,7 @@ async function executeStage(name, input) {
   }
   if (name === 'notify-pr-rework') {
     const changed = await pullRequests.notifyRework(store, id, claimId);
-    return result(changed.outcome, store.envelope(changed.item, { pr: changed.item.pr ?? null }));
+    return result(changed.outcome, store.envelope(changed.item, { pr: changed.item.pr ?? null, ...(changed.item.implementation ?? {}) }));
   }
   if (name === 'pr-request-changes') {
     const changed = await pullRequests.requestChanges(store, id, claimId, { feedback: input.feedback ?? null, reason: input.reason ?? null });
