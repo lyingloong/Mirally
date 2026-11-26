@@ -14,7 +14,8 @@ from unittest.mock import patch
 from mirally.core.activity import Actor, CollectionLevel, Observation, ObservationStore
 from mirally.core.activity.knowledge.projection import build_projection
 from mirally.runtime.activity.browser import ActivityBrowserRuntime
-from mirally.runtime.activity.monitor import ActivityMonitorRuntime, build_test_config
+from mirally.runtime.activity.monitor import build_test_config
+from mirally.runtime.activity.read_surface import page_events
 
 
 class ActivityBrowserRuntimeTests(unittest.TestCase):
@@ -146,75 +147,79 @@ class ActivityBrowserRuntimeTests(unittest.TestCase):
             def read_since(self, *_args, **_kwargs):
                 raise AssertionError("filtered query should use query()")
 
-        def check(runtime_type):
-            runtime = runtime_type.__new__(runtime_type)
-            runtime.store = FilteredStore([SimpleNamespace(ingest_seq=7)])
-            with patch.object(
-                __import__(runtime_type.__module__, fromlist=["_safe_observation"]),
-                "_safe_observation",
-                side_effect=lambda row, **_kwargs: {"ingest_seq": row.ingest_seq},
-            ):
-                result = runtime.events({"kind": ["ocr_result"], "limit": ["1"]})
-            self.assertEqual(runtime.store.requested_limit, 2)
-            self.assertEqual(result["events"], [{"ingest_seq": 7}])
-            self.assertFalse(result["has_more"])
-            self.assertEqual(result["cursor"], 7)
-
-        check(ActivityBrowserRuntime)
-        check(ActivityMonitorRuntime)
+        # One shared paging rule now serves both diagnostics faces, so this is
+        # asserted once against it instead of once per runtime class.
+        store = FilteredStore([SimpleNamespace(ingest_seq=7)])
+        with patch("mirally.runtime.activity.read_surface.safe_observation",
+                   side_effect=lambda row, **_kwargs: {"ingest_seq": row.ingest_seq}):
+            result = page_events(store, {"kind": ["ocr_result"], "limit": ["1"]})
+        self.assertEqual(store.requested_limit, 2)
+        self.assertEqual(result["events"], [{"ingest_seq": 7}])
+        self.assertFalse(result["has_more"])
+        self.assertEqual(result["cursor"], 7)
 
     def test_all_data_layers_are_queryable_and_paginated(self) -> None:
         self.runtime.start(port=0)
-        raw = self.runtime.raw(self._params(limit=2))
-        self.assertEqual(len(raw["observations"]), 2)
-        self.assertTrue(raw["has_more"])
-        self.assertEqual(raw["observations"][0]["observation_id"], self.window.observation_id)
+        surface = self.runtime.read_surface
+        first_page = surface.observations(self._params(limit=2, include_content=1))
+        self.assertEqual(len(first_page["observations"]), 2)
+        self.assertTrue(first_page["has_more"])
+        self.assertEqual(first_page["observations"][0]["observation_id"], self.asset_observation.observation_id)
+        second_page = surface.observations(self._params(limit=2, include_content=1, before=first_page["cursor"]))
+        self.assertEqual([row["observation_id"] for row in second_page["observations"]],
+                         [self.input_batch.observation_id, self.ocr.observation_id])
 
-        filtered = self.runtime.raw(self._params(kind="ocr_result", limit=10))
+        filtered = surface.observations(self._params(kind="ocr_result", limit=10, include_content=1))
         self.assertEqual([row["observation_id"] for row in filtered["observations"]], [self.ocr.observation_id])
         self.assertNotEqual(filtered["observations"][0]["ocr_summary"]["text"], "")
+        redacted = surface.observations(self._params(kind="ocr_result", limit=10))
+        self.assertNotIn("text", redacted["observations"][0]["ocr_summary"])
+        self.assertTrue(redacted["observations"][0]["ocr_summary"]["text_available"])
 
-        items = self.runtime.items(self._params(limit=2))
+        items = surface.items(self._params(limit=2))
         self.assertEqual(len(items["items"]), 2)
         self.assertTrue(items["truncated"])
         self.assertTrue(items["next_cursor"])
-        next_page = self.runtime.items(self._params(limit=2, after_item=items["next_cursor"]))
+        next_page = surface.items(self._params(limit=2, after_item=items["next_cursor"]))
         self.assertTrue(next_page["items"])
         item_id = items["items"][0]["item_id"]
-        item = self.runtime.item(item_id)
+        item = surface.item(item_id)
         self.assertEqual(item["item_id"], item_id)
         self.assertIn("structured", item)
 
-        episodes = self.runtime.episodes(self._params(limit=20))
+        episodes = surface.episodes(self._params(limit=20))
         self.assertTrue(episodes["episodes"])
         episode_id = episodes["episodes"][0]["episode_id"]
-        self.assertEqual(self.runtime.episode(episode_id)["episode_id"], episode_id)
+        self.assertEqual(surface.episode(episode_id)["episode_id"], episode_id)
 
-        evidence = self.runtime.evidence([self.evidence_id], include_assets=False)
+        evidence = surface.evidence([self.evidence_id], include_assets=False)
         self.assertTrue(evidence["evidence"])
         self.assertIn("完整 OCR 正文", evidence["evidence"][0]["text"])
-        self.assertEqual(self.runtime.asset(self.asset_id)["asset_id"], self.asset_id)
+        paged_evidence = surface.evidence_query(self._params(limit=2))
+        self.assertTrue(paged_evidence["evidence"])
+        self.assertIsNone(surface.asset(self.asset_id).get("path"))
+        self.assertEqual(surface.asset(self.asset_id)["asset_id"], self.asset_id)
 
-        events = self.runtime.events_view(self._params(limit=20, include_uia=1, include_ocr=1))
+        events = surface.events_view(self._params(limit=20, include_uia=1, include_ocr=1))
         self.assertIn("events", events)
         self.assertTrue(events["events"])
-        timeline = self.runtime.timeline(self._params(limit=20, include_uia=1, include_ocr=1))
+        timeline = surface.timeline(self._params(limit=20, include_uia=1, include_ocr=1))
         self.assertTrue(timeline["timeline"])
-        context = self.runtime.context(self._params(limit=20, mode="evidence", include_uia=1, include_ocr=1))
+        context = surface.context(self._params(limit=20, mode="evidence", include_uia=1, include_ocr=1))
         self.assertTrue(context["items"])
-        summary = self.runtime.summary(self._params(limit=20, episodes=20))
+        summary = surface.summary(self._params(limit=20, episodes=20))
         self.assertIn("apps", summary)
 
         candidate = self.runtime.organizer.propose_memory(
             "fixture browser memory", source_episode_ids=(episode_id,), source_observation_ids=(self.window.observation_id,)
         )
-        candidates = self.runtime.candidates(self._params(limit=20))
+        candidates = surface.candidates(self._params(limit=20))
         self.assertIn(candidate.candidate_id, {row["candidate_id"] for row in candidates["candidates"]})
         fact = self.runtime.organizer.accept_memory(candidate.candidate_id)
         self.assertIsNotNone(fact)
-        facts = self.runtime.facts(self._params(limit=20))
+        facts = surface.facts(self._params(limit=20))
         self.assertIn(fact.fact_id, {row["fact_id"] for row in facts["facts"]})
-        self.assertIn("health", self.runtime.diagnostics())
+        self.assertIn("health", self.runtime.status())
 
     def test_http_browser_routes_are_authenticated_and_read_only(self) -> None:
         url = self.runtime.start(port=0)

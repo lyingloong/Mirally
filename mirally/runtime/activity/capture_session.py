@@ -171,9 +171,14 @@ class ActivityCaptureSession:
         stopped = runtime is None or not self._runtime_complete or runtime.stop_event.is_set()
         if stopped:
             collector["status"] = "stopped"
-        else:
-            collector.setdefault("status", "starting")
+        elif collector.get("status") in (None, "", "unknown"):
+            # The shared derivation answers "unknown" until the collector writes its
+            # first record; this session owns a live collector, so it is starting.
+            collector["status"] = "starting"
+        # These facts come from this window's own lifecycle, not from a record, so
+        # they replace the recorded-status basis the shared view derived.
         collector.update(
+            status_basis="session",
             snapshot=False,
             owned=True,
             running=not stopped,

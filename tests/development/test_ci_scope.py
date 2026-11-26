@@ -218,7 +218,11 @@ WORKFLOW = ROOT / ".github/workflows/mirally-pr.yml"
 
 # Pure-offline product modules that must stay in the CI subset.
 OFFLINE_MODULES = (
+    "tests.test_activity_browser",
+    "tests.test_activity_browser_queries",
+    "tests.test_activity_monitor",
     "tests.test_activity_projection",
+    "tests.test_activity_read_surface",
     "tests.test_delivery_invalidation",
     "tests.test_framework_capabilities",
     "tests.test_framework_conversation_metadata",

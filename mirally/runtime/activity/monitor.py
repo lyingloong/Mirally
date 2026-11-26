@@ -23,12 +23,13 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Optional
 
 from mirally.core.activity.models import CollectionLevel
-from mirally.core.activity.knowledge import ActivityOrganizer, ContextQuery, KnowledgeStore
+from mirally.core.activity.knowledge import ActivityOrganizer, KnowledgeStore
 from mirally.core.activity.policy import ActivityPolicy
-from mirally.core.activity.store import CursorExpiredError, ObservationStore
+from mirally.core.activity.store import ObservationStore
 
 from .config import ActivityConfig
 from .lock import ActivityProcessLock
+from .read_surface import ActivityReadSurface, collector_view, parse_flag
 from .service import ActivitySensor
 
 
@@ -167,38 +168,6 @@ def build_test_config(root: Path, *, content: bool = True, persist_images: bool 
     )
 
 
-def _safe_observation(value: Any, *, include_content: bool = False) -> dict[str, Any]:
-    result = value.to_dict()
-    if not include_content:
-        ocr = dict(result.get("ocr_summary") or {})
-        if "text" in ocr:
-            text = str(ocr.pop("text") or "")
-            ocr["text_available"] = bool(text)
-            ocr["text_char_count"] = len(text)
-        lines = ocr.get("lines")
-        if isinstance(lines, list):
-            ocr["line_count"] = len(lines)
-            ocr.pop("lines", None)
-        result["ocr_summary"] = ocr
-        visual = dict(result.get("visual_summary") or {})
-        visual.pop("path", None)
-        result["visual_summary"] = visual
-        def redact_content(mapping):
-            clean = dict(mapping or {})
-            for key in ("name", "value", "text", "inserted_text", "automation_id", "class_name"):
-                if key in clean:
-                    text = str(clean.pop(key) or "")
-                    clean[key + "_char_count"] = len(text)
-            return clean
-        uia = dict(result.get("uia_summary") or {})
-        uia["nodes"] = [redact_content(node) for node in uia.get("nodes", ())]
-        uia["focused_control"] = redact_content(uia.get("focused_control"))
-        result["uia_summary"] = uia
-        if result.get("kind") in {"input_text", "clipboard_content"}:
-            result["payload"] = redact_content(result.get("payload"))
-    return result
-
-
 class ActivityMonitorRuntime:
     """Own one sensor, one loopback HTTP server and its lifecycle."""
 
@@ -215,6 +184,7 @@ class ActivityMonitorRuntime:
             idle_timeout_ms=int(config.knowledge_idle_timeout_seconds * 1000),
             allowed_lateness_ms=int(config.knowledge_allowed_lateness_seconds * 1000),
         )
+        self.read_surface = ActivityReadSurface(self.store, self.knowledge_store, self.organizer)
         self.token = secrets.token_urlsafe(24)
         self.stop_event = threading.Event()
         self.sensor_thread: Optional[threading.Thread] = None
@@ -264,7 +234,13 @@ class ActivityMonitorRuntime:
         except Exception as error:
             self.thread_error = f"{type(error).__name__}: {error}"
             try:
-                self.store.set_state("collector", {"status": "error", "error": self.thread_error, "at": int(time.time() * 1000)})
+                # The crash belongs to one collector generation, and only this row
+                # records it, so it names that generation for the shared status rule.
+                self.store.set_state("collector", {
+                    "status": "error", "error": self.thread_error, "at": int(time.time() * 1000),
+                    "source_id": getattr(self.sensor, "source_id", None),
+                    "source_epoch": getattr(self.sensor, "source_epoch", None),
+                })
             except Exception:
                 pass
 
@@ -360,15 +336,17 @@ class ActivityMonitorRuntime:
 
         return Handler
 
+    def metrics(self) -> dict[str, Any]:
+        """This process' live collector metrics, as opposed to recorded diagnostics."""
+        return self.sensor.metrics_snapshot()
+
     def status(self) -> dict[str, Any]:
         health = self.store.health()
-        collector = self.store.get_state("collector", {})
         diagnostics = self.store.get_state("collector_diagnostics", {})
-        if collector.get("status") == "running" and diagnostics.get("status") == "degraded":
-            collector = {**collector, "status": "degraded"}
         pause = self.store.get_state("collector_pause", {})
-        if pause.get("paused") and collector.get("status") not in {"stopped", "disabled"}:
-            collector = {**collector, "status": "paused"}
+        collector = collector_view(collector=self.store.get_state("collector", {}),
+                                   diagnostics=diagnostics, pause=pause)
+        metrics = self.metrics()
         return {
             "monitor": {"uptime_seconds": round(max(0.0, time.time() - self.started_at), 2), "thread_error": self.thread_error},
             "enabled": self.config.enabled,
@@ -384,14 +362,14 @@ class ActivityMonitorRuntime:
             "pause": pause,
             "health": asdict(health),
             "knowledge": self.organizer.health(),
-            "metrics": self.sensor.metrics_snapshot(),
+            "metrics": metrics,
             "sources": {
                 "foreground": {"available": bool(getattr(self.sensor.source, "available", False))},
                 "window_context": {"available": bool(self.config.window_titles_enabled or self.config.browser_urls_enabled)},
                 "browser_url": {"available": bool(getattr(self.sensor.browser_source, "available", False)) if self.sensor.browser_source else False},
                 "input": {"available": bool(getattr(self.sensor.input_source, "available", False)) if self.sensor.input_source else False},
                 "uia": {"available": bool(getattr(self.sensor.uia_source, "available", False)) if self.sensor.uia_source else False},
-                "visual": self.sensor.metrics_snapshot().get("capture_runtime") or {"available": bool(getattr(self.sensor.visual_source, "available", False)) if self.sensor.visual_source else False},
+                "visual": metrics.get("capture_runtime") or {"available": bool(getattr(self.sensor.visual_source, "available", False)) if self.sensor.visual_source else False},
                 "ocr": {"available": bool(getattr(self.sensor.ocr_source, "available", False)) if self.sensor.ocr_source else False},
                 "clipboard": {"available": bool(self.config.clipboard_enabled and self.sensor.clipboard_source.available)},
             },
@@ -417,56 +395,6 @@ class ActivityMonitorRuntime:
                 ],
             },
         }
-
-    def browser_observations(self, params: Mapping[str, list[str]]) -> dict[str, Any]:
-        """Return the raw source newest-first for the developer browser."""
-        limit = max(1, min(200, int((params.get("limit") or ["100"])[0])))
-        before_value = (params.get("before") or [None])[0]
-        before = None if before_value in (None, "") else int(before_value)
-        start_value = (params.get("start") or [None])[0]
-        end_value = (params.get("end") or [None])[0]
-        rows = self.store.query(
-            start_utc_ms=None if start_value in (None, "") else int(start_value),
-            end_utc_ms=None if end_value in (None, "") else int(end_value),
-            app_ids=[value for value in params.get("app", ()) if value],
-            kinds=[value for value in params.get("kind", ()) if value],
-            query=(params.get("q") or [None])[0] or None,
-            before_ingest_seq=before,
-            descending=True,
-            limit=limit + 1,
-        )
-        has_more = len(rows) > limit
-        selected = rows[:limit]
-        cursor = selected[-1].ingest_seq if selected and has_more else None
-        include_content = (params.get("include_content") or [""])[0].lower() in {"1", "true", "yes"}
-        return {
-            "data_status": "ok" if selected else "empty",
-            "observations": [_safe_observation(row, include_content=include_content) for row in selected],
-            "cursor": cursor,
-            "has_more": has_more,
-        }
-
-    def events(self, params: Mapping[str, list[str]]) -> dict[str, Any]:
-        after = max(0, int((params.get("after") or ["0"])[0]))
-        limit = max(1, min(200, int((params.get("limit") or ["100"])[0])))
-        include_content = (params.get("include_content") or [""])[0].lower() in {"1", "true", "yes"}
-        kinds = [value for value in params.get("kind", []) if value]
-        apps = [value for value in params.get("app", []) if value]
-        try:
-            if kinds or apps:
-                rows = self.store.query(
-                    after_ingest_seq=after, kinds=kinds or None, app_ids=apps or None, limit=limit + 1
-                )
-                has_more = len(rows) > limit
-                selected = rows[:limit]
-                cursor = selected[-1].ingest_seq if selected and selected[-1].ingest_seq is not None else after
-            else:
-                rows, cursor, has_more = self.store.read_since(after, limit=limit)
-        except CursorExpiredError as error:
-            return {"events": [], "cursor": after, "has_more": False, "cursor_expired": True, "error": str(error)}
-        selected = rows[:limit] if (kinds or apps) else rows
-        return {"events": [_safe_observation(row, include_content=include_content) for row in selected], "cursor": cursor, "has_more": has_more}
-
 
 class ActivityMonitorRequestHandler(BaseHTTPRequestHandler):
     server_version = "MirallyActivityMonitor/1"
@@ -534,75 +462,57 @@ class ActivityMonitorRequestHandler(BaseHTTPRequestHandler):
                 self._error(HTTPStatus.SERVICE_UNAVAILABLE,
                     "活动知识索引尚未准备；原始记录和诊断仍可查看。打开此页不会创建或重建索引。")
                 return
+            surface = self.runtime.read_surface
             if path in {"/api/health", "/api/status"}:
                 self._json(self.runtime.status())
             elif path == "/api/metrics":
-                self._json(self.runtime.sensor.metrics_snapshot())
+                self._json(self.runtime.metrics())
             elif path == "/api/events":
-                self._json(self.runtime.events(query))
+                self._json(surface.events(query))
             elif path == "/api/browser/observations":
-                if hasattr(self.runtime, "browser_observations"):
-                    self._json(self.runtime.browser_observations(query))
-                else:
-                    self._json(self.runtime.events(query))
+                self._json(surface.observations(query))
             elif path == "/api/knowledge/context":
-                self._knowledge_context(query)
+                self._json(surface.context(query))
             elif path == "/api/knowledge/events":
-                self._knowledge_events(query)
+                self._json(surface.events_view(query))
             elif path == "/api/knowledge/timeline":
-                self._knowledge_timeline(query)
+                self._json(surface.timeline(query))
             elif path == "/api/knowledge/items":
-                self._knowledge_items(query)
+                self._json(surface.items(query))
             elif path == "/api/knowledge/episodes":
-                self._knowledge_episodes(query)
+                self._json(surface.episodes(query))
             elif path == "/api/knowledge/summary":
-                self._knowledge_summary(query)
+                self._json(surface.summary(query))
             elif path == "/api/knowledge/health":
-                self._json(self.runtime.organizer.health())
+                self._json(surface.health())
             elif path == "/api/knowledge/memory/candidates":
-                status = (query.get("status") or [None])[0]
-                limit = max(1, min(500, int((query.get("limit") or ["100"])[0])))
-                values = self.runtime.knowledge_store.list_memory_candidates(status=status, limit=limit)
-                self._json({"candidates": [value.to_dict() for value in values]})
+                self._json(surface.candidates(query))
             elif path == "/api/knowledge/memory/facts":
-                status = (query.get("status") or [None])[0]
-                limit = max(1, min(500, int((query.get("limit") or ["100"])[0])))
-                values = self.runtime.knowledge_store.list_memory_facts(status=status, limit=limit)
-                self._json({"facts": [value.to_dict() for value in values]})
+                self._json(surface.facts(query))
             elif path.startswith("/api/knowledge/episodes/"):
-                episode_id = urllib.parse.unquote(path.rsplit("/", 1)[-1])
-                episode = self.runtime.organizer.get_episode(episode_id)
+                episode = surface.episode(urllib.parse.unquote(path.rsplit("/", 1)[-1]))
                 if episode is None:
                     self._error(HTTPStatus.NOT_FOUND, "episode not found")
                 else:
-                    self._json(episode.to_dict())
+                    self._json(episode)
             elif path == "/api/knowledge/evidence":
+                include_assets = parse_flag(query, "include_assets")
                 ids = [value for value in query.get("id", ()) if value]
-                if not ids:
-                    if hasattr(self.runtime, "evidence_query"):
-                        include_assets = (query.get("include_assets") or [""])[0].lower() in {"1", "true", "yes"}
-                        self._json(self.runtime.evidence_query(query, include_assets=include_assets))
-                    else:
-                        context = self._context_query(query, mode="evidence", purpose="diagnostics", include_uia=True)
-                        self._json({"evidence": [value.to_dict() for value in self.runtime.organizer.context(context).evidence]})
-                else:
-                    include_assets = (query.get("include_assets") or [""])[0].lower() in {"1", "true", "yes"}
-                    self._json({"evidence": [value.to_dict() for value in self.runtime.organizer.get_evidence(ids, include_assets=include_assets)]})
+                self._json(surface.evidence(ids, include_assets=include_assets) if ids
+                           else surface.evidence_query(query, include_assets=include_assets))
             elif path.startswith("/api/knowledge/items/"):
-                item_id = urllib.parse.unquote(path.rsplit("/", 1)[-1])
-                item = self.runtime.knowledge_store.get_item(item_id)
+                item = surface.item(urllib.parse.unquote(path.rsplit("/", 1)[-1]))
                 if item is None:
                     self._error(HTTPStatus.NOT_FOUND, "item not found")
                 else:
-                    self._json(item.to_dict())
+                    self._json(item)
             elif path.startswith("/api/events/"):
-                observation_id = urllib.parse.unquote(path.rsplit("/", 1)[-1])
-                value = self.runtime.store.get(observation_id)
+                value = surface.observation(urllib.parse.unquote(path.rsplit("/", 1)[-1]),
+                                            include_content=parse_flag(query, "include_content"))
                 if value is None:
                     self._error(HTTPStatus.NOT_FOUND, "event not found")
                 else:
-                    include = (query.get("include_content") or [""])[0].lower() in {"1", "true", "yes"}
-                    self._json(_safe_observation(value, include_content=include))
+                    self._json(value)
             elif path.startswith("/api/assets/"):
                 self._asset(path.rsplit("/", 1)[-1], query)
             else:
@@ -612,93 +522,10 @@ class ActivityMonitorRequestHandler(BaseHTTPRequestHandler):
         except Exception as error:
             self._error(HTTPStatus.INTERNAL_SERVER_ERROR, f"{type(error).__name__}: {error}")
 
-    @staticmethod
-    def _query_one(query: Mapping[str, list[str]], name: str) -> Optional[str]:
-        values = query.get(name) or []
-        return values[0] if values else None
-
-    @classmethod
-    def _context_query(cls, query: Mapping[str, list[str]], *, mode: Optional[str] = None,
-                       purpose: Optional[str] = None, include_uia: Optional[bool] = None) -> ContextQuery:
-        def integer(name: str) -> Optional[int]:
-            value = cls._query_one(query, name)
-            return None if value in (None, "") else int(value)
-
-        selected_mode = mode or cls._query_one(query, "mode") or "outline"
-        selected_purpose = purpose or cls._query_one(query, "purpose") or "agent_context"
-        uia = include_uia if include_uia is not None else cls._query_one(query, "include_uia") in {"1", "true", "yes"}
-        return ContextQuery(
-            query=cls._query_one(query, "q"), start_utc_ms=integer("start"), end_utc_ms=integer("end"),
-            apps=tuple(query.get("app", ())), windows=tuple(query.get("window", ())),
-            kinds=tuple(query.get("kind", ())), mode=selected_mode, purpose=selected_purpose,
-            max_items=int(cls._query_one(query, "limit") or 30),
-            max_episodes=int(cls._query_one(query, "episodes") or 10),
-            token_budget=int(cls._query_one(query, "tokens") or 4000),
-            episode_id=cls._query_one(query, "episode"),
-            include_assets=cls._query_one(query, "include_assets") in {"1", "true", "yes"},
-            include_uia=uia, include_ocr=cls._query_one(query, "include_ocr") not in {"0", "false", "no"},
-            after_item_id=cls._query_one(query, "after_item"),
-        )
-
-    def _knowledge_context(self, query: Mapping[str, list[str]]) -> None:
-        context = self.runtime.organizer.context(self._context_query(query))
-        self._json(context.to_dict())
-
-    def _knowledge_events(self, query: Mapping[str, list[str]]) -> None:
-        context = self._context_query(query, mode="evidence", purpose="diagnostics", include_uia=True)
-        self._json(self.runtime.organizer.activity_events(context))
-
-    def _knowledge_timeline(self, query: Mapping[str, list[str]]) -> None:
-        context = self._context_query(query, mode="structured", purpose="diagnostics", include_uia=True)
-        self._json(self.runtime.organizer.activity_timeline(context))
-
-    def _knowledge_items(self, query: Mapping[str, list[str]]) -> None:
-        context = self._context_query(query, mode="structured", purpose="diagnostics", include_uia=True)
-        # Fetch one extra item so callers can distinguish a full page from a
-        # query that happened to contain exactly ``limit`` records.
-        limit = max(1, min(500, int(context.max_items)))
-        values = self.runtime.knowledge_store.query_items(
-            query=context.query, start_utc_ms=context.start_utc_ms, end_utc_ms=context.end_utc_ms,
-            apps=context.apps, windows=context.windows, kinds=context.kinds, episode_id=context.episode_id,
-            after_item_id=context.after_item_id, limit=min(500, limit + 1),
-        )
-        truncated = len(values) > limit
-        selected = values[:limit]
-        self._json({
-            "data_status": "ok" if selected else "empty",
-            "items": [value.to_dict() for value in selected],
-            "truncated": truncated,
-            "next_cursor": selected[-1].item_id if truncated and selected else None,
-        })
-
-    def _knowledge_episodes(self, query: Mapping[str, list[str]]) -> None:
-        start = self._query_one(query, "start")
-        end = self._query_one(query, "end")
-        limit = max(1, min(100, int(self._query_one(query, "limit") or 50)))
-        values = self.runtime.knowledge_store.query_episodes(
-            start_utc_ms=None if start in (None, "") else int(start),
-            end_utc_ms=None if end in (None, "") else int(end),
-            query=self._query_one(query, "q"),
-            apps=tuple(query.get("app", ())), windows=tuple(query.get("window", ())),
-            kinds=tuple(query.get("kind", ())),
-            after_episode_id=self._query_one(query, "after_episode"),
-            limit=limit + 1,
-        )
-        truncated = len(values) > limit
-        selected = values[:limit]
-        self._json({
-            "data_status": "ok" if selected else "empty", "episodes": [value.to_dict() for value in selected],
-            "truncated": truncated, "next_cursor": selected[-1].episode_id if truncated else None,
-        })
-
-    def _knowledge_summary(self, query: Mapping[str, list[str]]) -> None:
-        context = self._context_query(query, mode="outline", purpose="diagnostics")
-        self._json(self.runtime.organizer.activity_summary(context))
-
     def _asset(self, asset_id: str, query: Mapping[str, list[str]]) -> None:
         asset_id = urllib.parse.unquote(asset_id)
-        include = (query.get("include_content") or [""])[0].lower() in {"1", "true", "yes"}
-        record = self.runtime.store.resolve_asset(asset_id, scope="activity-content")
+        include = parse_flag(query, "include_content")
+        record = self.runtime.read_surface.asset_record(asset_id)
         if (query.get("download") or [""])[0] != "1":
             self._json({key: value for key, value in record.items() if key != "path"})
             return
