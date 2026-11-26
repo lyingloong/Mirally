@@ -72,7 +72,7 @@
 | 开发点状态、并发/配额闸门与待合并池 | [状态助手](../../tools/dev_workflow/agent_workflow.py)、[AgentTeams 工作流](../development/agent-teams-workflow.md) | 队长用状态助手推进 `proposed → … → awaiting_merge`；审查通过后交用户或已获授权的 Codex 合并，队长与成员不自行 merge；本机状态与配置在 `output/agent-workflow/`（gitignore，不是产品数据） | [状态机与闸门测试](../../tests/development/test_agent_workflow.py) |
 | 只读进度页与数据快照 | [进度页生成器](../../tools/dev_workflow/progress_page.py)、[进度页说明](../development/agent-teams-workflow.md#进度页) | 只读呈现 `state.json`、spec/verification/review、`page-tasks.json`、`page-decisions.md` 与 `pr-cache.json` 为 `progress.html` + `progress.data.json`；不写状态、不触发合并，`--refresh-pr` 是唯一联网步骤 | [进度页测试](../../tests/development/test_progress_page.py) |
 | 审查经验与可复用准则 | [审查经验库](../development/review-experience.md) | 审查师维护；候选先写入 `output/agent-workflow/experience-candidates.md`，整理走独立 docs PR | 无自动化测试；实现/审查前人工核对相关条目 |
-| 仓库文档链接守卫 | [链接检查器](../../tools/check_docs_links.py) | 文档改动后由改动者运行；入口是否仍正确、测试是否覆盖目标行为仍需审查核对 | `python tools/check_docs_links.py` 输出 0 broken |
+| 仓库文档链接守卫 | [链接检查器](../../tools/check_docs_links.py) | 文档改动后由改动者运行；除相对链接与锚点外，还要求[文档导航](../README.md)直接索引 `docs/` 的 `architecture`、`reference`、`standards`、`design`、`product` 每篇文档，[开发与协作](../development/README.md)直接索引 `docs/development/` 每篇子文档，缺失按 `索引页 -> 文档` 报告；只统计读者可点击的条目（注释、代码与图片不计，引用式链接须能在同页解析）。入口是否仍正确、测试是否覆盖目标行为仍需审查核对 | `python tools/check_docs_links.py` 输出 OK（链接、锚点与索引覆盖） |
 | CI 影响范围与依赖缓存 | [PR 工作流](../../.github/workflows/mirally-pr.yml)、[范围选择器](../../tools/check_ci_scope.py) | 明确的文档/开发工具改动只运行轻量检查，网站改动另走网站工作流；未知或无法比较时运行完整产品检查，规则见[验证](validation.md#github-actions-检查范围) | [范围与 Git 差异测试](../../tests/development/test_ci_scope.py) |
 
 ## 找到入口后的检查顺序
@@ -89,4 +89,4 @@
 - 改动 `tools/dev_workflow/`、`docs/development/` 或 `tests/development/` 时，同步更新上面「开发工作流与工具」的入口与代表验证。
 - 链接使用仓库内相对路径，不依赖开发机目录；优先维护少量稳定入口，避免复制全部 RPC、工具目录、状态说明或架构正文。
 - 代码与地图不一致时先核对当前实现并修正地图；不要为了符合旧索引保留错误职责或过时模块。
-- 改动后运行 `python tools/check_docs_links.py`；它检查目标是否存在，入口是否仍正确、测试是否覆盖目标行为需要审查者核对。
+- 改动后运行 `python tools/check_docs_links.py`；它检查目标是否存在以及主题文档是否已被索引页以可点击链接直接覆盖，入口是否仍正确、测试是否覆盖目标行为需要审查者核对。

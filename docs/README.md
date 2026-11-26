@@ -19,6 +19,7 @@ Mirally 是面向 Windows 的 personal agent 应用，名称取自 MIRA + ally�
 | 日历、提醒和定时执行 | [日历与定时](architecture/scheduling.md) |
 | 电脑活动采集、知识投影和浏览 | [活动数据层](architecture/activity.md) |
 | 记忆维护、纠正和召回 | [记忆](architecture/memory.md) |
+| 对话中随手记事、目录与检索 | [对话记事本](architecture/notebook.md) |
 | 窗口、托盘、开屏和侧边伙伴 | [桌面与伙伴](architecture/desktop.md) |
 | 模型连接、路由、推理和视觉能力 | [模型](architecture/models.md) |
 | Skill、MCP、脚本和可信插件 | [扩展接口](architecture/extensions.md) |
@@ -34,6 +35,7 @@ Mirally 是面向 Windows 的 personal agent 应用，名称取自 MIRA + ally�
 | --- | --- |
 | 手工开发、DSH AgentTeams、脚本和本机状态归属 | [开发与协作](development/README.md) |
 | 可提交的目录、文件和依赖布局 | [仓库布局](reference/repository-layout.md) |
+| 依赖清单、owner 与只读审计 | [依赖清单](reference/dependencies.md) |
 | 审查经验和可复用的准则 | [审查经验库](development/review-experience.md) |
 
 ## 目录结构
@@ -55,6 +57,7 @@ docs/
 - **写清状态。** 每篇文首标注更新日期、状态和主要依据。行为改变时同步修改对应文档，不把旧结论留在正文里。
 - **区分现行说明和研究记录。** 现行正文围绕 Mirally 的实现和能力组织。外部参考按具体问题记录，复用来源与协议说明放在对应专题。选型历史和已完成的迁移通过 Git 历史或产品记录追溯。
 - **链接可检查。** 移动或重命名文档后运行 `python tools/check_docs_links.py`，确认相对链接仍可解析。
+- **索引要完整。** 本页链接 `architecture`、`reference`、`standards`、`design` 和 `product` 下的每篇文档，[开发与协作](development/README.md)链接 `development` 下的每篇子文档。新增文档时在同一次改动补上入口；同一个命令会报告缺少的索引条目。索引条目必须是读者可点击的链接：注释、代码块、行内代码和图片不计，引用式链接须能在本页解析。
 
 ## 相关入口
 

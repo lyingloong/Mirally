@@ -70,6 +70,7 @@ npm --prefix frontend/control-ui run build
 
 # 文档相对链接与仓库内锚点
 .\\.venv\\Scripts\\python.exe tools\\check_docs_links.py
+# 主题文档索引覆盖：docs/README.md 与 docs/development/README.md 须各自索引主题子页
 ```
 
 `tools/verify_framework.py` 不访问外部 API；它验证会话、工具、停止、重启、Skill、脚本产物、MCP 协议、原生插件、微信回环和主动入箱等链路。浏览器验收使用本机 Edge，独立 `playwright-core` 包不下载浏览器；可通过 `MIRALLY_PLAYWRIGHT` 显式选择模块或路径。相对路径基于仓库根目录，与执行时工作目录无关。

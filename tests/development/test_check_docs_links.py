@@ -285,8 +285,136 @@ class RepositoryLinkTests(unittest.TestCase):
                 redirect_stdout(stdout), redirect_stderr(stderr):
             code = self.checker.main()
         self.assertEqual(code, 0)
-        self.assertIn("OK: 1 Markdown files", stdout.getvalue())
+        self.assertIn(
+            "OK: 1 Markdown files, all relative links and anchors resolve; "
+            "every topic docs page is indexed.",
+            stdout.getvalue(),
+        )
         self.assertIn("skipped GitHub absolute link checks", stderr.getvalue())
+
+
+class TopicIndexTests(unittest.TestCase):
+    """A topic page must be linked from its index page, not just resolvable."""
+
+    def setUp(self):
+        self.checker = load_checker()
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+
+    def write(self, relative: str, text: str) -> Path:
+        path = self.root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def test_unindexed_topic_page_is_reported(self):
+        self.write("docs/README.md", "[概览](architecture/overview.md)\n")
+        self.write("docs/architecture/overview.md", "# 概览\n")
+        self.write("docs/architecture/notebook.md", "# 对话记事本\n")
+        self.write("docs/reference/dependencies.md", "# 依赖清单\n")
+        self.assertEqual(self.checker.index_problems(self.root), [
+            "docs/README.md -> docs/architecture/notebook.md",
+            "docs/README.md -> docs/reference/dependencies.md",
+        ])
+        # Indexing the pages clears the finding.
+        self.write("docs/README.md",
+                   "[概览](architecture/overview.md)\n[记事本](architecture/notebook.md)\n"
+                   "[依赖](reference/dependencies.md)\n")
+        self.assertEqual(self.checker.index_problems(self.root), [])
+
+    def test_anchored_and_titled_index_links_are_accepted(self):
+        self.write("docs/README.md",
+                   "[记事本](architecture/notebook.md#写入与查询)\n"
+                   '[依赖](reference/dependencies.md "依赖清单、owner 与审计")\n')
+        self.write("docs/architecture/notebook.md", "## 写入与查询\n")
+        self.write("docs/reference/dependencies.md", "# 依赖清单\n")
+        self.assertEqual(self.checker.index_problems(self.root), [])
+
+    def test_fenced_index_links_do_not_count(self):
+        self.write("docs/README.md", "```text\n[记事本](architecture/notebook.md)\n```\n")
+        self.write("docs/architecture/notebook.md", "# 对话记事本\n")
+        self.assertEqual(self.checker.index_problems(self.root),
+                         ["docs/README.md -> docs/architecture/notebook.md"])
+
+    def test_commented_out_index_link_does_not_count(self):
+        # A commented entry renders as nothing; commenting out the navigation must
+        # fail the check instead of leaving the page silently indexed.
+        self.write("docs/README.md", "<!-- 暂时撤下\n[记事本](architecture/notebook.md)\n-->\n")
+        self.write("docs/architecture/notebook.md", "# 对话记事本\n")
+        self.assertEqual(self.checker.index_problems(self.root),
+                         ["docs/README.md -> docs/architecture/notebook.md"])
+        # A fence marker inside the comment must not pair up with a later real fence.
+        self.write("docs/README.md",
+                   "<!-- 旧写法 ```\n[记事本](architecture/notebook.md)\n``` -->\n"
+                   "```powershell\npython tools/check_docs_links.py\n```\n")
+        self.assertEqual(self.checker.index_problems(self.root),
+                         ["docs/README.md -> docs/architecture/notebook.md"])
+        # Uncommenting restores the entry.
+        self.write("docs/README.md", "[记事本](architecture/notebook.md)\n")
+        self.assertEqual(self.checker.index_problems(self.root), [])
+
+    def test_code_span_index_link_does_not_count(self):
+        self.write("docs/README.md", "下一步补 `[记事本](architecture/notebook.md)` 入口。\n")
+        self.write("docs/architecture/notebook.md", "# 对话记事本\n")
+        self.assertEqual(self.checker.index_problems(self.root),
+                         ["docs/README.md -> docs/architecture/notebook.md"])
+
+    def test_image_and_escaped_bracket_are_not_index_entries(self):
+        self.write("docs/architecture/notebook.md", "# 对话记事本\n")
+        # An image renders in place and never navigates; `\[` escapes the bracket,
+        # so neither form is clickable navigation to the page.
+        self.write("docs/README.md", "![封面](architecture/notebook.md)\n")
+        self.assertEqual(self.checker.index_problems(self.root),
+                         ["docs/README.md -> docs/architecture/notebook.md"])
+        self.write("docs/README.md", "\\[记事本](architecture/notebook.md)\n")
+        self.assertEqual(self.checker.index_problems(self.root),
+                         ["docs/README.md -> docs/architecture/notebook.md"])
+
+    def test_reference_style_index_links_are_accepted(self):
+        # Full, collapsed and shortcut reference links open their target when the
+        # label resolves on the same page, so each of them indexes the page.
+        self.write("docs/README.md",
+                   "[记事本][note]\n\n[依赖][]\n\n[品牌]\n\n"
+                   "[NOTE]: architecture/notebook.md \"对话记事本\"\n"
+                   "[依赖]: architecture/../reference/dependencies.md\n"
+                   "[品牌]: design/brand.md\n")
+        self.write("docs/architecture/notebook.md", "# 对话记事本\n")
+        self.write("docs/reference/dependencies.md", "# 依赖清单\n")
+        self.write("docs/design/brand.md", "# 品牌\n")
+        self.assertEqual(self.checker.index_problems(self.root), [])
+
+    def test_definition_without_a_reference_is_not_an_entry(self):
+        # A bare definition renders as nothing; only a reference that uses it links
+        # the page. Labels written as footnotes stay out of the link machinery.
+        self.write("docs/README.md",
+                   "[note]: architecture/notebook.md\n\n[^1]: 这是脚注，不是链接。\n")
+        self.write("docs/architecture/notebook.md", "# 对话记事本\n")
+        self.assertEqual(self.checker.index_problems(self.root),
+                         ["docs/README.md -> docs/architecture/notebook.md"])
+
+    def test_development_subpages_are_covered_by_their_own_index(self):
+        self.write("docs/README.md", "[开发与协作](development/README.md)\n")
+        self.write("docs/development/README.md", "[需求池](requirements-pool.md)\n")
+        self.write("docs/development/requirements-pool.md", "# 需求池\n")
+        # `docs/development/` is not required from docs/README.md, and neither index
+        # has to link itself.
+        self.assertEqual(self.checker.index_problems(self.root), [])
+        self.write("docs/development/README.md", "")
+        self.assertEqual(self.checker.index_problems(self.root),
+                         ["docs/development/README.md -> docs/development/requirements-pool.md"])
+
+    def test_example_directory_is_not_required(self):
+        self.write("docs/README.md", "")
+        self.write("docs/examples/development/README.md", "# 自动开发工作流\n")
+        self.write("docs/examples/development/pr-protocol.md", "# PR 约定\n")
+        self.assertEqual(self.checker.index_problems(self.root), [])
+
+    def test_missing_index_page_is_not_required(self):
+        # A checkout without the index pages (or without docs/) reports nothing:
+        # only the indexes that exist gain requirements.
+        self.write("README.md", "# Mirally\n")
+        self.assertEqual(self.checker.index_problems(self.root), [])
 
 
 if __name__ == "__main__":
