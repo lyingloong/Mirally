@@ -14,6 +14,11 @@ from .desktop_controls import (
     DesktopControlError, prepare_operation, read_verified_value, resolve_target, scan_controls, snapshot_record,
 )
 
+DWMWA_CLOAKED = 14
+CLOAK_SHOWN = 'shown'
+CLOAK_CLOAKED = 'cloaked'
+CLOAK_UNKNOWN = 'unknown'
+
 
 def observe(kind):
     if os.name != 'nt':
@@ -57,6 +62,24 @@ def windows_api():
     return user
 
 
+def dwm_api():
+    dwm = ctypes.WinDLL('dwmapi', use_last_error=True)
+    dwm.DwmGetWindowAttribute.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
+    return dwm
+
+
+def cloak_state(dwm, hwnd):
+    """Whether DWM shows the window to the user, hides it, or could not answer.
+
+    Only CLOAK_SHOWN confirms the window is on screen; unknown states must never be
+    presented or operated as a window the user can see.
+    """
+    cloaked = wintypes.DWORD()
+    if dwm.DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, ctypes.byref(cloaked), ctypes.sizeof(cloaked)) != 0:
+        return CLOAK_UNKNOWN
+    return CLOAK_CLOAKED if cloaked.value else CLOAK_SHOWN
+
+
 def window_record(user, hwnd):
     if not user.IsWindow(hwnd) or not user.IsWindowVisible(hwnd) or user.IsIconic(hwnd):
         raise RuntimeError('目标窗口不存在、已隐藏或已最小化。')
@@ -72,10 +95,14 @@ def window_record(user, hwnd):
 
 def list_windows():
     user, records = windows_api(), []
+    try:
+        dwm = dwm_api()
+    except OSError as error:
+        raise RuntimeError('无法确认窗口的显示状态。请稍后重试。') from error
     callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
     def visit(hwnd, _):
         try:
-            if is_mirally_window(user, hwnd):
+            if is_mirally_window(user, hwnd) or cloak_state(dwm, hwnd) != CLOAK_SHOWN:
                 return True
             record = window_record(user, hwnd)
             if record['title'] and len(records) < 100:
@@ -145,11 +172,14 @@ def _control_window(user, hwnd, expected_pid):
     user.GetAncestor.restype = wintypes.HWND
     if user.GetAncestor(hwnd, root) != hwnd:
         raise DesktopControlError('请选择可见的顶层窗口。')
-    dwm = ctypes.WinDLL('dwmapi', use_last_error=True)
-    dwm.DwmGetWindowAttribute.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
-    cloaked = wintypes.DWORD()
-    if dwm.DwmGetWindowAttribute(hwnd, 14, ctypes.byref(cloaked), ctypes.sizeof(cloaked)) == 0 and cloaked.value:
+    try:
+        cloak = cloak_state(dwm_api(), hwnd)
+    except OSError as error:
+        raise DesktopControlError('无法确认目标窗口是否已显示。请重新观察窗口。') from error
+    if cloak == CLOAK_CLOAKED:
         raise DesktopControlError('目标窗口当前未显示。请重新观察窗口。')
+    if cloak != CLOAK_SHOWN:
+        raise DesktopControlError('无法确认目标窗口是否已显示。请重新观察窗口。')
     process_started = _process_started(expected_pid)
     user.GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
     class_name = ctypes.create_unicode_buffer(256)
