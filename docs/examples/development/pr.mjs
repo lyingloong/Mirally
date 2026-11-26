@@ -266,7 +266,7 @@ function backoffResult(item, reason) {
   return { item, outcome: 'waiting', pr: item.pr, feedback: null, reason };
 }
 
-const INTENT_COMMAND = /^\s*@workflow\s+(?!merge\b|stop\b)([\s\S]+)$/i;
+const INTENT_COMMAND = /^\s*@workflow(?:\s+(?!merge\b|stop\b)([\s\S]*))?$/i;
 const CONFIRM_COMMAND = /^\s*@workflow\s+确认按当前\s*(?:head|revision)\s*处理\s*$/i;
 const HEAD_MARKER = /\[head=([0-9a-f]{7,64})\]/i;
 function commentTime(entry) {
