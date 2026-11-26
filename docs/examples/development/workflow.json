@@ -231,7 +231,8 @@
       "concurrency": 1,
       "config": {
         "command": "node docs/examples/development/driver.mjs publish-requirement-issue",
-        "json": true
+        "json": true,
+        "timeoutMs": 300000
       }
     },
     {
@@ -248,7 +249,8 @@
       "concurrency": 1,
       "config": {
         "command": "node docs/examples/development/driver.mjs check-requirement-issue",
-        "json": true
+        "json": true,
+        "timeoutMs": 300000
       }
     },
     {
@@ -641,7 +643,8 @@
       "concurrency": 1,
       "config": {
         "command": "node docs/examples/development/driver.mjs pr-watch",
-        "json": true
+        "json": true,
+        "timeoutMs": 300000
       }
     },
     {
@@ -658,7 +661,8 @@
       "concurrency": 1,
       "config": {
         "command": "node docs/examples/development/driver.mjs pr-merge",
-        "json": true
+        "json": true,
+        "timeoutMs": 300000
       }
     },
     {
@@ -814,7 +818,8 @@
       "concurrency": 1,
       "config": {
         "command": "node docs/examples/development/driver.mjs notify-requirement-revision",
-        "json": true
+        "json": true,
+        "timeoutMs": 300000
       }
     },
     {
