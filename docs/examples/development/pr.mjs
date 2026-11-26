@@ -10,7 +10,7 @@ import { gh, ghJson, repoCoordinates, classifyGitHubError, githubBackoff, GITHUB
 import { redactForPublic, REVIEW_LABEL, APPROVED_LABEL, REJECTED_LABEL, REQUIREMENT_LABELS } from './requirement-review.mjs';
 import { MERGE_LABEL, MERGE_INTENT_LABEL, AUTHORIZED_ASSOCIATIONS, evaluateFeedback } from './pr-feedback.mjs';
 
-const PR_FIELDS = 'number,url,state,isDraft,headRefOid,mergeCommit,mergedAt,closed,reviewDecision,body,labels,statusCheckRollup';
+const PR_FIELDS = 'number,url,state,isDraft,headRefOid,mergeCommit,mergedAt,closed,reviewDecision,body,labels,statusCheckRollup,mergeable,mergeStateStatus';
 const STAGES = new Set(['implementing', 'verifying', 'reviewing', 'repairing', 'merge-ready', 'blocked']);
 const TEMPLATE_PATH = '.github/pull_request_template.md';
 
@@ -40,6 +40,8 @@ function normalisePr(value) {
     mergedAt: value.mergedAt ?? null,
     closed: Boolean(value.closed),
     reviewDecision: value.reviewDecision ?? null,
+    mergeable: value.mergeable ?? null,
+    mergeStateStatus: value.mergeStateStatus ?? null,
     body: typeof value.body === 'string' ? value.body : '',
     checks: Array.isArray(value.statusCheckRollup) ? value.statusCheckRollup : [],
     labels: Array.isArray(value.labels) ? value.labels.map(label => typeof label === 'string' ? label : label.name).filter(Boolean) : [],
