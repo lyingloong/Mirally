@@ -182,9 +182,12 @@ test('desktop phone webpage enrollment is an optional independent extension with
   const panel=f.run('new MirallyMobileSettings()');panel.status={enabled:true,url:'http://127.0.0.1:1234/mobile',external_url:'',devices:[]};
   const rendered=stringify(panel.render());
   assert.match(rendered,/手机网页（可选扩展）/);
+  assert.match(rendered,/查看会话、消息和设置/);
+  assert.match(rendered,/已有会话保留/);
   assert.match(rendered,/只通过微信使用时，无需配置本节，也无需私人 HTTPS/);
   assert.match(rendered,/仅远程打开手机网页需要配置/);
   assert.match(rendered,/微信可直接使用/);
   assert.match(rendered,/不影响微信绑定/);
+  assert.doesNotMatch(rendered,/工作|成果/,'The phone webpage description may only promise conversations, messages and settings');
   assert.equal(panel.status.enabled,true,'Clarifying the optional path must preserve the existing service setting');
 });
