@@ -1,12 +1,12 @@
 # 日历、提醒与定时执行
 
-更新：2026-10-31，Asia/Shanghai。状态：现行。相关实现：`mirally/framework/calendar.py`、`kernel/dsh/packages/mirally/mirally-product/src/calendar-tools.mjs`、`scheduled-actions.mjs`。
+更新：2026-11-25，Asia/Shanghai。状态：现行。相关实现：`mirally/framework/calendar.py`、`kernel/dsh/packages/mirally/mirally-product/src/calendar-tools.mjs`、`scheduled-actions.mjs`。
 
 ## 时区
 
 在「设置 → 通用」确认产品时区，首次提供系统检测结果作为建议。可填写其他 IANA 时区，例如 `Asia/Shanghai`。该设置是解释自然语言日期、日历和定时动作的产品时区，不随系统时区变化自动更新。
 
-事件保留实际时刻；日历展示按当前设置时区。周期动作在时区改变后按新时区的本地时间重新计算。不存在或重复的本地时间需要重新选择，不静默猜测。
+事件保留实际时刻；日历展示按当前设置时区。周期动作在时区改变后按新时区的本地时间重新计算。不存在或重复的本地时间需要重新选择，不静默猜测。桌面日程的编辑草稿绑定打开编辑时的时区，时区改变后要求重新打开编辑确认时间，不按新时区保存旧草稿。
 
 ## 日程
 

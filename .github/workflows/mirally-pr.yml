@@ -126,6 +126,7 @@ jobs:
             'tests/test_framework_model_validation_ui.mjs',
             'tests/test_framework_capabilities_settings_ui.mjs',
             'tests/test_framework_messages_ui.mjs',
+            'tests/test_framework_calendar_panel_ui.mjs',
             'tests/test_framework_desktop_boundary.mjs',
             'tests/test_framework_desktop_observation.mjs',
             'tests/test_control_ui_activity.cjs',
