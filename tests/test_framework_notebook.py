@@ -338,6 +338,132 @@ class NotebookTests(unittest.TestCase):
         self.assertNotIn("utterance", page["entries"][0]["source"])
         self.assertEqual(len(page["evidence"][0]["excerpt"]), 300)
 
+    def export(self, **parameters):
+        return self.call("notebook.export", source=self.source(), **parameters)
+
+    def test_export_groups_public_records_and_keeps_private_out_by_default(self):
+        self.write("entry.add", body="未分类的公开记录", title="随想", tags=["生活"], event_time="2026-05-01")
+        self.now += 1
+        folder = self.write("collection.create", path="工作")
+        self.now += 1
+        self.write("entry.add", body="搬迁登记处在 3 号楼", title="登记处", collection_id=folder["collection_id"])
+        self.now += 1
+        self.write("entry.add", body="匿名公开记录", collection_id=folder["collection_id"])
+        self.now += 1
+        secret = self.write("entry.add", body="样例证件号 110105199001011234", collection_path="证件备忘")
+        self.assertEqual(secret["collection"]["sensitivity"], "private")
+        self.now += 1
+        dropped = self.write("entry.add", body="待撤销记录")
+        self.write("entry.reverse", entry_id=dropped["entry_id"], expected_revision=1)
+
+        result = self.export()
+        self.assertEqual((result["exported"], result["total"], result["truncated"]), (3, 3, False))
+        self.assertEqual(result["credentials_excluded"], 0)
+        content = result["content"]
+        self.assertIn("# 记事本导出", content)
+        self.assertIn("## 工作", content)
+        self.assertIn("## 未分类", content)
+        self.assertLess(content.index("## 工作"), content.index("## 未分类"))
+        self.assertLess(content.index("登记处"), content.index("匿名公开记录"))
+        self.assertIn("### 随想", content)
+        self.assertIn("- 标签：生活", content)
+        self.assertIn("- 事件时间：2026-05-01（按天）", content)
+        self.assertIn("- 记录时间：", content)
+        self.assertIn("（无标题）", content)
+        self.assertNotIn("110105199001011234", content)
+        self.assertNotIn("证件备忘", content)
+        self.assertNotIn("待撤销记录", content)
+        self.assertNotIn("本文件包含私密记录", content)
+
+        included = self.export(include_private=True)
+        self.assertEqual((included["exported"], included["total"]), (4, 4))
+        self.assertIn("本文件包含私密记录", included["content"])
+        self.assertIn("## 证件备忘", included["content"])
+        self.assertIn("110105199001011234", included["content"])
+        self.assertIn("- 可见性：私密", included["content"])
+
+    def test_export_returns_an_explicit_empty_result_without_generating_content(self):
+        self.assertEqual(self.export(), {"exported": 0, "total": 0, "truncated": False, "content": None,
+                                         "included_private": False, "credentials_excluded": 0})
+        self.write("entry.add", body="只有私密记录", sensitivity="private")
+        private_only = self.export()
+        self.assertEqual(private_only["exported"], 0)
+        self.assertIsNone(private_only["content"])
+        included = self.export(include_private=True)
+        self.assertEqual(included["exported"], 1)
+        self.assertIsNotNone(included["content"])
+
+    def credential_note(self, marker):
+        utterance = f"按普通私密记事保存：登录密码是 {marker}"
+        return self.write("entry.add", body=f"登录密码是 {marker}",
+                          source=self.source(utterance), credential_as_note=True)
+
+    def test_export_excludes_identifiable_credentials_with_honest_counts(self):
+        self.write("entry.add", body="可导出的公开记录", title="随想")
+        self.now += 1
+        self.write("entry.add", body="日常私密备忘", sensitivity="private")
+        self.now += 1
+        credential = self.credential_note("FICTITIOUS-CRED-7")
+        self.assertEqual(credential["sensitivity"], "private")
+        self.now += 1
+
+        default = self.export()
+        self.assertEqual((default["exported"], default["total"], default["credentials_excluded"]), (1, 1, 0))
+        self.assertNotIn("FICTITIOUS-CRED-7", default["content"])
+
+        included = self.export(include_private=True)
+        self.assertEqual((included["exported"], included["total"], included["credentials_excluded"]), (2, 2, 1))
+        self.assertNotIn("FICTITIOUS-CRED-7", included["content"])
+        self.assertIn("日常私密备忘", included["content"])
+        self.assertIn("已排除 1 条可识别的凭据记事", included["content"])
+        self.assertIn("本文件包含私密记录", included["content"])
+        self.assertEqual(included["content"].count("### "), included["exported"])
+
+    def test_export_of_only_credential_notes_reports_the_exclusion_without_content(self):
+        self.credential_note("FICTITIOUS-CRED-9")
+        default = self.export()
+        self.assertIsNone(default["content"])
+        self.assertEqual((default["exported"], default["total"], default["credentials_excluded"]), (0, 0, 0))
+        included = self.export(include_private=True)
+        self.assertIsNone(included["content"])
+        self.assertEqual((included["exported"], included["total"], included["credentials_excluded"]), (0, 0, 1))
+
+    def test_export_truncates_with_honest_counts_within_the_deliverable_limit(self):
+        body = "长文记事内容" * 1000
+        for index in range(90):
+            self.write("entry.add", body=f"{body} 编号{index}", title=f"长文{index}")
+            self.now += 1
+        result = self.export()
+        self.assertEqual(result["total"], 90)
+        self.assertTrue(result["truncated"])
+        self.assertLess(result["exported"], 90)
+        self.assertGreaterEqual(result["exported"], 40)
+        content = result["content"]
+        self.assertLessEqual(len(content.encode("utf-8")), 1024 * 1024)
+        self.assertIn("已截断", content)
+        self.assertIn(f"另有 {90 - result['exported']} 条未导出", content)
+        self.assertEqual(result["credentials_excluded"], 0)
+        self.assertIn("### 长文0", content)
+        self.assertNotIn(f"### 长文{result['exported']}", content)
+        self.assertEqual(content.count("### "), result["exported"])
+
+    def test_export_requires_the_current_turn_source_and_weixin_authorization(self):
+        self.write("entry.add", body="可导出记录")
+        revoked = self.source()
+        self.call("command.ack", conversation_id=self.conversation, command_id=revoked["turn_id"], state="cancelled")
+        self.assert_error("CONFLICT", self.call, "notebook.export", source=revoked)
+        saved = self.call("channel.weixin.save", token="test-token", peer_id="peer", bot_id="bot",
+                          base_url="https://ilinkai.weixin.qq.com")["state"]
+        bound = self.call("channel.weixin.bind", expected_revision=saved["revision"],
+                          conversation_id=self.conversation)["state"]
+        source = self.source(channel="weixin")
+        self.assert_error("CONFLICT", self.call, "notebook.export", source=source)
+        scope = {"installation_id": bound["installation_id"], "revision": bound["revision"], "command_id": source["turn_id"]}
+        self.assertEqual(self.call("notebook.export", source=source, weixin_scope=scope)["exported"], 1)
+        self.call("channel.weixin.enable", expected_revision=bound["revision"], enabled=False)
+        with self.assertRaises(FrameworkError):
+            self.call("notebook.export", source=source, weixin_scope=scope)
+
     def test_desktop_cancellation_and_weixin_binding_fence_writes_and_reads(self):
         desktop = self.source()
         self.call("command.ack", conversation_id=self.conversation, command_id=desktop["turn_id"], state="cancelled")

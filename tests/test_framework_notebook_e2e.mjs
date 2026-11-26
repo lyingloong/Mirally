@@ -201,9 +201,10 @@ ProductModels.prototype.requireOptions = function(...args) {
     return turn;
   }
 
-  async function desktop(session, text, calls, approve) {
+  async function desktop(session, text, calls, approve, allowFileWrite) {
     const turn = plan(text, calls);
-    await api(`/api/sessions/${session.id}/messages`, {commandId: turn.id, text}, 202);
+    await api(`/api/sessions/${session.id}/messages`,
+      {commandId: turn.id, text, ...(allowFileWrite ? {allow_file_write: true} : {})}, 202);
     if (approve !== undefined) {
       const approval = await wait(async () => (await rpc('action.approvals.list', {conversation_id: session.id}))
         .approvals.find(item => item.command_id === turn.id), `approval for ${turn.id}`);
@@ -458,5 +459,50 @@ ProductModels.prototype.requireOptions = function(...args) {
   ]));
   assert.equal(afterCorrection.total, 0);
   assert.ok(!afterArchive.collections.some(item => item.collection_id === wrong.collection_id));
+
+  // S13: an explicit export becomes one downloadable Markdown artifact. Without this turn's file
+  // permission the export asks the existing same-command approval: denial publishes nothing,
+  // approval publishes; the checkbox grant publishes directly. Weixin reaches the same deliverable
+  // through that approval (trusted mode auto-approves it), and identifiable credential notes stay out.
+  await rpc('settings.update', {patch: {action_approval_mode: 'ask'}});
+  const exportCall = call('export', {});
+  const [exportDenied] = await desktop(session, '把记事本导出。', [exportCall], false);
+  assert.match(exportDenied, /未批准/);
+  assert.match(turns.at(-1).approval.title, /保存记事本导出成果/);
+  assert.match(turns.at(-1).approval.detail, /共 \d+ 条记录。/);
+  assert.match(turns.at(-1).approval.detail, /不含私密记录/);
+  const [viaApproval] = decode(await desktop(session, '把记事本导出。', [exportCall], true));
+  assert.ok(viaApproval.artifact?.download_url, JSON.stringify(viaApproval));
+  const [exported] = decode(await desktop(session, '把记事本导出。', [exportCall], undefined, true));
+  assert.ok(exported.artifact?.download_url, JSON.stringify(exported));
+  assert.equal((await rpc('action.approvals.list', {conversation_id: session.id})).approvals.length, 0);
+  assert.ok(exported.exported >= 3, JSON.stringify(exported));
+  assert.equal(exported.exported, exported.total);
+  assert.equal(exported.truncated, false);
+  const download = await fetch(`${runtime.url}${exported.artifact.download_url}`,
+    {headers: {authorization: `Bearer ${runtime.token}`}});
+  assert.equal(download.status, 200);
+  const markdown = await download.text();
+  assert.match(markdown, /# 记事本导出/);
+  assert.match(markdown, /## 未分类/);
+  assert.match(markdown, /### 梅坞老巷的三花猫/);
+  assert.match(markdown, /在梅坞老巷看到一只三花猫，很亲人/);
+  assert.match(markdown, /- 标签：猫、梅坞老巷|- 标签：梅坞老巷、猫/);
+  assert.match(markdown, /- 事件时间：2026-05-01（按天）/);
+  assert.ok(!markdown.includes(privateMarker));
+  assert.ok(!markdown.includes('私人生日备忘'));
+  assert.ok(!markdown.includes('证件备忘'));
+  assert.ok(!markdown.includes(explicitCredential));
+  await rpc('settings.update', {patch: {action_approval_mode: 'trusted'}});
+  const [remoteExport] = decode(await weixin('把记事本导出，包含私密记录。', [call('export', {include_private: true})]));
+  assert.ok(remoteExport.artifact?.download_url, JSON.stringify(remoteExport));
+  assert.equal(remoteExport.include_private, true);
+  assert.equal(remoteExport.credentials_excluded, 1);
+  const remoteMarkdown = await (await fetch(`${runtime.url}${remoteExport.artifact.download_url}`,
+    {headers: {authorization: `Bearer ${runtime.token}`}})).text();
+  assert.match(remoteMarkdown, /本文件包含私密记录/);
+  assert.match(remoteMarkdown, /已排除 1 条可识别的凭据记事/);
+  assert.ok(remoteMarkdown.includes(privateMarker));
+  assert.ok(!remoteMarkdown.includes(explicitCredential));
   assert.deepEqual(fixtureErrors, []);
 });
