@@ -58,6 +58,9 @@ node --test tests/test_*.mjs
 node --test kernel/dsh/packages/mirally/mirally-product/tests/*.test.mjs
 node --test kernel/dsh/packages/mirally/mirally-extensions/tests/*.test.mjs
 
+# 独立浏览器 Edge 本机验收（需本机 Edge，headless；不随 PR 自动执行）
+node --test tests/test_framework_browser_capabilities.mjs
+
 # 构建内核、启动真实 Host、回环模型与协议子进程
 .\.venv\Scripts\python.exe tools\verify_framework.py
 
@@ -72,7 +75,7 @@ npm --prefix frontend/control-ui run build
 .\\.venv\\Scripts\\python.exe tools\\check_docs_links.py
 ```
 
-`tools/verify_framework.py` 不访问外部 API；它验证会话、工具、停止、重启、Skill、脚本产物、MCP 协议、原生插件、微信回环和主动入箱等链路。浏览器验收使用本机 Edge，独立 `playwright-core` 包不下载浏览器；可通过 `MIRALLY_PLAYWRIGHT` 显式选择模块或路径。相对路径基于仓库根目录，与执行时工作目录无关。
+`tools/verify_framework.py` 不访问外部 API；它验证会话、工具、停止、重启、Skill、脚本产物、MCP 协议、原生插件、微信回环和主动入箱等链路。浏览器验收使用本机 Edge，独立 `playwright-core` 包不下载浏览器；可通过 `MIRALLY_PLAYWRIGHT` 显式选择模块或路径。相对路径基于仓库根目录，与执行时工作目录无关。独立浏览器读取的边界回归（正文按 `offset` 加 `text_version` 分页、文本/元素截断标记、同 URL 正文被改写后续读回到开头）在 `tests/test_framework_browser_lifecycle.mjs` 用假页面对象纯离线驱动，已入 PR Node 离线清单；`tests/test_framework_browser_capabilities.mjs` 覆盖本机长页面渲染后读取、续读与页面自行改写正文，需装有 Edge 的本机单独验收。
 
 完整 Python 套件依赖可写的临时目录；同一 `TEMP` 目录残留旧数据时，个别记忆/观察分页用例可能报与本改动无关的失败。重跑前换用新的可写临时目录（例如 `$env:TEMP` 指向仓库内 gitignored 的空目录）即可复现全绿；CI runner 使用真实 Temp，不需要此覆盖。
 

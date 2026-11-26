@@ -6,9 +6,10 @@ import {AsyncLocalStorage} from 'node:async_hooks';
 import {installBrowserCapabilities} from '../kernel/dsh/packages/mirally/mirally-product/src/browser-capabilities.mjs';
 
 const {chromium} = loadPlaywright();
+const longBody = '甲'.repeat(70000);
 
 test('isolated browser observes and interacts with a local page after individual approvals',async()=>{
-  const server=createServer((_req,res)=>res.end('<title>Fixture</title><input id="name"><button onclick="document.querySelector(\'#result\').textContent=document.querySelector(\'#name\').value">Go</button><p id="result"></p>'));
+  const server=createServer((_req,res)=>{res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end(_req.url==='/long'?`<title>Long</title><p>${longBody}</p>`:'<title>Fixture</title><input id="name"><button onclick="document.querySelector(\'#result\').textContent=document.querySelector(\'#name\').value">Go</button><p id="result"></p>');});
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   const tools=new Map(), approvals=[];
   let consumed='cmd',origin='desktop',revoked=false,browser;
@@ -23,6 +24,7 @@ test('isolated browser observes and interacts with a local page after individual
     await call('mirally_browser_click',{selector:'button'});
     const result=await call('mirally_browser_read',{});
     assert.match(result.text,/测试内容/);assert.equal(result.untrusted_content,true);
+    assert.equal(result.truncated,false);assert.ok(!('next_offset'in result));
     assert.ok(result.elements.some(item=>item.tag==='input' && item.selector));
     assert.equal(approvals.length,4);
     host.actionGate.request=async()=>false;
@@ -40,5 +42,29 @@ test('isolated browser observes and interacts with a local page after individual
     const controller=new AbortController();
     host.actionGate.request=async({signal})=>{controller.abort();signal.throwIfAborted();return true;};
     await assert.rejects(tools.get('mirally_browser_click').execute({selector:'button'},{agent:{id:'s'},signal:controller.signal}),{name:'AbortError'});
+    host.actionGate.request=async item=>{approvals.push(item);return true;};
+    await call('mirally_browser_open',{url:`http://127.0.0.1:${server.address().port}/long`});
+    const longFirst=await call('mirally_browser_read',{});
+    assert.equal(longFirst.text_length,longBody.length);assert.equal(longFirst.text.length,60000);assert.equal(longFirst.text,'甲'.repeat(60000));
+    assert.equal(longFirst.truncated,true);assert.equal(longFirst.next_offset,60000);assert.equal(typeof longFirst.text_version,'string');
+    const longNext=await call('mirally_browser_read',{offset:longFirst.next_offset,text_version:longFirst.text_version});
+    assert.equal(longNext.text_length,longBody.length);assert.equal(longNext.text,'甲'.repeat(10000));
+    assert.equal(longNext.text_version,longFirst.text_version);
+    assert.equal(longNext.truncated,false);assert.ok(!('next_offset'in longNext));
+    // The page rewrites its own body at the same URL (SPA update); the pending continuation must not be stitched onto it.
+    const rewritten='乙'.repeat(65000);
+    await browser.contexts()[0].pages()[0].evaluate(value=>{document.body.textContent=value;},rewritten);
+    const stale=await call('mirally_browser_read',{offset:longFirst.next_offset,text_version:longFirst.text_version});
+    assert.equal(stale.text,'');assert.equal(stale.text_changed,true);assert.equal(stale.text_length,rewritten.length);
+    assert.notEqual(stale.text_version,longFirst.text_version);
+    assert.equal(stale.truncated,true);assert.equal(stale.next_offset,0);
+    const restart=await call('mirally_browser_read',{offset:stale.next_offset,text_version:stale.text_version});
+    assert.ok(!('text_changed'in restart));assert.equal(restart.text,'乙'.repeat(60000));
+    assert.equal(restart.truncated,true);assert.equal(restart.next_offset,60000);
+    const restartTail=await call('mirally_browser_read',{offset:restart.next_offset,text_version:restart.text_version});
+    assert.ok(!('text_changed'in restartTail));assert.equal(restartTail.text,'乙'.repeat(5000));
+    assert.equal(restartTail.truncated,false);assert.ok(!('next_offset'in restartTail));
+    assert.equal(restart.text+restartTail.text,rewritten);
+    await assert.rejects(call('mirally_browser_read',{offset:60000}),/text_version/);
   }finally{await pack.dispose();await new Promise(resolve=>server.close(resolve));}
 });
