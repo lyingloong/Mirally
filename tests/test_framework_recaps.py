@@ -1,7 +1,7 @@
 from pathlib import Path
 import tempfile
 import unittest
-from mirally.framework import FrameworkService
+from mirally.framework import FrameworkError, FrameworkService
 
 class RecapTests(unittest.TestCase):
     def setUp(self):
@@ -50,3 +50,49 @@ class RecapTests(unittest.TestCase):
         self.s.call('source.set', {'source_id':'document','enabled':False})
         self.assertIsNone(self.s.call('conversation.get', {'conversation_id':'a'})['recap'])
         self.assertFalse(self.finish(pending)['changed'])
+
+    def enable_background(self):
+        self.s.call('settings.update', {'patch':{'background_enabled':True}})
+
+    def test_auto_reserve_is_deferred_until_cooldown_elapses(self):
+        self.enable_background()
+        self.assertTrue(self.finish(self.reserve())['changed'])
+        self.assertEqual(self.reserve(False)['status'],'deferred')
+        self.now += 600000
+        self.assertEqual(self.reserve(False)['status'],'reserved')
+
+    def test_auto_daily_budget_blocks_thirteenth_reserve_and_manual_still_reserves(self):
+        self.enable_background()
+        for _ in range(12):
+            self.now += 600000
+            self.assertEqual(self.reserve(False)['status'],'reserved')
+        self.now += 600000
+        self.assertEqual(self.reserve(False)['status'],'budget')
+        self.assertEqual(self.reserve()['status'],'reserved')
+
+    def test_expired_pending_is_reclaimed_and_manual_reserve_succeeds(self):
+        self.assertEqual(self.reserve()['status'],'reserved')
+        self.assertEqual(self.reserve()['status'],'pending')
+        self.now += 360000
+        self.assertEqual(self.reserve()['status'],'reserved')
+
+    def test_unfinished_command_and_archive_return_unavailable(self):
+        self.s.call('command.admit', {'conversation_id':'a','command_id':'two','text':'follow-up'})
+        self.assertEqual(self.reserve()['status'],'unavailable')
+        self.s.call('command.ack', {'conversation_id':'a','command_id':'two','state':'completed'})
+        self.assertTrue(self.finish(self.reserve())['changed'])
+        c = self.s.call('conversation.get', {'conversation_id':'a'})
+        self.s.call('conversation.patch', {'conversation_id':'a','expected_version':c['metadata_version'],'patch':{'archived':True}})
+        self.assertEqual(self.reserve()['status'],'unavailable')
+        self.assertIsNone(self.s.call('conversation.get', {'conversation_id':'a'})['recap'])
+
+    def test_complete_rejects_unknown_attempt_and_invalid_params(self):
+        self.assertFalse(self.s.call('internal.recap.complete', {'attempt_id':'no-such-attempt','summary':'讨论了实验计划。'})['changed'])
+        for params in ({'attempt_id':'no-such-attempt','summary':'摘'*1001},
+                       {'attempt_id':'no-such-attempt','summary':123}):
+            with self.subTest(summary=params['summary'].__class__.__name__ if not isinstance(params['summary'],str) else 'oversized'), self.assertRaises(FrameworkError) as error:
+                self.s.call('internal.recap.complete', params)
+            self.assertEqual(error.exception.code,'INVALID_PARAMS')
+        with self.assertRaises(FrameworkError) as error:
+            self.s.call('internal.recap.reserve', {'conversation_id':'a','manual':'yes'})
+        self.assertEqual(error.exception.code,'INVALID_PARAMS')

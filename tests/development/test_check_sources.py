@@ -73,6 +73,58 @@ class CheckSourcesTests(unittest.TestCase):
         self.assertEqual(len(problems), 1, problems)
         self.assertTrue(problems[0].startswith("tools/f.py:1: syntax error: "), problems[0])
 
+    # --- .mjs/.cjs syntax layer (node --check) ---------------------------------
+
+    def js_problems(self, root: Path, *, node: str = "node") -> list[str]:
+        return [problem for path in check_sources.owned_files(root)
+                for problem in check_sources.check(path, root=root, node=node)]
+
+    def test_broken_mjs_is_reported(self) -> None:
+        root = self.temp_root()
+        self.write(root, "tools/broken.mjs", "const value = ;\n")
+        problems = self.js_problems(root)
+        self.assertEqual(len(problems), 1, problems)
+        self.assertTrue(problems[0].startswith("tools/broken.mjs:1: JavaScript syntax error: "),
+                        problems[0])
+
+    def test_broken_cjs_is_reported(self) -> None:
+        root = self.temp_root()
+        self.write(root, "tools/broken.cjs", "function broken(arg {\n  return arg;\n}\n")
+        problems = self.js_problems(root)
+        self.assertEqual(len(problems), 1, problems)
+        self.assertTrue(problems[0].startswith("tools/broken.cjs:1: JavaScript syntax error: "),
+                        problems[0])
+
+    def test_valid_modern_esm_and_cjs_pass(self) -> None:
+        root = self.temp_root()
+        self.write(root, "docs/modern.mjs",
+                   "#!/usr/bin/env node\n"
+                   "import { join } from \"node:path\";\n"
+                   "const value = await Promise.resolve(join(\"a\", \"b\"));\n"
+                   "export default value;\n")
+        self.write(root, "docs/legacy.cjs",
+                   "'use strict';\nconst path = require(\"node:path\");\nmodule.exports = path;\n")
+        self.assertEqual(self.js_problems(root), [])
+
+    def test_marker_is_preferred_over_javascript_syntax_error(self) -> None:
+        root = self.temp_root()
+        self.write(root, "tools/marked.mjs", "<<<<<<< HEAD\nconst value = ;\n")
+        self.assertEqual(self.js_problems(root), ["tools/marked.mjs:1: leftover merge-conflict marker"])
+
+    def test_unavailable_node_is_a_finding_not_a_silent_skip(self) -> None:
+        root = self.temp_root()
+        self.write(root, "tools/good.mjs", "export const value = 1;\n")
+        missing = self.js_problems(root, node=str(root / "no-such-node"))
+        self.assertEqual(len(missing), 1, missing)
+        self.assertTrue(missing[0].startswith("tools/good.mjs: JavaScript syntax check unavailable: "),
+                        missing[0])
+        self.assertIn("Node.js 24+", missing[0])
+        self.write_bytes(root, "tools/not-a-program", b"\x00\x01\x02\x03")  # suffix keeps it unscanned itself
+        unrunnable = self.js_problems(root, node=str(root / "tools" / "not-a-program"))
+        self.assertEqual(len(unrunnable), 1, unrunnable)
+        self.assertTrue(unrunnable[0].startswith("tools/good.mjs: JavaScript syntax check unavailable: "),
+                        unrunnable[0])
+
     def test_skipped_directories_are_pruned_before_descent(self) -> None:
         root = self.temp_root()
         self.write(root, "tools/node_modules/x.md", "<<<<<<< HEAD\n")

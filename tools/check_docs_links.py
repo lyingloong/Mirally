@@ -23,6 +23,19 @@ checks are skipped and the reason is printed once.
 Upstream kernel and frontend source documentation is not scanned;
 `kernel/dsh/UPSTREAM.md` is an exception because Mirally maintains it and it
 links into product documentation.
+
+Beyond resolving written links, the topic documentation index is checked for
+coverage: `docs/README.md` must link every `*.md` under `docs/architecture`,
+`docs/reference`, `docs/standards`, `docs/design` and `docs/product` directly,
+and `docs/development/README.md` must do the same for `docs/development`. A page
+missing from its index is reported as `docs/README.md -> docs/<sub>/<page>.md`.
+Only entries a reader can actually click count: inline links (a fragment or a
+title is allowed) and reference links whose label resolves through a definition
+on the same index page. HTML comments, fenced code and inline code render
+literally or not at all, images never navigate, and external targets leave the
+docs tree, so none of those counts as an index entry; a definition without any
+reference is not a link either. An index page is not required to link itself.
+This stays offline and reads the same files as the link check.
 """
 
 from __future__ import annotations
@@ -40,6 +53,18 @@ SKIP_PARTS = {"node_modules", ".venv", ".git", "output", ".artifacts", "dsh"}
 FORCE_CHECK = {ROOT / "kernel" / "dsh" / "UPSTREAM.md"}
 LINK = re.compile(r"!?\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)")
 FENCE = re.compile(r"```.*?```|~~~.*?~~~", re.DOTALL)
+# Index coverage only sees what the reader is shown, so HTML comments join fenced
+# code in being removed before scanning. The alternation is scanned left to right,
+# so a fence marker inside a comment cannot pair up with a real fence, and vice versa.
+NON_CONTENT = re.compile(r"<!--.*?-->|```.*?```|~~~.*?~~~", re.DOTALL)
+# A clickable inline link: a leading `!` renders an image and a backslash escapes
+# the bracket, so neither form navigates to the target the way an index entry must.
+INLINE_LINK = re.compile(r"(?<![\\!])\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)")
+# Link reference definitions (`[label]: target`, optionally `<braced>` plus a title)
+# and the reference forms that consume them: `[text][label]`, `[text][]`, `[text]`.
+LINK_DEF = re.compile(r"^[ \t]{0,3}\[([^\]]+)\]:[ \t]*<?([^\s>]+)>?", re.M)
+REF_LINK = re.compile(r"(?<![\\!])\[([^\]]*)\]\[([^\]]*)\]")
+SHORTCUT_LINK = re.compile(r"(?<![\\!\[])\[([^\]]+)\](?![\[(])")
 HEADING = re.compile(r"^#{1,6}\s+(.+?)\s*#*\s*$", re.M)
 # GitHub renders a heading (including inline links/images and HTML) before slugging it.
 HEADING_MARKUP = re.compile(r"<[^>]+>|!?\[[^\]]*\]\([^)]*\)")
@@ -63,6 +88,13 @@ NON_NUMBER_PAGES = {
 }
 NUMBER = re.compile(r"\d+")
 PULL_PATCH = re.compile(r"\d+\.(?:diff|patch)")
+# Index page -> docs sub-trees whose pages it must link directly. Without this the
+# checker only resolves links that were written, so a new page nobody indexes stays
+# invisible: it is reported as a missing `index -> page` problem instead.
+INDEX_PAGES = {
+    "docs/README.md": ("architecture", "reference", "standards", "design", "product"),
+    "docs/development/README.md": ("development",),
+}
 
 
 def _repository_slug(value: str) -> str | None:
@@ -268,6 +300,139 @@ def check(path: Path, *, root: Path = ROOT,
     return missing
 
 
+def path_key(path: Path) -> str:
+    """Case-insensitive comparison key for a path on this checkout."""
+    return os.path.normcase(os.path.normpath(str(path)))
+
+
+def _strip_code_spans(text: str) -> str:
+    """Drop inline code spans; a span with no matching closer stays literal text.
+
+    Following CommonMark, a span opens at a backtick string and closes only at a
+    backtick string of the same length, so runs around the candidate are checked.
+    """
+    out: list[str] = []
+    n = len(text)
+    i = 0
+    while i < n:
+        if text[i] != "`":
+            out.append(text[i])
+            i += 1
+            continue
+        j = i
+        while j < n and text[j] == "`":
+            j += 1
+        run, close, closed = j - i, i, False
+        while True:
+            close = text.find("`" * run, close + 1)
+            if close == -1:
+                break
+            end = close + run
+            if text[close - 1] != "`" and (end >= n or text[end] != "`"):
+                closed = True
+                break
+            close = end - 1  # inside a longer run; keep looking for an equal-length one
+        if closed:
+            out.append(" ")  # the span's content renders literally, never as a link
+            i = close + run
+        else:
+            out.append("`" * run)
+            i = j
+    return "".join(out)
+
+
+def readable_text(text: str) -> str:
+    """The text a reader is shown: fenced code, HTML comments and code spans removed.
+
+    Those three render literally (or not at all), so a `[x](y.md)` written inside one
+    of them is not a link the reader can click.
+    """
+    return _strip_code_spans(NON_CONTENT.sub("", text))
+
+
+def _label_key(label: str) -> str:
+    """CommonMark compares link labels case-insensitively across collapsed whitespace."""
+    return " ".join(label.split()).casefold()
+
+
+def _reference_target(definitions: dict[str, str], label: str) -> str | None:
+    """The target a reference label resolves to, or None when no such link exists.
+
+    Footnote-style labels (`[^1]`) belong to GFM footnotes, not link references.
+    """
+    label = label.strip()
+    if not label or label.startswith("^"):
+        return None
+    return definitions.get(_label_key(label))
+
+
+def linked_paths(path: Path, root: Path = ROOT) -> set[str]:
+    """Keys of the targets one file links to, counting only links a reader can click.
+
+    The `LINK`/`FENCE` parsing and path resolution of `check()` are reused (the inline
+    form additionally drops image and backslash-escaped brackets), together with the
+    same skipping of empty and external targets. Reference links count when their
+    label resolves through a definition in the same file, which is what makes them
+    clickable; a definition without any reference renders as nothing and is not a
+    link. Existence and anchors stay `check()`'s business.
+    """
+    text = readable_text(path.read_text(encoding="utf-8"))
+    definitions: dict[str, str] = {}
+    for match in LINK_DEF.finditer(text):
+        label = match.group(1).strip()
+        if label and not label.startswith("^"):
+            definitions.setdefault(_label_key(label), match.group(2))
+    # The renderer removes definitions from the content; without this a definition
+    # line like `[note]: page.md` would feed its own `[note]` shortcut below.
+    text = LINK_DEF.sub(" ", text)
+    targets = [match.group(1) for match in INLINE_LINK.finditer(text)]
+    for match in REF_LINK.finditer(text):
+        target = _reference_target(definitions, match.group(2).strip() or match.group(1))
+        if target:
+            targets.append(target)
+    for match in SHORTCUT_LINK.finditer(text):
+        target = _reference_target(definitions, match.group(1))
+        if target:
+            targets.append(target)
+    keys: set[str] = set()
+    for target in targets:
+        target = target.strip()
+        if not target:
+            continue
+        if target.startswith(("http://", "https://", "mailto:", "tel:", "data:")):
+            continue
+        relative = target.partition("#")[0]
+        relative = unquote(relative.replace("\\", "/"))
+        if not relative:
+            continue
+        resolved = (root / relative.lstrip("/")) if relative.startswith("/") else (path.parent / relative)
+        keys.add(path_key(resolved))
+    return keys
+
+
+def index_problems(root: Path = ROOT) -> list[str]:
+    """Index entries missing in `INDEX_PAGES`, as `docs/README.md -> docs/...` items."""
+    problems: list[str] = []
+    for index_name, directories in INDEX_PAGES.items():
+        index = root / index_name
+        if not index.is_file():
+            continue
+        linked = linked_paths(index, root)
+        for name in directories:
+            directory = root / "docs" / name
+            if not directory.is_dir():
+                continue
+            for target in sorted(directory.rglob("*.md")):
+                relative = target.relative_to(root)
+                # An index page does not have to link itself, and skipped trees
+                # (`node_modules/`, the kernel tree, ...) are not topic documentation.
+                if target == index or any(part in SKIP_PARTS for part in relative.parts):
+                    continue
+                if path_key(target) not in linked:
+                    problems.append(f"{index_name} -> {relative.as_posix()}")
+    return problems
+
+
 def collect_problems() -> tuple[list[str], int]:
     """(problems, scanned file count); the running check and the tests share this."""
     problems: list[str] = []
@@ -275,6 +440,7 @@ def collect_problems() -> tuple[list[str], int]:
     anchors: dict[Path, tuple[set[str], bool]] = {}
     for path in files:
         problems.extend(check(path, anchors=anchors))
+    problems.extend(index_problems(ROOT))
     return problems, len(files)
 
 
@@ -287,11 +453,12 @@ def main() -> int:
         )
     problems, files = collect_problems()
     if problems:
-        print(f"{len(problems)} broken relative link(s) or anchor(s):")
+        print(f"{len(problems)} broken relative link(s), anchor(s) or missing index entry(ies):")
         for problem in problems:
             print(f"  {problem}")
         return 1
-    print(f"OK: {files} Markdown files, all relative links and anchors resolve.")
+    print(f"OK: {files} Markdown files, all relative links and anchors resolve; "
+          f"every topic docs page is indexed.")
     return 0
 
 

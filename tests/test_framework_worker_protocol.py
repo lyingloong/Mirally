@@ -9,7 +9,9 @@ the replies documented in ``docs/architecture/overview.md`` under
 * ``id`` must be a string or integer; malformed input -> ``INVALID_REQUEST``;
 * business failures pass through their ``FrameworkError`` code (``METHOD_NOT_FOUND``,
   ``INVALID_PARAMS``, ``CONFLICT``, ``FORBIDDEN``, ``SCHEMA_VERSION``) and keep ``id``;
-* unexpected failures -> ``INTERNAL_ERROR`` that does not echo the request;
+* unexpected failures -> ``INTERNAL_ERROR`` that does not echo the request; stderr gets
+  one bounded ``framework RPC failed:`` line naming the route, the exception types and
+  ``file:line:function`` frames, but never request values, credentials or absolute paths;
 * a second worker on the same home refuses to start (``worker_lock``).
 
 Every worker runs on a throwaway home under the platform temp directory (or
@@ -21,6 +23,7 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -106,6 +109,21 @@ class WorkerProtocolProbe(unittest.TestCase):
         self.assertEqual(reply["error"]["code"], "INVALID_REQUEST", reply)
         if message is not None:
             self.assertEqual(reply["error"]["message"], message, reply)
+
+    def corrupt_settings_row(self, key: str, value: object) -> None:
+        """Write a settings shape past the worker's startup init, as corrupt local state would.
+
+        The worker is idle on a committed WAL database between requests, so this
+        lands deterministically before the next request line reaches its stdin.
+        """
+        connection = sqlite3.connect(self.home / "framework" / "product.sqlite3", timeout=30)
+        try:
+            connection.execute(
+                "INSERT INTO settings VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json",
+                (key, json.dumps(value, ensure_ascii=False)))
+            connection.commit()
+        finally:
+            connection.close()
 
     # -- request in, protocol out ------------------------------------------
     def test_success_is_one_json_reply_line_per_request(self):
@@ -216,23 +234,39 @@ class WorkerProtocolProbe(unittest.TestCase):
         self.assertEqual(reply["id"], "x")
         self.assertNotIn("result", reply)
 
-    # -- unexpected failure must not leak the request -----------------------
-    def test_unexpected_failure_is_internal_error_without_echoing_the_request(self):
+    # -- failures must not leak the request --------------------------------
+    def test_mapped_failure_is_a_clean_error_without_echoing_the_request(self):
         secret = "probe-secret-token-1234"
         process = self.start()
         broken = {"id": "leak", "method": "model.connection.save",
                   "params": {"connection": {"api_key": secret, "base_url": "not a url"}}}
         reply = self.exchange(process, json_line(broken))[0]
         _, _, stderr = self.finish(process)
-        if reply["error"]["code"] == "INTERNAL_ERROR":
-            self.assertEqual(reply["error"]["message"], "product operation failed")
-            self.assertEqual(reply["id"], "leak")
-            self.assertIn("framework RPC failed:", stderr)
-        else:
-            # If the route ever maps this shape, it must still stay a clean error.
-            self.assertIn(reply["error"]["code"], {"INVALID_PARAMS", "CONFLICT"}, reply)
+        self.assertEqual(reply, {"id": "leak", "error": {"code": "INVALID_PARAMS",
+                                                         "message": "unexpected or missing parameters"}})
         self.assertNotIn(secret, json.dumps(reply, ensure_ascii=False))
         self.assertNotIn(secret, stderr)
+        self.assertNotIn("framework RPC failed:", stderr, "a mapped failure is not an unexpected one")
+
+    def test_internal_error_writes_one_bounded_diagnostic_without_request_data(self):
+        marker = "probe-stored-value-token-5678"
+        process = self.start()
+        self.exchange(process, json_line({"id": 1, **STATUS}))  # the schema exists once status replied
+        self.corrupt_settings_row("model_connections", [marker])  # a shape the product owner never stores
+        reply = self.exchange(process, json_line({"id": "boom", "method": "settings.get"}))[0]
+        _, _, stderr = self.finish(process)
+        self.assertEqual(reply, {"id": "boom", "error": {"code": "INTERNAL_ERROR",
+                                                         "message": "product operation failed"}})
+        lines = [line for line in stderr.splitlines() if "framework RPC failed:" in line]
+        self.assertEqual(len(lines), 1, f"exactly one diagnostic line expected, stderr was: {stderr!r}")
+        line = lines[0]
+        self.assertLess(len(line), 4096, "the host sidecar slices stderr data at 4096 characters")
+        self.assertIn("method=settings.get", line)
+        self.assertIn("AttributeError", line)
+        self.assertRegex(line, r"mirally/framework/\w+\.py:\d+:\w+",
+                         "the diagnostic must name at least one product code frame")
+        for leak in (marker, str(self.home), sys.executable):
+            self.assertNotIn(leak, stderr, f"stderr must not contain {leak!r}")
 
     # -- one worker per home ------------------------------------------------
     def test_second_worker_on_the_same_home_refuses_to_start(self):
