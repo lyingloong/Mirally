@@ -211,7 +211,8 @@ async function executeStage(name, input) {
   }
   if (name === 'review-input') {
     const item = await store.mutate(id, claimId, item => {
-      if (item.status !== 'reviewing' || item.implementation?.artifactRef !== input.artifactRef || item.implementation.commit !== input.commit) throw new Error('Review input must match current immutable implementation');
+      if (!['reviewing', 'human-pending'].includes(item.status) || item.implementation?.artifactRef !== input.artifactRef || item.implementation.commit !== input.commit) throw new Error('Review input must match current immutable implementation');
+      if (item.status === 'human-pending') item.status = 'reviewing';
     });
     return result('complete', store.envelope(item, { ...item.implementation }));
   }
