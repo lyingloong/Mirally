@@ -7,6 +7,7 @@ function fixture(utterance, options = {}) {
   const requests = [];
   const previews = [];
   const approvals = [];
+  const published = [];
   const agent = {id: 'native-session'};
   const commandId = 'active-command';
   const owner = {rootSessionId: agent.id, commandId, conversation: {conversation_id: 'conversation', generation: 4}};
@@ -26,6 +27,14 @@ function fixture(utterance, options = {}) {
     },
     commandPolicy: () => options.policyChanged ? {...policy} : policy,
     checkCommandScope: async () => {},
+    requestPolicies: new Map([[agent.id, {allowFiles: options.allowFiles === true, origin: policy.origin}]]),
+    authorizations: {getStore: () => options.grant, run: async (_grant, run) => run()},
+    guard: async () => {},
+    materials: {publish: async (conversationId, command, value) => {
+      published.push({conversationId, command, ...value});
+      return {id: 'a'.repeat(36), conversation_id: conversationId, name: value.name,
+        bytes: Buffer.byteLength(value.content), download_url: `/api/artifacts/${'a'.repeat(36)}/download`};
+    }},
     rpc: async (method, params) => {
       if (method === 'guard.check') {
         assert.deepEqual(params, {conversation_id: 'conversation', generation: 4, command_id: commandId});
@@ -42,6 +51,12 @@ function fixture(utterance, options = {}) {
           : `记事本 · ${operation}\n正文：${content.body ?? ''}`;
         return {detail};
       }
+      if (method === 'notebook.export') {
+        requests.push({method, params});
+        return options.exportResult ?? {exported: 2, total: 2, truncated: false,
+          included_private: params.include_private === true,
+          content: '# 记事本导出\n\n## 未分类\n\n### 标题\n\n正文正文正文\n'};
+      }
       requests.push({method, params});
       return {ok: true};
     },
@@ -52,7 +67,7 @@ function fixture(utterance, options = {}) {
   };
   installNotebookTools(host);
   return {
-    requests, previews, approvals,
+    requests, previews, approvals, published,
     run: (name, args) => registered.get(`mirally_notebook_${name}`).execute(args, {agent, signal: controller.signal}),
   };
 }
@@ -259,4 +274,121 @@ test('explicit private saves authorize appending to an existing private folder',
   assert.equal(host.requests[0].params.collection_id, 'private-folder');
   assert.match(host.approvals[0].detail, /私密记事（内容已隐藏）/);
   assert.ok(!host.approvals[0].detail.includes('今天的感受'));
+});
+
+test('notebook export demands the top-level request in this message before publishing', async () => {
+  for (const [utterance, code] of [
+    ['今天看到了三花猫。', 'notebook_explicit_request_required'],
+    ['导出记录文件。', 'notebook_explicit_request_required'],
+    ['记事本可以导出吗？', 'notebook_explicit_request_required'],
+    ['把记事本导出为Markdown？', 'notebook_explicit_request_required'],
+    ['能不能把记事本导出一下？', 'notebook_explicit_request_required'],
+    ['记一下：导出记事本的功能以后再做。', 'notebook_explicit_request_required'],
+    ['导出记事本的意思是什么？', 'notebook_explicit_request_required'],
+    ['把记事本导出：先别导出。', 'notebook_operation_denied'],
+  ]) {
+    const host = fixture(utterance, {allowFiles: true});
+    await assert.rejects(host.run('export', {}), {code});
+    assert.equal(host.requests.length, 0);
+    assert.equal(host.published.length, 0);
+  }
+  const positive = ['把记事本导出。', '导出我的记事本。', '备份一下记事本。', '帮我导出记事本。'];
+  for (const utterance of positive) {
+    const host = fixture(utterance, {allowFiles: true});
+    assert.ok((await host.run('export', {})).artifact);
+    assert.equal(host.published.length, 1);
+    assert.equal(host.approvals.length, 0);
+  }
+});
+
+test('notebook export without the request file permission reuses the same-command save approval', async () => {
+  const denied = fixture('把记事本导出。', {allowFiles: false, approve: () => false});
+  await assert.rejects(denied.run('export', {}), {code: 'action_rejected'});
+  assert.equal(denied.approvals.length, 1);
+  assert.equal(denied.approvals[0].kind, 'notebook');
+  assert.match(denied.approvals[0].title, /保存记事本导出成果/);
+  assert.match(denied.approvals[0].detail, /共 2 条记录/);
+  assert.match(denied.approvals[0].detail, /不含私密记录/);
+  assert.ok(!JSON.stringify(denied.approvals).includes('正文正文正文'));
+  assert.equal(denied.published.length, 0);
+
+  const approved = fixture('把记事本导出。', {allowFiles: false});
+  const result = await approved.run('export', {});
+  assert.ok(result.artifact?.download_url);
+  assert.equal(approved.approvals.length, 1);
+  assert.equal(approved.published.length, 1);
+
+  const weixinDenied = fixture('把记事本导出。', {allowFiles: false, approve: () => false, policy: {
+    origin: 'weixin', installation_id: 'bound-install', revision: 9, command_id: 'active-command'}});
+  await assert.rejects(weixinDenied.run('export', {}), {code: 'action_rejected'});
+  assert.equal(weixinDenied.published.length, 0);
+  const weixinApproved = fixture('把记事本导出。', {allowFiles: false, policy: {
+    origin: 'weixin', installation_id: 'bound-install', revision: 9, command_id: 'active-command'}});
+  assert.ok((await weixinApproved.run('export', {})).artifact);
+  assert.equal(weixinApproved.published.length, 1);
+  assert.deepEqual(weixinApproved.requests[0].params.weixin_scope,
+    {installation_id: 'bound-install', revision: 9, command_id: 'active-command'});
+
+  const empty = fixture('把记事本导出。', {allowFiles: false,
+    exportResult: {exported: 0, total: 0, truncated: false, content: null, included_private: false}});
+  const emptyResult = await empty.run('export', {});
+  assert.equal(emptyResult.artifact, null);
+  assert.equal(empty.approvals.length, 0);
+  assert.equal(empty.published.length, 0);
+});
+
+test('notebook export publishes the deliverable with honest receipt counts', async () => {
+  const host = fixture('把记事本导出。', {allowFiles: true});
+  const result = await host.run('export', {});
+  assert.equal(result.exported, 2);
+  assert.equal(result.total, 2);
+  assert.equal(result.truncated, false);
+  assert.equal(result.credentials_excluded, 0);
+  assert.match(result.artifact.download_url, /^\/api\/artifacts\/[a]{36}\/download$/);
+  assert.equal(host.published.length, 1);
+  assert.equal(host.published[0].conversationId, 'conversation');
+  assert.equal(host.published[0].command, 'active-command');
+  assert.match(host.published[0].name, /^记事本导出-\d{4}-\d{2}-\d{2}\.md$/);
+  assert.ok(!JSON.stringify(result).includes('正文正文正文'));
+  assert.equal(host.requests.length, 1);
+  assert.equal(host.requests[0].method, 'notebook.export');
+  assert.deepEqual(host.requests[0].params.source,
+    {conversation_id: 'conversation', turn_id: 'active-command', channel: 'desktop', utterance: ''});
+  assert.equal(host.requests[0].params.include_private, undefined);
+});
+
+test('notebook export keeps the same-turn private rule and reports empty or truncated results', async () => {
+  const quiet = fixture('导出记事本。', {allowFiles: true});
+  await assert.rejects(quiet.run('export', {include_private: true}), {code: 'notebook_private_request_required'});
+  const refused = fixture('把记事本导出，不要包含私密记录。', {allowFiles: true});
+  await assert.rejects(refused.run('export', {include_private: true}), {code: 'notebook_private_request_required'});
+  const included = fixture('把记事本导出，包含私密记录。', {allowFiles: true});
+  await included.run('export', {include_private: true});
+  assert.equal(included.requests[0].params.include_private, true);
+  const weixin = fixture('把记事本导出，包含私密记录。', {allowFiles: true, policy: {
+    origin: 'weixin', installation_id: 'bound-install', revision: 9, command_id: 'active-command'}});
+  await weixin.run('export', {include_private: true});
+  assert.deepEqual(weixin.requests[0].params.weixin_scope,
+    {installation_id: 'bound-install', revision: 9, command_id: 'active-command'});
+
+  const empty = fixture('导出记事本。', {allowFiles: true,
+    exportResult: {exported: 0, total: 0, truncated: false, content: null, included_private: false,
+      credentials_excluded: 1}});
+  const emptyResult = await empty.run('export', {});
+  assert.equal(emptyResult.artifact, null);
+  assert.equal(emptyResult.credentials_excluded, 1);
+  assert.match(emptyResult.note, /未生成文件/);
+  assert.match(emptyResult.note, /排除 1 条/);
+  assert.equal(empty.published.length, 0);
+
+  const cut = fixture('导出记事本。', {allowFiles: true,
+    exportResult: {exported: 12, total: 40, truncated: true, content: '# 记事本导出\n\n正文\n', included_private: false,
+      credentials_excluded: 2}});
+  const truncated = await cut.run('export', {});
+  assert.equal(truncated.truncated, true);
+  assert.equal(truncated.credentials_excluded, 2);
+  assert.match(truncated.note, /截断/);
+  assert.match(truncated.note, /28 条未导出/);
+  assert.match(truncated.note, /排除 2 条/);
+  assert.equal(cut.published.length, 1);
 });

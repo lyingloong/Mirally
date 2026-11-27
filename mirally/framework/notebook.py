@@ -76,6 +76,10 @@ CARD_CANDIDATE = re.compile(r"(?<!\d)\d(?:[ -]?\d){12,18}(?![ -]?\d)")
 _UNSPECIFIED = object()
 EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 MICROSECOND = timedelta(microseconds=1)
+EXPORT_ENTRY_LIMIT = 2000
+EXPORT_BYTE_LIMIT = 1024 * 1024
+EXPORT_RESERVE_BYTES = 4096
+EXPORT_QUALITY_LABELS = {"exact": "精确", "day": "按天", "approx": "大约"}
 
 
 def _error(code, message):
@@ -163,6 +167,10 @@ def _privacy(*texts):
     return credential or bool(IDENTITY.search(text)) or _looks_like_card(text), credential
 
 
+def _has_credential(value):
+    return int(bool(CREDENTIAL.search(unicodedata.normalize("NFKC", value))))
+
+
 def _path(value):
     if not isinstance(value, str) or len(value) > 100:
         raise _error("INVALID_PARAMS", "目录路径最多四级，每级最多 24 字。")
@@ -184,6 +192,25 @@ def _preview_text(value, maximum=200):
     if len(cleaned) > maximum:
         return f"{cleaned[:maximum]}…（共 {len(cleaned)} 字）"
     return cleaned
+
+
+def _stamp(ms):
+    return datetime.fromtimestamp(ms / 1000, timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+def _export_entry(row):
+    lines = [f"### {row['title'] or '（无标题）'}", ""]
+    meta = []
+    if row["event_time"]:
+        label = EXPORT_QUALITY_LABELS.get(row["time_quality"])
+        meta.append(f"- 事件时间：{row['event_time']}" + (f"（{label}）" if label else ""))
+    meta.append(f"- 记录时间：{_stamp(row['recorded_at'])}")
+    tags = json.loads(row["tags_json"])
+    if tags:
+        meta.append("- 标签：" + "、".join(tags))
+    if row["sensitivity"] == "private":
+        meta.append("- 可见性：私密")
+    return "\n".join(lines + meta + ["", row["body"].strip(), "", ""]) + "\n"
 
 
 def _request_signature(operation, params, include_private, credential_as_note):
@@ -259,6 +286,7 @@ class NotebookOwner:
         self.s = service
         self.db = service.db
         self.db.create_function("notebook_fold", 1, _fold, deterministic=True)
+        self.db.create_function("notebook_credential", 1, _has_credential, deterministic=True)
 
     def routes(self):
         return {
@@ -268,7 +296,7 @@ class NotebookOwner:
             "notebook.entry.revision.get": self.revision_get,
             "notebook.entry.revise": self.revise, "notebook.entry.reverse": self.reverse,
             "notebook.entry.delete": self.delete, "notebook.entry.move": self.move,
-            "notebook.search": self.search, "notebook.timeline": self.timeline,
+            "notebook.search": self.search, "notebook.timeline": self.timeline, "notebook.export": self.export,
             "notebook.collection.create": self.collection_create, "notebook.collection.list": self.collection_list,
             "notebook.collection.rename": self.collection_rename, "notebook.collection.archive": self.collection_archive,
         }
@@ -807,6 +835,70 @@ class NotebookOwner:
                  include_private=False, source=None, weixin_scope=None):
         return self._query(None, tags, collection_id, type, from_time, to_time, limit, offset, include_private, source,
                            weixin_scope, timeline=True)
+
+    def export(self, include_private=False, source=None, weixin_scope=None):
+        """Render active records as one bounded Markdown document; the file save stays in the product layer.
+
+        Rows the write-time detector would flag as credentials never enter the document, in
+        either visibility scope; the counts and the header note describe the actual output.
+        """
+        _privacy_flag(include_private)
+        with self.s._transaction():
+            self._source(source, weixin_scope, required=False)
+            visibility = ["e.status='active'"]
+            if not include_private:
+                visibility.append("e.sensitivity='public'")
+                visibility.append("(e.collection_id IS NULL OR c.sensitivity='public')")
+            credential = ("notebook_credential(coalesce(e.title,'')||char(10)||e.body||char(10)"
+                          "||e.tags_json||char(10)||e.props_json) = 1")
+            joined = (" FROM notebook_entries e"
+                      " LEFT JOIN notebook_collections c ON c.id=e.collection_id")
+            excluded_where = " WHERE " + " AND ".join(visibility + [credential])
+            filters = visibility + ["NOT " + credential]
+            where = " WHERE " + " AND ".join(filters)
+            total = self.db.execute("SELECT COUNT(*)" + joined + where).fetchone()[0]
+            excluded = self.db.execute("SELECT COUNT(*)" + joined + excluded_where).fetchone()[0]
+            if not total:
+                return {"exported": 0, "total": 0, "truncated": False, "content": None,
+                        "included_private": include_private, "credentials_excluded": excluded}
+            rows = self.db.execute("SELECT e.*,c.path AS collection_path" + joined + where
+                                   + " ORDER BY (c.path IS NULL),c.path,e.recorded_at,e.id LIMIT ?",
+                                   (EXPORT_ENTRY_LIMIT,)).fetchall()
+            chunks, last_path = [], object()
+            for row in rows:
+                path = row["collection_path"]
+                if path != last_path:
+                    last_path = path
+                    chunks.append(f"## {path or '未分类'}\n\n")
+                chunks.append(_export_entry(row))
+            header = ["# 记事本导出", "", f"- 导出时间：{_stamp(self.s.clock())}"]
+            if include_private:
+                header.append("- 本文件包含私密记录；私密标记仅用于筛选，不是加密。")
+            if excluded:
+                header.append(f"- 已排除 {excluded} 条可识别的凭据记事；本文件不含凭据。")
+            header = "\n".join(header) + "\n\n"
+            budget = EXPORT_BYTE_LIMIT - EXPORT_RESERVE_BYTES
+            used, body, exported, cut = len(header.encode("utf-8")), [], 0, False
+            for chunk in chunks:
+                size = len(chunk.encode("utf-8"))
+                if used + size > budget:
+                    cut = True
+                    break
+                used += size
+                body.append(chunk)
+                if chunk.startswith("### "):
+                    exported += 1
+            while body and body[-1].startswith("## ") and not body[-1].startswith("### "):
+                body.pop()
+            truncated = cut or total > EXPORT_ENTRY_LIMIT
+            if truncated:
+                note = f"已截断：受单次导出上限限制，本文件只写入前 {exported} 条，另有 {total - exported} 条未导出。"
+                if excluded:
+                    note += f"另有 {excluded} 条可识别的凭据记事被排除。"
+                body.append(f"\n---\n\n> {note}\n")
+            return {"exported": exported, "total": total, "truncated": truncated,
+                    "content": header + "".join(body), "included_private": include_private,
+                    "credentials_excluded": excluded}
 
     def collection_create(self, path, source, request_id, kind="user_defined", weixin_scope=None, include_private=False):
         _privacy_flag(include_private)
