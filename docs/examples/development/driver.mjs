@@ -6,6 +6,7 @@ import { DevelopmentStore, BusinessBusy, absolute, seedId } from './store.mjs';
 import * as worktrees from './worktrees.mjs';
 import * as pullRequests from './pr.mjs';
 import * as requirementReview from './requirement-review.mjs';
+import { scrubBrief } from './brief-repair.mjs';
 
 export async function stage(name, input) {
   try { return await executeStage(name, input); }
@@ -208,6 +209,12 @@ async function executeStage(name, input) {
     const item = await worktrees.mergeBrief(store, id, claimId);
     await pullRequests.updateBody(store, item);
     return result('complete', store.envelope(item, { brief: item.brief ?? null, pr: item.pr ?? null }));
+  }
+  if (name === 'scrub-brief') {
+    // One-shot repair of a merge brief stored before the sanitizer rules existed;
+    // it never posts to GitHub, so republication stays with the normal stages.
+    const scrubbed = await scrubBrief(store, id, claimId);
+    return result('complete', store.envelope(scrubbed.item, { scrubbedFields: scrubbed.changed, scrubbedAt: scrubbed.item.brief?.scrubbedAt ?? null }));
   }
   if (name === 'review-input') {
     const item = await store.mutate(id, claimId, item => {

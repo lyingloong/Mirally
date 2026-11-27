@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { writeFile, rm } from 'node:fs/promises';
 import { gh, ghJson, repoCoordinates } from './github.mjs';
+import { publicText } from './public-text.mjs';
 
 export const REVIEW_LABEL = 'workflow:requirement-review';
 export const APPROVED_LABEL = 'workflow:requirement-approved';
@@ -83,17 +84,19 @@ async function acknowledgeStale(store, item, comments, claimId) {
   return store.recordRequirementAcks(item.id, claimId, { acknowledged: replies, stale: replies });
 }
 
-/** Deterministic public redaction: paths, emails, tokens, private addresses. */
+/** Deterministic public redaction for issue text: the shared machine-identity
+ * scrubbing (absolute local paths, the local account name, host name, credentials)
+ * plus what an issue additionally must not carry — e-mail addresses, non-GitHub
+ * links, token-like blobs and IP addresses. One shared rule set keeps issues and
+ * pull requests from disagreeing about what counts as machine-specific. */
 export function redactForPublic(value) {
-  return String(value ?? '')
+  return publicText(String(value ?? '')
     .replace(/\b(?:ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g, '[redacted-token]')
     .replace(/\b[A-Fa-f0-9]{32,}\b/g, '[redacted-token]')
     .replace(/\b[A-Za-z0-9+/]{40,}={0,2}\b/g, '[redacted-token]')
     .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '<email>')
     .replace(/https?:\/\/(?!github\.com\/)[^\s)>\]]+/gi, '<url>')
-    .replace(/[A-Za-z]:\\(?:[^\\\s"'`()]+\\)*[^\\\s"'`()]*/g, '<path>')
-    .replace(/(?<![A-Za-z0-9.:/<])\/(?:[\w.-]+\/)+[\w.-]*/g, '<path>')
-    .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, '<ip>');
+    .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, '<ip>'));
 }
 
 function issueTitle(item) {

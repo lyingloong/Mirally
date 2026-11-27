@@ -2,10 +2,23 @@
 
 from pathlib import Path
 import tempfile
+import unicodedata
 import unittest
 
 from mirally.framework import FrameworkError, FrameworkService
 from mirally.framework.service import SCHEMA_VERSION
+
+JOINER = "\u200d"
+FAMILY = f"\U0001F468{JOINER}\U0001F469{JOINER}\U0001F467"
+FAMILY_WITH_SON = f"{FAMILY}{JOINER}\U0001F466"
+DEVELOPER = f"\U0001F469{JOINER}\U0001F4BB"
+DEVELOPER_WITH_SPACE = "\U0001F469 \U0001F4BB"
+RAINBOW_FLAG = f"\U0001F3F3\ufe0f{JOINER}\U0001F308"
+ZERO_WIDTH_SPACE = "\u200b"
+WORD_JOINER = "\u2060"
+BYTE_ORDER_MARK = "\ufeff"
+RIGHT_TO_LEFT_OVERRIDE = "\u202e"
+TAG_LATIN_A = "\U000e0041"
 
 
 class NotebookTests(unittest.TestCase):
@@ -359,3 +372,164 @@ class NotebookTests(unittest.TestCase):
         with self.assertRaises(FrameworkError):
             self.write("entry.add", source=source, weixin_scope=scope, body="跨端私密", sensitivity="private")
         self.assertEqual(self.call("notebook.search", include_private=True)["total"], 1)
+
+    def test_connected_emoji_sequences_work_as_directory_names(self):
+        for path in (FAMILY, DEVELOPER, RAINBOW_FLAG):
+            created = self.write("collection.create", path=path)
+            self.assertTrue(created["collection_created"])
+            self.assertEqual((created["title"], created["path"]), (path, path))
+            stored = self.service.db.execute("SELECT * FROM notebook_collections WHERE id=?",
+                                             (created["collection_id"],)).fetchone()
+            self.assertEqual(stored["path"], path)
+            self.assertEqual(stored["path_key"], unicodedata.normalize("NFKC", path).casefold())
+        roots = self.call("notebook.collection.list")
+        self.assertEqual(roots["total"], 3)
+        self.assertEqual(sorted(item["path"] for item in roots["collections"]),
+                         sorted((FAMILY, DEVELOPER, RAINBOW_FLAG)))
+
+        nested = self.write("collection.create", path=f"家庭/{FAMILY}")
+        self.assertEqual(nested["path"], f"家庭/{FAMILY}")
+        parent = next(item for item in self.call("notebook.collection.list")["collections"] if item["path"] == "家庭")
+        self.assertEqual(parent["kind"], "auto_created")
+        children = self.call("notebook.collection.list", collection_id=parent["collection_id"])["collections"]
+        self.assertEqual([item["path"] for item in children], [f"家庭/{FAMILY}"])
+
+        entry = self.write("entry.add", body="周末全家一起看了电影", collection_path=f"家庭/{FAMILY}")
+        self.assertEqual(entry["collection"]["path"], f"家庭/{FAMILY}")
+        self.assertEqual(self.call("notebook.collection.list", collection_id=entry["collection_id"])["entry_total"], 1)
+
+        renamed = self.write("collection.rename", collection_id=entry["collection_id"], title=FAMILY_WITH_SON,
+                             expected_revision=1)
+        self.assertEqual((renamed["title"], renamed["path"]), (FAMILY_WITH_SON, f"家庭/{FAMILY_WITH_SON}"))
+        self.assertEqual(self.get(entry["entry_id"])["entry"]["collection"]["path"], f"家庭/{FAMILY_WITH_SON}")
+
+    def test_approval_preview_matches_the_write_for_connected_emoji_paths(self):
+        path = f"家庭/{FAMILY}"
+        created = self.call("notebook.approval.preview", source=self.source("新建家庭目录"),
+                            operation="create_collection", params={"path": path})["detail"]
+        self.assertIn("目录：家庭/", created)
+
+        source = self.source("把这条记事放进家庭目录")
+        params = {"body": "周末全家一起看了电影", "collection_path": path}
+        detail = self.call("notebook.approval.preview", source=source, operation="add", params=params)["detail"]
+        self.assertIn("目录：家庭/", detail)
+        saved = self.write("entry.add", source=source, **params)
+        self.assertEqual(saved["collection"]["path"], path)
+        self.assertEqual(saved["collection"]["sensitivity"], "public")
+
+        renamed = self.call("notebook.approval.preview", source=self.source("把家庭目录改成彩虹旗"),
+                            operation="rename_collection", params={
+                                "collection_id": saved["collection_id"], "expected_revision": 1,
+                                "title": RAINBOW_FLAG})["detail"]
+        # The approval shows the name as written, joiners included, so the flag keeps its whole shape.
+        self.assertIn(f"新目录：家庭/{RAINBOW_FLAG}", renamed)
+
+        private_source = self.source("保存一条只有我能看的记事")
+        private_params = {"body": "只有我能看的旅行记事", "collection_path": f"旅行/{RAINBOW_FLAG}",
+                          "sensitivity": "private"}
+        hidden = self.call("notebook.approval.preview", source=private_source, operation="add",
+                           params=private_params)["detail"]
+        self.assertIn("私密目录（名称已隐藏）", hidden)
+        self.assertNotIn("\U0001F3F3", hidden)
+        private = self.write("entry.add", source=private_source, **private_params)
+        self.assertEqual(private["collection"]["path"], f"旅行/{RAINBOW_FLAG}")
+        self.assertEqual(private["collection"]["sensitivity"], "private")
+
+    def test_directory_names_still_reject_control_bidi_and_invisible_characters(self):
+        rejected = (
+            "工作\t计划", "工作\n计划", "工作\x00计划", JOINER, f"{JOINER}工作", f"工作{JOINER}",
+            f"👨{JOINER}{JOINER}👩", ZERO_WIDTH_SPACE, f"工作{ZERO_WIDTH_SPACE}计划", f"工作{WORD_JOINER}计划",
+            f"{BYTE_ORDER_MARK}工作", f"{RIGHT_TO_LEFT_OVERRIDE}工作", f"工作{RIGHT_TO_LEFT_OVERRIDE}",
+            f"{TAG_LATIN_A}工作", ".", "..", "工作／计划", "标签" * 13, "项目/准备/清单/备份/更多", "标签" * 51,
+        )
+        for path in rejected:
+            self.assert_error("INVALID_PARAMS", self.write, "collection.create", path=path)
+        self.assertEqual(self.call("notebook.collection.list")["total"], 0)
+        self.assert_error("INVALID_PARAMS", self.write, "entry.add", body="目录名无效", collection_path=f"工作{JOINER}")
+        working = self.write("collection.create", path="工作")
+        self.assert_error("INVALID_PARAMS", self.write, "collection.rename",
+                          collection_id=working["collection_id"], title=f"{JOINER}工作")
+
+    def test_directory_deduplication_still_folds_case_and_compatibility_forms(self):
+        created = self.write("collection.create", path="Lab")
+        self.assertTrue(created["collection_created"])
+        for alias in ("lab", "LAB", "Ｌａｂ"):
+            again = self.write("collection.create", path=alias)
+            self.assertFalse(again["collection_created"])
+            self.assertEqual(again["collection_id"], created["collection_id"])
+        roots = self.call("notebook.collection.list")
+        self.assertEqual(roots["total"], 1)
+        self.assertEqual(roots["collections"][0]["path"], "Lab")
+
+        # Joiners stay in the name: the same faces without a joiner are a different directory.
+        unjoined = self.write("collection.create", path=FAMILY.replace(JOINER, ""))
+        self.assertTrue(unjoined["collection_created"])
+        self.assertNotEqual(unjoined["collection_id"], self.write("collection.create", path=FAMILY)["collection_id"])
+        self.assertEqual(self.call("notebook.collection.list")["total"], 3)
+
+    def test_approval_preview_shows_directory_names_exactly_as_written(self):
+        joined = self.write("collection.create", path=DEVELOPER)
+        spaced = self.write("collection.create", path=DEVELOPER_WITH_SPACE)
+        self.assertNotEqual(joined["collection_id"], spaced["collection_id"])
+
+        # Two directories that only differ by the joiner must not share one approval text,
+        # otherwise the user cannot tell where the note is going.
+        body = "今天把新版本发上去了"
+        previews = {}
+        for path in (DEVELOPER, DEVELOPER_WITH_SPACE):
+            previews[path] = self.call("notebook.approval.preview", source=self.source("存进表情目录"),
+                                       operation="add", params={"body": body, "collection_path": path})["detail"]
+            self.assertIn(f"目录：{path}", previews[path])
+        self.assertNotEqual(previews[DEVELOPER], previews[DEVELOPER_WITH_SPACE])
+
+        by_id = self.call("notebook.approval.preview", source=self.source("存进已有目录"), operation="add",
+                          params={"body": body, "collection_id": joined["collection_id"]})["detail"]
+        self.assertIn(f"目录：{DEVELOPER}", by_id)
+
+        created = self.call("notebook.approval.preview", source=self.source("新建子目录"),
+                            operation="create_collection", params={"path": f"工作/{DEVELOPER}"})["detail"]
+        self.assertIn(f"目录：工作/{DEVELOPER}", created)
+
+        entry = self.write("entry.add", body=body, collection_path=DEVELOPER)
+        self.assertEqual(entry["collection"]["path"], DEVELOPER)
+        moved = self.call("notebook.approval.preview", source=self.source("换个目录"), operation="move",
+                          params={"entry_id": entry["entry_id"], "expected_revision": 1,
+                                  "collection_id": spaced["collection_id"]})["detail"]
+        self.assertIn(f"目标目录：{DEVELOPER_WITH_SPACE}", moved)
+
+        archived = self.call("notebook.approval.preview", source=self.source("归档目录"),
+                             operation="archive_collection",
+                             params={"collection_id": joined["collection_id"], "expected_revision": 1})["detail"]
+        self.assertIn(f"目录：{DEVELOPER}", archived)
+        renamed = self.call("notebook.approval.preview", source=self.source("改名"), operation="rename_collection",
+                            params={"collection_id": joined["collection_id"], "expected_revision": 1,
+                                    "title": RAINBOW_FLAG})["detail"]
+        self.assertIn(f"新目录：{RAINBOW_FLAG}", renamed)
+
+        # A public directory keeps its visible name; a new private one still hides it, joiners and all.
+        public_target = self.call("notebook.approval.preview", source=self.source("只给自己看"), operation="add",
+                                  params={"body": body, "collection_path": DEVELOPER,
+                                          "sensitivity": "private"})["detail"]
+        self.assertIn("内容：私密记事（内容已隐藏）", public_target)
+        self.assertIn(f"目录：{DEVELOPER}", public_target)
+
+        private_new = self.call("notebook.approval.preview", source=self.source("新建私密目录"), operation="add",
+                                params={"body": body, "collection_path": f"私密/{DEVELOPER}",
+                                        "sensitivity": "private"})["detail"]
+        self.assertIn("私密目录（名称已隐藏）", private_new)
+        self.assertNotIn(DEVELOPER, private_new)
+
+    def test_approval_preview_still_hides_undisplayable_characters_in_directory_names(self):
+        # Directory names reaching the approval are already validated, so only a legacy or hand-written row
+        # can carry a control or format character; it must never be rendered raw into the approval text.
+        row = self.write("collection.create", path="工作")
+        legacy = "工作\t计划\x00"
+        self.service.db.execute("UPDATE notebook_collections SET path=?,path_key=? WHERE id=?",
+                                (legacy, unicodedata.normalize("NFKC", legacy).casefold(), row["collection_id"]))
+        detail = self.call("notebook.approval.preview", source=self.source("归档目录"),
+                           operation="archive_collection",
+                           params={"collection_id": row["collection_id"], "expected_revision": 1})["detail"]
+        self.assertIn("目录：工作 计划", detail)
+        self.assertNotIn("\t", detail)
+        self.assertNotIn("\x00", detail)
+
