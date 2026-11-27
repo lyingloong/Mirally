@@ -11,7 +11,7 @@ import sys
 import unittest
 import zipfile
 
-from mirally.framework.materials import MAX_TEXT, extract
+from mirally.framework.materials import MAX_TEXT, MaterialLimitError, extract
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -92,7 +92,8 @@ class FrameworkMaterialsTests(unittest.TestCase):
                        '<!DOCTYPE document [<!ENTITY material "untrusted-entity">]>'
                        '<document><t>&material;</t></document>')
                 data = office_archive({"word/document.xml": xml.encode(encoding)})
-                with self.assertRaises(ValueError):
+                # A deliberate refusal is its own receipt, not a parser format error.
+                with self.assertRaises(MaterialLimitError):
                     extract("实体.docx", data)
 
     def test_office_keeps_ordinary_utf16_xml_readable(self):
@@ -103,11 +104,11 @@ class FrameworkMaterialsTests(unittest.TestCase):
     def test_office_file_count_and_uncompressed_byte_limits(self):
         small = '<slide><t>bounded</t></slide>'
         too_many = office_archive({f"ppt/slides/slide{index}.xml": small for index in range(301)})
-        with self.assertRaises(ValueError):
+        with self.assertRaises(MaterialLimitError):
             extract("太多页面.pptx", too_many)
         expanded = office_archive({"word/document.xml": b"x" * (24 * 1024 * 1024 + 1)})
         self.assertLess(len(expanded), 8 * 1024 * 1024)
-        with self.assertRaises(ValueError):
+        with self.assertRaises(MaterialLimitError):
             extract("展开上限.docx", expanded)
 
     def test_pptx_uses_natural_slide_file_order_and_reports_partial_structure(self):
@@ -133,7 +134,7 @@ class FrameworkMaterialsTests(unittest.TestCase):
         self.assertNotIn("text", result)
 
     def test_upload_byte_limit_applies_before_format_detection(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaises(MaterialLimitError):
             extract("audio.mp3", b"x" * (8 * 1024 * 1024 + 1))
         result = extract("录音.mp3", b"explicit audio material")
         self.assertEqual(result["status"], "unsupported")
@@ -148,6 +149,11 @@ class FrameworkMaterialsTests(unittest.TestCase):
             env={**os.environ, "PYTHONUTF8": "1"}, timeout=15, check=True,
         )
         return json.loads(completed.stdout)
+
+    def test_worker_reports_a_limit_refusal_with_its_own_reason_not_a_parse_failure(self):
+        data = office_archive({"word/document.xml": '<!DOCTYPE document [<!ENTITY material "x">]><document><t>&material;</t></document>'})
+        result = self.run_worker({"name": "实体.docx", "data": base64.b64encode(data).decode()})
+        self.assertEqual(result, {"status": "error", "note": "不支持含外部实体的文档"})
 
     def test_worker_protocol_preserves_unicode_and_returns_bounded_parse_failure(self):
         text = "用户提供的中文资料\n第二行"

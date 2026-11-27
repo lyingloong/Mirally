@@ -8,7 +8,7 @@ from pathlib import Path
 import stat
 import uuid
 
-from .materials import extract
+from .materials import parse_material
 
 DEFAULT = {"revision": 1, "read_roots": [], "web_enabled": False,
            "workspace_write_enabled": False, "search_connection": "chat"}
@@ -102,7 +102,12 @@ def read_file(service,root_id="workspace",path=""):
     if not file.is_file() or file.stat().st_size>8*1024*1024:raise ValueError("文件不存在或超过 8 MiB 读取上限")
     with file.open("rb") as stream:data=stream.read(8*1024*1024+1)
     if len(data)>8*1024*1024:raise ValueError("文件在读取时超过上限")
-    return {"name":file.name,"sha256":hashlib.sha256(data).hexdigest(),**extract(file.name,data)}
+    # Shared failure contract with the material upload worker: bytes the parsers cannot
+    # read come back as the bounded status=error note, Mirally's own material limits
+    # propagate as INVALID_PARAMS rejections, and only a failure outside that boundary
+    # stays an internal error.
+    parsed=parse_material(file.name,data)
+    return {"name":file.name,"sha256":hashlib.sha256(data).hexdigest(),**parsed}
 
 
 def search_files(service,query,root_id="workspace",path="."):
