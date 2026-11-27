@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
 import { mkdir, lstat, realpath } from 'node:fs/promises';
 import { atomicJSON, readJSON, inside, text } from './store.mjs';
+import { redactForPublic } from './requirement-review.mjs';
 
 const execute = promisify(execFile);
 export async function git(cwd, ...args) {
@@ -80,7 +81,8 @@ export async function prepare(store, id, claimId) {
     item.status = 'engineering-ready'; return item;
   });
 }
-export async function snapshot(store, id, claimId, { verification, summary, expectedRevision, engineeringEpoch }) {
+export async function snapshot(store, id, claimId, { verification, summary, expectedRevision, engineeringEpoch, rework }) {
+  const reworkMapping = reworkItems(rework);
   return store.mutate(id, claimId, async item => {
     if (item.pendingSnapshot) throw new Error('Snapshot is uncertain; inspect then explicitly reconcile-snapshot, never replay it');
     if (item.status !== 'engineering' || expectedRevision !== item.revision || engineeringEpoch !== item.engineeringEpoch) throw new Error('Stale/unrequested engineering snapshot');
@@ -101,17 +103,28 @@ export async function snapshot(store, id, claimId, { verification, summary, expe
     const folder = path.join(store.root, 'artifacts', item.id);
     await store.checkedFile(folder); await mkdir(folder, { recursive: true });
     const artifactRef = path.join(folder, `r${String(artifactRevision).padStart(6, '0')}.json`);
-    const artifact = { requirementId: id, requirementRevision: item.revision, engineeringEpoch, artifactRevision, commit, tree: await git(cwd, 'rev-parse', 'HEAD^{tree}'), baseRevision: item.baseRevision, summary, verification, createdAt: new Date().toISOString() };
+    const artifact = { requirementId: id, requirementRevision: item.revision, engineeringEpoch, artifactRevision, commit, tree: await git(cwd, 'rev-parse', 'HEAD^{tree}'), baseRevision: item.baseRevision, summary, verification, rework: reworkMapping, createdAt: new Date().toISOString() };
     item.pendingSnapshot = { artifactRef, artifact }; item.status = 'snapshot-pending';
     await store.save(item); // Reserve the immutable revision BEFORE publishing the artifact.
     await atomicJSON(await store.checkedFile(artifactRef), artifact, { immutable: true });
     return finishSnapshot(item);
   });
 }
+function reworkItems(value) {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.length > 12) throw new Error('Invalid rework mapping');
+  return value.map(entry => {
+    const commentId = Number(entry?.commentId);
+    if (!Number.isSafeInteger(commentId) || commentId <= 0) throw new Error('Invalid rework comment id');
+    const status = String(entry?.status ?? '').toLowerCase();
+    if (!['resolved', 'partial', 'unresolved'].includes(status)) throw new Error('Invalid rework status');
+    return { commentId, status, note: entry?.note ? String(entry.note).slice(0, 500) : '' };
+  });
+}
 function finishSnapshot(item) {
   const { artifactRef, artifact } = item.pendingSnapshot;
   const { artifactRevision, commit, requirementRevision, engineeringEpoch } = artifact;
-  item.implementation = { artifactRef, artifactRevision, commit, requirementRevision, engineeringEpoch };
+  item.implementation = { artifactRef, artifactRevision, commit, requirementRevision, engineeringEpoch, rework: artifact.rework ?? [] };
   item.pendingSnapshot = null; item.status = 'reviewing'; item.approval = null;
   return { item, artifactRef, artifactRevision, commit };
 }
@@ -163,6 +176,11 @@ async function checkApproval(store, item) {
   if (await git(cwd, 'rev-parse', 'HEAD') !== approval.commit) throw new Error('Approved worktree changed; review again');
   return approval;
 }
+function mergeDecisionInstruction(policy) {
+  if (policy === 'auto') return 'This PR merges automatically with a merge commit once verification passes; no board action is needed.';
+  if (policy === 'label') return 'Add the `workflow:merge` label on GitHub to merge this PR with a merge commit; remove it to stop.';
+  return 'Comment `@workflow merge` on this PR (authorized collaborators only) to merge it with a merge commit; `@workflow stop` cancels.';
+}
 export async function mergeBrief(store, id, claimId) {
   return store.mutate(id, claimId, async item => {
     if (item.status !== 'human-pending') throw new Error('Merge brief requires a passing review');
@@ -172,18 +190,55 @@ export async function mergeBrief(store, id, claimId) {
     const review = await readJSON(await store.checkedFile(latest.reviewRef));
     const brief = {
       kind: 'merge-brief',
-      requirement: { id: item.id, title: item.title, description: item.description, risk: item.risk, revision: item.revision },
+      requirement: { id: item.id, title: item.title, summary: item.summary, why: item.why ?? [], acceptance: item.acceptance ?? [], evidence: item.evidence, risk: item.risk, revision: item.revision },
       change: { summary: artifact.summary, verification: artifact.verification, commit: artifact.commit, artifactRef: latest.artifactRef },
       review: { decision: review.decision, summary: review.summary, verification: review.verification, reviewer: review.reviewer },
       risks: [review.summary].filter(Boolean),
       pr: item.pr ?? null,
       markdown: [
-        '## Requirement', `**${item.title}**`, '', item.description, '', `- risk: \`${item.risk}\``, `- requirement: \`${item.id}\` r${item.revision}`, '',
-        '## Implementation', artifact.summary, '', `- commit: \`${artifact.commit}\``, '',
-        '## Verification', artifact.verification, '',
-        '## Review', `${review.decision} — ${review.summary}`, '', `- reviewer: \`${review.reviewer}\``, `- review evidence: ${review.verification}`, '',
-        '## Risks / open questions', review.summary, '',
-        '## Decision', 'Approve to mark this PR ready, then merge it in GitHub. The workflow will only verify and clean up; it will not merge.',
+        '## Change',
+        '',
+        redactForPublic(artifact.summary),
+        '',
+        '## Verification',
+        '',
+        '```',
+        redactForPublic(artifact.verification),
+        '```',
+        '',
+        '## Review verdict',
+        '',
+        `**${review.decision}** — ${redactForPublic(review.summary)}`,
+        '',
+        `- reviewer: \`${review.reviewer}\``,
+        '',
+        '## Risks / not covered',
+        '',
+        redactForPublic(review.summary),
+        '',
+        '## Merge decision',
+        '',
+        mergeDecisionInstruction(store.config.mergePolicy),
+        '',
+        '<details>',
+        `<summary>Requirement \`${item.id}\` r${item.revision}</summary>`,
+        '',
+        `**${item.title}**`,
+        '',
+        redactForPublic(item.summary),
+        '',
+        redactForPublic(item.evidence),
+        '',
+        '</details>',
+        '',
+        '<details>',
+        '<summary>Review evidence</summary>',
+        '',
+        '```',
+        redactForPublic(review.verification),
+        '```',
+        '',
+        '</details>',
       ].join('\n'),
     };
     item.brief = brief;

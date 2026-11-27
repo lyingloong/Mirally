@@ -73,6 +73,7 @@ ORDINARY_CREDENTIAL_NOTE = re.compile(
 )
 IDENTITY = re.compile(r"(?<!\d)[1-9]\d{5}(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx](?!\d)|\b\d{3}-\d{2}-\d{4}\b")
 CARD_CANDIDATE = re.compile(r"(?<!\d)\d(?:[ -]?\d){12,18}(?![ -]?\d)")
+PATH_JOINER = "\u200d"
 _UNSPECIFIED = object()
 EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 MICROSECOND = timedelta(microseconds=1)
@@ -163,13 +164,33 @@ def _privacy(*texts):
     return credential or bool(IDENTITY.search(text)) or _looks_like_card(text), credential
 
 
+def _char_is_hidden(sequence, index):
+    """Whether this character must never reach the user: any Unicode C* character, except a joiner binding two visible ones.
+
+    U+200D only means something inside a sequence; at the edges, or against another format character, it hides an
+    empty name instead of holding faces together, so it stays hidden like the rest of the block
+    (Cc, Cs, Cn, Co and the other Cf: bidi controls, zero width space, word joiner, BOM and tag characters).
+    """
+    char = sequence[index]
+    if not unicodedata.category(char).startswith("C"):
+        return False
+    return (char != PATH_JOINER or index == 0 or index == len(sequence) - 1
+            or unicodedata.category(sequence[index - 1]) == "Cf"
+            or unicodedata.category(sequence[index + 1]) == "Cf")
+
+
+def _segment_is_safe(segment):
+    """Accept a directory segment made of printable characters and joiners that bind visible characters."""
+    return not any(_char_is_hidden(segment, index) for index in range(len(segment)))
+
+
 def _path(value):
     if not isinstance(value, str) or len(value) > 100:
         raise _error("INVALID_PARAMS", "目录路径最多四级，每级最多 24 字。")
     segments = [unicodedata.normalize("NFC", part.strip()) for part in value.split("/")]
     if len(segments) > 4 or any(
         not 1 <= len(part) <= 24 or _fold(part) in {".", ".."} or "/" in _fold(part) or "\\" in _fold(part)
-        or any(unicodedata.category(char).startswith("C") for char in part)
+        or not _segment_is_safe(part)
         for part in segments
     ):
         raise _error("INVALID_PARAMS", "目录路径最多四级，每级须为 1 至 24 字的有效名称。")
@@ -181,6 +202,22 @@ def _preview_text(value, maximum=200):
         value = _encode(value)
     cleaned = " ".join("".join(" " if unicodedata.category(char).startswith("C") else char
                                for char in value).split())
+    if len(cleaned) > maximum:
+        return f"{cleaned[:maximum]}…（共 {len(cleaned)} 字）"
+    return cleaned
+
+
+def _preview_path(value, maximum=120):
+    """Show a validated collection path exactly as it is stored, so one directory cannot look like another.
+
+    The name is the user's own choice: the joiner is what tells a connected emoji name from the same faces split by
+    a space, and one space from two, so an approval has to keep it. Only characters that cannot be displayed at all
+    become spaces, applied per segment so a stray joiner next to a separator stays hidden, and separators stay put
+    to keep a nested path readable.
+    """
+    cleaned = "/".join("".join(" " if _char_is_hidden(segment, index) else char
+                               for index, char in enumerate(segment))
+                       for segment in value.split("/"))
     if len(cleaned) > maximum:
         return f"{cleaned[:maximum]}…（共 {len(cleaned)} 字）"
     return cleaned
@@ -421,10 +458,10 @@ class NotebookOwner:
                 if collection_path is None:
                     parts.append("目录：未分类")
                 else:
-                    parts.append(f"目录：{'私密目录（名称已隐藏）' if collection_private else _preview_text(collection_path, 120)}")
+                    parts.append(f"目录：{'私密目录（名称已隐藏）' if collection_private else _preview_path(collection_path)}")
             elif operation == "create_collection":
                 path, private = self._preview_collection_path(params.get("path"), include_private)
-                parts.append(f"目录：{'私密目录（名称已隐藏）' if private else _preview_text(path, 120)}")
+                parts.append(f"目录：{'私密目录（名称已隐藏）' if private else _preview_path(path)}")
             elif operation in {"revise", "reverse", "delete", "move"}:
                 row = self._entry_row(params.get("entry_id"), include_private)
                 self._check_revision(row, params.get("expected_revision"))
@@ -462,20 +499,20 @@ class NotebookOwner:
                             if params.get("collection_id") is not None else None
                         collection_private = bool(collection and collection["sensitivity"] == "private")
                         path = collection["path"] if collection else None
-                        parts.append(f"目标目录：{'私密目录（名称已隐藏）' if collection_private else _preview_text(path, 120) if path else '未分类'}")
+                        parts.append(f"目标目录：{'私密目录（名称已隐藏）' if collection_private else _preview_path(path) if path else '未分类'}")
             else:
                 collection = self._collection_row(params.get("collection_id"), include_private)
                 if params.get("expected_revision") is not None:
                     self._check_revision(collection, params["expected_revision"])
                 private = collection["sensitivity"] == "private"
-                parts.append(f"目录：{'私密目录（名称已隐藏）' if private else _preview_text(collection['path'], 120)}")
+                parts.append(f"目录：{'私密目录（名称已隐藏）' if private else _preview_path(collection['path'])}")
                 parts.append(f"版本：{collection['revision']}")
                 if operation == "rename_collection":
                     title = _collection_title(params.get("title"))
                     parent = collection["path"].rpartition("/")[0]
                     new_path = f"{parent}/{title}" if parent else title
                     sensitive = _privacy(new_path)[0]
-                    shown = "私密名称（已隐藏）" if private or sensitive else _preview_text(new_path, 120)
+                    shown = "私密名称（已隐藏）" if private or sensitive else _preview_path(new_path)
                     parts.append(f"新目录：{shown}")
                 else:
                     descendants = self._subtree(collection)

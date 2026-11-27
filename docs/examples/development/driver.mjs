@@ -6,6 +6,7 @@ import { DevelopmentStore, BusinessBusy, absolute, seedId } from './store.mjs';
 import * as worktrees from './worktrees.mjs';
 import * as pullRequests from './pr.mjs';
 import * as requirementReview from './requirement-review.mjs';
+import { scrubBrief } from './brief-repair.mjs';
 
 export async function stage(name, input) {
   try { return await executeStage(name, input); }
@@ -18,10 +19,21 @@ export async function stage(name, input) {
 }
 async function executeStage(name, input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('DSH_WORKFLOW_INPUT must be a JSON object');
+  if (name === 'locks') {
+    const dataRoot = absolute(input.dataRoot, 'dataRoot');
+    const report = input.apply
+      ? await DevelopmentStore.repairLocks({ dataRoot, apply: true })
+      : await DevelopmentStore.repairLocks({ dataRoot, apply: false });
+    return result(report.locks.some(lock => lock.stale || String(lock.action ?? '').startsWith('takeover')) ? 'complete' : 'idle', { dataRoot, ...report });
+  }
   if (name === 'init') {
     const store = await DevelopmentStore.create(input);
     const created = await store.ensureBaselineSeeds();
     return result('complete', { ...rootEnvelope(store), version: store.config.version, baselineSeeds: created.length, maxMiningSeeds: store.config.maxMiningSeeds, staleClaimMs: store.config.staleClaimMs });
+  }
+  if (name === 'migrate') {
+    const migrated = await DevelopmentStore.migrate({ dataRoot: absolute(input.dataRoot, 'dataRoot'), apply: Boolean(input.apply) });
+    return result('complete', migrated);
   }
   if (['requirement', 'seed', 'claim', 'seed-batch', 'queue-check', 'status', 'recover-seeds', 'retire-seed', 'rearm-seed', 'intake-record'].includes(name)) {
     const store = await DevelopmentStore.open(absolute(input.dataRoot, 'dataRoot'));
@@ -84,7 +96,8 @@ async function executeStage(name, input) {
     }
     const items = await store.list();
     const seeds = await store.seedCounts();
-    return result('complete', { ...rootEnvelope(store), counts: items.reduce((counts, item) => { counts[item.status] = (counts[item.status] ?? 0) + 1; return counts; }, {}), pending: await store.pendingCount(), seeds, staleClaimMs: store.config.staleClaimMs });
+    const locks = await DevelopmentStore.lockStatus({ dataRoot: store.root });
+    return result('complete', { ...rootEnvelope(store), counts: items.reduce((counts, item) => { counts[item.status] = (counts[item.status] ?? 0) + 1; return counts; }, {}), pending: await store.pendingCount(), seeds, staleClaimMs: store.config.staleClaimMs, lockTtlMs: locks.ttlMs, locks: locks.locks });
   }
   if (name === 'record-proposal') {
     const ref = absolute(input.dataRef, 'seed dataRef');
@@ -113,7 +126,29 @@ async function executeStage(name, input) {
   }
   if (name === 'check-requirement-issue') {
     const checked = await requirementReview.check(store, id, claimId);
-    return result(checked.outcome, store.envelope(checked.item, { github: checked.item.github ?? null, reason: checked.reason ?? null }));
+    return result(checked.outcome, store.envelope(checked.item, {
+      github: checked.item.github ?? null,
+      reason: checked.reason ?? null,
+      revision: checked.revision ?? checked.item.revision,
+      command: checked.command ?? null,
+      evidence: checked.evidence ?? [],
+    }));
+  }
+  if (name === 'requirement-intent-apply') {
+    const changed = await requirementReview.applyIntent(store, id, claimId, {
+      action: input.action,
+      commentId: input.commentId,
+      revision: input.revision,
+      summary: input.summary,
+      cited: input.cited,
+      error: input.error,
+      actor: input.actor,
+    });
+    return result(changed.outcome, store.envelope(changed.item, { github: changed.item.github ?? null }));
+  }
+  if (name === 'notify-requirement-revision') {
+    const changed = await requirementReview.notifyRevision(store, id, claimId);
+    return result(changed.outcome, store.envelope(changed.item, { github: changed.item.github ?? null }));
   }
   if (name === 'intake-apply') {
     const applied = await store.applyIntake(id, claimId, { requirement: input.requirement, seeds: input.seeds, reason: input.reason });
@@ -131,19 +166,60 @@ async function executeStage(name, input) {
     const item = await store.get(id);
     return result(store.config.integrationMode === 'pull-request' ? 'pr' : 'local', store.envelope(item));
   }
-  if (name === 'publish-pr' || name === 'ready-pr' || name === 'check-pr' || name === 'self-merge-pr') {
-    const action = name === 'publish-pr' ? pullRequests.publish : name === 'ready-pr' ? pullRequests.ready : name === 'self-merge-pr' ? pullRequests.selfMerge : pullRequests.check;
-    const changed = await action(store, id, claimId);
+  if (name === 'publish-pr' || name === 'ready-pr') {
+    const changed = await (name === 'publish-pr' ? pullRequests.publish : pullRequests.ready)(store, id, claimId);
     return result(changed.outcome, store.envelope(changed.item, { ...(changed.item.implementation ?? {}), pr: changed.item.pr ?? null, integration: changed.item.integration ?? null }));
+  }
+  if (name === 'pr-watch' || name === 'pr-merge') {
+    const changed = await (name === 'pr-watch' ? pullRequests.watch : pullRequests.merge)(store, id, claimId);
+    return result(changed.outcome, store.envelope(changed.item, {
+      ...(changed.item.implementation ?? {}),
+      pr: changed.item.pr ?? null,
+      feedback: changed.feedback ?? null,
+      reason: changed.reason ?? null,
+      ...(name === 'pr-watch' ? {
+        command: changed.command ?? null,
+        evidence: changed.evidence ?? [],
+        head: changed.head ?? changed.feedback?.head ?? null,
+        mergePolicy: store.config.mergePolicy,
+      } : {}),
+    }));
+  }
+  if (name === 'pr-intent-apply') {
+    const changed = await pullRequests.applyIntent(store, id, claimId, {
+      action: input.action,
+      commentId: input.commentId,
+      head: input.head,
+      summary: input.summary,
+      cited: input.cited,
+      error: input.error,
+      actor: input.actor,
+    });
+    return result(changed.outcome, store.envelope(changed.item, { pr: changed.item.pr ?? null }));
+  }
+  if (name === 'notify-pr-rework') {
+    const changed = await pullRequests.notifyRework(store, id, claimId);
+    return result(changed.outcome, store.envelope(changed.item, { pr: changed.item.pr ?? null, ...(changed.item.implementation ?? {}) }));
+  }
+  if (name === 'pr-request-changes') {
+    const changed = await pullRequests.requestChanges(store, id, claimId, { feedback: input.feedback ?? null, reason: input.reason ?? null });
+    return result('complete', store.envelope(changed.item, { pr: changed.item.pr ?? null }));
   }
   if (name === 'brief') {
     const item = await worktrees.mergeBrief(store, id, claimId);
     await pullRequests.updateBody(store, item);
     return result('complete', store.envelope(item, { brief: item.brief ?? null, pr: item.pr ?? null }));
   }
+  if (name === 'scrub-brief') {
+    // One-shot repair of a merge brief stored before the sanitizer rules existed;
+    // it never posts to GitHub, so republication stays with the normal stages.
+    const scrubbed = await scrubBrief(store, id, claimId);
+    return result('complete', store.envelope(scrubbed.item, { scrubbedFields: scrubbed.changed, scrubbedAt: scrubbed.item.brief?.scrubbedAt ?? null }));
+  }
   if (name === 'review-input') {
     const item = await store.mutate(id, claimId, item => {
-      if (item.status !== 'reviewing' || item.implementation?.artifactRef !== input.artifactRef || item.implementation.commit !== input.commit) throw new Error('Review input must match current immutable implementation');
+      if (!['reviewing', 'human-pending'].includes(item.status) || item.implementation?.artifactRef !== input.artifactRef || item.implementation.commit !== input.commit) throw new Error('Review input must match current immutable implementation');
+      if (item.status === 'human-pending') item.status = 'reviewing';
     });
     return result('complete', store.envelope(item, { ...item.implementation }));
   }

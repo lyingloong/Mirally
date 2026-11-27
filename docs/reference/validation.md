@@ -13,7 +13,7 @@
 
 ### GitHub Actions 检查范围
 
-[PR 工作流](../../.github/workflows/mirally-pr.yml)在 PR、`main` push 和手动运行时保留开发工具测试、源码与文档链接检查。只有改动完全属于[范围选择器](../../tools/check_ci_scope.py)列出的文档、开发工具和网站路径时，才跳过 Windows 产品依赖安装、内核/前端构建及产品测试；产品代码及依赖、产品或共享 CI 配置、选择器本身和未知路径仍运行原有完整离线子集（包含记忆测试）。检查名称保持不变，跳过的产品 job 显示 `skipped`。
+[PR 工作流](../../.github/workflows/mirally-pr.yml)在 PR、`main` push 和手动运行时保留开发工具测试、源码与文档链接检查。只有改动完全属于[范围选择器](../../tools/check_ci_scope.py)列出的文档、开发工具和网站路径时，才跳过 Windows 产品依赖安装、内核/前端构建及产品测试；产品代码及依赖、产品或共享 CI 配置、选择器本身和未知路径仍运行原有完整离线子集（包含记忆测试）。检查名称保持不变，跳过的产品 job 显示 `skipped`。轻量 `workflow-tooling` job 在源码守卫前用 `actions/setup-node@v4` 准备 Node.js 24：`tools/check_sources.py` 除冲突标记、Python 语法与空白外，还对全部仓库自有 `.mjs`/`.cjs` 逐个执行 `node --check`（仅解析，不执行、不解析 import、不装依赖）；`windows-core` 不重复该检查。
 
 `windows-core` 的 Python 子集是纯离线、秒级的产品核心回归保护，清单位于「Test Python product core」步骤的 `$tests`。新增纯离线测试模块默认在同一 PR 加入该子集，或显式注明为什么暂不入：没有被 CI 执行的回归保护合并后只靠人工重跑。清单按模块名唯一、字母序排列，追加时按“读取现有清单 → 去重 → 与目标模块取并集 → 字母序写回”执行，重复运行不产生重复条目；[`tests/development/test_ci_scope.py`](../../tests/development/test_ci_scope.py) 校验清单唯一、有序且对应测试文件存在。
 
@@ -64,6 +64,9 @@ node --test kernel/dsh/packages/mirally/mirally-extensions/tests/*.test.mjs
 # 固定前端来源与正式构建
 npm --prefix frontend/control-ui run verify:source
 npm --prefix frontend/control-ui run build
+
+# 源码守卫：冲突标记、Python 语法、.mjs/.cjs 语法（node --check，需 Node 24+，见 README.md）与行尾空白
+.\.venv\Scripts\python.exe tools\check_sources.py
 
 # 文档相对链接与仓库内锚点
 .\\.venv\\Scripts\\python.exe tools\\check_docs_links.py
