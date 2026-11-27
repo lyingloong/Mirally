@@ -1,13 +1,29 @@
 """Real SQLite grants and bounded filesystem effects of the basic capability pack."""
 from pathlib import Path
+import base64
+import contextlib
 import hashlib
+import io
+import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 
-from mirally.framework import FrameworkError, FrameworkService
+from mirally.framework import FrameworkError, FrameworkService, capabilities, materials
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def office_archive(parts: dict) -> bytes:
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for name, value in parts.items():
+            archive.writestr(name, value)
+    return stream.getvalue()
 
 
 class BasicCapabilityTests(unittest.TestCase):
@@ -172,6 +188,121 @@ class BasicCapabilityTests(unittest.TestCase):
             self.call("workspace.read", root_id=grant["id"], path="outside-link/outside.txt")
         self.assertNotIn("outside-link", [row["name"] for row in self.call("workspace.list", root_id=grant["id"])["entries"]])
         self.assertFalse(self.call("workspace.search", root_id=grant["id"], query="不属于")["matches"])
+
+
+    def test_corrupt_or_malformed_office_reads_return_a_bounded_parse_error_like_the_upload_worker(self):
+        workspace = self.home / "workspace"
+        workspace.mkdir(exist_ok=True)
+        fixtures = {
+            # Renamed or half-downloaded Office containers are not zip archives.
+            "坏文档.docx": b"PK\x03\x04 not a real zip",
+            # A readable zip whose document part is not well-formed XML.
+            "畸形文档.docx": office_archive({"word/document.xml": "<w:document><w:t>unclosed"}),
+            # Third-party PDF parsers fail on damaged bytes the same way.
+            "损坏文档.pdf": b"%PDF-1.4 truncated garbage",
+        }
+        for name, data in fixtures.items():
+            (workspace / name).write_bytes(data)
+            with self.subTest(name=name):
+                read = self.call("workspace.read", path=name)
+                self.assertEqual(read["status"], "error")
+                self.assertNotIn("text", read)
+                self.assertTrue(read["note"].strip())
+                self.assertLess(len(read["note"]), 200)
+                self.assertIn("材料解析失败", read["note"])
+                self.assertEqual(read["name"], name)
+                self.assertEqual(read["sha256"], hashlib.sha256(data).hexdigest())
+
+    def upload_worker(self, name, data):
+        """The material upload entry point: the standalone extraction worker the host spawns."""
+        payload = json.dumps({"name": name, "data": base64.b64encode(data).decode()}, ensure_ascii=False)
+        completed = subprocess.run(
+            [sys.executable, "-m", "mirally.framework.materials"], input=payload,
+            capture_output=True, text=True, encoding="utf-8", cwd=str(ROOT), timeout=60)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        return json.loads(completed.stdout)
+
+    def test_upload_and_workspace_read_answer_the_same_bytes_the_same_way(self):
+        # mirally_read_file and material upload are two entries for one file, so the same
+        # bytes must never produce two different verdicts or receipts.
+        workspace = self.home / "workspace"
+        workspace.mkdir(exist_ok=True)
+        damaged = {
+            "坏文档.docx": b"PK\x03\x04 not a real zip",
+            "畸形文档.docx": office_archive({"word/document.xml": "<w:document><w:t>unclosed"}),
+            "损坏文档.pdf": b"%PDF-1.4 truncated garbage",
+        }
+        for name, data in damaged.items():
+            (workspace / name).write_bytes(data)
+            with self.subTest(name=name):
+                uploaded = self.upload_worker(name, data)
+                read = self.call("workspace.read", path=name)
+                self.assertEqual(uploaded["status"], "error")
+                self.assertNotIn("text", uploaded)
+                self.assertNotIn("text", read)
+                self.assertEqual({key: read[key] for key in ("status", "note")},
+                                 {key: uploaded[key] for key in ("status", "note")})
+        # A deliberate limit refusal is not damage: the workspace keeps its INVALID_PARAMS
+        # receipt and both entries state the same refusal reason.
+        entity = office_archive({"word/document.xml": '<!DOCTYPE document [<!ENTITY material "x">]><document><t>&material;</t></document>'})
+        (workspace / "实体文档.docx").write_bytes(entity)
+        uploaded = self.upload_worker("实体文档.docx", entity)
+        with self.assertRaises(FrameworkError) as refused:
+            self.call("workspace.read", path="实体文档.docx")
+        self.assertEqual(refused.exception.code, "INVALID_PARAMS")
+        self.assertEqual(uploaded["status"], "error")
+        self.assertEqual(uploaded["note"], str(refused.exception))
+
+    def test_material_limit_refusals_keep_invalid_params_with_their_own_reason(self):
+        # Mirally's own budget and entity policy stays an actionable INVALID_PARAMS refusal
+        # rather than the corrupt-material note, exactly as before parse errors were bounded.
+        workspace = self.home / "workspace"
+        workspace.mkdir(exist_ok=True)
+        refusals = {
+            "实体文档.docx": office_archive({"word/document.xml": '<!DOCTYPE document [<!ENTITY material "x">]><document><t>&material;</t></document>'}),
+            "展开上限.docx": office_archive({"word/document.xml": "x" * (24 * 1024 * 1024 + 1)}),
+        }
+        for name, data in refusals.items():
+            (workspace / name).write_bytes(data)
+            with self.subTest(name=name), self.assertRaises(FrameworkError) as refused:
+                self.call("workspace.read", path=name)
+            self.assertEqual(refused.exception.code, "INVALID_PARAMS")
+            self.assertNotIn("材料解析失败", str(refused.exception))
+
+    def test_only_parse_boundary_failures_become_material_state(self):
+        # A failure no parser reports is a product bug. Inside the parse boundary it stays
+        # findable in the worker log instead of silently becoming "材料解析失败"; outside it,
+        # the read path keeps surfacing the unmapped failure to the RPC layer.
+        workspace = self.home / "workspace"
+        workspace.mkdir(exist_ok=True)
+        (workspace / "设计.docx").write_bytes(office_archive({"word/document.xml": "<document><t>正常正文</t></document>"}))
+        with mock.patch.object(materials, "extract", side_effect=RuntimeError("boom")):
+            diagnostics = io.StringIO()
+            with contextlib.redirect_stderr(diagnostics):
+                read = self.call("workspace.read", path="设计.docx")
+        self.assertEqual(read["status"], "error")
+        self.assertIn("材料解析失败", read["note"])
+        self.assertIn("RuntimeError: boom", diagnostics.getvalue())
+        with mock.patch.object(capabilities, "parse_material", side_effect=RuntimeError("outside")):
+            with self.assertRaises(RuntimeError):
+                self.call("workspace.read", path="设计.docx")
+
+    def test_worker_rpc_reports_corrupt_office_as_result_never_internal_error(self):
+        workspace = Path(self.temp.name) / "rpc home" / "workspace"
+        workspace.mkdir(parents=True)
+        (workspace / "坏文档.docx").write_bytes(b"PK\x03\x04 not a real zip")
+        request = json.dumps({"id": 1, "method": "workspace.read", "params": {"path": "坏文档.docx"}}, ensure_ascii=False)
+        completed = subprocess.run(
+            [sys.executable, "-m", "mirally.framework", "--root", str(ROOT), "--home", str(workspace.parent)],
+            input=request + "\n", capture_output=True, text=True, encoding="utf-8",
+            cwd=str(ROOT), timeout=120)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        reply = json.loads(completed.stdout)
+        self.assertEqual(reply["id"], 1)
+        self.assertEqual(reply["result"]["status"], "error")
+        self.assertNotIn("error", reply)
+        self.assertNotIn("INTERNAL_ERROR", completed.stdout)
+        self.assertNotIn("framework RPC failed", completed.stderr)
 
 
 if __name__ == "__main__":
