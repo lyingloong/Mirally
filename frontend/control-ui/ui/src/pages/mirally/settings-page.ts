@@ -80,6 +80,7 @@ export class MirallySettingsPage extends MirallyLightDomElement {
   @state() private deletingConnection = false;
   @state() private clearModelKey = false;
   @state() private discoveredModels: DiscoveredModel[] | null = null;
+  @state() private discoveredTruncated = false;
   @state() private discoveredSelection = '';
   @state() private catalogDraft: ModelDraft | null = null;
   @state() private catalogEditing = false;
@@ -148,6 +149,8 @@ export class MirallySettingsPage extends MirallyLightDomElement {
     if (input) input.value = "";
   }
 
+  private clearDiscovered() { this.discoveredModels = null; this.discoveredTruncated = false; }
+
   private async reload() {
     const request = ++this.loadEpoch, view = this.viewEpoch;
     this.loading = true; this.error = "";
@@ -164,7 +167,7 @@ export class MirallySettingsPage extends MirallyLightDomElement {
       this.timeZoneDraft = calendarSettings.time_zone || calendarSettings.detected_time_zone || '';
       // A refresh may observe another window's service or credential changes.
       // Probe results belong to their original saved connection, not this one.
-      this.discoveredModels = null; this.modelTest = null;
+      this.clearDiscovered(); this.modelTest = null;
       this.closeBehavior = presentation.preferences?.['mirally.window.closeBehavior'] === 'exit' ? 'exit' : 'tray';
       this.hideCompanionFromCapture = presentation.preferences?.['mirally.companion.hideFromCapture'] !== false;
       if (!this.modelDirty) {
@@ -310,7 +313,7 @@ export class MirallySettingsPage extends MirallyLightDomElement {
   private changeModel(patch: Partial<ModelDraft>) {
     if (!this.model) return;
     if ((patch.base_url !== undefined && patch.base_url !== this.model.base_url)
-      || (patch.api_format !== undefined && patch.api_format !== this.model.api_format)) this.discoveredModels = null;
+      || (patch.api_format !== undefined && patch.api_format !== this.model.api_format)) this.clearDiscovered();
     this.model = {...this.model, ...patch};
     this.modelDirty = true; this.modelTest = null;
   }
@@ -321,7 +324,7 @@ export class MirallySettingsPage extends MirallyLightDomElement {
 
   private selectConnection(id: string) {
     this.clearSecret(); this.connectionId = id; this.deletingConnection = false; this.clearModelKey = false;
-    this.discoveredModels = null; this.discoveredSelection = ''; this.catalogDraft = null; this.deletingModel = ''; this.modelTest = null; this.error = ''; this.notice = '';
+    this.clearDiscovered(); this.discoveredSelection = ''; this.catalogDraft = null; this.deletingModel = ''; this.modelTest = null; this.error = ''; this.notice = '';
     this.connectionName = id === 'new' ? '' : id === 'default' ? '默认连接' : this.settings?.model_connections?.[id]?.name || '';
     this.model = modelDraft(this.savedConnectionModel); this.modelDirty = id === 'new';
   }
@@ -384,16 +387,18 @@ export class MirallySettingsPage extends MirallyLightDomElement {
     void this.mutate(async () => {
       const saved = await rpcProduct<{connection_id:string}>('model.connection.save', {model, name:this.connectionName, ...(this.connectionId==='new'?{}:{connection_id:this.connectionId})});
       savedId = saved.connection_id;
-    }, "模型连接已保存。", () => {this.connectionId=savedId;this.clearModelKey=false;this.modelDirty = false; this.modelTest = null; this.discoveredModels = null;});
+    }, "模型连接已保存。", () => {this.connectionId=savedId;this.clearModelKey=false;this.modelDirty = false; this.modelTest = null; this.clearDiscovered();});
   }
 
   private async discoverModels() {
     if (this.modelDirty) return;
     const view = this.viewEpoch, load = this.loadEpoch;
-    this.discoveredModels = null;
+    this.clearDiscovered();
     await this.mutate(async () => {
       const result = await requestProduct<{models: DiscoveredModel[]; truncated?: boolean}>("/api/models/discover", {method: "POST", body: JSON.stringify({connection_id:this.connectionId})});
-      if (this.isConnected && view === this.viewEpoch && load === this.loadEpoch) this.discoveredModels = result.models;
+      if (this.isConnected && view === this.viewEpoch && load === this.loadEpoch) {
+        this.discoveredModels = result.models; this.discoveredTruncated = result.truncated === true;
+      }
     }, "模型列表已读取。", undefined, false);
   }
 
@@ -463,6 +468,7 @@ export class MirallySettingsPage extends MirallyLightDomElement {
           @change=${(event: Event) => {this.discoveredSelection=(event.target as HTMLSelectElement).value;}}>
           <option value="">选择模型…</option>${this.discoveredModels.map(item=>html`<option value=${item.id}>${item.name}</option>`)}
         </select>`, selected ? modelCapabilityText(selected) : undefined)}
+        ${this.discoveredTruncated ? html`<div data-testid="mirally-settings-model-truncated">${renderSettingsRow({title: "模型列表已截断", description: "如需的模型缺失，请手动填写模型 ID。"})}</div>` : nothing}
         ${selected ? renderSettingsRow({title: "添加所选模型",
           control: html`<button class="btn btn--sm" type="button" data-testid="mirally-settings-model-adopt" ?disabled=${this.busy || this.loading || !!this.catalogDraft}
             @click=${() => {if (this.model) {this.catalogEditing=false; this.catalogDraft=adoptDiscoveredModel({...modelDraft(this.savedConnectionModel),image_enabled:false,reasoning_effort:'default'}, selected);}}}>添加到模型列表</button>`}) : nothing}

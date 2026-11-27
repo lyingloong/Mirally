@@ -31,10 +31,12 @@ test('discovered metadata is advisory, bounded, and never guesses absent capabil
     {id: 'flash', input_modalities: ['text', 'image'], context_window: 1000000, max_output_tokens: 8192,
       effort: {supported_levels: ['low', 'high', 'max'], default_level: 'high'}},
     {id: 'pro', input_modalities: ['text']}, {id: 'plain'}, {id: 'flash'}, {id: ''}, {name: 'No ID'},
+    {id: 'named', display_name: '优先显示名', name: '次选名'},
   ]});
-  assert.equal(models.length, 3);
+  assert.equal(models.length, 4);
   assert.deepEqual(models[0], {id: 'flash', name: 'flash', input_modalities: ['text', 'image'], context_window: 1000000,
     max_output_tokens: 8192, effort: {supported_levels: ['low', 'high', 'max'], default_level: 'high'}});
+  assert.equal(models[3].name, '优先显示名');
   const draft = modelDraft({model_id: 'prior', max_tokens: 12000, image_enabled: true, reasoning_effort: 'medium'});
   const flash = adoptDiscoveredModel(draft, models[0]);
   assert.equal(flash.context_window, '1000000'); assert.equal(flash.max_tokens, '8192');
@@ -86,13 +88,91 @@ test('model discovery refuses redirects, bounds bodies, and gives actionable aut
 
 test('Anthropic listing uses its own protocol headers and does not send bearer auth', async t => {
   const url = await endpoint(t, (req,res) => {
-    assert.equal(req.url, '/gateway/v1/models');
+    assert.equal(req.url, '/gateway/v1/models?limit=1000');
     assert.equal(req.headers['x-api-key'], 'own');
     assert.equal(req.headers.authorization, undefined);
     assert.equal(req.headers['anthropic-version'], '2023-06-01');
     res.end('{"data":[]}');
   });
   assert.deepEqual((await discoverProductModels({base_url:url+'/gateway/v1',api_format:'anthropic-messages',api_key:'own'},AbortSignal.timeout(2000))).models, []);
+});
+
+test('Anthropic discovery pages with limit/after_id and prefers the service-advertised display name', async t => {
+  const seen = [];
+  const url = await endpoint(t, (req, res) => {
+    seen.push({path: req.url, key: req.headers['x-api-key'] ?? null, auth: req.headers.authorization ?? null, version: req.headers['anthropic-version'] ?? null});
+    const after = new URL(req.url, 'http://fixture.test').searchParams.get('after_id');
+    const rows = after === null
+      ? Array.from({length: 20}, (_, index) => ({id: `model-${index + 1}`, display_name: `模型 ${index + 1}`}))
+      : Array.from({length: 5}, (_, index) => ({id: `model-${21 + index}`, name: `relay ${21 + index}`}));
+    res.end(JSON.stringify({data: rows, has_more: after === null, last_id: after === null ? 'model-20' : null}));
+  });
+  const reply = await discoverProductModels({base_url: url + '/gateway/v1', api_format: 'anthropic-messages', api_key: 'own'}, AbortSignal.timeout(5000));
+  assert.deepEqual(seen.map(item => item.path), ['/gateway/v1/models?limit=1000', '/gateway/v1/models?limit=1000&after_id=model-20']);
+  assert.ok(seen.every(item => item.key === 'own' && item.auth === null && item.version === '2023-06-01'));
+  assert.equal(reply.truncated, false);
+  assert.equal(reply.models.length, 25);
+  assert.equal(reply.models[0].name, '模型 1');
+  assert.equal(reply.models[20].name, 'relay 21');
+  assert.equal(reply.models[24].id, 'model-25');
+});
+
+test('Anthropic discovery bounds runaway pagination to ten bounded pages', async t => {
+  let requests = 0;
+  const url = await endpoint(t, (req, res) => {
+    requests++;
+    res.end(JSON.stringify({data: Array.from({length: 20}, (_, index) => ({id: `m-${requests}-${index}`})), has_more: true, last_id: 'more'}));
+  });
+  const reply = await discoverProductModels({base_url: url, api_format: 'anthropic-messages', api_key: 'own'}, AbortSignal.timeout(10000));
+  assert.equal(requests, 10);
+  assert.equal(reply.models.length, 200);
+  assert.equal(reply.truncated, true);
+});
+
+test('Anthropic discovery stops at the row cap without spending another request', async t => {
+  let requests = 0;
+  const url = await endpoint(t, (req, res) => {
+    requests++;
+    res.end(JSON.stringify({data: Array.from({length: 1000}, (_, index) => ({id: `m-${index}`})), has_more: true, last_id: 'm-999'}));
+  });
+  const reply = await discoverProductModels({base_url: url, api_format: 'anthropic-messages', api_key: 'own'}, AbortSignal.timeout(10000));
+  assert.equal(requests, 1);
+  assert.equal(reply.models.length, 1000);
+  assert.equal(reply.truncated, true);
+});
+
+test('Anthropic discovery falls back once to the bare listing when a gateway rejects pagination parameters', async t => {
+  const seen = [];
+  const url = await endpoint(t, (req, res) => {
+    seen.push(req.url);
+    if (req.url.includes('limit=')) {res.writeHead(400); return res.end('unknown query parameter');}
+    res.end(JSON.stringify({data: [{id: 'solo', display_name: 'Solo 模型'}, {id: 'solo'}]}));
+  });
+  const reply = await discoverProductModels({base_url: url, api_format: 'anthropic-messages', api_key: 'own'}, AbortSignal.timeout(5000));
+  assert.deepEqual(seen, ['/v1/models?limit=1000', '/v1/models']);
+  assert.deepEqual(reply.models, [{id: 'solo', name: 'Solo 模型'}]);
+  assert.equal(reply.truncated, false);
+});
+
+test('Anthropic pagination and fallback failures stay actionable instead of returning a partial list', async t => {
+  const paths = [];
+  const url = await endpoint(t, (req, res) => {
+    paths.push(req.url);
+    if (req.url.startsWith('/midfail') && !req.url.includes('after_id=')) {
+      res.end(JSON.stringify({data: [{id: 'first'}], has_more: true, last_id: 'first'})); return;
+    }
+    if (req.url.startsWith('/badjson') && !req.url.includes('after_id=')) {
+      res.end(JSON.stringify({data: [{id: 'first'}], has_more: true, last_id: 'first'})); return;
+    }
+    if (req.url.startsWith('/fallbackreject') && req.url.includes('limit=')) {res.writeHead(422); return res.end('unknown parameter');}
+    if (req.url.includes('after_id=') && req.url.startsWith('/badjson')) return res.end('not json at all');
+    res.writeHead(401); res.end('private error content');
+  });
+  const get = suffix => discoverProductModels({base_url: url + suffix, api_format: 'anthropic-messages', api_key: 'own'}, AbortSignal.timeout(5000));
+  await assert.rejects(get('/midfail'), error => error.status === 400 && error.code === 'model_discovery_failed' && /HTTP 401.*API Key/.test(error.message));
+  assert.ok(paths.some(path => path.startsWith('/midfail') && path.includes('after_id=')));
+  await assert.rejects(get('/badjson'), /未返回有效 JSON/);
+  await assert.rejects(get('/fallbackreject'), /HTTP 401.*API Key/);
 });
 
 test('model discovery maps cancellation and disconnect after headers to friendly bounded failures', async t => {
