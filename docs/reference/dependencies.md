@@ -1,6 +1,6 @@
 # 依赖清单、owner 与审计节奏
 
-更新：2026-11-07，Asia/Shanghai。状态：现行。本文只描述依赖面、owner、锁文件和**只读**审计方式；不批准任何升级、删除或替换。
+更新：2026-11-24，Asia/Shanghai。状态：现行。本文只描述依赖面、owner、锁文件和**只读**审计方式；不批准任何升级、删除或替换。
 
 来源：用户种子 **SEED-DEPS**（用户原话“优化依赖”）的审计整理。它把“优化依赖”拆成可审计步骤，本身不代表已确认要升级或裁剪任何包；真正的升级/删除必须在独立开发点里做并单独验收。
 
@@ -13,7 +13,7 @@
 | D4 | `kernel/dsh/pnpm-lock.yaml` + 371 个非 fixture `package.json` | kernel | pnpm workspace | 上游源码 | 同仓 DSH 上游工作区；升级需整体验证模型/工具/会话主链，另立点。各 importer 可各自声明版本范围，由锁文件解析。 |
 | D5 | `frontend/control-ui/package-lock.json` + 14 个 `package.json` | frontend | npm | 固定上游 | 固定上游 Control UI 来源（`verify:source` 逐字节校验）；Mirally 自有页面在其上扩展，不随产品依赖升级。 |
 | D6 | `tools/testing/package.json` + `package-lock.json` | tools | npm | 验收工具 | 浏览器/DOM 验收的独立依赖，与产品运行时隔离；只服务于离线验收脚本。 |
-| D7 | 未固定的可选依赖（如 `faster-whisper`） | docs | 手动安装 | 可选 | 只在文档说明安装方式，不进入清单；是否纳入版本约束待用户决定。 |
+| D7 | 未固定的可选依赖（`faster-whisper`、`python-dateutil`） | docs | 手动安装 | 可选 | 只在文档说明安装方式，不进入清单；`faster_whisper`（本地语音）与 `dateutil`（时区回退）均为懒加载的可选导入，已按提供方登记进审计工具的 `IMPLICIT_IMPORTS`；是否纳入版本约束待用户决定。 |
 | D8 | `website/package.json` + `website/package-lock.json` | website | npm | 产品网站 | 产品展示站（Mirally 自有资产）的构建依赖；独立 npm 锁文件，升级/裁剪需网站构建与页面验收，另立点。 |
 
 三套包管理器（pip、pnpm、npm×3）并存是现状：Python 运行时用根 `.venv`，kernel 使用 pnpm workspace，前端、验收工具与网站各有独立 npm 锁文件。
@@ -32,14 +32,18 @@
 
 - **同环境重复声明且约束不一致**：同一生态、同一安装环境（`product-venv`、`kernel-ci`、`frontend`、`test-tools`、`website`）内，同名直接依赖出现不同约束时列为 finding；kernel pnpm workspace 内不同 importer 的范围差异属正常解析，只记为 informational。
 - **未使用候选**：按 import 名映射（`pywebview→webview`、`Pillow→PIL`、`PyYAML→yaml`、`tzdata→zoneinfo`、`winrt-*→winrt`）检查 `mirally/` 是否引用 `requirements-framework.txt` 中的直接依赖；未被引用只作为候选，不自动删除。
+- **未声明导入**（反方向，2026-11-24 新增）：对 `mirally/` 的 AST 导入结果取每个顶层模块名（大小写敏感），归类为标准库、本地 `mirally`、D1 已声明发行包（`IMPORT_NAMES` 反查 + `winrt-Windows.*→winrt` + `canonical()` 归一）或 `IMPLICIT_IMPORTS` 登记项；其余报 `undeclared-import` finding（指向审计根相对路径的文件与模块名），计入 `--json` 的 `undeclared_imports` 与摘要计数，并按现有约定使退出码为 1。
+  - 登记边界：**强制导入必须在 D1 显式声明**；只有可选（D7）或由上游带入的导入可登记（模块 → 提供方 + 理由）。当前登记：`dateutil`←python-dateutil（可选时区回退）、`faster_whisper`←faster-whisper（D7 可选本地语音）、`System`←pythonnet（pywebview 在 Windows 带入的 CLR 命名空间）。
+  - 升级 `fastmcp`、`pywebview` 等提供方时必须重新核对登记项：提供方仍要真实提供该 SDK/命名空间，否则应改为显式声明；D1 已显式声明 `mcp>=1.12.4,<2`（与 fastmcp 2.11.3 自声明范围一致），MCP server 的 `from mcp.types import …` 不再依赖传递依赖。
 - **清单分类**：区分运行时、kernel CI、前端固定上游、产品网站、验收工具与 fixture；kernel 下的 fixture `package.json` 只计数、不参与重复检测，避免统计口径被测试夹具污染。
 - **锁文件**：识别 D4/D5/D6/D8 的锁文件存在性；不解析锁文件内部版本树。
 
-当前基线（离线实测，不代表长期不变）：
+当前基线（离线实测，2026-11-24，不代表长期不变）：
 
 ```text
-Manifests: 389  Declarations: 6427  Lockfiles: 4
+Manifests: 389  Declarations: 6428  Lockfiles: 4
 Excluded fixture package.json: 12  Duplicate groups: 384 (conflicting: 19, informational: 19)
+Undeclared imports: 0
 Findings: 0
 ```
 
@@ -62,12 +66,12 @@ Findings: 0
 
 ## 基线记录
 
-本机离线可测部分（2026-11-07）：
+本机离线可测部分（2026-11-24 复测）：
 
 - 清单：2 个 pip 清单（`requirements-framework.txt`、kernel CI `requirements.txt`）+ 1 个验收工具清单 + 1 个网站清单 + 14 个前端 `package.json` + 371 个 kernel 非 fixture `package.json`（另有 12 个 fixture `package.json` 被排除）。
-- 声明条目：6427；锁文件 4 个（`frontend/control-ui/package-lock.json`、`tools/testing/package-lock.json`、`website/package-lock.json`、`kernel/dsh/pnpm-lock.yaml`）。
-- 合计清单 389 个，警告 0（无「missing expected manifest」），finding 0。
-- `requirements-framework.txt` 直接依赖：17 条；未使用候选 0（启发式）。
+- 声明条目：6428；锁文件 4 个（`frontend/control-ui/package-lock.json`、`tools/testing/package-lock.json`、`website/package-lock.json`、`kernel/dsh/pnpm-lock.yaml`）。
+- 合计清单 389 个，警告 0（无「missing expected manifest」），finding 0，未声明导入 0（`dateutil`、`faster_whisper`、`System` 三项按登记归类）。
+- `requirements-framework.txt` 直接依赖：18 条（新增 `mcp>=1.12.4,<2`，与 fastmcp 2.11.3 自声明范围一致，不改变实际安装集合）；未使用候选 0（启发式）。
 
 未记录：`.venv` 体积、`kernel/dsh` 与 `frontend/control-ui` 的 `node_modules` 体积、`npm --prefix frontend/control-ui run build` 与 `python tools/setup_framework.py` 耗时。审计环境未安装前端/内核依赖且不联网，这些数值需要在准备依赖的机器上按同一命令补充，不设阈值断言。
 

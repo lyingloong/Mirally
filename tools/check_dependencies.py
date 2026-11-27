@@ -8,9 +8,10 @@ Run from the repository root:
 The audit only reads files: it never installs, upgrades or deletes anything and
 never uses the network. It reports (1) the same direct dependency declared with
 different constraints inside one environment, (2) requirements-framework.txt
-entries whose module is never imported under ``mirally/`` (candidate only), and
-(3) which manifests are runtime, CI, upstream, website, tooling or
-fixtures.
+entries whose module is never imported under ``mirally/`` (candidate only),
+(3) ``mirally/`` imports whose top-level module no product runtime manifest
+declares and ``IMPLICIT_IMPORTS`` does not register, and (4) which manifests
+are runtime, CI, upstream, website, tooling or fixtures.
 """
 
 from __future__ import annotations
@@ -50,6 +51,19 @@ IMPORT_NAMES = {
     "tzdata": ("zoneinfo",),
     "winrt-runtime": ("winrt",),
 }
+# The local product package; its imports are never third-party.
+LOCAL_PACKAGE = "mirally"
+# Optional or upstream-provided imports that legitimately stay outside the
+# product runtime manifest: module -> (providing distribution, why). A
+# mandatory import must be declared in requirements-framework.txt instead;
+# only a D7-style optional import (docs/reference/dependencies.md) or a
+# namespace an upstream distribution brings in may be registered here, and
+# every entry must be re-checked when its provider is upgraded or replaced.
+IMPLICIT_IMPORTS = {
+    "dateutil": ("python-dateutil", "optional timezone fallback in the memory recall parser"),
+    "faster_whisper": ("faster-whisper", "D7 optional local speech, installed manually outside the manifest"),
+    "System": ("pythonnet", ".NET namespaces provided by pythonnet, which pywebview installs on Windows"),
+}
 REQUIREMENT = re.compile(r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[^\]]*\])?\s*"
                          r"(?P<constraint>[^;#]*?)\s*(?:;.*)?$")
 # Last-resort fallback for a file that is not valid Python: a whole import list.
@@ -63,6 +77,14 @@ FROM_IMPORT = re.compile(r"^[ \t]*from[ \t]+(?P<module>[A-Za-z_][\w.]*)[ \t]+imp
 
 def canonical(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name.strip().lower())
+
+
+def _import_targets(dependency_name: str) -> tuple[str, ...]:
+    """Import-name patterns a declared distribution is expected to provide."""
+    canonical_name = canonical(dependency_name)
+    if canonical_name.startswith("winrt-windows-"):
+        return ("winrt",)
+    return IMPORT_NAMES.get(canonical_name, (canonical_name.replace("-", "_"),))
 
 
 def _walk(base: Path, filename: str | None = None) -> list[Path]:
@@ -212,7 +234,13 @@ def duplicate_declarations(manifests: list[dict]) -> tuple[list[dict], int]:
 
 
 def imports_under(package_root: Path, warnings: list[str] | None = None) -> set[str]:
-    """Modules imported by any ``.py`` file under the package root.
+    """Union of every absolute module name imported under the package root."""
+    return set().union(*imports_by_file(package_root, warnings).values())
+
+
+def imports_by_file(package_root: Path,
+                    warnings: list[str] | None = None) -> dict[Path, set[str]]:
+    """Absolute module names imported by each ``.py`` file under the package root.
 
     Parses with ``ast`` so every name in ``import a, b as c`` and
     ``from x import y`` is collected (a regex only saw the first module and
@@ -220,8 +248,9 @@ def imports_under(package_root: Path, warnings: list[str] | None = None) -> set[
     parse contributes the module names from its ``import``/``from ... import``
     lines, and is always reported in ``warnings``: a partial scan must never
     look like a complete one, or a real dependency would be offered for removal.
+    A file that cannot even be read contributes nothing and warns too.
     """
-    modules: set[str] = set()
+    per_file: dict[Path, set[str]] = {}
     for path in _walk(package_root):
         if path.suffix != ".py":
             continue
@@ -237,7 +266,7 @@ def imports_under(package_root: Path, warnings: list[str] | None = None) -> set[
             tree = ast.parse(text, filename=str(path))
         except (SyntaxError, ValueError) as error:
             recovered = _imports_from_lines(text)
-            modules.update(recovered)
+            per_file[path] = recovered
             if warnings is not None:
                 reason = getattr(error, "msg", None) or type(error).__name__
                 line = getattr(error, "lineno", None)
@@ -249,12 +278,14 @@ def imports_under(package_root: Path, warnings: list[str] | None = None) -> set[
                 warnings.append(f"unparseable python file: {relative} "
                                 f"({type(error).__name__}: {reason}{location}); {detail}")
             continue
+        modules: set[str] = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 modules.update(alias.name for alias in node.names)
             elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
                 modules.add(node.module)
-    return modules
+        per_file[path] = modules
+    return per_file
 
 
 def _relative(path: Path, *, max_levels: int = 3) -> str:
@@ -290,17 +321,16 @@ def _imports_from_lines(text: str) -> set[str]:
 
 def unused_candidates(root: Path, manifests: list[dict],
                       warnings: list[str] | None = None) -> list[dict]:
-    modules = imports_under(root / "mirally", warnings)
+    return _unused_candidates(imports_under(root / "mirally", warnings), manifests)
+
+
+def _unused_candidates(modules: set[str], manifests: list[dict]) -> list[dict]:
     candidates: list[dict] = []
     for manifest in manifests:
         if manifest["environment"] != "product-venv" or manifest["kind"] != "runtime":
             continue
         for dependency in manifest["dependencies"]:
-            canonical_name = canonical(dependency["name"])
-            if canonical_name.startswith("winrt-windows-"):
-                targets = ("winrt",)
-            else:
-                targets = IMPORT_NAMES.get(canonical_name, (canonical_name.replace("-", "_"),))
+            targets = _import_targets(dependency["name"])
             if any(module == target or module.startswith(target + ".") for target in targets for module in modules):
                 continue
             candidates.append({"manifest": manifest["path"], "name": dependency["name"],
@@ -308,20 +338,65 @@ def unused_candidates(root: Path, manifests: list[dict],
     return candidates
 
 
+def declared_import_names(manifests: list[dict]) -> set[str]:
+    """Import names the product runtime manifest already provides."""
+    names: set[str] = set()
+    for manifest in manifests:
+        if manifest["environment"] != "product-venv" or manifest["kind"] != "runtime":
+            continue
+        for dependency in manifest["dependencies"]:
+            names.update(_import_targets(dependency["name"]))
+    return names
+
+
+def undeclared_imports(root: Path, manifests: list[dict],
+                       imports: dict[Path, set[str]]) -> list[dict]:
+    """Top-level modules imported under ``mirally/`` that nothing declares.
+
+    Each imported module is reduced to its top-level name (case-sensitive) and
+    classified as standard library, the local package, a distribution declared
+    in the product runtime manifest (``IMPORT_NAMES`` reverse lookup,
+    ``winrt-Windows.*`` folded to ``winrt``, ``canonical()`` folding) or a
+    registered implicit import. Anything else is reported: on a machine
+    prepared from the manifest that import fails, the blind spot the
+    declared-imported direction cannot see. Files are keyed by audit-root
+    relative paths so the report stays free of absolute paths.
+    """
+    declared = declared_import_names(manifests)
+    stdlib = sys.stdlib_module_names
+    findings: list[dict] = []
+    for path in sorted(imports, key=lambda item: item.as_posix()):
+        for module in sorted(imports[path]):
+            top = module.split(".")[0]
+            if top in stdlib or top == LOCAL_PACKAGE or top in declared or top in IMPLICIT_IMPORTS:
+                continue
+            try:
+                relative = path.relative_to(root).as_posix()
+            except ValueError:
+                relative = _relative(path)
+            findings.append({"file": relative, "module": top})
+    return findings
+
+
 def audit(root: Path = ROOT) -> dict:
     root = root.resolve()
     manifests, warnings, extras = collect_manifests(root)
     duplicates, duplicate_groups = duplicate_declarations(manifests)
-    unused = unused_candidates(root, manifests, warnings)
+    imports = imports_by_file(root / "mirally", warnings)
+    modules: set[str] = set().union(*imports.values()) if imports else set()
+    unused = _unused_candidates(modules, manifests)
+    undeclared = [{"kind": "undeclared-import", **item} for item in undeclared_imports(root, manifests, imports)]
     findings = [{"kind": "duplicate-constraint", **item} for item in duplicates
                 if item["severity"] == "finding"]
     findings += [{"kind": "unused-candidate", **item} for item in unused]
+    findings += undeclared
     declarations = sum(len(item["dependencies"]) for item in manifests)
     return {
         "manifests": manifests,
         "lockfiles": extras["lockfiles"],
         "duplicates": duplicates,
         "unused_candidates": unused,
+        "undeclared_imports": undeclared,
         "findings": findings,
         "warnings": warnings,
         "summary": {
@@ -333,6 +408,7 @@ def audit(root: Path = ROOT) -> dict:
             "conflicting_groups": len(duplicates),
             "informational_conflicts": sum(1 for item in duplicates if item["severity"] == "info"),
             "unused_candidates": len(unused),
+            "undeclared_imports": len(undeclared),
             "findings": len(findings),
             "warnings": len(warnings),
         },
@@ -348,6 +424,7 @@ def print_summary(report: dict) -> None:
           f"Duplicate groups: {summary['duplicate_groups']} "
           f"(conflicting: {summary['conflicting_groups']}, "
           f"informational: {summary['informational_conflicts']})")
+    print(f"  Undeclared imports: {summary['undeclared_imports']}")
     for warning in report["warnings"]:
         print(f"  WARN {warning}")
     if report["findings"]:
@@ -357,9 +434,12 @@ def print_summary(report: dict) -> None:
                 constraints = ", ".join(f"{item['manifest']}={item['constraint']}"
                                         for item in finding["declarations"])
                 print(f"    conflict[{finding['environment']}] {finding['name']}: {constraints}")
-            else:
+            elif finding["kind"] == "unused-candidate":
                 print(f"    unused-candidate {finding['manifest']}: {finding['name']}"
                       f"{finding['constraint']} (no import of {', '.join(finding['imports'])})")
+            else:
+                print(f"    undeclared-import {finding['file']}: {finding['module']} "
+                      f"(not declared by the product runtime manifest, not registered in IMPLICIT_IMPORTS)")
     else:
         print("  Findings: 0")
 

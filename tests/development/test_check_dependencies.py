@@ -286,6 +286,85 @@ class CheckDependenciesTests(unittest.TestCase):
         self.assertEqual(len(warnings), 2, warnings)
         self.assertTrue(any("mirally/binary.py" in w and "unreadable" in w for w in warnings), warnings)
 
+    def test_undeclared_import_is_a_finding_and_exits_one(self) -> None:
+        """`import <package nobody declares>` is invisible to the declared->imported
+        direction; the reverse pass reports it with file attribution and exit 1."""
+        root = self.base_tree()
+        self.write(root, "mirally/app.py", "import requests\nimport webview\nimport numpy\n")
+        report = check_dependencies.audit(root)
+        self.assertEqual(report["undeclared_imports"],
+                         [{"kind": "undeclared-import", "file": "mirally/app.py", "module": "numpy"}])
+        self.assertEqual(report["summary"]["undeclared_imports"], 1)
+        self.assertEqual(report["summary"]["findings"], 1)
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(check_dependencies.main(["--root", str(root)]), 1)
+
+        output = io.StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(check_dependencies.main(["--root", str(root), "--json"]), 1)
+        payload = json.loads(output.getvalue())
+        self.assertEqual(payload["undeclared_imports"],
+                         [{"kind": "undeclared-import", "file": "mirally/app.py", "module": "numpy"}])
+        self.assertEqual(payload["summary"]["undeclared_imports"], 1)
+        self.assertEqual([item["kind"] for item in payload["findings"]], ["undeclared-import"])
+
+        # Declaring the package restores a clean audit (the fixture-side probe).
+        with (root / "requirements-framework.txt").open("a", encoding="utf-8") as stream:
+            stream.write("numpy==2.0.0\n")
+        report = check_dependencies.audit(root)
+        self.assertEqual(report["undeclared_imports"], [])
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(check_dependencies.main(["--root", str(root)]), 0)
+
+    def test_registered_declared_stdlib_local_and_relative_imports_pass(self) -> None:
+        """Only genuinely unknown top-level modules are reported, never these."""
+        root = self.base_tree()
+        self.write(root, "mirally/app.py",
+                   "import requests\nimport webview\n"        # declared (+ IMPORT_NAMES mapping)
+                   "import os, sys, sqlite3\n"                # standard library
+                   "from dateutil.tz import gettz\n"          # registered: optional tz fallback
+                   "import faster_whisper\n"                  # registered: D7 optional speech
+                   "from mirally.core.store import MemoryStore\n")  # local package
+        self.write(root, "mirally/sibling.py", "from . import app\nfrom .app import helper\n")
+        report = check_dependencies.audit(root)
+        self.assertEqual(report["undeclared_imports"], [])
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(check_dependencies.main(["--root", str(root)]), 0)
+
+    def test_registered_dotted_import_folds_to_top_level_case_sensitively(self) -> None:
+        """`System.Drawing`/`System.Windows.Forms` are the registered `System` module;
+        classification is case-sensitive, so the lowercase twin stays a finding."""
+        root = self.base_tree()
+        self.write(root, "mirally/shell.py",
+                   "import System.Drawing\nfrom System.Windows.Forms import FormWindowState\n")
+        self.assertEqual(check_dependencies.audit(root)["undeclared_imports"], [])
+        self.write(root, "mirally/shell.py", "import system\n")
+        report = check_dependencies.audit(root)
+        self.assertEqual([(item["file"], item["module"]) for item in report["undeclared_imports"]],
+                         [("mirally/shell.py", "system")])
+
+    def test_undeclared_pass_reuses_syntax_error_recovery_and_warning(self) -> None:
+        """A file that does not parse keeps the existing warning path and its
+        recovered imports are classified too, with the same file attribution."""
+        root = self.base_tree()
+        self.write(root, "mirally/broken.py", "from requests import get\nimport numpy\n\ndef broken(:\n")
+        report = check_dependencies.audit(root)
+        warnings = [warning for warning in report["warnings"] if "unparseable" in warning]
+        self.assertEqual(len(warnings), 1, report["warnings"])
+        self.assertIn("mirally/broken.py", warnings[0])
+        self.assertIn("recovered 2 module(s)", warnings[0])
+        self.assertEqual([(item["file"], item["module"]) for item in report["undeclared_imports"]],
+                         [("mirally/broken.py", "numpy")])
+
+    def test_real_repository_has_no_undeclared_imports(self) -> None:
+        """Contract for every PR: each mandatory import under mirally/ is declared
+        in requirements-framework.txt or registered in IMPLICIT_IMPORTS, so a new
+        `import <undeclared package>` fails here instead of only passing on
+        machines that happen to have it installed. Offline audit of the real tree."""
+        report = check_dependencies.audit(ROOT)
+        self.assertEqual(report["undeclared_imports"], [], report["findings"])
+        self.assertEqual(report["summary"]["undeclared_imports"], 0)
+
     def relative_source(self, root: Path, name: str) -> str:
         return (root / name).read_text(encoding="utf-8")
 
