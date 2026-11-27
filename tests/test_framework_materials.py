@@ -25,6 +25,35 @@ def office_archive(parts: dict[str, str | bytes]) -> bytes:
     return stream.getvalue()
 
 
+def text_pdf(pages: list[str]) -> bytes:
+    """One uncompressed text line per physical page, with a valid xref table."""
+    count = len(pages)
+    font_id = 3 + 2 * count
+    objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        f"<< /Type /Pages /Kids [{' '.join(f'{3 + 2 * index} 0 R' for index in range(count))}] /Count {count} >>",
+    ]
+    for index, line in enumerate(pages):
+        safe = line.replace("\\", r"\\").replace("(", r"\(").replace(")", r"\)")
+        stream = f"BT /F1 12 Tf 72 720 Td ({safe}) Tj ET"
+        objects.append(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents {4 + 2 * index} 0 R "
+                       f"/Resources << /Font << /F1 {font_id} 0 R >> >> >>")
+        objects.append(f"<< /Length {len(stream)} >>\nstream\n{stream}\nendstream")
+    objects.append("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+    output = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(objects, 1):
+        offsets.append(len(output))
+        output += f"{number} 0 obj\n{body}\nendobj\n".encode("ascii")
+    xref_at = len(output)
+    output += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode("ascii")
+    for offset in offsets:
+        output += f"{offset:010d} 00000 n \n".encode("ascii")
+    output += (f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
+               f"startxref\n{xref_at}\n%%EOF").encode("ascii")
+    return bytes(output)
+
+
 class FrameworkMaterialsTests(unittest.TestCase):
     def test_chinese_text_round_trips_supported_encodings(self):
         text = "中文材料：活动、记忆与个人助理\n第二行"
@@ -131,6 +160,45 @@ class FrameworkMaterialsTests(unittest.TestCase):
         result = extract("加密.pdf", encrypted.getvalue())
         self.assertEqual(result["status"], "unsupported")
         self.assertNotIn("text", result)
+
+    def test_pdf_pages_keep_physical_page_boundaries_for_citation(self):
+        result = extract("论文.pdf", text_pdf([
+            "Abstract introduces the locality-aware backup scheduler",
+            "Section 7 evaluation repeats the locality-aware scheduler",
+        ]))
+        self.assertEqual(result["status"], "partial")
+        self.assertFalse(result["truncated"])
+        self.assertEqual([page["page"] for page in result["pages"]], [1, 2])
+        self.assertIn("Abstract", result["pages"][0]["text"])
+        self.assertNotIn("evaluation", result["pages"][0]["text"])
+        self.assertIn("evaluation", result["pages"][1]["text"])
+        self.assertIn("【第 1 页】", result["text"])
+        self.assertIn("【第 2 页】", result["text"])
+        self.assertLess(result["text"].index("Abstract"), result["text"].index("evaluation"))
+        self.assertIn("物理页码", result["note"])
+
+    def test_pdf_blank_pages_stay_numbered_and_budget_truncation_is_explicit(self):
+        blank = io.BytesIO()
+        from pypdf import PdfWriter
+        writer = PdfWriter()
+        for _ in range(2):
+            writer.add_blank_page(width=72, height=72)
+        writer.write(blank)
+        result = extract("白页.pdf", blank.getvalue())
+        self.assertEqual([page["page"] for page in result["pages"]], [1, 2])
+        self.assertEqual(result["pages"][0]["text"], "")
+        over = extract("超长.pdf", text_pdf(["tail-marker " + "x" * (MAX_TEXT + 10), "never-reached page"]))
+        self.assertTrue(over["truncated"])
+        self.assertEqual([page["page"] for page in over["pages"]], [1])
+        self.assertTrue(over["pages"][0]["truncated"])
+        self.assertNotIn("never-reached", over["text"])
+
+    def test_worker_serializes_pdf_pages_for_the_node_host(self):
+        result = self.run_worker({"name": "论文.pdf", "data": base64.b64encode(text_pdf([
+            "Page one about locality", "Page two about compaction"])).decode()})
+        self.assertEqual(result["status"], "partial")
+        self.assertEqual([page["page"] for page in result["pages"]], [1, 2])
+        self.assertIn("compaction", result["pages"][1]["text"])
 
     def test_upload_byte_limit_applies_before_format_detection(self):
         with self.assertRaises(ValueError):

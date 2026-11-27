@@ -61,9 +61,10 @@ test('abort during a pending final body read cannot return already buffered JSON
 
 function capabilityHost({provider, rpc, guard} = {}) {
   const tools = new Map(), methods = [], config = {revision: 1, web_enabled: true, search_connection: 'chat'};
-  const host = {ctx: {tools: {register: tool => tools.set(tool.name, tool)}}, nativeConversations: new Map([['native', {}]]),
+  const host = {ctx: {tools: {register: tool => tools.set(tool.name, tool)}}, nativeConversations: new Map([['native', {conversation_id: 'one'}]]),
     requestPolicies: new Map([['native', {allowFiles: true}]]), activeCommands: new Map([['native', 'command']]),
     authorizations: new AsyncLocalStorage(), guard: guard ?? (async () => ({})),
+    materials: {async search(input) { methods.push(['material.search', input]); return {status: 'ready', hits: [{page: 2, snippet: '原文片段'}], truncated: false}; }},
     rpc: async (method, args) => {methods.push([method, args]);
       if (rpc) return rpc(method, args);
       if (method === 'capabilities.get') return {...config};
@@ -112,4 +113,44 @@ test('workspace writes require the actual command grant and product guard, and c
   assert.equal(result.real, 'file result');
   assert.deepEqual(h.methods.at(-1), ['internal.workspace.write', {path: 'new.txt', content: 'one'}]);
   await assert.rejects(h.tools.get('mirally_read_file').execute({path: 'x'}, {agent: {id: 'foreign'}, signal: new AbortController().signal}), /当前 Mirally 会话/);
+});
+
+test('material search stays conversation-owned and surfaces the stored per-page extraction', async () => {
+  const h = capabilityHost();
+  const result = await h.tools.get('mirally_search_material').execute({query: ' 局部注意力 ', material: '论文'}, h.exec());
+  assert.equal(result.status, 'ready');
+  assert.deepEqual(h.methods.at(-1), ['material.search', {conversation_id: 'one', query: ' 局部注意力 ', material: '论文'}]);
+  assert.equal(result.hits[0].page, 2);
+  await assert.rejects(h.tools.get('mirally_search_material').execute({query: 'q'}, {agent: {id: 'foreign'}, signal: new AbortController().signal}), /当前 Mirally 会话/);
+});
+
+test('article digest deduplicates sources, bounds candidates, and reports unavailable search explicitly', async () => {
+  const off = capabilityHost();
+  off.config.web_enabled = false;
+  assert.deepEqual(await off.tools.get('mirally_article_digest').execute({topic: '局部注意力'}, off.exec()),
+    {status: 'unsupported', note: '网页研究尚未开启，请在设置 → 通用中明确开启后再使用文章速递。'});
+  assert.deepEqual(off.methods, [['capabilities.get', undefined]], 'A closed web capability only reads the gate and never resolves a provider or searches');
+  const queries = [];
+  const h = capabilityHost({provider: () => ({search: async args => {
+    queries.push(args);
+    return {results: [
+      {title: '论文甲', url: 'https://source.test/a/', date: '2026-11-20', summary: '摘要甲'},
+      {title: '论文甲重复', url: 'https://SOURCE.test/a#refs'},
+      {title: '论文乙', url: 'https://source.test/b', summary: '摘要乙'},
+      {title: '', url: ''},
+    ]};
+  }})});
+  const result = await h.tools.get('mirally_article_digest').execute({topic: '局部注意力', tags: 'backup'}, h.exec());
+  assert.equal(result.status, 'ready');
+  assert.deepEqual(queries, [{query: '局部注意力 backup', count: 10}]);
+  assert.equal(result.items.length, 2);
+  assert.deepEqual(result.items[0], {title: '论文甲', url: 'https://source.test/a/', date: '2026-11-20', summary: '摘要甲'});
+  assert.equal(result.items[1].date, null);
+  assert.equal(result.untrusted_content, true);
+  assert.match(result.note, /不要推测/);
+  for (const topic of ['', '   ', '主'.repeat(129)]) await assert.rejects(h.tools.get('mirally_article_digest').execute({topic}, h.exec()), /1–128/);
+  const none = capabilityHost({provider: () => ({search: async () => ({results: []})})});
+  const empty = await none.tools.get('mirally_article_digest').execute({topic: '冷启动主题'}, none.exec());
+  assert.equal(empty.status, 'empty'); assert.deepEqual(empty.items, []);
+  assert.match(empty.note, /不要.*编造来源|不把搜索结果当作已读/);
 });

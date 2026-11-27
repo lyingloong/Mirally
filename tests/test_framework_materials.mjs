@@ -80,6 +80,49 @@ test('combined material count and text bounds apply before returning model conte
   assert.match((await f.materials.content([record.id], 'one'))[1].text, /材料已截短/);
 });
 
+test('a real PDF traverses the offline extractor with per-page boundaries the host can search', async t => {
+  const f = await fixture(t);
+  // The same minimal two-page text PDF as the Python fixture, generated once
+  // with a valid xref: page 1 introduces locality scheduling, page 2 evaluates it.
+  const pdf = 'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUiA1IDAgUl0gL0NvdW50IDIgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNyAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCA1OCA+PgpzdHJlYW0KQlQgL0YxIDEyIFRmIDcyIDcyMCBUZCAobG9jYWxpdHkgc2NoZWR1bGVyIGFic3RyYWN0KSBUaiBFVAplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNiAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNyAwIFIgPj4gPj4gPj4KZW5kb2JqCjYgMCBvYmoKPDwgL0xlbmd0aCA1OSA+PgpzdHJlYW0KQlQgL0YxIDEyIFRmIDcyIDcyMCBUZCAoZXZhbHVhdGlvbiBjb25maXJtcyBsb2NhbGl0eSkgVGogRVQKZW5kc3RyZWFtCmVuZG9iago3IDAgb2JqCjw8IC9UeXBlIC9Gb250IC9TdWJ0eXBlIC9UeXBlMSAvQmFzZUZvbnQgL0hlbHZldGljYSA+PgplbmRvYmoKeHJlZgowIDgKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDEyMSAwMDAwMCBuIAowMDAwMDAwMjQ3IDAwMDAwIG4gCjAwMDAwMDAzNTUgMDAwMDAgbiAKMDAwMDAwMDQ4MSAwMDAwMCBuIAowMDAwMDAwNTkwIDAwMDAwIG4gCnRyYWlsZXIKPDwgL1NpemUgOCAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKNjYwCiUlRU9G';
+  const record = await f.materials.upload({conversation_id: 'one', name: '论文.pdf', media_type: 'application/pdf', data: pdf});
+  assert.equal(record.status, 'partial');
+  const stored = JSON.parse(await readFile(join(f.materials.directory, record.id + '.json'), 'utf8'));
+  assert.deepEqual(stored.extraction.pages.map(page => page.page), [1, 2]);
+  assert.match(stored.extraction.pages[0].text, /locality scheduler abstract/);
+  assert.match(stored.extraction.text, /【第 1 页】/); assert.match(stored.extraction.text, /【第 2 页】/);
+  const found = await f.materials.search({conversation_id: 'one', query: 'evaluation'});
+  assert.equal(found.status, 'ready');
+  assert.equal(found.hits.length, 1);
+  assert.equal(found.hits[0].page, 2);
+  assert.equal(found.hits[0].material, '论文.pdf');
+  assert.match(found.hits[0].snippet, /evaluation confirms locality/);
+});
+
+test('material search stays inside the conversation and reports empty and unsupported without inventing hits', async t => {
+  const f = await fixture(t);
+  f.materials.extract = async name => name.endsWith('.pdf')
+    ? {status: 'partial', text: '第一节 局部注意力机制\n\n【第 7 页】\n第七节 实验里局部注意力机制再次出现', truncated: false,
+      pages: [{page: 1, text: '第一节 局部注意力机制'}, {page: 7, text: '第七节 实验里局部注意力机制再次出现'}]}
+    : name.endsWith('.mp3') ? {status: 'unsupported', note: '音频尚未转写'} : {status: 'ready', text: '私有会话材料'};
+  const paper = await f.materials.upload({conversation_id: 'one', name: '注意力论文.pdf', data: b64('x')});
+  await f.materials.upload({conversation_id: 'one', name: '会议.mp3', data: b64('x')});
+  await f.materials.upload({conversation_id: 'two', name: 'private.txt', data: b64('x')});
+  const hits = await f.materials.search({conversation_id: 'one', query: ' 局部注意力 '});
+  assert.equal(hits.status, 'ready');
+  assert.deepEqual(hits.hits.map(hit => [hit.material, hit.page]), [['注意力论文.pdf', 1], ['注意力论文.pdf', 7]]);
+  assert.equal(hits.hits[0].material_id, paper.id);
+  assert.equal(hits.hits[0].page_truncated, false);
+  const filtered = await f.materials.search({conversation_id: 'one', query: '局部注意力', material: '不存在'});
+  assert.equal(filtered.status, 'unsupported'); assert.match(filtered.note, /没有可检索/);
+  assert.equal((await f.materials.search({conversation_id: 'one', query: '不存在的词'})).status, 'empty');
+  assert.equal((await f.materials.search({conversation_id: 'two', query: '局部注意力'})).status, 'empty');
+  const capped = await f.materials.search({conversation_id: 'one', query: '局部注意力', limit: 1});
+  assert.equal(capped.hits.length, 1); assert.equal(capped.truncated, true);
+  for (const query of ['', '   ', 'q'.repeat(513)]) await assert.rejects(f.materials.search({conversation_id: 'one', query}), /1–512/);
+  await assert.rejects(f.materials.search({conversation_id: '', query: 'x'}), /conversation/);
+});
+
 test('unsupported audio and failed extraction remain explicit notes with their original native files', async t => {
   const f = await fixture(t);
   f.materials.extract = async name => name.endsWith('.mp3') ? {status: 'unsupported', note: '音频尚未转写'} : {status: 'error', note: '材料解析失败'};
