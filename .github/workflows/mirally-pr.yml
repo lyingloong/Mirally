@@ -87,7 +87,11 @@ jobs:
       - name: Test Python product core
         run: |
           $tests = @(
+            'tests.test_activity_browser',
+            'tests.test_activity_browser_queries',
+            'tests.test_activity_monitor',
             'tests.test_activity_projection',
+            'tests.test_activity_read_surface',
             'tests.test_delivery_invalidation',
             'tests.test_desktop_surface',
             'tests.test_framework_activity_views',

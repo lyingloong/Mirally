@@ -31,7 +31,8 @@ from mirally.platform.activity.uia_worker import content_fields, inspect_tree
 from mirally.platform.activity.uia_structure import UIAStructureResult, WindowsUIASource
 from mirally.platform.activity.wgc_capture import CaptureResult, VisualSignatureGate, WindowsWindowCaptureSource
 from mirally.runtime.activity.config import load_activity_config
-from mirally.runtime.activity.monitor import _safe_observation, build_test_config
+from mirally.runtime.activity.monitor import build_test_config
+from mirally.runtime.activity.read_surface import safe_observation
 from mirally.runtime.activity.scheduler import CaptureJob, CaptureQueue
 from mirally.runtime.activity.service import ActivitySensor
 
@@ -781,9 +782,9 @@ class RichCaptureTests(unittest.TestCase):
             boot_id="boot", payload={"inserted_text":"secret"},
             uia_summary={"nodes":[{"name":"secret", "value":"secret", "text":"secret"}],
                          "focused_control":{"value":"secret"}})
-        self.assertNotIn("secret", json.dumps(_safe_observation(value)))
-        self.assertIn("secret", json.dumps(_safe_observation(value, include_content=True)))
-        self.assertEqual(_safe_observation(value)["payload"]["inserted_text_char_count"], 6)
+        self.assertNotIn("secret", json.dumps(safe_observation(value)))
+        self.assertIn("secret", json.dumps(safe_observation(value, include_content=True)))
+        self.assertEqual(safe_observation(value)["payload"]["inserted_text_char_count"], 6)
 
     def test_config_and_test_default_include_all_three_content_streams(self):
         with tempfile.TemporaryDirectory() as directory:

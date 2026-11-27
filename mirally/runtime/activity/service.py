@@ -578,7 +578,13 @@ class ActivitySensor:
                 if stop_input is not None:
                     stop_input()
             if self._started:
-                self.store.set_state("collector", {"status": "stopped", "at": int(time.time() * 1000)})
+                # The terminal row has to name the generation it ended: a reader that
+                # compares it against the last diagnostics row can otherwise mistake a
+                # stop of this collection for one of an older or newer collection.
+                self.store.set_state("collector", {
+                    "status": "stopped", "at": int(time.time() * 1000),
+                    "source_id": self.source_id, "source_epoch": self.source_epoch,
+                })
             self._started = False
 
     def close(self) -> None:

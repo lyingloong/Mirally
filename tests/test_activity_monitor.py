@@ -20,9 +20,9 @@ from mirally.platform.activity.wgc_capture import WindowsWindowCaptureSource
 from mirally.runtime.activity.monitor import (
     ActivityMonitorRuntime,
     MONITOR_HTML,
-    _safe_observation,
     build_test_config,
 )
+from mirally.runtime.activity.read_surface import safe_observation
 from mirally.runtime.activity.service import ActivitySensor
 from mirally.runtime.activity.lock import ActivityProcessLock
 
@@ -295,12 +295,12 @@ class ActivityMonitorTests(unittest.TestCase):
             ocr_summary={"status": "ok", "text": "private text", "lines": [{"text": "private text"}]},
             visual_summary={"status": "ok", "path": "C:/private.png"},
         )
-        safe = _safe_observation(value)
+        safe = safe_observation(value)
         self.assertNotIn("text", safe["ocr_summary"])
         self.assertTrue(safe["ocr_summary"]["text_available"])
         self.assertEqual(safe["ocr_summary"]["line_count"], 1)
         self.assertNotIn("path", safe["visual_summary"])
-        revealed = _safe_observation(value, include_content=True)
+        revealed = safe_observation(value, include_content=True)
         self.assertEqual(revealed["ocr_summary"]["text"], "private text")
 
     def test_test_config_is_isolated_and_content_is_explicit(self) -> None:
